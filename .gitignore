@@ -1,0 +1,6 @@
+﻿.vscode
+cache/*
+!cache/beyond.local.objects.lz4.msgp
+__debug_bin
+*.exe
+adalanche-*-x64-*

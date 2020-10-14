@@ -1,0 +1,162 @@
+<html>
+<head>
+  <title>adalanche - Active Directory ACL Visualizer</title>
+  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
+  <link rel="stylesheet" href="bootstrap.min.css" />
+  <link rel="stylesheet" href="bootstrap4-toggle.min.css" />
+  <link rel="stylesheet" href="cytoscape-context-menus.css" />
+  <link rel="stylesheet" href="tippy.css" />
+  <script src="jquery.min.js"></script>
+  <script src="bootstrap.bundle.min.js"></script>
+  <script src="bootstrap4-toggle.min.js"></script>
+  <script src="cytoscape.min.js"></script>
+  <script src="cytoscape-context-menus.js"></script>
+  <script src="dagre.min.js"></script>
+  <script src="cytoscape-dagre.js"></script>
+  <script src="layout-base.js"></script>
+  <script src="cose-base.js"></script>
+  <script src="cytoscape-fcose.js"></script>
+  <script src="custom.js"></script>
+
+  <style>
+      body {
+        overflow: hidden;
+      }
+      #cy {
+          background: black;
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          top: 0px;
+          left: 0px;
+      }
+      #infoboxes > div {
+          position: absolute;
+      }
+      #status {
+          color: white;
+          max-width: 220px;
+          bottom: 20px;
+          left: 20px;
+      }
+      #route {
+          color: white;
+          max-width: 40%;
+          top: 20px;
+          right: 20px;
+      }
+      #details {
+          color: white;
+          max-width: 55%;
+          top: 20px;
+          left: 20px;
+      }
+      #about {
+          right: 20px;
+          bottom: 20px;
+      }
+      #outerquery {
+          color: white;
+          position: absolute;
+          left: 50%;
+          margin-left: -250px;
+          bottom: 0px;
+          width: 500px;
+      }
+      #outeroptions {
+          color: white;
+          position: absolute;
+          left: 50%;
+          margin-left: -250px;
+          top: 0px;
+          width: 500px;
+      }
+
+  </style>
+</head>
+
+<body>
+  <div id="cy"></div>
+  <div id="infoboxes">
+    <div id="status" class="p-2 bg-primary text-white">Welcome ...</div>
+    <div id="route" style="display: block; max-width: 30%; max-height: 70%" class="p-2 bg-primary overflow-auto">No route yet</div>
+    <div id="details" class="p-2 bg-primary text-white">No details</div>
+    <div id="about" class="text-right">
+      <a href="https://www.netsection.com/adalanche"><img src="adalanche-logo-white.svg" height="32px"></a><br/><span class="text-white"> by  </span>
+      <a href="https://www.netsection.com/"><img src="nsslogo.png" height="32px"></a>
+      <!--a href="https://twitter.com/lkarlslund"><img src="icons/twitter.svg" height="16px"> @lkarlslund</a-->
+    </div>
+  </div>
+    <div id="outeroptions" class="bg-primary">
+      <div id="optionsdiv" class="p-2">
+<!--
+        <ul class="nav nav-tabs nav-fill" id="optionstabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <a class="nav-link active" id="pwnoptions-tab" data-toggle="tab" href="#pwnoptionsdiv" role="tab" aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link" id="graphoptions-tab" data-toggle="tab" href="#graphoptionsdiv" role="tab" aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
+          </li>
+        </ul>
+        <div class="tab-content" id="optionstabsContent"> -->
+          <div class="tab-pane fade show active" id="pwnoptionsdiv" role="tabpanel" aria-labelledby="pwnoptions-tab">
+              <form id="optionsform">
+              <div id="pwnfilter">
+              Loading ...
+              </div>
+              </form> 
+          </div>
+<!--          <div class="tab-pane fade" id="graphoptionsdiv" role="tabpanel" aria-labelledby="graphoptions-tab">
+          Something here .... :-)
+        </div>
+          </div> -->
+      </div>   
+      <div id="optionspop" class="text-center">Options</div>
+    </div>
+    <div id="outerquery" class="bg-primary">
+      <div id="querypop" class="text-center">LDAP Query</div>
+      <div id="querydiv" class="p-2"> 
+        <form id="queryform" class="m-0">
+          <textarea id="querytext" class="form-control" name="query" rows=4></textarea>
+          <div id="queryerror"></div>
+          <div id="querybuttons" class="mt-2">
+            <div class="btn-group dropup">
+              <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Sample Queries
+              </button>
+              <div id="predefinedqueries" class="dropdown-menu">
+                <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=Domain Admins)(name=Enterprise Admins)))" mode="Normal" depth=99 methods="default">Who can pwn Domain Admins and Enterprise Admins?</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">VMware groups, but not via DA/EA/Administrators</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Backup groups, but not via DA/EA/Administrators</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))" mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal" depth=1 methods="default">Users that are direct members of more than 10 groups</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal" depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(member:count:>100))" mode="Normal" depth=99 methods="default">Groups that have more than 100 direct members</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192)(_limit=100))" mode="Normal" depth=99>Servers (100 random)</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))" mode="Normal" depth=99>Workstations (100 random)</a>
+                <a class="dropdown-item" href="#" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal" depth=1>Accounts with no Kerberos preauth requirement</a>
+              </div>
+            </div>
+            <input id="force" type="checkbox" name="force"  data-on="Force" data-off="Safe" data-toggle="toggle" data-size="sm">
+            <label for="maxdepth">Max depth:</label><input style="text-align: right; width: 50px" id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99">
+            <div class="btn-group float-right" role="group">
+              <button id="querysubmit" type="button" class="btn dropdown-toggle btn-light btn-sm" data-toggle="dropdown">
+                Analyze
+              </button>
+              <ul class="dropdown-menu">
+                <li class="dropdown-item" onclick="$('#querymode').val('normal'); $('#queryform').submit()">Normal</li>
+                <li class="dropdown-item" onclick="$('#querymode').val('normal_limit'); $('#queryform').submit()">Normal (limited)</li>
+                <li class="dropdown-item" onclick="$('#querymode').val('normal_backlinks'); $('#queryform').submit()">Normal (complete)</li>
+                <li class="dropdown-item" onclick="$('#querymode').val('inverted'); $('#queryform').submit()">Reverse</li>
+                <li class="dropdown-item" onclick="$('#querymode').val('inverted_limit'); $('#queryform').submit()">Reverse (limited)</li>
+                <li class="dropdown-item" onclick="$('#querymode').val('inverted_backlinks'); $('#queryform').submit()">Reverse (complete)</li>
+              </ul>
+            </div>
+            <input id="querymode" type="hidden" name="mode">
+            <!--button id="querysubmit" type="submit" class="btn btn-sm ml-2 btn-light float-right">Analyze</button-->
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
