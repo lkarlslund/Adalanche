@@ -1,10 +1,10 @@
-# adalanche - Active Directory ACL Visualizer
+# adalanche - Active Directory ACL Visualizer and Explorer
 
 ## I Can Haz Domain Admin?
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
 ### Run adalanche on your own infrastructure
-You should perhaps ensure you have permission before you run this. Though the software is harmless any only uses the LDAP service to read data *any user* can access, your infrastructure/SOC might get real mad at you none the less.
+You should ensure you have permission before you run this :-) Though the software is harmless any only uses the LDAP service to read data *any user* can access, your infrastructure/SOC team might get real mad at you none the less.
 
 #### Quick start:
 - Download latest release from Releases
@@ -39,12 +39,16 @@ No really exciting results on this synthetic AD. Yes, some users are Domain Admi
 
 #### Analysis Methods
 Press the "Analysis Methods" tab on the bottom portion of the page, and you get this:
+
 <img src="readme-images/analysis-methods.png" width="50%">
+
 The tool can look for many scenarios, but defaults to fairly simple ones that can get you control of an object. As this yielded nothing, let's try to expand with all methods enabled. Checking the missing boxes, we submit another query.
 
 #### LDAP query pop-out
 When you press the "LDAP Query" tab on the bottom portion of the page, and you get the search interface:
+
 <img src="readme-images/ldap-query.png" width="50%">
+
 "Quieries" button is just for inspiration, with some predefined queries to get you going. 
 "Safe"/"Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab). 
 "Max Depth" can limit results by not going further from a target than this depth.
@@ -65,9 +69,11 @@ Let's investigate what's going on here - right click on one of your targets, and
 <img src="readme-images/set-as-target.png" width="30%">
 
 Then right-click on someone else, and choose "Route to target".
+
 <img src="readme-images/route-to-target.png" width="30%">
 
 Then you'll get a route, which shows the best way to the target.
+
 <img src="readme-images/found-route.png" width="40%">
 
 So here the problem is just a matter of groups being nested members of other groups, but at the very end you see that someone set the DELETE_CHILD flag on the parent container, yielding the right to delete (or potentially move) the target. That does look wrong, doesn't it?
@@ -117,7 +123,7 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome, but 
 
 # Shoutouts
-To everyone behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, the MS API documentation, and obscure places I dug up technical stuff
+To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow lol) where I dug up technical stuff
 
 ## Happy hunting!
 

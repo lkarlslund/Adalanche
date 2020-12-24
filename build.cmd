@@ -1,5 +1,4 @@
-rem go generate
-echo %DATE%
+go generate
 set RELEASE=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%
 set GOOS=windows
 go build -o adalanche-windows-x64-%release%.exe

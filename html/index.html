@@ -16,6 +16,7 @@
   <script src="layout-base.js"></script>
   <script src="cose-base.js"></script>
   <script src="cytoscape-fcose.js"></script>
+  <!--script src="cytoscape-cise.js"></script-->
   <script src="custom.js"></script>
 
   <style>
@@ -82,14 +83,13 @@
     <div id="route" style="display: block; max-width: 30%; max-height: 70%" class="p-2 bg-primary overflow-auto">No route yet</div>
     <div id="details" class="p-2 bg-primary text-white">No details</div>
     <div id="about" class="text-right">
-      <a href="https://www.netsection.com/adalanche"><img src="adalanche-logo-white.svg" height="32px"></a><br/><span class="text-white"> by  </span>
-      <a href="https://www.netsection.com/"><img src="nsslogo.png" height="32px"></a>
-      <!--a href="https://twitter.com/lkarlslund"><img src="icons/twitter.svg" height="16px"> @lkarlslund</a-->
+      <!-- <a href="https://www.netsection.com/adalanche"><img src="adalanche-logo-white.svg" height="32px"></a><br/><span class="text-white"> by  </span>
+      <a href="https://www.netsection.com/"><img src="nsslogo.png" height="32px"></a> -->
+      <a href="https://twitter.com/lkarlslund"><img src="icons/twitter.svg" height="16px"> @lkarlslund</a>
     </div>
   </div>
     <div id="outeroptions" class="bg-primary">
       <div id="optionsdiv" class="p-2">
-<!--
         <ul class="nav nav-tabs nav-fill" id="optionstabs" role="tablist">
           <li class="nav-item" role="presentation">
             <a class="nav-link active" id="pwnoptions-tab" data-toggle="tab" href="#pwnoptionsdiv" role="tab" aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
@@ -98,18 +98,27 @@
             <a class="nav-link" id="graphoptions-tab" data-toggle="tab" href="#graphoptionsdiv" role="tab" aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
           </li>
         </ul>
-        <div class="tab-content" id="optionstabsContent"> -->
+        <div class="tab-content" id="optionstabsContent">
           <div class="tab-pane fade show active" id="pwnoptionsdiv" role="tabpanel" aria-labelledby="pwnoptions-tab">
-              <form id="optionsform">
+            <form id="optionsform">
               <div id="pwnfilter">
-              Loading ...
+                Loading ...
               </div>
-              </form> 
+            </form> 
           </div>
-<!--          <div class="tab-pane fade" id="graphoptionsdiv" role="tabpanel" aria-labelledby="graphoptions-tab">
-          Something here .... :-)
+          <div class="tab-pane fade" id="graphoptionsdiv" role="tabpanel" aria-labelledby="graphoptions-tab">
+            <div class="form-group">
+              <label for="graphlayout">Choose layout</label>
+              <select class="form-control" id="graphlayout">
+                <option value="fcose">FCOSE</option>
+                <option value="cose">COSE</option>
+                <option value="dagre">DAGRE</option>
+                <option value="cise">CISE</option>
+                <option value="random">Random</option>
+              </select>
+            </div>
+          </div>
         </div>
-          </div> -->
       </div>   
       <div id="optionspop" class="text-center">Options</div>
     </div>
@@ -145,11 +154,7 @@
               </button>
               <ul class="dropdown-menu">
                 <li class="dropdown-item" onclick="$('#querymode').val('normal'); $('#queryform').submit()">Normal</li>
-                <li class="dropdown-item" onclick="$('#querymode').val('normal_limit'); $('#queryform').submit()">Normal (limited)</li>
-                <li class="dropdown-item" onclick="$('#querymode').val('normal_backlinks'); $('#queryform').submit()">Normal (complete)</li>
                 <li class="dropdown-item" onclick="$('#querymode').val('inverted'); $('#queryform').submit()">Reverse</li>
-                <li class="dropdown-item" onclick="$('#querymode').val('inverted_limit'); $('#queryform').submit()">Reverse (limited)</li>
-                <li class="dropdown-item" onclick="$('#querymode').val('inverted_backlinks'); $('#queryform').submit()">Reverse (complete)</li>
               </ul>
             </div>
             <input id="querymode" type="hidden" name="mode">

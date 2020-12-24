@@ -12,6 +12,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/frankban/quicktest v1.11.0 // indirect
+	github.com/gin-gonic/gin v1.6.3
 	github.com/go-asn1-ber/asn1-ber v1.5.1
 	github.com/go-ldap/ldap/v3 v3.2.3
 	github.com/gobwas/glob v0.2.3

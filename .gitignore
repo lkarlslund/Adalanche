@@ -1,6 +1,9 @@
 ﻿.vscode
-cache/*
-!cache/beyond.local.objects.lz4.msgp
+# Locally held data, except for the demo data
+data/*
+!data/beyond.local.objects.lz4.msgp
+# Locally built executables
 __debug_bin
 *.exe
-adalanche-*-x64-*
+adalanche-linux-*
+adalanche-osx-*

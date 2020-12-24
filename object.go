@@ -11,6 +11,7 @@ import (
 	"github.com/OneOfOne/xxhash"
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/rs/zerolog/log"
 )
 
@@ -66,6 +67,14 @@ func NewObject() *Object {
 	var result Object
 	result.init()
 	return &result
+}
+
+func (o Object) MarshalJSON() ([]byte, error) {
+	// result := make(map[string][]string)
+	// for attr, values := range o.Attributes {
+	// 	result[attr.Name()] = values
+	// }
+	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&o.Attributes)
 }
 
 func (o Object) DN() string {

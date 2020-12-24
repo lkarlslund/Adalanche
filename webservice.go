@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 	"github.com/gomarkdown/markdown"
 	"github.com/gorilla/mux"
@@ -293,7 +294,76 @@ func webservice(bind string) http.Server {
 			encoder.Encode("Error during JSON encoding")
 		}
 	})
+	router.HandleFunc("/query/objects/{query}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		query := vars["query"]
+		encoder := qjson.NewEncoder(w)
+		encoder.SetIndent("", "  ")
 
+		rest, includequery, err := ParseQuery(query)
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+		if rest != "" {
+			if rest[0] != ',' {
+				w.WriteHeader(400) // bad request
+				encoder.Encode(gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
+				return
+			}
+		}
+
+		objects := AllObjects.Filter(func(o *Object) bool {
+			return includequery.Evaluate(o)
+		})
+
+		dns := make([]string, len(objects.AsArray()))
+
+		for i, o := range objects.AsArray() {
+			dns[i] = o.DN()
+		}
+
+		err = encoder.Encode(dns)
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+		w.WriteHeader(200)
+	})
+	router.HandleFunc("/query/details/{query}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		query := vars["query"]
+		encoder := qjson.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+
+		rest, includequery, err := ParseQuery(query)
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+		if rest != "" {
+			if rest[0] != ',' {
+				w.WriteHeader(400) // bad request
+				encoder.Encode(gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
+				return
+			}
+		}
+
+		objects := AllObjects.Filter(func(o *Object) bool {
+			return includequery.Evaluate(o)
+		})
+
+		err = encoder.Encode(objects.AsArray())
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+		w.WriteHeader(200)
+	})
 	router.HandleFunc("/statistics", func(w http.ResponseWriter, r *http.Request) {
 		var result struct {
 			Statistics map[string]int `json:"statistics"`

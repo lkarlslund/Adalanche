@@ -49,6 +49,9 @@ $(function() {
         });
     */
 
+    var cy
+    var nodemenu
+
     // Our layout options
     var coselayout = {
         name: 'cose',
@@ -75,13 +78,13 @@ $(function() {
         nodeSep: undefined, // the separation between adjacent nodes in the same rank
         edgeSep: undefined, // the separation between adjacent edges in the same rank
         rankSep: undefined, // the separation between each rank in the layout
-        rankDir: undefined, // 'TB' for top to bottom flow, 'LR' for left to right,
-        ranker: undefined, // Type of algorithm to assign a rank to each node in the input graph. Possible values: 'network-simplex', 'tight-tree' or 'longest-path'
+        rankDir: 'LR', // 'TB' for top to bottom flow, 'LR' for left to right,
+        ranker: 'longest-path', // Type of algorithm to assign a rank to each node in the input graph. Possible values: 'network-simplex', 'tight-tree' or 'longest-path'
         minLen: function(edge) { return 1; }, // number of ranks to keep between the source and target of the edge
         edgeWeight: function(edge) { return 1; }, // higher weight edges are generally made shorter and straighter than lower weight edges
 
         // general layout options
-        fit: true, // whether to fit to viewport
+        fit: false, // whether to fit to viewport
         padding: 30, // fit padding
         spacingFactor: undefined, // Applies a multiplicative factor (>0) to expand or compress the overall area that the nodes take up
         nodeDimensionsIncludeLabels: false, // whether labels should be included in determining the space used by a node
@@ -169,18 +172,70 @@ $(function() {
         stop: () => {} // on layoutstop
     }
 
+    var ciselayout = {
+        name: 'cise',
+
+        // ClusterInfo can be a 2D array contaning node id's or a function that returns cluster ids. 
+        // For the 2D array option, the index of the array indicates the cluster ID for all elements in 
+        // the collection at that index. Unclustered nodes must NOT be present in this array of clusters.
+        // 
+        // For the function, it would be given a Cytoscape node and it is expected to return a cluster id  
+        // corresponding to that node. Returning negative numbers, null or undefined is fine for unclustered
+        // nodes.  
+        // e.g
+        // Array:                                     OR          function(node){
+        //  [ ['n1','n2','n3'],                                       ...
+        //    ['n5','n6']                                         }
+        //    ['n7', 'n8', 'n9', 'n10'] ]                         
+        // clusters: clusterInfo,
+        animate: false,
+        refresh: 10,
+        animationDuration: undefined,
+        animationEasing: undefined,
+        fit: true,
+        padding: 30,
+        nodeSeparation: 12.5,
+        idealInterClusterEdgeLengthCoefficient: 1.4,
+        allowNodesInsideCircle: false,
+        maxRatioOfNodesInsideCircle: 0.1,
+        springCoeff: 0.45,
+        nodeRepulsion: 4500,
+        gravity: 0.25,
+        gravityRange: 3.8,
+        // Layout event callbacks; equivalent to `layout.one('layoutready', callback)` for example
+        ready: function() {}, // on layoutready
+        stop: function() {}, // on layoutstop
+    }
+
     var randomlayout = {
         name: 'random'
     }
 
-    // Choose this as default layout
-    // var layoutoptions = coselayout;
-    // var layoutoptions = dagrelayout;
-    var layoutoptions = fcoselayout;
-    // var layoutoptions = randomlayout;
+    function getGraphlayout(choice) {
+        switch (choice) {
+            case "cose":
+                return coselayout
+            case "dagre":
+                return dagrelayout
+            case "fcose":
+                return fcoselayout
+            case "random":
+                return randomlayout
+            case "cise":
+                return ciselayout
+        }
+        return fcoselayout
+    }
 
-    var cy
-    var nodemenu
+    // Choose this as default layout
+    // var layoutoptions = fcoselayout;
+    var layoutoptions = getGraphlayout($("#graphlayout").val());
+
+    $("#graphlayout").change(function() {
+        layoutoptions = getGraphlayout($(this).val());
+        layout = cy.makeLayout(layoutoptions)
+        layout.run();
+    });
 
     function initgraph(data) {
         cy = (window.cy = cytoscape({
@@ -353,10 +408,7 @@ $(function() {
             elements: data
         }));
 
-        // cy.json({ elements: data.elements });
-        // layout = cy.makeLayout(layoutoptions)
-        // layout.run();
-
+        // cy.json({ elements: data.elements });     
 
         cy.ready(function() {
             nodemenu = cy.contextMenus({
