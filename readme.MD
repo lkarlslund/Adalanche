@@ -33,6 +33,7 @@ The below examples loaded from the included domain beyond.local, which is a synt
 <code>adalanche -domain beyond.local analyze</code>
 
 Your browser should pop up with:
+
 <img src="readme-images/welcome.png" width="80%">
 
 No really exciting results on this synthetic AD. Yes, some users are Domain Admins and Administrators. But let's expand the search a bit.
@@ -49,15 +50,15 @@ When you press the "LDAP Query" tab on the bottom portion of the page, and you g
 
 <img src="readme-images/ldap-query.png" width="50%">
 
-"Quieries" button is just for inspiration, with some predefined queries to get you going. 
-"Safe"/"Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab). 
-"Max Depth" can limit results by not going further from a target than this depth.
+You enter a query for things you want to search for. Optionally you can also add a secondary exclude query, seperating the include and expclude quereries with a comma.
+
+- "Quieries" button is just for inspiration, with some predefined queries to get you going. 
+- "Safe"/"Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab). 
+- "Max Depth" can limit results by not going further from a target than this depth.
 
 Analyze:
 - Normal searches for other objects that can pwn the selection in your LDAP query (i.e. who can reach these objects)
 - Reverse searches for objects that you LDAP query targets can pwn (i.e. what can these objects reach)
-- Limited means the search stops when it reaches Enterprise Admins / Domain Admins / Administrators groups **experimental**
-- Complete means the search finds all pwn paths between implicated objects. This potentially makes the returned graph very edge heavy if your AD is a mess :-)
 
 I enabled "Force" as I was warned that the analysis would return more than 1000 objects, and pressed "Analyze / Normal".
 

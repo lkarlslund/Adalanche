@@ -95,7 +95,7 @@ type Attribute uint16
 func NewAttribute(name string) Attribute {
 	if pos := strings.Index(name, ";"); pos != -1 {
 		if !strings.HasPrefix(name, "member;") {
-			log.Printf("Incomplete data detected in attribute %v", name)
+			log.Debug().Msgf("Incomplete data detected in attribute %v", name)
 		}
 		name = name[pos+1:]
 	}

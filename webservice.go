@@ -410,7 +410,7 @@ func webservice(bind string) http.Server {
 	})
 	router.PathPrefix("/").Handler(http.FileServer(assets))
 
-	log.Printf("Listening - navigate to %v ...", bind)
+	log.Debug().Msgf("Listening - navigate to %v ...", bind)
 
 	return srv
 }

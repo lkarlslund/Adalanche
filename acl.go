@@ -122,7 +122,7 @@ ms-Mcs-AdmPwd reading
 func parseACL(data []byte) (ACL, error) {
 	var acl ACL
 	acl.Revision = data[0]
-	// log.Printf("Parsing ACL with revision %v", acl.Revision)
+	// log.Debug().Msgf("Parsing ACL with revision %v", acl.Revision)
 	if data[1] != 0 {
 		return acl, errors.New("Bad Sbz1")
 	}
@@ -248,7 +248,7 @@ func (a ACE) String() string {
 	result += " " + a.SID.String()
 
 	if a.Flags&OBJECT_TYPE_PRESENT != 0 {
-		// log.Printf("Looking for right %v", a.ObjectType)
+		// log.Debug().Msgf("Looking for right %v", a.ObjectType)
 		if o, found := AllRights[a.ObjectType]; found {
 			result += fmt.Sprintf(" RIGHT %v (%v)", o.OneAttr(Name), a.ObjectType)
 		} else if o, found := AllSchemaClasses[a.ObjectType]; found {
@@ -262,7 +262,7 @@ func (a ACE) String() string {
 		}
 	}
 	if a.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 {
-		// log.Printf("Looking for right %v", a.InheritedObjectType)
+		// log.Debug().Msgf("Looking for right %v", a.InheritedObjectType)
 		// if o, found := AllRights[a.InheritedObjectType]; found {
 		// 	result += fmt.Sprintf(" inherited RIGHT %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
 		// } else

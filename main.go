@@ -18,6 +18,7 @@ import (
 	"github.com/gofrs/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pierrec/lz4"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
@@ -33,20 +34,36 @@ var (
 	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-const (
-	programname = "adalanche"
-	version     = "2020.10.08"
-)
-
 func showUsage() {
-	fmt.Printf("Usage: sapience [-options ...] command\n\n")
-	fmt.Print(`Commands are:
-  dump - to dump an AD into a compressed file
-  analyze - launches embedded webservice
-  dump-analyze - dumps an AD and launched embedded webservice
-  export - save analysis to graph files
-`)
-	flag.PrintDefaults()
+	log.Info().Msg("Usage: adalanche [-options ...] command")
+	log.Info().Msg(`Commands are:`)
+	log.Info().Msg(`  dump - to dump an AD into a compressed file`)
+	log.Info().Msg(`  analyze - launches embedded webservice`)
+	log.Info().Msg(`  dump-analyze - dumps an AD and launches embedded webservice`)
+	log.Info().Msg(`  export - save analysis to graph files`)
+	log.Info().Msg(`Options:`)
+
+	flag.CommandLine.VisitAll(func(f *flag.Flag) {
+		name, usage := flag.UnquoteUsage(f)
+		s := fmt.Sprintf("  -%s", f.Name) // Two spaces before -; see next two comments.
+		totallength := len(f.Name)
+		if len(name) > 0 {
+			s += " " + name
+			totallength += 1 + len(name)
+		}
+		if totallength < 20 {
+			s += strings.Repeat(" ", 20-totallength)
+		}
+
+		s += strings.ReplaceAll(usage, "\n", "\n                           ")
+
+		if f.DefValue != "" {
+			s += fmt.Sprintf(" (default %v)", f.DefValue)
+		}
+
+		log.Info().Msg(s)
+	})
+
 	os.Exit(0)
 }
 
@@ -68,6 +85,7 @@ func main() {
 	exportinverted := flag.Bool("exportinverted", false, "Invert analysis, discover how much damage targets can do")
 	exporttype := flag.String("exporttype", "cytoscapejs", "Graph type to export (cytoscapejs, graphviz)")
 	attributesparam := flag.String("attributes", "", "Comma seperated list of attributes to get, blank means everything")
+	debuglogging := flag.Bool("debug", false, "Enable debug logging")
 	nosacl := flag.Bool("nosacl", true, "Request data with NO SACL flag, allows normal users to dump ntSecurityDescriptor field")
 	pagesize := flag.Int("pagesize", 1000, "Chunk requests into pages of this count of objects")
 	bind := flag.String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
@@ -75,7 +93,11 @@ func main() {
 
 	flag.Parse()
 
-	fmt.Println(programname + " " + version + "\n")
+	if !*debuglogging {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	log.Info().Msg("adalanche (c) 2020 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
 
 	// Ensure the cache folder is available
 	if _, err := os.Stat(*datapath); os.IsNotExist(err) {
@@ -88,7 +110,7 @@ func main() {
 	command := "dump-analyze"
 
 	if flag.NArg() < 1 {
-		fmt.Println("No command issued, assuming 'dump-analyze'. Try command 'help' to get help.\n")
+		log.Info().Msg("No command issued, assuming 'dump-analyze'. Try command 'help' to get help.")
 	} else {
 		command = flag.Arg(0)
 	}
@@ -204,7 +226,7 @@ func main() {
 		if err != nil {
 			log.Fatal().Msgf("Problem dumping AD: %v", err)
 		}
-		log.Printf("Saving %v schema objects ...", len(rawobjects))
+		log.Debug().Msgf("Saving %v schema objects ...", len(rawobjects))
 		for _, object := range rawobjects {
 			err = object.EncodeMsg(e)
 			if err != nil {
@@ -218,7 +240,7 @@ func main() {
 		if err != nil {
 			log.Fatal().Msgf("Problem dumping AD: %v", err)
 		}
-		log.Printf("Saving %v configuration objects ...", len(rawobjects))
+		log.Debug().Msgf("Saving %v configuration objects ...", len(rawobjects))
 		for _, object := range rawobjects {
 			err = object.EncodeMsg(e)
 			if err != nil {
@@ -232,7 +254,7 @@ func main() {
 		if err != nil {
 			log.Warn().Msgf("Problem dumping forest DNS zones (maybe it doesn't exist): %v", err)
 		} else {
-			log.Printf("Saving %v forest DNS objects ...", len(rawobjects))
+			log.Debug().Msgf("Saving %v forest DNS objects ...", len(rawobjects))
 			for _, object := range rawobjects {
 				err = object.EncodeMsg(e)
 				if err != nil {
@@ -246,7 +268,7 @@ func main() {
 		if err != nil {
 			log.Warn().Msgf("Problem dumping domain DNS zones (maybe it doesn't exist): %v", err)
 		} else {
-			log.Printf("Saving %v domain DNS objects ...", len(rawobjects))
+			log.Debug().Msgf("Saving %v domain DNS objects ...", len(rawobjects))
 			for _, object := range rawobjects {
 				err = object.EncodeMsg(e)
 				if err != nil {
@@ -261,7 +283,7 @@ func main() {
 		if err != nil {
 			log.Fatal().Msgf("Problem dumping AD: %v", err)
 		}
-		log.Printf("Saving %v AD objects ...", len(rawobjects))
+		log.Debug().Msgf("Saving %v AD objects ...", len(rawobjects))
 		for _, object := range rawobjects {
 			err = object.EncodeMsg(e)
 			if err != nil {
@@ -334,7 +356,7 @@ func main() {
 		loadbar.Finish()
 	}
 
-	log.Printf("Loaded %v ojects", len(AllObjects.AsArray()))
+	log.Debug().Msgf("Loaded %v ojects", len(AllObjects.AsArray()))
 
 	// Add our known SIDs if they're missing
 	for sid, name := range knownsids {
@@ -405,7 +427,7 @@ func main() {
 				object.SetAttr(MetaConstrainedDelegation, "1")
 			}
 			if uac&UAC_NOT_DELEGATED != 0 {
-				log.Printf("%v has can't be used as delegation", object.DN())
+				log.Debug().Msgf("%v has can't be used as delegation", object.DN())
 			}
 			if uac&UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
 				object.SetAttr(MetaWorkstation, "1")
@@ -443,23 +465,23 @@ func main() {
 			}
 
 			attr, _ := object.AttrInt(TrustAttributes)
-			log.Printf("Domain has a %v trust with %v", direction, object.OneAttr(TrustPartner))
+			log.Debug().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(TrustPartner))
 			if dir&2 != 0 && attr&4 != 0 {
-				log.Printf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(TrustPartner))
+				log.Debug().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(TrustPartner))
 			}
 		}
 
 		// Special types of Objects
 		if object.HasAttrValue(ObjectClass, "controlAccessRight") {
 			u, err := uuid.FromString(object.OneAttr(A("rightsGuid")))
-			// log.Printf("Adding right %v %v", u, object.OneAttr(DisplayName))
+			// log.Debug().Msgf("Adding right %v %v", u, object.OneAttr(DisplayName))
 			if err == nil {
 				AllRights[u] = object
 			}
 		} else if object.HasAttrValue(ObjectClass, "attributeSchema") {
 			objectGUID, err := uuid.FromBytes([]byte(object.OneAttr(A("schemaIDGUID"))))
 			objectGUID = SwapUUIDEndianess(objectGUID)
-			// log.Printf("Adding schema attribute %v %v", u, object.OneAttr(Name))
+			// log.Debug().Msgf("Adding schema attribute %v %v", u, object.OneAttr(Name))
 			if err == nil {
 				AllSchemaAttributes[objectGUID] = object
 				switch object.OneAttr(Name) {
@@ -495,7 +517,7 @@ func main() {
 		} else if object.HasAttrValue(ObjectClass, "classSchema") {
 			u, err := uuid.FromBytes([]byte(object.OneAttr(A("schemaIDGUID"))))
 			u = SwapUUIDEndianess(u)
-			// log.Printf("Adding schema class %v %v", u, object.OneAttr(Name))
+			// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
 			if err == nil {
 				AllSchemaClasses[u] = object
 			}
@@ -529,7 +551,7 @@ func main() {
 				if pwnobject.SID() == SelfSID || pwnobject.SID() == CreatorOwnerSID || pwnobject.SID() == SystemSID {
 					continue
 				}
-				// log.Printf("Detected that %v can pwn %v by %v", pwnobject.DN(), object.DN(), analyzer.Method)
+				// log.Debug().Msgf("Detected that %v can pwn %v by %v", pwnobject.DN(), object.DN(), analyzer.Method)
 				pwnobject.CanPwn = append(pwnobject.CanPwn, PwnInfo{Method: analyzer.Method, Target: object})
 				object.PwnableBy = append(object.PwnableBy, PwnInfo{Method: analyzer.Method, Target: pwnobject})
 				pwnlinks++
@@ -537,7 +559,7 @@ func main() {
 		}
 	}
 	pwnbar.Finish()
-	log.Printf("Detected %v ways to pwn objects", pwnlinks)
+	log.Debug().Msgf("Detected %v ways to pwn objects", pwnlinks)
 
 	switch command {
 	case "exportacls":
@@ -573,11 +595,11 @@ func main() {
 
 		switch *exporttype {
 		case "graphviz":
-			err = ExportGraphViz(resultgraph, "sapience-"+*domain+".dot")
+			err = ExportGraphViz(resultgraph, "adalanche-"+*domain+".dot")
 		case "cytoscapejs":
-			err = ExportCytoscapeJS(resultgraph, "cytoscape-js-"+*domain+".json")
+			err = ExportCytoscapeJS(resultgraph, "adalanche-cytoscape-js-"+*domain+".json")
 		default:
-			fmt.Println("Unknown export format")
+			log.Error().Msg("Unknown export format")
 			showUsage()
 		}
 		if err != nil {
@@ -613,14 +635,14 @@ func main() {
 				err = fmt.Errorf("unsupported platform")
 			}
 			if err != nil {
-				log.Printf("Problem launching browser: %v", err)
+				log.Debug().Msgf("Problem launching browser: %v", err)
 			}
 		}
 
 		// Wait for webservice to end
 		<-quit
 	default:
-		fmt.Printf("Unknown command %v\n\n", flag.Arg(0))
+		log.Error().Msgf("Unknown command %v", flag.Arg(0))
 		showUsage()
 	}
 }
