@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Showmax/go-fqdn"
@@ -22,6 +23,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Install AssetFS compiler:
@@ -32,6 +34,12 @@ import (
 
 var (
 	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
+)
+
+var (
+	programname = "adalanche"
+	builddate   = "unknown_date"
+	commit      = "unknown_commit"
 )
 
 func showUsage() {
@@ -154,12 +162,18 @@ func main() {
 			}
 		}
 
-		if len(*server) != 0 && len(*domain) != 0 && len(*user) != 0 && len(*pass) == 0 {
-			log.Fatal().Msg("Please provide password using -password=xxxx paramenter")
-		}
-		if len(*server) == 0 || len(*domain) == 0 || len(*user) == 0 || len(*pass) == 0 {
+		if len(*server) == 0 || len(*domain) == 0 || len(*user) == 0 {
 			log.Warn().Msg("Provide at least username, password, server, and domain name")
 			showUsage()
+		}
+
+		if *pass == "" {
+			fmt.Printf("Please enter password for %v: ", *user)
+			passwd, err := terminal.ReadPassword(int(syscall.Stdin))
+			fmt.Println()
+			if err == nil {
+				*pass = string(passwd)
+			}
 		}
 
 		var authmode byte
