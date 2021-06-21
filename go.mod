@@ -3,46 +3,30 @@ module github.com/lkarlslund/adalanche
 go 1.15
 
 require (
-	code.cloudfoundry.org/bytefmt v0.0.0-20200131002437-cf55d5288a48 // indirect
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/Showmax/go-fqdn v1.0.0
-	github.com/alexbrainman/sspi v0.0.0-20200928142253-2a432fede40d
-	github.com/cespare/xxhash v1.1.0 // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/davecgh/go-spew v1.1.1
+	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.1
-	github.com/frankban/quicktest v1.11.0 // indirect
-	github.com/gin-gonic/gin v1.6.3
-	github.com/go-asn1-ber/asn1-ber v1.5.1
-	github.com/go-ldap/ldap/v3 v3.2.3
+	github.com/frankban/quicktest v1.13.0 // indirect
+	github.com/gin-gonic/gin v1.7.2
+	github.com/go-asn1-ber/asn1-ber v1.5.3
 	github.com/gobwas/glob v0.2.3
-	github.com/godbus/dbus v4.1.0+incompatible // indirect
-	github.com/gofrs/uuid v3.3.0+incompatible
-	github.com/gomarkdown/markdown v0.0.0-20200824053859-8c8b3816f167
+	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/gomarkdown/markdown v0.0.0-20210514010506-3b9f47219fe7
 	github.com/gorilla/mux v1.8.0
-	github.com/hashicorp/go-uuid v1.0.2 // indirect
-	github.com/icza/gox v0.0.0-20200702115100-7dc3510ae515
-	github.com/jcmturner/gofork v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.10
+	github.com/icza/gox v0.0.0-20201215141822-6edfac6c05b5
+	github.com/json-iterator/go v1.1.11
+	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29 // indirect
 	github.com/lkarlslund/stringdedup v0.2.1
 	github.com/mattn/go-colorable v0.1.8
-	github.com/philhofer/fwd v1.0.0 // indirect
-	github.com/pierrec/cmdflag v0.0.2 // indirect
-	github.com/pierrec/lz4 v2.5.2+incompatible
-	github.com/rs/zerolog v1.20.0
-	github.com/schollz/progressbar v1.0.0 // indirect
-	github.com/schollz/progressbar/v3 v3.6.0
-	github.com/stretchr/testify v1.6.1 // indirect
-	github.com/tinylib/msgp v1.1.2
-	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
-	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
-	golang.org/x/sys v0.0.0-20201007082116-8445cc04cbdf // indirect
-	golang.org/x/text v0.3.3
-	gopkg.in/jcmturner/aescts.v1 v1.0.1 // indirect
-	gopkg.in/jcmturner/dnsutils.v1 v1.0.1 // indirect
-	gopkg.in/jcmturner/goidentity.v2 v2.0.0 // indirect
-	gopkg.in/jcmturner/gokrb5.v5 v5.3.0
-	gopkg.in/jcmturner/rpc.v0 v0.0.2 // indirect
-	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0 // indirect
-	honnef.co/go/tools v0.0.1-2020.1.5
+	github.com/pierrec/lz4 v2.6.1+incompatible
+	github.com/rs/zerolog v1.23.0
+	github.com/schollz/progressbar/v3 v3.8.1
+	github.com/stretchr/testify v1.7.0 // indirect
+	github.com/tinylib/msgp v1.1.5
+	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
+	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
+	golang.org/x/text v0.3.6
+	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

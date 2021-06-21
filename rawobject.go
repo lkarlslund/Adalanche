@@ -1,7 +1,7 @@
 package main
 
 import (
-	ldap "github.com/go-ldap/ldap/v3"
+	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/rs/zerolog/log"
 )

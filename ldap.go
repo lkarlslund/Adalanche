@@ -8,7 +8,7 @@ import (
 	"time"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
-	ldap "github.com/go-ldap/ldap/v3"
+	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -71,7 +71,7 @@ func (ad *AD) Connect(authmode byte) error {
 	case 4:
 		err = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
 	case 5:
-		return ad.gssapiConnect()
+		err = ad.conn.NTLMSSPIBind()
 	default:
 		return fmt.Errorf("Unknown bind method %v", authmode)
 	}

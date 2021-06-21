@@ -82,7 +82,7 @@ func main() {
 	user := flag.String("username", "", "username to connect with ex. -username=\"someuser\"")
 	pass := flag.String("password", "", "password to connect with ex. -password=\"testpass!\"")
 	startTLS := flag.Bool("startTLS", false, "Use for StartTLS on 389. Default is TLS on 636")
-	authmodeString := flag.String("authmode", "simple", "Bind mode: unauth, simple, md5, ntml, ntlmpth (password is hash), gssapi")
+	authmodeString := flag.String("authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntml, ntlmpth (password is hash), ntlmsspi (current user, default)")
 	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
 	unsafe := flag.Bool("unsafe", false, "Use for testing and plaintext connection")
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
@@ -154,28 +154,6 @@ func main() {
 			}
 		}
 
-		if *user == "" {
-			// Auto-detect user
-			*user = os.Getenv("USERNAME")
-			if *user != "" {
-				log.Info().Msgf("Auto-detected username as %v", *user)
-			}
-		}
-
-		if len(*server) == 0 || len(*domain) == 0 || len(*user) == 0 {
-			log.Warn().Msg("Provide at least username, password, server, and domain name")
-			showUsage()
-		}
-
-		if *pass == "" {
-			fmt.Printf("Please enter password for %v: ", *user)
-			passwd, err := terminal.ReadPassword(int(syscall.Stdin))
-			fmt.Println()
-			if err == nil {
-				*pass = string(passwd)
-			}
-		}
-
 		var authmode byte
 		switch *authmodeString {
 		case "unauth":
@@ -188,14 +166,39 @@ func main() {
 			authmode = 3
 		case "ntlmpth":
 			authmode = 4
-		case "gssapi":
+		case "ntlmsspi":
 			authmode = 5
 		default:
 			log.Error().Msgf("Unknown LDAP authentication mode %v", *authmodeString)
 			showUsage()
 		}
 
-		username := *user + "@" + *domain
+		var username string
+		if authmode != 5 {
+			if *user == "" {
+				// Auto-detect user
+				*user = os.Getenv("USERNAME")
+				if *user != "" {
+					log.Info().Msgf("Auto-detected username as %v", *user)
+				}
+			}
+
+			if len(*server) == 0 || len(*domain) == 0 || len(*user) == 0 {
+				log.Warn().Msg("Provide at least username, password, server, and domain name")
+				showUsage()
+			}
+
+			if *pass == "" {
+				fmt.Printf("Please enter password for %v: ", *user)
+				passwd, err := terminal.ReadPassword(int(syscall.Stdin))
+				fmt.Println()
+				if err == nil {
+					*pass = string(passwd)
+				}
+			}
+			username = *user + "@" + *domain
+		}
+
 		ad := AD{
 			Domain:     *domain,
 			Server:     *server,
