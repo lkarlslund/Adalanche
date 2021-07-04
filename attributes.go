@@ -57,7 +57,10 @@ var (
 	ObjectSid                   = NewAttribute("objectSid")
 	ObjectGUID                  = NewAttribute("objectGUID")
 	PwdLastSet                  = NewAttribute("pwdLastSet")
+	WhenCreated                 = NewAttribute("whenCreated")
+	WhenChanged                 = NewAttribute("whenChanged")
 	SIDHistory                  = NewAttribute("sIDHistory")
+	LastLogon                   = NewAttribute("lastLogon")
 	LastLogonTimestamp          = NewAttribute("lastLogonTimestamp")
 	MSDSGroupMSAMembership      = NewAttribute("msDS-GroupMSAMembership")
 	MSDSHostServiceAccount      = NewAttribute("msDS-HostServiceAccount")
@@ -67,6 +70,7 @@ var (
 	TrustDirection              = NewAttribute("trustDirection")
 	TrustAttributes             = NewAttribute("trustAttributes")
 	TrustPartner                = NewAttribute("trustPartner")
+	DsHeuristics                = NewAttribute("dsHeuristics")
 	MAX_IMPORTED                = TrustPartner
 	MetaProtectedUser           = NewAttribute("_protecteduser")
 	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")

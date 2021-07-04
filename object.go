@@ -217,9 +217,18 @@ func (o Object) AttrInt(attr Attribute) (int64, bool) {
 func (o Object) AttrTimestamp(attr Attribute) (time.Time, bool) {
 	v, ok := o.AttrInt(attr)
 	if !ok {
+		value := o.OneAttr(attr)
+		if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
+			value = strings.TrimSuffix(value, "Z")  // strip "Z"
+			value = strings.TrimSuffix(value, ".0") // strip ".0"
+			t, err := time.Parse("20060102150405", value)
+			return t, err == nil
+		}
 		return time.Time{}, false
 	}
-	return FiletimeToTime(uint64(v)), true
+	t := FiletimeToTime(uint64(v))
+	// log.Debug().Msgf("Converted %v to %v", v, t)
+	return t, true
 }
 
 func (o *Object) imamemberofyou(member *Object) {

@@ -81,11 +81,14 @@ func main() {
 	domain := flag.String("domain", "", "domain suffix to analyze (auto-detected if not supplied)")
 	user := flag.String("username", "", "username to connect with ex. -username=\"someuser\"")
 	pass := flag.String("password", "", "password to connect with ex. -password=\"testpass!\"")
-	startTLS := flag.Bool("startTLS", false, "Use for StartTLS on 389. Default is TLS on 636")
-	authmodeString := flag.String("authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntml, ntlmpth (password is hash), ntlmsspi (current user, default)")
-	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
-	unsafe := flag.Bool("unsafe", false, "Use for testing and plaintext connection")
+
+	tlsmode := flag.String("tlsmode", "tls", "Transport mode (tls, starttls, notls)")
+
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
+
+	authmodeString := flag.String("authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
+
 	datapath := flag.String("datapath", "data", "folder to store cached ldap data")
 	dumpquery := flag.String("dumpquery", "(objectClass=*)", "LDAP query for dump, defaults to everything")
 	analyzequery := flag.String("analyzequery", "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))", "LDAP query to locate targets for analysis")
@@ -103,9 +106,11 @@ func main() {
 
 	if !*debuglogging {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	} else {
+		log.Debug().Msg("Debug logging enabled")
 	}
 
-	log.Info().Msg("adalanche (c) 2020 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
+	log.Info().Msg("adalanche (c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
 
 	// Ensure the cache folder is available
 	if _, err := os.Stat(*datapath); os.IsNotExist(err) {
@@ -173,6 +178,16 @@ func main() {
 			showUsage()
 		}
 
+		if len(*domain) == 0 {
+			log.Warn().Msg("Missing domain name  - please provider this on commandline")
+			showUsage()
+		}
+
+		if len(*server) == 0 {
+			log.Warn().Msg("Missing AD controller server name - please provider this on commandline")
+			showUsage()
+		}
+
 		var username string
 		if authmode != 5 {
 			if *user == "" {
@@ -183,8 +198,8 @@ func main() {
 				}
 			}
 
-			if len(*server) == 0 || len(*domain) == 0 || len(*user) == 0 {
-				log.Warn().Msg("Provide at least username, password, server, and domain name")
+			if *user == "" {
+				log.Warn().Msg("Missing username - please provider this on commandline")
 				showUsage()
 			}
 
@@ -197,6 +212,14 @@ func main() {
 				}
 			}
 			username = *user + "@" + *domain
+		} else {
+			log.Info().Msg("Using integrated NTLM authentication")
+		}
+
+		tlsm, err := TLSmodeString(*tlsmode)
+		if err != nil {
+			log.Warn().Msgf("Unknown TLS mode %v", *tlsmode)
+			showUsage()
 		}
 
 		ad := AD{
@@ -206,12 +229,11 @@ func main() {
 			User:       username,
 			Password:   *pass,
 			AuthDomain: *authdomain,
-			Unsafe:     *unsafe,
-			StartTLS:   *startTLS,
+			TLSMode:    tlsm,
 			IgnoreCert: *ignoreCert,
 		}
 
-		err := ad.Connect(authmode)
+		err = ad.Connect(authmode)
 		if err != nil {
 			log.Fatal().Msgf("Problem connecting to AD: %v", err)
 		}
@@ -383,7 +405,7 @@ func main() {
 		}
 		if _, found := AllObjects.FindSID(binsid); !found {
 			AllObjects.Add(&Object{
-				DistinguishedName: "CN=" + name + ",DN=microsoft-builtin",
+				DistinguishedName: "CN=" + name + ",CN=microsoft-builtin",
 				Attributes: map[Attribute][]string{
 					Name:           {name},
 					ObjectSid:      {string(binsid)},
@@ -541,6 +563,26 @@ func main() {
 		}
 	}
 	processbar.Finish()
+
+	// This sucks in a very bad way, Objects really needs to be an AD object :-\
+	ad := AD{
+		Domain: *domain,
+	}
+
+	// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
+
+	// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
+
+	var excluded string
+	if ds, found := AllObjects.Find("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration," + ad.RootDn()); found {
+		excluded = ds.OneAttr(DsHeuristics)
+	}
+
+	// Let's see if we can find the AdminSDHolder container
+	if adminsdholder, found := AllObjects.Find("cn=AdminSDHolder,cn=System," + ad.RootDn()); found {
+		// We found it - so we know it can theoretically "pwn" any object with AdminCount > 0
+		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded))
+	}
 
 	// Generate member of chains
 	pwnbar := progressbar.NewOptions(int(len(AllObjects.dnmap)),

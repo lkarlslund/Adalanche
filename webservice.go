@@ -364,6 +364,84 @@ func webservice(bind string) http.Server {
 		}
 		w.WriteHeader(200)
 	})
+	router.HandleFunc("/accountinfo.json", func(w http.ResponseWriter, r *http.Request) {
+		type info struct {
+			DN            string    `json:"dn"`
+			PwdAge        time.Time `json:"lastpwdchange,omitempty"`
+			CreatedAge    time.Time `json:"created,omitempty"`
+			ChangedAge    time.Time `json:"lastchange,omitempty"`
+			LoginAge      time.Time `json:"lastlogin,omitempty"`
+			Expires       time.Time `json:"expires,omitempty"`
+			Type          string    `json:"type"`
+			Unconstrained bool      `json:"unconstrained,omitempty"`
+			Workstation   bool      `json:"workstation,omitempty"`
+			Server        bool      `json:"server,omitempty"`
+			Enabled       bool      `json:"enabled,omitempty"`
+			CantChangePwd bool      `json:"cantchangepwd,omitempty"`
+			NoExpirePwd   bool      `json:"noexpirepwd,omitempty"`
+			NoRequirePwd  bool      `json:"norequirepwd,omitempty"`
+		}
+		var result []info
+		for _, object := range AllObjects.AsArray() {
+			if object.Type() == ObjectTypeUser &&
+				object.OneAttr(MetaWorkstation) != "1" &&
+				object.OneAttr(MetaServer) != "1" &&
+				object.OneAttr(MetaAccountDisabled) != "1" {
+				lastlogin, ok := object.AttrTimestamp(LastLogon)
+				lastlogints, ok := object.AttrTimestamp(LastLogonTimestamp)
+				last, ok := object.AttrTimestamp(PwdLastSet)
+
+				expires, ok := object.AttrTimestamp(AccountExpires)
+				created, ok := object.AttrTimestamp(WhenCreated)
+				changed, ok := object.AttrTimestamp(WhenChanged)
+				if !ok {
+				}
+				// log.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
+
+				if lastlogin.After(lastlogints) {
+					lastlogints = lastlogin
+				}
+
+				// // var loginage int
+
+				// if !lastlogints.IsZero() {
+				// 	loginage = int(time.Since(lastlogints).Hours()) / 24
+				// }
+
+				i := info{
+					DN:         object.DN(),
+					PwdAge:     last,
+					ChangedAge: changed,
+					CreatedAge: created,
+					LoginAge:   lastlogints,
+					Expires:    expires,
+					Type:       object.Type().String(),
+
+					Unconstrained: object.OneAttr(MetaUnconstrainedDelegation) == "1",
+					Workstation:   object.OneAttr(MetaWorkstation) == "1",
+					Server:        object.OneAttr(MetaServer) == "1",
+					Enabled:       object.OneAttr(MetaAccountDisabled) != "1",
+					CantChangePwd: object.OneAttr(MetaPasswordCantChange) == "1",
+					NoExpirePwd:   object.OneAttr(MetaPasswordNoExpire) == "1",
+					NoRequirePwd:  object.OneAttr(MetaPasswordNotRequired) == "1",
+				}
+
+				// if uac&UAC_NOT_DELEGATED != 0 {
+				// 	log.Debug().Msgf("%v has can't be used as delegation", object.DN())
+				// }
+
+				result = append(result, i)
+			}
+		}
+
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write(data)
+	})
+
 	router.HandleFunc("/statistics", func(w http.ResponseWriter, r *http.Request) {
 		var result struct {
 			Statistics map[string]int `json:"statistics"`
@@ -375,7 +453,7 @@ func webservice(bind string) http.Server {
 			if objecttype == 0 {
 				continue // skip the dummy one
 			}
-			result.Statistics[ObjectType(objecttype).String()] = count
+			result.Statistics[ObjectType(objecttype).String()] += count
 		}
 
 		var pwnlinks int

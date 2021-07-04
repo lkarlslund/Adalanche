@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Vega-Lite Bar Chart</title>
+    <meta charset="utf-8" />
+
+    <script src="/vega.js"></script>
+    <script src="/vega-lite.js"></script>
+    <script src="/vega-embed.js"></script>
+
+    <style media="screen">
+      /* Add space between Vega-Embed links  */
+      .vega-actions a {
+        margin-right: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Template for Embedding Vega-Lite Visualization</h1>
+    <!-- Container for the visualization -->
+    <div id="vis"></div>
+
+    <script>
+      // Assign the specification to a local variable vlSpec.
+      var vlSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v4.json',
+        data: {"url": "/accountinfo.json"},
+        mark: 'bar',
+        encoding: {
+          x: {
+            "timeUnit": "yearmonth",
+            "field": "lastpwdchange",
+            "type": "ordinal",
+            "title": "Days since password change"
+          },
+          y: {aggregate: 'count', type: 'quantitative'},
+          color: { field: 'enabled' ,
+            scale: {scheme: 'category20b'}
+          },
+        },
+      };
+
+      // Embed the visualization in the container with id `vis`
+      vegaEmbed('#vis', vlSpec);
+    </script>
+  </body>
+</html>

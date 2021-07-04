@@ -12,6 +12,16 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+//go:generate enumer -type=TLSmode -json
+
+type TLSmode byte
+
+const (
+	TLS TLSmode = iota
+	StartTLS
+	NoTLS
+)
+
 type AD struct {
 	Domain     string
 	Server     string
@@ -19,8 +29,7 @@ type AD struct {
 	User       string
 	Password   string
 	AuthDomain string
-	Unsafe     bool
-	StartTLS   bool
+	TLSMode    TLSmode
 	IgnoreCert bool
 
 	conn *ldap.Conn
@@ -30,13 +39,14 @@ func (ad *AD) Connect(authmode byte) error {
 	if ad.AuthDomain == "" {
 		ad.AuthDomain = ad.Domain
 	}
-	if ad.Unsafe {
+	switch ad.TLSMode {
+	case NoTLS:
 		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port))
 		if err != nil {
 			return err
 		}
 		ad.conn = conn
-	} else if ad.StartTLS {
+	case StartTLS:
 		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port))
 		if err != nil {
 			return err
@@ -47,7 +57,7 @@ func (ad *AD) Connect(authmode byte) error {
 			return err
 		}
 		ad.conn = conn
-	} else {
+	case TLS:
 		config := &tls.Config{
 			ServerName:         ad.Server,
 			InsecureSkipVerify: ad.IgnoreCert,
@@ -57,7 +67,10 @@ func (ad *AD) Connect(authmode byte) error {
 			return err
 		}
 		ad.conn = conn
+	default:
+		return errors.New("Unknown transport mode")
 	}
+
 	var err error
 	switch authmode {
 	case 0:

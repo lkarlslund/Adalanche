@@ -64,13 +64,23 @@ func ParseBool(input string) (bool, error) {
 	return result, err
 }
 
-const unixTimeBaseAsWin uint64 = 11644473600000000000 // The unix base time (January 1, 1970 UTC) as ns since Win32 epoch (1601-01-01)
-const nsToSecFactor uint64 = 1000000000
+var nolaterthan, _ = time.Parse("20060102", "99991231")
 
 func FiletimeToTime(filetime uint64) time.Time {
-	// First convert 100-ns intervals to microseconds, then adjust for the epoch difference
-	unixsec := int64((filetime - unixTimeBaseAsWin) / nsToSecFactor)
-	unixns := int64(filetime % nsToSecFactor)
+	// We assume that a zero time is a blank time
+	if filetime == 0 || filetime == 0xFFFFFFFFFFFFFFFF {
+		return time.Time{}
+	}
 
-	return time.Unix(unixsec, unixns)
+	// First convert 100-ns intervals to microseconds, then adjust for the epoch difference
+	unixsec := int64((filetime / 10000000) - 11644473600)
+	unixns := int64((filetime * 10) % 1000000000)
+
+	t := time.Unix(unixsec, unixns)
+
+	if t.After(nolaterthan) {
+		t = nolaterthan
+	}
+
+	return t
 }
