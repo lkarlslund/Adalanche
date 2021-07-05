@@ -248,9 +248,9 @@ func webservice(bind string) http.Server {
 		if len(pg.Implicated) > 1000 && !force {
 			w.WriteHeader(413) // too big payload response
 			if strings.HasPrefix(mode, "inverted") {
-				encoder.Encode(fmt.Sprintf("Too much data, %v targets can pwn %v users, %v groups and %v computers via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, len(pg.Connections)))
+				encoder.Encode(fmt.Sprintf("Too much data, %v targets can pwn %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, others, len(pg.Connections)))
 			} else {
-				encoder.Encode(fmt.Sprintf("Too much data, %v targets can be pwned by %v users, %v groups and %v computers via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, len(pg.Connections)))
+				encoder.Encode(fmt.Sprintf("Too much data, %v targets can be pwned by %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, others, len(pg.Connections)))
 			}
 			return
 		}

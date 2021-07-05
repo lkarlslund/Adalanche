@@ -12,6 +12,7 @@ import (
 // PwnAnalyzer takes an Object, examines it an outputs a list of Objects that can Pwn it
 type PwnAnalyzer struct {
 	Method         PwnMethod
+	Description    string
 	ObjectAnalyzer func(o *Object) []*Object
 }
 
@@ -27,25 +28,25 @@ var (
 	DSReplicationGetChangesAll = uuid.UUID{0x11, 0x31, 0xf6, 0xad, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
 	DSReplicationSyncronize    = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
 
-	AttributeMember                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	AttributeSetGroupMembership     = uuid.UUID{0xBC, 0x0A, 0xC2, 0x40, 0x79, 0xA9, 0x11, 0xD0, 0x90, 0x20, 0x00, 0xC0, 0x4F, 0xC2, 0xD4, 0xCF}
-	AttributeSIDHistory             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	AttributeSPN                    = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	AttributeAllowedToAct           = uuid.UUID{0x3f, 0x78, 0xc3, 0xe5, 0xf7, 0x9a, 0x46, 0xbd, 0xa0, 0xb8, 0x9d, 0x18, 0x11, 0x6d, 0xdc, 0x79}
-	AttributeMSDSGroupMSAMembership = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
+	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	AttributeSetGroupMembership                     = uuid.UUID{0xBC, 0x0A, 0xC2, 0x40, 0x79, 0xA9, 0x11, 0xD0, 0x90, 0x20, 0x00, 0xC0, 0x4F, 0xC2, 0xD4, 0xCF}
+	AttributeSIDHistory                             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	AttributeSPN                                    = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	AttributeAllowedToActOnBehalfOfOtherIdentity, _ = uuid.FromString("{3F78C3E5-F79A-46BD-A0B8-9D18116DDC79}")
+	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
+	AttributeGPLink, _                              = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
+	AttributeMSDSKeyCredentialLink, _               = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
+	AttributeSecurityGUID, _                        = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
 
-	AttributeMSDSKeyCredentialLink, _ = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
-
-	//  AttributeSecurityGUID	OctetString	1	{9B026DA6-0D3C-465C-8BEE-5199D7165CBA}
-
-	ValidateWriteSelfMembership = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ValidateWriteSPN            = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	ObjectGuidUser              = uuid.UUID{0xbf, 0x96, 0x7a, 0xba, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidComputer          = uuid.UUID{0xbf, 0x96, 0x7a, 0x86, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidGroup             = uuid.UUID{0xbf, 0x96, 0x7a, 0x9c, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidDomain            = uuid.UUID{0x19, 0x19, 0x5a, 0x5a, 0x6d, 0xa0, 0x11, 0xd0, 0xaf, 0xd3, 0x00, 0xc0, 0x4f, 0xd9, 0x30, 0xc9}
-	ObjectGuidGPO               = uuid.UUID{0xf3, 0x0e, 0x3b, 0xc2, 0x9f, 0xf0, 0x11, 0xd1, 0xb6, 0x03, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	ObjectGuidOU                = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ValidateWriteSelfMembership  = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ValidateWriteSPN             = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	ObjectGuidUser               = uuid.UUID{0xbf, 0x96, 0x7a, 0xba, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidComputer           = uuid.UUID{0xbf, 0x96, 0x7a, 0x86, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidGroup              = uuid.UUID{0xbf, 0x96, 0x7a, 0x9c, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidDomain             = uuid.UUID{0x19, 0x19, 0x5a, 0x5a, 0x6d, 0xa0, 0x11, 0xd0, 0xaf, 0xd3, 0x00, 0xc0, 0x4f, 0xd9, 0x30, 0xc9}
+	ObjectGuidGPO                = uuid.UUID{0xf3, 0x0e, 0x3b, 0xc2, 0x9f, 0xf0, 0x11, 0xd1, 0xb6, 0x03, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	ObjectGuidOU                 = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
 	NullGUID    = uuid.UUID{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -98,6 +99,7 @@ const (
 	PwnReadMSAPassword
 	PwnHasMSA
 	PwnWriteKeyCredentialLink
+	PwnWriteAttributeSecurityGUID
 	PwnSIDHistoryEquality
 	PwnAllExtendedRights
 	PwnDCReplicationGetChanges
@@ -106,7 +108,11 @@ const (
 	PwnReadLAPSPassword
 	PwnMemberOfGroup
 	PwnHasSPN
+	PwnHasSPNNoPreauth
 	PwnAdminSDHolderOverwriteACL
+	PwnComputerAffectedByGPO
+	PwnGPOMachineConfigPartOfGPO
+	PwnGPOUserConfigPartOfGPO
 )
 
 var PwnAnalyzers = []PwnAnalyzer{
@@ -126,12 +132,95 @@ var PwnAnalyzers = []PwnAnalyzer{
 			return results
 		},
 	}, */
+
+	{
+		Method: PwnComputerAffectedByGPO,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only for computers, you can't really pwn users this way
+			if o.Type() != ObjectTypeComputer {
+				return results
+			}
+			// Find all perent containers with GP links
+			var hasparent bool
+			p := o
+			for {
+				gpoptions := p.OneAttr(GPOptions)
+				if gpoptions == "1" {
+					// inheritance is blocked, so don't move upwards
+					break
+				}
+
+				p, hasparent = AllObjects.Parent(p)
+				if !hasparent {
+					break
+				}
+
+				gplinks := strings.Trim(p.OneAttr(GPLink), " ")
+				if len(gplinks) == 0 {
+					continue
+				}
+				// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
+				if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
+					log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+					continue
+				}
+				links := strings.Split(gplinks[1:len(gplinks)-1], "][")
+				for _, link := range links {
+					linkinfo := strings.Split(link, ";")
+					if len(linkinfo) != 2 {
+						log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+						continue
+					}
+					linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
+					linktype := linkinfo[1]
+					// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+					if linktype == "1" || linktype == "3" {
+						continue // Link is disabled
+					}
+
+					gpo, found := AllObjects.Find(linkedgpodn)
+					if !found {
+						log.Error().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+					} else {
+						results = append(results, gpo)
+					}
+				}
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnGPOMachineConfigPartOfGPO,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only for computers, you can't really pwn users this way
+			p, hasparent := AllObjects.Parent(o)
+			if o.Type() != ObjectTypeContainer || !hasparent || p.Type() != ObjectTypeGroupPolicyContainer || o.OneAttr(Name) != "Machine" {
+				return results
+			}
+			results = append(results, p)
+			return results
+		},
+	},
+	{
+		Method: PwnGPOUserConfigPartOfGPO,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			p, hasparent := AllObjects.Parent(o)
+			if o.Type() != ObjectTypeContainer || !hasparent || p.Type() != ObjectTypeGroupPolicyContainer || o.OneAttr(Name) != "User" {
+				return results
+			}
+			results = append(results, p)
+			return results
+		},
+	},
 	{
 		Method: PwnCreateUser,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only for containers and org units
-			if o.Type() != ObjectTypeContainer || o.Type() != ObjectTypeOrganizationalUnit {
+			if o.Type() != ObjectTypeContainer && o.Type() != ObjectTypeOrganizationalUnit {
 				return results
 			}
 			sd, err := o.SecurityDescriptor()
@@ -151,7 +240,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only for containers and org units
-			if o.Type() != ObjectTypeContainer || o.Type() != ObjectTypeOrganizationalUnit {
+			if o.Type() != ObjectTypeContainer && o.Type() != ObjectTypeOrganizationalUnit {
 				return results
 			}
 			sd, err := o.SecurityDescriptor()
@@ -171,7 +260,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only for containers and org units
-			if o.Type() != ObjectTypeContainer || o.Type() != ObjectTypeOrganizationalUnit {
+			if o.Type() != ObjectTypeContainer && o.Type() != ObjectTypeOrganizationalUnit {
 				return results
 			}
 			sd, err := o.SecurityDescriptor()
@@ -191,7 +280,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only for containers and org units
-			if o.Type() != ObjectTypeContainer || o.Type() != ObjectTypeOrganizationalUnit {
+			if o.Type() != ObjectTypeContainer && o.Type() != ObjectTypeOrganizationalUnit {
 				return results
 			}
 			sd, err := o.SecurityDescriptor()
@@ -264,7 +353,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only for groups
-			if o.Type() != ObjectTypeGroup {
+			if o.Type() != ObjectTypeGroup && o.Type() != ObjectTypeForeignSecurityPrincipal {
 				return results
 			}
 			// It's a group
@@ -395,6 +484,26 @@ var PwnAnalyzers = []PwnAnalyzer{
 		},
 	},
 	{
+		Method:      PwnWriteAttributeSecurityGUID,
+		Description: `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set`,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			sd, err := o.SecurityDescriptor()
+			if o.Type() != ObjectTypeAttributeSchema {
+				return results
+			}
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o.ObjectTypeGUID()) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUID) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
+				}
+			}
+			return results
+		},
+	},
+	{
 		Method: PwnResetPassword,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
@@ -424,6 +533,32 @@ var PwnAnalyzers = []PwnAnalyzer{
 			}
 			if len(o.Attr(ServicePrincipalName)) > 0 {
 				o.SetAttr(MetaHasSPN, "1")
+				AuthenticatedUsers, found := AllObjects.Find("CN=Authenticated Users,CN=WellKnown Security Principals,CN=Configuration," + AllObjects.Base)
+				if !found {
+					log.Error().Msgf("Could not locate Authenticated Users")
+					return results
+				}
+				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPNNoPreauth, AuthenticatedUsers})
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnHasSPNNoPreauth,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only computers and users
+			if o.Type() != ObjectTypeUser {
+				return results
+			}
+			uac, ok := o.AttrInt(UserAccountControl)
+			if !ok {
+				return results
+			}
+			if uac&0x400000 == 0 {
+				return results
+			}
+			if len(o.Attr(ServicePrincipalName)) > 0 {
 				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPN, AttackerObject})
 			}
 			return results
@@ -471,10 +606,11 @@ var PwnAnalyzers = []PwnAnalyzer{
 		},
 	}, */
 	{
-		Method: PwnWriteAllowedToAct,
+		Method:      PwnWriteAllowedToAct,
+		Description: `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
-			// Only computers and users
+			// Only computers
 			if o.Type() != ObjectTypeComputer {
 				return results
 			}
@@ -483,7 +619,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o.ObjectTypeGUID()) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToAct) {
+				if acl.AllowObjectClass(o.ObjectTypeGUID()) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -819,6 +955,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 
 				if excludeobjects != nil && excludeobjects.Contains(pwntarget) {
 					// skip excluded objects
+					// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
 					continue
 				}
 
@@ -837,6 +974,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 				if pwninfo.Method != PwnACLContainsDeny {
 					// We don't add deny ACL targets, if they're added because of a positive pwn then it's fine
 					if _, found := implicatedobjectsmap[pwntarget]; !found {
+						// log.Debug().Msgf("Including target %v", pwntarget.DN())
 						newimplicatedobjects[pwntarget] = struct{}{} // Add this to work map as non-processed
 					}
 				}
@@ -851,8 +989,31 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 	}
 
 	// Remove dangling connections, this is deny ACLs that didn't have the target added
-	for conn, _ := range connectionsmap {
+	for conn, methods := range connectionsmap {
 		if _, found := implicatedobjectsmap[conn.Source]; !found {
+			// Bonus sanity check
+			onlydeny := true
+			for _, method := range methods {
+				if method != PwnACLContainsDeny {
+					onlydeny = false
+				}
+			}
+			if !onlydeny {
+				log.Error().Msgf("Source from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
+			}
+			delete(connectionsmap, conn)
+		}
+		if _, found := implicatedobjectsmap[conn.Target]; !found {
+			// Bonus sanity check
+			onlydeny := true
+			for _, method := range methods {
+				if method != PwnACLContainsDeny {
+					onlydeny = false
+				}
+			}
+			if !onlydeny {
+				log.Error().Msgf("Target from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
+			}
 			delete(connectionsmap, conn)
 		}
 	}

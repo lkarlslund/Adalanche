@@ -22,7 +22,9 @@ type ObjectType byte
 const (
 	_ ObjectType = iota
 	ObjectTypeOther
+	ObjectTypeAttributeSchema
 	ObjectTypeGroup
+	ObjectTypeForeignSecurityPrincipal
 	ObjectTypeUser
 	ObjectTypeComputer
 	ObjectTypeManagedServiceAccount
@@ -112,6 +114,8 @@ func (o Object) Type() ObjectType {
 		o.objecttype = ObjectTypeUser
 	case "Group":
 		o.objecttype = ObjectTypeGroup
+	case "Foreign-Security-Principal":
+		o.objecttype = ObjectTypeForeignSecurityPrincipal
 	case "ms-DS-Group-Managed-Service-Account":
 		o.objecttype = ObjectTypeManagedServiceAccount
 	case "Organizational-Unit":
@@ -124,6 +128,8 @@ func (o Object) Type() ObjectType {
 		o.objecttype = ObjectTypeGroupPolicyContainer
 	case "Domain Trust":
 		o.objecttype = ObjectTypeTrust
+	case "Attribute-Schema":
+		o.objecttype = ObjectTypeAttributeSchema
 	default:
 		o.objecttype = ObjectTypeOther
 	}
@@ -155,7 +161,11 @@ func (o *Object) ObjectTypeGUID() uuid.UUID {
 }
 
 func (o Object) Attr(attr Attribute) []string {
-	return o.Attributes[attr]
+	r := o.Attributes[attr]
+	if len(r) == 0 && attr == DistinguishedName {
+		return []string{o.DN()}
+	}
+	return r
 }
 
 func (o Object) OneAttr(attr Attribute) string {
@@ -279,8 +289,15 @@ func (o *Object) MemberOf() []*Object {
 			if !found {
 				target = &Object{
 					DistinguishedName: memberof,
-					Attributes:        map[Attribute][]string{Name: {"Synthetic member"}, Description: {"Synthetic member"}},
+					Attributes: map[Attribute][]string{
+						DistinguishedName: {memberof},
+						ObjectCategory:    {"CN=Group,CN=Schema,CN=Configuration," + AllObjects.Base},
+						ObjectClass:       {"top", "group"},
+						Name:              {"Synthetic group " + memberof},
+						Description:       {"Synthetic group"}},
 				}
+				log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group", o.DN(), memberof)
+				AllObjects.Add(target)
 			}
 			target.imamemberofyou(o)
 			o.memberof = append(o.memberof, target)

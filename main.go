@@ -354,6 +354,11 @@ func main() {
 	}
 
 	for _, domain := range strings.Split(*domain, ",") {
+
+		if AllObjects.Base == "" { // Shoot me, this is horrible
+			AllObjects.Base = "dc=" + strings.Replace(domain, ".", ",dc=", -1)
+		}
+
 		cachefile, err := os.Open(filepath.Join(*datapath, domain+".objects.lz4.msgp"))
 		if err != nil {
 			log.Fatal().Msgf("Problem opening domain cache file: %v", err)
@@ -404,8 +409,10 @@ func main() {
 			log.Fatal().Msgf("Problem parsing SID %v", sid)
 		}
 		if _, found := AllObjects.FindSID(binsid); !found {
+			dn := "CN=" + name + ",CN=microsoft-builtin"
+			log.Info().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 			AllObjects.Add(&Object{
-				DistinguishedName: "CN=" + name + ",CN=microsoft-builtin",
+				DistinguishedName: dn,
 				Attributes: map[Attribute][]string{
 					Name:           {name},
 					ObjectSid:      {string(binsid)},
@@ -428,10 +435,17 @@ func main() {
 		progressbar.OptionThrottle(time.Second*1),
 	)
 
-	everyonesid, _ := SIDFromString("S-1-1-0")
-	authenticateduserssid, _ := SIDFromString("S-1-5-11")
-	everyone := AllObjects.FindOrAddSID(everyonesid)
-	authenticatedusers := AllObjects.FindOrAddSID(authenticateduserssid)
+	// everyonesid, _ := SIDFromString("S-1-1-0")
+	// everyone, ok := AllObjects.FindSID(everyonesid)
+	// if !ok {
+	// 	log.Fatal().Msgf("Could not locate Everyone, aborting")
+	// }
+
+	// authenticateduserssid, _ := SIDFromString("S-1-5-11")
+	// authenticatedusers, ok := AllObjects.FindSID(authenticateduserssid)
+	// if !ok {
+	// 	log.Fatal().Msgf("Could not locate Authenticated Users, aborting")
+	// }
 
 	log.Info().Msg("Pre-processing directory data ...")
 	for _, object := range AllObjects.AsArray() {
@@ -439,11 +453,11 @@ func main() {
 		object.MemberOf()
 
 		// Crude special handling for Everyone and Authenticated Users
-		if object.Type() == ObjectTypeUser || object.Type() == ObjectTypeComputer || object.Type() == ObjectTypeManagedServiceAccount {
-			everyone.imamemberofyou(object)
-			authenticatedusers.imamemberofyou(object)
-			object.memberof = append(object.memberof, everyone, authenticatedusers)
-		}
+		// if object.Type() == ObjectTypeUser || object.Type() == ObjectTypeComputer || object.Type() == ObjectTypeManagedServiceAccount {
+		// 	everyone.imamemberofyou(object)
+		// 	authenticatedusers.imamemberofyou(object)
+		// 	object.memberof = append(object.memberof, everyone, authenticatedusers)
+		// }
 
 		object.SetAttr(MetaType, object.Type().String())
 		if lastlogon, ok := object.AttrTimestamp(LastLogonTimestamp); ok {

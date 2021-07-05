@@ -49,6 +49,16 @@ func (c comparatortype) Compare(a, b int64) bool {
 	return false // I hope not
 }
 
+type LowerStringAttribute Attribute
+
+func (a LowerStringAttribute) Strings(o *Object) []string {
+	l := o.AttrRendered(Attribute(a))
+	for i, s := range l {
+		l[i] = strings.ToLower(s)
+	}
+	return l
+}
+
 func (a Attribute) Strings(o *Object) []string {
 	return o.AttrRendered(a)
 }
@@ -227,6 +237,10 @@ valueloop:
 	}
 
 	attribute := A(attributename)
+	if attribute == 0 {
+		return "", nil, fmt.Errorf("Unknown attribute %v", attributename)
+	}
+
 	var casesensitive bool
 
 	// Decide what to do
@@ -289,7 +303,10 @@ valueloop:
 			if err != nil {
 				return "", nil, err
 			}
-			return s, hasGlobMatch{attribute, g, casesensitive}, nil
+			if casesensitive {
+				return s, hasGlobMatch{attribute, g}, nil
+			}
+			return s, hasGlobMatch{LowerStringAttribute(attribute), g}, nil
 		}
 		if casesensitive {
 			return s, hasStringMatch{attribute, value}, nil
@@ -476,16 +493,12 @@ func (a hasInsensitiveStringMatch) Evaluate(o *Object) bool {
 }
 
 type hasGlobMatch struct {
-	a             ObjectStrings
-	m             glob.Glob
-	casesensitive bool
+	a ObjectStrings
+	m glob.Glob
 }
 
 func (a hasGlobMatch) Evaluate(o *Object) bool {
 	for _, value := range a.a.Strings(o) {
-		if !a.casesensitive {
-			value = strings.ToLower(value)
-		}
 		if a.m.Match(value) {
 			return true
 		}

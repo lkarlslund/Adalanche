@@ -266,7 +266,7 @@ $(function() {
                 {
                     selector: 'node[name="Attacker"]',
                     style: {
-                        "background-image": "icons/noun_anonymous_302770.svg",
+                        "background-image": "icons/attacker.svg",
                         "background-color": "purple"
                     }
                 },
@@ -291,7 +291,15 @@ $(function() {
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/person-x-fill.svg",
-                        "background-color": "green"
+                        "background-color": "lightblue"
+                    }
+                },
+                {
+                    selector: 'node[_type="GroupPolicyContainer"]',
+                    style: {
+                        shape: "rectangle",
+                        "background-image": "icons/gpo.svg",
+                        "background-color": "lightpurple"
                     }
                 },
                 {
@@ -299,7 +307,7 @@ $(function() {
                     style: {
                         shape: "hexagon",
                         "background-image": "icons/tv-fill.svg",
-                        "background-color": "green"
+                        "background-color": "lightgreen"
                     }
                 },
                 {

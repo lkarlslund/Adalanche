@@ -8,9 +8,9 @@ import (
 	"fmt"
 )
 
-const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNAdminSDHolderOverwriteACL"
+const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkWriteAttributeSecurityGUIDSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNHasSPNNoPreauthAdminSDHolderOverwriteACLComputerAffectedByGPOGPOMachineConfigPartOfGPOGPOUserConfigPartOfGPO"
 
-var _PwnMethodIndex = [...]uint16{0, 10, 21, 35, 50, 70, 82, 98, 113, 126, 130, 140, 148, 164, 177, 186, 194, 211, 228, 237, 255, 268, 283, 289, 311, 329, 346, 369, 392, 418, 434, 447, 453, 478}
+var _PwnMethodIndex = [...]uint16{0, 10, 21, 35, 50, 70, 82, 98, 113, 126, 130, 140, 148, 164, 177, 186, 194, 211, 228, 237, 255, 268, 283, 289, 311, 337, 355, 372, 395, 418, 444, 460, 473, 479, 494, 519, 540, 565, 587}
 
 func (i PwnMethod) String() string {
 	i -= 1
@@ -20,7 +20,7 @@ func (i PwnMethod) String() string {
 	return _PwnMethodName[_PwnMethodIndex[i]:_PwnMethodIndex[i+1]]
 }
 
-var _PwnMethodValues = []PwnMethod{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33}
+var _PwnMethodValues = []PwnMethod{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38}
 
 var _PwnMethodNameToValueMap = map[string]PwnMethod{
 	_PwnMethodName[0:10]:    1,
@@ -47,15 +47,20 @@ var _PwnMethodNameToValueMap = map[string]PwnMethod{
 	_PwnMethodName[268:283]: 22,
 	_PwnMethodName[283:289]: 23,
 	_PwnMethodName[289:311]: 24,
-	_PwnMethodName[311:329]: 25,
-	_PwnMethodName[329:346]: 26,
-	_PwnMethodName[346:369]: 27,
-	_PwnMethodName[369:392]: 28,
-	_PwnMethodName[392:418]: 29,
-	_PwnMethodName[418:434]: 30,
-	_PwnMethodName[434:447]: 31,
-	_PwnMethodName[447:453]: 32,
-	_PwnMethodName[453:478]: 33,
+	_PwnMethodName[311:337]: 25,
+	_PwnMethodName[337:355]: 26,
+	_PwnMethodName[355:372]: 27,
+	_PwnMethodName[372:395]: 28,
+	_PwnMethodName[395:418]: 29,
+	_PwnMethodName[418:444]: 30,
+	_PwnMethodName[444:460]: 31,
+	_PwnMethodName[460:473]: 32,
+	_PwnMethodName[473:479]: 33,
+	_PwnMethodName[479:494]: 34,
+	_PwnMethodName[494:519]: 35,
+	_PwnMethodName[519:540]: 36,
+	_PwnMethodName[540:565]: 37,
+	_PwnMethodName[565:587]: 38,
 }
 
 // PwnMethodString retrieves an enum value from the enum constants string name.

@@ -28,6 +28,6 @@ var (
 
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
-	AllObjects.Init()
+	AllObjects.Init("")
 	AllObjects.Add(AttackerObject)
 }

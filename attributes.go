@@ -71,6 +71,8 @@ var (
 	TrustAttributes             = NewAttribute("trustAttributes")
 	TrustPartner                = NewAttribute("trustPartner")
 	DsHeuristics                = NewAttribute("dsHeuristics")
+	GPLink                      = NewAttribute("gPLink")
+	GPOptions                   = NewAttribute("gPOptions")
 	MAX_IMPORTED                = TrustPartner
 	MetaProtectedUser           = NewAttribute("_protecteduser")
 	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")

@@ -142,10 +142,14 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 
 		nodeidmap[object] = idcount
 
+		label := object.OneAttr(DisplayName)
+		if label == "" {
+			label = object.OneAttr(Name)
+		}
 		newnode := CytoNode{
 			Data: map[string]interface{}{
 				"id":                     fmt.Sprintf("n%v", idcount),
-				"label":                  object.OneAttr(Name),
+				"label":                  label,
 				DistinguishedName.Name(): object.DN(),
 				Name.Name():              object.OneAttr(Name),
 				DisplayName.Name():       object.OneAttr(DisplayName),
@@ -189,10 +193,12 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		sourceid, found := nodeidmap[connection.Source]
 		if !found {
 			log.Error().Msg("Source object not found - this should never happen")
+			continue
 		}
 		targetid, found := nodeidmap[connection.Target]
 		if !found {
 			log.Error().Msg("Target object not found - this should never happen")
+			continue
 		}
 
 		g.Elements.Edges[edgecount] = CytoEdge{
