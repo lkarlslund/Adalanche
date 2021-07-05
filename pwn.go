@@ -538,7 +538,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 					log.Error().Msgf("Could not locate Authenticated Users")
 					return results
 				}
-				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPNNoPreauth, AuthenticatedUsers})
+				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPN, AuthenticatedUsers})
 			}
 			return results
 		},
@@ -559,7 +559,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			if len(o.Attr(ServicePrincipalName)) > 0 {
-				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPN, AttackerObject})
+				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPNNoPreauth, AttackerObject})
 			}
 			return results
 		},
