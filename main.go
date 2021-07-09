@@ -82,7 +82,7 @@ func main() {
 	user := flag.String("username", "", "username to connect with ex. -username=\"someuser\"")
 	pass := flag.String("password", "", "password to connect with ex. -password=\"testpass!\"")
 
-	tlsmode := flag.String("tlsmode", "tls", "Transport mode (tls, starttls, notls)")
+	tlsmode := flag.String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
 
@@ -324,6 +324,10 @@ func main() {
 		}
 		log.Debug().Msgf("Saving %v AD objects ...", len(rawobjects))
 		for _, object := range rawobjects {
+
+			// Let's check if it this is a GPO and then add a fake attribute if it affects local groups
+			// if object.Attributes[]
+
 			err = object.EncodeMsg(e)
 			if err != nil {
 				log.Fatal().Msgf("Problem encoding LDAP object %v: %v", object.DistinguishedName, err)
