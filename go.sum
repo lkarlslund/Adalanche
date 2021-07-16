@@ -63,6 +63,8 @@ github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29 h1:4fuGT7A0Tb
 github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29/go.mod h1:Q/0KZGCdyOiOp6oN+HFifXw9rwBwVB6NkNL4tXXDF70=
 github.com/lkarlslund/stringdedup v0.2.1 h1:MFDyr/uY2a8A+gBkCcMlA9ePnGnTzXZS5DV0+mnOSZM=
 github.com/lkarlslund/stringdedup v0.2.1/go.mod h1:746ZZPjQHDoKM6mlwEKDiU9ub5CFDx1KL8xzQm/lTSA=
+github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001 h1:S9Xs8FSeBXkzHyvXHcYQKFqwr63T+VL6C9I+4q+0z4E=
+github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001/go.mod h1:Ckyc7Him7fKmtsSkOJoUNNU7UgBtd/DDH+/xkfX808Q=
 github.com/mattn/go-colorable v0.1.8 h1:c1ghPdyEDarC70ftn0y+A/Ee++9zz8ljHG1b13eJ0s8=
 github.com/mattn/go-colorable v0.1.8/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-isatty v0.0.12 h1:wuysRhFDzyxgEmMf5xjvJ2M9dZoWAXNNr5LSBS7uHXY=

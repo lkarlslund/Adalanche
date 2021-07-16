@@ -194,9 +194,15 @@ var PwnAnalyzers = []PwnAnalyzer{
 		Method: PwnGPOMachineConfigPartOfGPO,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
+			if o.Type() != ObjectTypeContainer || o.OneAttr(Name) != "Machine" {
+				return results
+			}
 			// Only for computers, you can't really pwn users this way
 			p, hasparent := AllObjects.Parent(o)
-			if o.Type() != ObjectTypeContainer || !hasparent || p.Type() != ObjectTypeGroupPolicyContainer || o.OneAttr(Name) != "Machine" {
+			if !hasparent || p.Type() != ObjectTypeGroupPolicyContainer {
+				if strings.Contains(p.DN(), "Policies") {
+					log.Debug().Msgf("%v+", p)
+				}
 				return results
 			}
 			results = append(results, p)
@@ -207,8 +213,12 @@ var PwnAnalyzers = []PwnAnalyzer{
 		Method: PwnGPOUserConfigPartOfGPO,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
+			if o.Type() != ObjectTypeContainer || o.OneAttr(Name) != "User" {
+				return results
+			}
+			// Only for users, you can't really pwn users this way
 			p, hasparent := AllObjects.Parent(o)
-			if o.Type() != ObjectTypeContainer || !hasparent || p.Type() != ObjectTypeGroupPolicyContainer || o.OneAttr(Name) != "User" {
+			if o.Type() != ObjectTypeContainer || !hasparent || p.Type() != ObjectTypeGroupPolicyContainer {
 				return results
 			}
 			results = append(results, p)

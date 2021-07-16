@@ -7,8 +7,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gobwas/glob"
+	timespan "github.com/lkarlslund/time-timespan"
+	"github.com/rs/zerolog/log"
 )
 
 type Query interface {
@@ -259,6 +262,17 @@ valueloop:
 			return "", nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
 		return s, lengthModifier{attribute, comparator, valuenum}, nil
+	case "since":
+		if numok != nil {
+			// try to parse it as an duration
+			d, err := timespan.ParseTimespan(value)
+			timeinseconds := time.Time(timespan.Time(time.Now()).Add(d)).Unix()
+			if err != nil {
+				return "", nil, errors.New("Could not parse value as a duration (5h2m)")
+			}
+			return s, sinceModifier{attribute, comparator, int64(timeinseconds)}, nil
+		}
+		return s, lengthModifier{attribute, comparator, valuenum}, nil
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return "", nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
@@ -392,6 +406,38 @@ type lengthModifier struct {
 func (a lengthModifier) Evaluate(o *Object) bool {
 	for _, value := range a.a.Strings(o) {
 		if a.c.Compare(int64(len(value)), a.value) {
+			return true
+		}
+	}
+	return false
+}
+
+type sinceModifier struct {
+	a     ObjectStrings
+	c     comparatortype
+	value int64 // time in seconds, positive is in the past, negative in the future
+}
+
+func (sm sinceModifier) Evaluate(o *Object) bool {
+	for _, value := range sm.a.Strings(o) {
+		// Time in AD is either a
+		var t time.Time
+		if strings.HasSuffix(value, ".0Z") && len(value) == 17 {
+			pt, err := time.Parse("20060102150405", value[:14])
+			if err != nil { // very unlikely, but who knows
+				return false
+			}
+			t = pt
+		} else {
+			i, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return false
+			}
+			t = FiletimeToTime(uint64(i))
+		}
+		log.Debug().Msgf("Object %v has %v parsed as %v", o.Label(), value, t.Format(time.RFC1123Z))
+
+		if sm.c.Compare(t.Unix(), sm.value) {
 			return true
 		}
 	}

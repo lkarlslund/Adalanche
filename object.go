@@ -94,6 +94,16 @@ func (o Object) DN() string {
 	return o.DistinguishedName
 }
 
+func (o Object) Label() string {
+	return Default(
+		o.OneAttr(LDAPDisplayName),
+		o.OneAttr(DisplayName),
+		o.OneAttr(Name),
+		o.OneAttr(SAMAccountName),
+		o.OneAttr(ObjectGUID),
+	)
+}
+
 func (o Object) ParentDN() string {
 	firstcomma := strings.Index(o.DN(), ",")
 	if firstcomma >= 0 {
@@ -318,8 +328,8 @@ func (o *Object) SetAttr(a Attribute, value string) {
 func (o *Object) Meta() map[string]string {
 	result := make(map[string]string)
 	for attr, value := range o.Attributes {
-		if attr.Name()[0] == '_' {
-			result[attr.Name()] = value[0]
+		if attr.String()[0] == '_' {
+			result[attr.String()] = value[0]
 		}
 	}
 	return result

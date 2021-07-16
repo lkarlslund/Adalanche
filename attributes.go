@@ -36,6 +36,7 @@ var (
 	NTMixedDomain               = NewAttribute("nTMixedDomain")
 	SystemFlags                 = NewAttribute("systemFlags")
 	PrimaryGroupID              = NewAttribute("primaryGroupID")
+	LogonCount                  = NewAttribute("logonCount")
 	UserAccountControl          = NewAttribute("userAccountControl")
 	LocalPolicyFlags            = NewAttribute("localPolicyFlags")
 	CodePage                    = NewAttribute("codePage")
@@ -52,6 +53,7 @@ var (
 	ServicePrincipalName        = NewAttribute("servicePrincipalName")
 	Name                        = NewAttribute("name")
 	DisplayName                 = NewAttribute("displayName")
+	LDAPDisplayName             = NewAttribute("lDAPDisplayName") // Attribute-Schema
 	Description                 = NewAttribute("description")
 	SAMAccountName              = NewAttribute("sAMAccountName")
 	ObjectSid                   = NewAttribute("objectSid")
@@ -89,6 +91,7 @@ var (
 	MetaWorkstation             = NewAttribute("_workstation")
 	MetaServer                  = NewAttribute("_server")
 	MetaType                    = NewAttribute("_type")
+	MetaLAPSInstalled           = NewAttribute("_haslaps")
 	// The rest is skipped
 	_ = NewAttribute("member")
 	_ = NewAttribute("member;range=0-4999")
@@ -121,7 +124,7 @@ func NewAttribute(name string) Attribute {
 	return Attribute(newindex)
 }
 
-func (a Attribute) Name() string {
+func (a Attribute) String() string {
 	return attributenums[a]
 }
 
@@ -134,6 +137,10 @@ func LookupAttribute(name string) Attribute {
 
 func A(name string) Attribute {
 	return LookupAttribute(strings.ToLower(name))
+}
+
+func (a Attribute) IsMeta() bool {
+	return strings.HasPrefix(a.String(), "_")
 }
 
 type orderedPair struct {
@@ -160,10 +167,10 @@ func (p pairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func ShowAttributePopularity() {
 	log.Debug().Msg("¤¤¤¤¤¤¤¤¤¤¤ COUNTS ############")
 	for _, pair := range rankByCount(attributepopularity) {
-		log.Debug().Msgf("%v has %v hits", pair.key.Name(), pair.count)
+		log.Debug().Msgf("%v has %v hits", pair.key.String(), pair.count)
 	}
 	log.Debug().Msg("¤¤¤¤¤¤¤¤¤¤¤ SIZES ############")
 	for _, pair := range rankByCount(attributesizes) {
-		log.Debug().Msgf("%v has used %v bytes", pair.key.Name(), pair.count)
+		log.Debug().Msgf("%v has used %v bytes", pair.key.String(), pair.count)
 	}
 }

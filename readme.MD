@@ -9,14 +9,14 @@ You should ensure you have permission before you run this :-) Though the softwar
 #### Quick start:
 - Download latest release from Releases
 - Build your own:
-  - Install go 1.15+
+  - Install go 1.16+
   - <code>go build</code>
   - You will have a binary for your OS
 
 If no command is given, the tool will run in a dump-analyze mode (dump, then analyze).
 
-The tool tries to autodetect as much as it can, so running it on a domain joined machine will only require the -password parameter:
-<code>adalanche.exe -password Hunter42</code>
+The tool tries to autodetect as much as it can, so running it on a domain joined machine should just work without any parameters:
+<code>adalanche.exe</code>
 
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the -domain parameter as well. 
 
@@ -42,6 +42,8 @@ No really exciting results on this synthetic AD. Yes, some users are Domain Admi
 Press the "Analysis Methods" tab on the bottom portion of the page, and you get this:
 
 <img src="readme-images/analysis-methods.png" width="50%">
+
+(more methods has been added since this screenshot)
 
 The tool can look for many scenarios, but defaults to fairly simple ones that can get you control of an object. As this yielded nothing, let's try to expand with all methods enabled. Checking the missing boxes, we submit another query.
 
@@ -83,11 +85,6 @@ If you examine the "Domain Users" object, you will see that it doesn't have the 
 
 So try it out on your own data - see what your user can pwn by searching for (&(objectCategory=Person)(Name=YOURLOGIN)) and do a Reverse search. Maybe you'll just end up with the groups that you are a member of, maybe you have access to more than you think ...
 
-| Question | LDAP query | Depth | Methods | Analysis |
-|----------|------------|-------|---------|----------|
-| Who can directly reset passwords? | (&(\|(objectCategory=Group)(objectCategory=Person))(_canpwn=ResetPassword)) | 1 | ResetPassword, MemberOf | Reverse |
-| Who owns who? | (&(\|(objectCategory=Group)(objectCategory=Person))(_pwnable=Owns)) | 1 | Owns | Normal |
-
 Remember, you might get too many results. Limit the selection of targets with (&(attribute=something)(_limit=10)) to just get 10 random targets (see LDAP queries below)
 
 ### Operational theory
@@ -112,7 +109,8 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - extensible match: 1.2.840.113556.1.4.804 (you can also use :or:) [LDAP_MATCHING_RULE_BIT_OR](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_BIT_OR) 
 - extensible match: 1.2.840.113556.1.4.1941 (you can also use :dnchain:) [LDAP_MATCHING_RULE_IN_CHAIN](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_IN_CHAIN) 
 - custom extensible match: count - returns number of attribute values (member:count:>20 gives groups with more members than 20)
-- custom extensible match: length - matches on length of attribute values (member:count:>20 gives groups with more members than 20)
+- custom extensible match: length - matches on length of attribute values (name:length:>20 gives you objects with long names)
+- custom extensible match: since - parses the attribute as a timestamp and your value as a duration - pwdLastSet:since:<-6Y5M4D3h2m1s (pawLastSet is less than the time 6 years, 5 months, 4 days, 3 hours, 2 minutes and 1 second ago - or just pass an integer that represents seconds directly)
 - synthetic attribute: _limit (_limit=10) returns true on the first 10 hits, false on the rest giving you a max output of 10 items
 - synthetic attribute: _random100 (_random100<10) allows you to return a random percentage of results (&(objectclass=Person)(_random100<1)) gives you 1% of users
 - synthetic attribute: _canpwn - allows you to select objects based on what they can pwn *directly* (&(objectclass=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right

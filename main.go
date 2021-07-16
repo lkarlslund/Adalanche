@@ -87,6 +87,11 @@ func main() {
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
 
 	authmodeString := flag.String("authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+	if runtime.GOOS != "windows" {
+		// change default for non windows platofrms
+		authmodeString = flag.String("authmode", "ntlm", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+	}
+
 	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
 
 	datapath := flag.String("datapath", "data", "folder to store cached ldap data")
@@ -358,9 +363,9 @@ func main() {
 	}
 
 	for _, domain := range strings.Split(*domain, ",") {
-
 		if AllObjects.Base == "" { // Shoot me, this is horrible
 			AllObjects.Base = "dc=" + strings.Replace(domain, ".", ",dc=", -1)
+			AllObjects.Domain = domain
 		}
 
 		cachefile, err := os.Open(filepath.Join(*datapath, domain+".objects.lz4.msgp"))
@@ -475,6 +480,9 @@ func main() {
 		}
 		if strings.Contains(strings.ToLower(object.OneAttr(OperatingSystem)), "windows") {
 			object.SetAttr(MetaWindows, "1")
+		}
+		if len(object.Attr(MSmcsAdmPwdExpirationTime)) > 0 {
+			object.SetAttr(MetaLAPSInstalled, "1")
 		}
 		if uac, ok := object.AttrInt(UserAccountControl); ok {
 			if uac&UAC_TRUSTED_FOR_DELEGATION != 0 {

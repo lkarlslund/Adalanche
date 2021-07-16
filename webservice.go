@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,7 +119,7 @@ func webservice(bind string) http.Server {
 		}
 
 		for attr, values := range o.Attributes {
-			od.Attributes[attr.Name()] = values
+			od.Attributes[attr.String()] = values
 		}
 
 		if r.FormValue("format") == "json" {
@@ -175,7 +176,7 @@ func webservice(bind string) http.Server {
 
 		var excludequery Query
 
-		rest, includequery, err := ParseQuery(r.URL.Query().Get("query"))
+		rest, includequery, err := ParseQuery(query)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -248,9 +249,9 @@ func webservice(bind string) http.Server {
 		if len(pg.Implicated) > 1000 && !force {
 			w.WriteHeader(413) // too big payload response
 			if strings.HasPrefix(mode, "inverted") {
-				encoder.Encode(fmt.Sprintf("Too much data, %v targets can pwn %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, others, len(pg.Connections)))
+				fmt.Fprintf(w, "Too much data, %v targets can pwn %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>", targets, users, groups, computers, others, len(pg.Connections), "/export-graph?format=xgmml&"+r.URL.RawQuery)
 			} else {
-				encoder.Encode(fmt.Sprintf("Too much data, %v targets can be pwned by %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser.", targets, users, groups, computers, others, len(pg.Connections)))
+				fmt.Fprintf(w, "Too much data, %v targets can be pwned by %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>.", targets, users, groups, computers, others, len(pg.Connections), "/export-graph?format=xgmml&"+r.URL.RawQuery)
 			}
 			return
 		}
@@ -294,6 +295,200 @@ func webservice(bind string) http.Server {
 			encoder.Encode("Error during JSON encoding")
 		}
 	})
+
+	router.HandleFunc("/export-graph", func(w http.ResponseWriter, r *http.Request) {
+		uq := r.URL.Query()
+
+		format := uq.Get("format")
+		if format == "" {
+			format = "xgmml"
+		}
+
+		mode := uq.Get("mode")
+		if mode == "" {
+			mode = "normal"
+		}
+
+		query := uq.Get("query")
+		if query == "" {
+			query = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+		}
+
+		maxdepth := 99
+		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
+			maxdepth = maxdepthval
+		}
+
+		alldetails, err := ParseBool(uq.Get("alldetails"))
+		if err != nil {
+			alldetails = true
+		}
+
+		var includeobjects *Objects
+		var excludeobjects *Objects
+
+		var excludequery Query
+
+		rest, includequery, err := ParseQuery(r.URL.Query().Get("query"))
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+		if rest != "" {
+			if rest[0] != ',' {
+				w.WriteHeader(400) // bad request
+				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
+				return
+			}
+			if excludequery, err = ParseQueryStrict(rest[1:]); err != nil {
+				w.WriteHeader(400) // bad request
+				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
+				return
+			}
+		}
+
+		includeobjects = AllObjects.Filter(func(o *Object) bool {
+			// Domain Admins and Enterprise Admins groups
+			return includequery.Evaluate(o)
+		})
+
+		if excludequery != nil {
+			excludeobjects = AllObjects.Filter(func(o *Object) bool {
+				// Domain Admins and Enterprise Admins groups
+				return excludequery.Evaluate(o)
+			})
+		}
+
+		var selectedmethods []PwnMethod
+		for potentialmethod, values := range uq {
+			if method, ok := PwnMethodString(potentialmethod); ok == nil {
+				enabled, _ := ParseBool(values[0])
+				if len(values) == 1 && enabled {
+					selectedmethods = append(selectedmethods, method)
+				}
+			}
+		}
+		// If everything is deselected, select everything
+		if len(selectedmethods) == 0 {
+			selectedmethods = PwnMethodValues()
+		}
+
+		pg := AnalyzeObjects(includeobjects, excludeobjects, selectedmethods, mode, maxdepth)
+
+		idmap := make(map[*Object]int)
+		var id int
+		for _, obj := range pg.Implicated {
+			idmap[obj] = id
+			id++
+		}
+
+		targetmap := make(map[*Object]bool)
+		for _, target := range pg.Targets {
+			targetmap[target] = true
+		}
+
+		// Make browser download this
+		filename := AllObjects.Domain + "-analysis-" + time.Now().Format(time.RFC3339)
+
+		switch format {
+		case "gml":
+			filename += ".gml"
+		case "xgmml":
+			filename += ".xgmml"
+		}
+
+		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+
+		switch format {
+		case "gml":
+			// Lets go
+			w.Write([]byte("graph\n[\n"))
+
+			for id, node := range pg.Implicated {
+				fmt.Fprintf(w,
+					`  node
+  [
+    id %v
+    label %v
+	distinguishedName %v
+`, id, node.Label(), node.DN())
+
+				if alldetails {
+					for attribute, values := range node.Attributes {
+						valuesjoined := strings.Join(values, ", ")
+						if IsASCII(valuesjoined) {
+							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
+						}
+					}
+				}
+				fmt.Fprintf(w, "  ]\n")
+			}
+
+			for _, pwn := range pg.Connections {
+				methods := pwn.Methods[0].String()
+				for i := 1; i < len(pwn.Methods); i++ {
+					methods += ", " + pwn.Methods[i].String()
+				}
+				fmt.Fprintf(w,
+					`  edge
+  [
+    source %v
+    target %v
+	label %v
+  ]
+`, idmap[pwn.Source], idmap[pwn.Target], methods)
+			}
+			targetmap := make(map[*Object]bool)
+			for _, target := range pg.Targets {
+				targetmap[target] = true
+			}
+
+			w.Write([]byte("]\n"))
+
+		case "xgmml":
+			graph := NewXGMMLGraph()
+
+			for id, object := range pg.Implicated {
+				node := XGMMLNode{
+					Id:    id,
+					Label: object.Label(),
+					// Weight:     0,
+					// Attributes: []XGMMLAttribute{},
+				}
+
+				if alldetails {
+					for attribute, values := range object.Attributes {
+						valuesjoined := strings.Join(values, ", ")
+						if IsASCII(valuesjoined) {
+							node.Attributes = append(node.Attributes, XGMMLAttribute{
+								Name:  attribute.String(),
+								Value: valuesjoined,
+							})
+						}
+					}
+				}
+				graph.Nodes = append(graph.Nodes, node)
+			}
+
+			for _, pwn := range pg.Connections {
+				methods := pwn.Methods[0].String()
+				for i := 1; i < len(pwn.Methods); i++ {
+					methods += ", " + pwn.Methods[i].String()
+				}
+				graph.Edges = append(graph.Edges, XGMMLEdge{
+					Source: idmap[pwn.Source],
+					Target: idmap[pwn.Target],
+					Label:  methods,
+				})
+			}
+			fmt.Fprint(w, xml.Header)
+			xe := xml.NewEncoder(w)
+			xe.Indent("", "  ")
+			xe.Encode(graph)
+		}
+	})
+
 	router.HandleFunc("/query/objects/{query}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		query := vars["query"]
@@ -380,6 +575,7 @@ func webservice(bind string) http.Server {
 			CantChangePwd bool      `json:"cantchangepwd,omitempty"`
 			NoExpirePwd   bool      `json:"noexpirepwd,omitempty"`
 			NoRequirePwd  bool      `json:"norequirepwd,omitempty"`
+			HasLAPS       bool      `json:"haslaps,omitempty"`
 		}
 		var result []info
 		for _, object := range AllObjects.AsArray() {
@@ -424,6 +620,7 @@ func webservice(bind string) http.Server {
 					CantChangePwd: object.OneAttr(MetaPasswordCantChange) == "1",
 					NoExpirePwd:   object.OneAttr(MetaPasswordNoExpire) == "1",
 					NoRequirePwd:  object.OneAttr(MetaPasswordNotRequired) == "1",
+					HasLAPS:       object.OneAttr(MetaLAPSInstalled) == "1",
 				}
 
 				// if uac&UAC_NOT_DELEGATED != 0 {

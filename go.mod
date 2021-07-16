@@ -1,6 +1,6 @@
 module github.com/lkarlslund/adalanche
 
-go 1.15
+go 1.16
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8
@@ -18,6 +18,7 @@ require (
 	github.com/json-iterator/go v1.1.11
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29 // indirect
 	github.com/lkarlslund/stringdedup v0.2.1
+	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001 // indirect
 	github.com/mattn/go-colorable v0.1.8
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	github.com/rs/zerolog v1.23.0

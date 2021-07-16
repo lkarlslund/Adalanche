@@ -8,7 +8,8 @@ import (
 )
 
 type Objects struct {
-	Base      string
+	Domain    string // tld
+	Base      string // dc=blabla,dc=com
 	asarray   []*Object
 	objectmap map[*Object]struct{}
 	dnmap     map[string]*Object

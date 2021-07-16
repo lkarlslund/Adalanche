@@ -84,3 +84,21 @@ func FiletimeToTime(filetime uint64) time.Time {
 
 	return t
 }
+
+func IsASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
+func Default(values ...string) string {
+	for _, value := range values {
+		if len(value) > 0 {
+			return value
+		}
+	}
+	return ""
+}

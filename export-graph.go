@@ -142,37 +142,30 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 
 		nodeidmap[object] = idcount
 
-		label := object.OneAttr(DisplayName)
-		if label == "" {
-			label = object.OneAttr(Name)
-		}
 		newnode := CytoNode{
 			Data: map[string]interface{}{
-				"id":                     fmt.Sprintf("n%v", idcount),
-				"label":                  label,
-				DistinguishedName.Name(): object.DN(),
-				Name.Name():              object.OneAttr(Name),
-				DisplayName.Name():       object.OneAttr(DisplayName),
-				Description.Name():       object.OneAttr(Description),
-				ObjectSid.Name():         object.SID().String(),
-				SAMAccountName.Name():    object.OneAttr(SAMAccountName),
+				"id":                       fmt.Sprintf("n%v", idcount),
+				"label":                    object.Label(),
+				DistinguishedName.String(): object.DN(),
+				Name.String():              object.OneAttr(Name),
+				DisplayName.String():       object.OneAttr(DisplayName),
+				Description.String():       object.OneAttr(Description),
+				ObjectSid.String():         object.SID().String(),
+				SAMAccountName.String():    object.OneAttr(SAMAccountName),
 			}}
 
-		if alldetails {
-			for attr, values := range object.Attributes {
+		for attr, values := range object.Attributes {
+			if attr.IsMeta() || alldetails {
 				if len(values) == 1 {
-					newnode.Data[attr.Name()] = values[0]
+					newnode.Data[attr.String()] = values[0]
 				} else {
-					newnode.Data[attr.Name()] = values
+					newnode.Data[attr.String()] = values
 				}
 			}
 		}
 
 		if istarget {
 			newnode.Data["_querytarget"] = true
-		}
-		for key, value := range object.Meta() {
-			newnode.Data[key] = value
 		}
 
 		g.Elements.Nodes[nodecount] = newnode

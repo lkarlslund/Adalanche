@@ -40,6 +40,9 @@
           bottom: 20px;
           left: 20px;
       }
+      #status > a {
+          color: lightblue;
+      }
       #route {
           color: white;
           max-width: 40%;
@@ -133,13 +136,19 @@
               <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 Sample Queries
               </button>
+
+              
+
               <div id="predefinedqueries" class="dropdown-menu">
                 <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=Domain Admins)(name=Enterprise Admins)))" mode="Normal" depth=99 methods="default">Who can pwn Domain Admins and Enterprise Admins?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">VMware groups, but not via DA/EA/Administrators</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Backup groups, but not via DA/EA/Administrators</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">VMware groups, but not via DA/EA/Administrators</a>
+                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*ribrik*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Backup groups, but not via DA/EA/Administrators</a>
+                <a class="dropdown-item" href="#" query="(objectCategory=Group-Policy-Container),(|(name=Domain Admins)(name=Administrators)(name=Enterprise Admins))" mode="Normal" depth=99 methods="default">Who can change GPOs, but not via DA/EA/Administrators</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99 methods="default">Users not required to have a password</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))" mode="Normal" depth=99 methods="default">Users that can't change password</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))" mode="Normal" depth=99 methods="default">Users where password never expire</a>
+                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
+                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(pwdLastSet=0)(|(logonCount=0)(!(logonCount=*)))(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))" mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal" depth=1 methods="default">Users that are direct members of more than 10 groups</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal" depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
