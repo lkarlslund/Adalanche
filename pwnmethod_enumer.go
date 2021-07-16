@@ -8,59 +8,103 @@ import (
 	"fmt"
 )
 
-const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkWriteAttributeSecurityGUIDSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNHasSPNNoPreauthAdminSDHolderOverwriteACLComputerAffectedByGPOGPOMachineConfigPartOfGPOGPOUserConfigPartOfGPO"
+const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkWriteAttributeSecurityGUIDSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNHasSPNNoPreauthAdminSDHolderOverwriteACLComputerAffectedByGPOGPOMachineConfigPartOfGPOGPOUserConfigPartOfGPOLocalAdminRightsLocalRDPRightsLocalDCOMRights"
 
-var _PwnMethodIndex = [...]uint16{0, 10, 21, 35, 50, 70, 82, 98, 113, 126, 130, 140, 148, 164, 177, 186, 194, 211, 228, 237, 255, 268, 283, 289, 311, 337, 355, 372, 395, 418, 444, 460, 473, 479, 494, 519, 540, 565, 587}
-
-func (i PwnMethod) String() string {
-	i -= 1
-	if i >= PwnMethod(len(_PwnMethodIndex)-1) {
-		return fmt.Sprintf("PwnMethod(%d)", i+1)
-	}
-	return _PwnMethodName[_PwnMethodIndex[i]:_PwnMethodIndex[i+1]]
+var _PwnMethodMap = map[PwnMethod]string{
+	2:             _PwnMethodName[0:10],
+	4:             _PwnMethodName[10:21],
+	8:             _PwnMethodName[21:35],
+	16:            _PwnMethodName[35:50],
+	32:            _PwnMethodName[50:70],
+	64:            _PwnMethodName[70:82],
+	128:           _PwnMethodName[82:98],
+	256:           _PwnMethodName[98:113],
+	512:           _PwnMethodName[113:126],
+	1024:          _PwnMethodName[126:130],
+	2048:          _PwnMethodName[130:140],
+	4096:          _PwnMethodName[140:148],
+	8192:          _PwnMethodName[148:164],
+	16384:         _PwnMethodName[164:177],
+	32768:         _PwnMethodName[177:186],
+	65536:         _PwnMethodName[186:194],
+	131072:        _PwnMethodName[194:211],
+	262144:        _PwnMethodName[211:228],
+	524288:        _PwnMethodName[228:237],
+	1048576:       _PwnMethodName[237:255],
+	2097152:       _PwnMethodName[255:268],
+	4194304:       _PwnMethodName[268:283],
+	8388608:       _PwnMethodName[283:289],
+	16777216:      _PwnMethodName[289:311],
+	33554432:      _PwnMethodName[311:337],
+	67108864:      _PwnMethodName[337:355],
+	134217728:     _PwnMethodName[355:372],
+	268435456:     _PwnMethodName[372:395],
+	536870912:     _PwnMethodName[395:418],
+	1073741824:    _PwnMethodName[418:444],
+	2147483648:    _PwnMethodName[444:460],
+	4294967296:    _PwnMethodName[460:473],
+	8589934592:    _PwnMethodName[473:479],
+	17179869184:   _PwnMethodName[479:494],
+	34359738368:   _PwnMethodName[494:519],
+	68719476736:   _PwnMethodName[519:540],
+	137438953472:  _PwnMethodName[540:565],
+	274877906944:  _PwnMethodName[565:587],
+	549755813888:  _PwnMethodName[587:603],
+	1099511627776: _PwnMethodName[603:617],
+	2199023255552: _PwnMethodName[617:632],
 }
 
-var _PwnMethodValues = []PwnMethod{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38}
+func (i PwnMethod) String() string {
+	if str, ok := _PwnMethodMap[i]; ok {
+		return str
+	}
+	return fmt.Sprintf("PwnMethod(%d)", i)
+}
+
+var _PwnMethodValues = []PwnMethod{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824, 2147483648, 4294967296, 8589934592, 17179869184, 34359738368, 68719476736, 137438953472, 274877906944, 549755813888, 1099511627776, 2199023255552}
 
 var _PwnMethodNameToValueMap = map[string]PwnMethod{
-	_PwnMethodName[0:10]:    1,
-	_PwnMethodName[10:21]:   2,
-	_PwnMethodName[21:35]:   3,
-	_PwnMethodName[35:50]:   4,
-	_PwnMethodName[50:70]:   5,
-	_PwnMethodName[70:82]:   6,
-	_PwnMethodName[82:98]:   7,
-	_PwnMethodName[98:113]:  8,
-	_PwnMethodName[113:126]: 9,
-	_PwnMethodName[126:130]: 10,
-	_PwnMethodName[130:140]: 11,
-	_PwnMethodName[140:148]: 12,
-	_PwnMethodName[148:164]: 13,
-	_PwnMethodName[164:177]: 14,
-	_PwnMethodName[177:186]: 15,
-	_PwnMethodName[186:194]: 16,
-	_PwnMethodName[194:211]: 17,
-	_PwnMethodName[211:228]: 18,
-	_PwnMethodName[228:237]: 19,
-	_PwnMethodName[237:255]: 20,
-	_PwnMethodName[255:268]: 21,
-	_PwnMethodName[268:283]: 22,
-	_PwnMethodName[283:289]: 23,
-	_PwnMethodName[289:311]: 24,
-	_PwnMethodName[311:337]: 25,
-	_PwnMethodName[337:355]: 26,
-	_PwnMethodName[355:372]: 27,
-	_PwnMethodName[372:395]: 28,
-	_PwnMethodName[395:418]: 29,
-	_PwnMethodName[418:444]: 30,
-	_PwnMethodName[444:460]: 31,
-	_PwnMethodName[460:473]: 32,
-	_PwnMethodName[473:479]: 33,
-	_PwnMethodName[479:494]: 34,
-	_PwnMethodName[494:519]: 35,
-	_PwnMethodName[519:540]: 36,
-	_PwnMethodName[540:565]: 37,
-	_PwnMethodName[565:587]: 38,
+	_PwnMethodName[0:10]:    2,
+	_PwnMethodName[10:21]:   4,
+	_PwnMethodName[21:35]:   8,
+	_PwnMethodName[35:50]:   16,
+	_PwnMethodName[50:70]:   32,
+	_PwnMethodName[70:82]:   64,
+	_PwnMethodName[82:98]:   128,
+	_PwnMethodName[98:113]:  256,
+	_PwnMethodName[113:126]: 512,
+	_PwnMethodName[126:130]: 1024,
+	_PwnMethodName[130:140]: 2048,
+	_PwnMethodName[140:148]: 4096,
+	_PwnMethodName[148:164]: 8192,
+	_PwnMethodName[164:177]: 16384,
+	_PwnMethodName[177:186]: 32768,
+	_PwnMethodName[186:194]: 65536,
+	_PwnMethodName[194:211]: 131072,
+	_PwnMethodName[211:228]: 262144,
+	_PwnMethodName[228:237]: 524288,
+	_PwnMethodName[237:255]: 1048576,
+	_PwnMethodName[255:268]: 2097152,
+	_PwnMethodName[268:283]: 4194304,
+	_PwnMethodName[283:289]: 8388608,
+	_PwnMethodName[289:311]: 16777216,
+	_PwnMethodName[311:337]: 33554432,
+	_PwnMethodName[337:355]: 67108864,
+	_PwnMethodName[355:372]: 134217728,
+	_PwnMethodName[372:395]: 268435456,
+	_PwnMethodName[395:418]: 536870912,
+	_PwnMethodName[418:444]: 1073741824,
+	_PwnMethodName[444:460]: 2147483648,
+	_PwnMethodName[460:473]: 4294967296,
+	_PwnMethodName[473:479]: 8589934592,
+	_PwnMethodName[479:494]: 17179869184,
+	_PwnMethodName[494:519]: 34359738368,
+	_PwnMethodName[519:540]: 68719476736,
+	_PwnMethodName[540:565]: 137438953472,
+	_PwnMethodName[565:587]: 274877906944,
+	_PwnMethodName[587:603]: 549755813888,
+	_PwnMethodName[603:617]: 1099511627776,
+	_PwnMethodName[617:632]: 2199023255552,
 }
 
 // PwnMethodString retrieves an enum value from the enum constants string name.
@@ -79,12 +123,8 @@ func PwnMethodValues() []PwnMethod {
 
 // IsAPwnMethod returns "true" if the value is listed in the enum definition. "false" otherwise
 func (i PwnMethod) IsAPwnMethod() bool {
-	for _, v := range _PwnMethodValues {
-		if i == v {
-			return true
-		}
-	}
-	return false
+	_, ok := _PwnMethodMap[i]
+	return ok
 }
 
 // MarshalJSON implements the json.Marshaler interface for PwnMethod

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -25,11 +24,7 @@ func ExportGraphViz(pg PwnGraph, filename string) error {
 	}
 	fmt.Fprintln(df, "")
 	for _, connection := range pg.Connections {
-		stringmethods := make([]string, len(connection.Methods))
-		for i, method := range connection.Methods {
-			stringmethods[i] = method.String()
-		}
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), strings.Join(stringmethods, ", "))
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.Methods.JoinedString())
 	}
 	fmt.Fprintln(df, "}")
 
@@ -178,11 +173,6 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	edgecount := 0
 
 	for _, connection := range pg.Connections {
-		stringmethods := make([]string, len(connection.Methods))
-		for i, method := range connection.Methods {
-			stringmethods[i] = method.String()
-		}
-
 		sourceid, found := nodeidmap[connection.Source]
 		if !found {
 			log.Error().Msg("Source object not found - this should never happen")
@@ -199,18 +189,18 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 				Id:                   fmt.Sprintf("e%v", idcount),
 				Source:               fmt.Sprintf("n%v", sourceid),
 				Target:               fmt.Sprintf("n%v", targetid),
-				Methods:              stringmethods,
-				PwnACLContainsDeny:   StringInSlice("ACLContainsDeny", stringmethods),
-				PwnOwns:              StringInSlice("Owns", stringmethods),
-				PwnGenericAll:        StringInSlice("GenericAll", stringmethods),
-				PwnWriteAll:          StringInSlice("WriteAll", stringmethods),
-				PwnWritePropertyAll:  StringInSlice("WritePropertyAll", stringmethods),
-				PwnTakeOwnership:     StringInSlice("TakeOwnership", stringmethods),
-				PwnWriteDACL:         StringInSlice("WriteDACL", stringmethods),
-				PwnResetPassword:     StringInSlice("ResetPassword", stringmethods),
-				PwnAddMember:         StringInSlice("AddMember", stringmethods),
-				PwnMemberOfGroup:     StringInSlice("MemberOfGroup", stringmethods),
-				PwnAllExtendedRights: StringInSlice("AllExtendedRights", stringmethods),
+				Methods:              connection.Methods.StringSlice(),
+				PwnACLContainsDeny:   PwnACLContainsDeny&connection.Methods != 0,
+				PwnOwns:              PwnOwns&connection.Methods != 0,
+				PwnGenericAll:        PwnGenericAll&connection.Methods != 0,
+				PwnWriteAll:          PwnWriteAll&connection.Methods != 0,
+				PwnWritePropertyAll:  PwnWritePropertyAll&connection.Methods != 0,
+				PwnTakeOwnership:     PwnTakeOwnership&connection.Methods != 0,
+				PwnWriteDACL:         PwnWriteDACL&connection.Methods != 0,
+				PwnResetPassword:     PwnResetPassword&connection.Methods != 0,
+				PwnAddMember:         PwnAddMember&connection.Methods != 0,
+				PwnMemberOfGroup:     PwnMemberOfGroup&connection.Methods != 0,
+				PwnAllExtendedRights: PwnAllExtendedRights&connection.Methods != 0,
 			},
 		}
 		idcount++

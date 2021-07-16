@@ -39,8 +39,8 @@ type Object struct {
 	DistinguishedName string
 	Attributes        map[Attribute][]string
 
-	PwnableBy []PwnInfo
-	CanPwn    []PwnInfo
+	PwnableBy PwnSet
+	CanPwn    PwnSet
 	reach     int // AD ControlPower Measurement
 	value     int // This objects value
 

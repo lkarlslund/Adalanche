@@ -221,7 +221,11 @@ func webservice(bind string) http.Server {
 			selectedmethods = PwnMethodValues()
 		}
 
-		pg := AnalyzeObjects(includeobjects, excludeobjects, selectedmethods, mode, maxdepth)
+		var methods PwnMethod
+		for _, m := range selectedmethods {
+			methods |= m
+		}
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth)
 
 		targetmap := make(map[*Object]bool)
 		for _, target := range pg.Targets {
@@ -374,7 +378,11 @@ func webservice(bind string) http.Server {
 			selectedmethods = PwnMethodValues()
 		}
 
-		pg := AnalyzeObjects(includeobjects, excludeobjects, selectedmethods, mode, maxdepth)
+		var methods PwnMethod
+		for _, m := range selectedmethods {
+			methods |= m
+		}
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth)
 
 		idmap := make(map[*Object]int)
 		var id int
@@ -426,18 +434,14 @@ func webservice(bind string) http.Server {
 			}
 
 			for _, pwn := range pg.Connections {
-				methods := pwn.Methods[0].String()
-				for i := 1; i < len(pwn.Methods); i++ {
-					methods += ", " + pwn.Methods[i].String()
-				}
 				fmt.Fprintf(w,
 					`  edge
   [
     source %v
     target %v
-	label %v
+	label "%v"
   ]
-`, idmap[pwn.Source], idmap[pwn.Target], methods)
+`, idmap[pwn.Source], idmap[pwn.Target], methods.JoinedString())
 			}
 			targetmap := make(map[*Object]bool)
 			for _, target := range pg.Targets {
@@ -472,14 +476,10 @@ func webservice(bind string) http.Server {
 			}
 
 			for _, pwn := range pg.Connections {
-				methods := pwn.Methods[0].String()
-				for i := 1; i < len(pwn.Methods); i++ {
-					methods += ", " + pwn.Methods[i].String()
-				}
 				graph.Edges = append(graph.Edges, XGMMLEdge{
 					Source: idmap[pwn.Source],
 					Target: idmap[pwn.Target],
-					Label:  methods,
+					Label:  pwn.Methods.JoinedString(),
 				})
 			}
 			fmt.Fprint(w, xml.Header)

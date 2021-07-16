@@ -637,8 +637,8 @@ func main() {
 					continue
 				}
 				// log.Debug().Msgf("Detected that %v can pwn %v by %v", pwnobject.DN(), object.DN(), analyzer.Method)
-				pwnobject.CanPwn = append(pwnobject.CanPwn, PwnInfo{Method: analyzer.Method, Target: object})
-				object.PwnableBy = append(object.PwnableBy, PwnInfo{Method: analyzer.Method, Target: pwnobject})
+				pwnobject.CanPwn = pwnobject.CanPwn.Set(object, analyzer.Method)
+				object.PwnableBy = object.PwnableBy.Set(pwnobject, analyzer.Method)
 				pwnlinks++
 			}
 		}
@@ -676,7 +676,7 @@ func main() {
 		if *exportinverted {
 			mode = "inverted"
 		}
-		resultgraph := AnalyzeObjects(includeobjects, nil, PwnMethodValues() /* all */, mode, 99)
+		resultgraph := AnalyzeObjects(includeobjects, nil, PwnMethod(PwnAllMethods), mode, 99)
 
 		switch *exporttype {
 		case "graphviz":

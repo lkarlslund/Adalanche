@@ -17,8 +17,33 @@ type PwnAnalyzer struct {
 }
 
 type PwnInfo struct {
-	Method PwnMethod
 	Target *Object
+	Method PwnMethod
+}
+
+func (pm *PwnMethod) Set(method PwnMethod) {
+	*pm = *pm | method
+}
+
+type PwnSet []PwnInfo
+
+func (ps PwnSet) Set(o *Object, method PwnMethod) PwnSet {
+	// See if object is in the list
+	if ps == nil {
+		ps = make(PwnSet, 0)
+	} else {
+		for pi := len(ps) - 1; pi >= 0; pi-- {
+			if ps[pi].Target == o {
+				ps[pi].Method.Set(method)
+				return ps
+			}
+		}
+	}
+	ps = append(ps, PwnInfo{
+		Target: o,
+		Method: method,
+	})
+	return ps
 }
 
 // Interesting permissions on AD
@@ -71,10 +96,10 @@ var (
 	ServerOperatorsSID, _           = SIDFromString("S-1-5-32-549")
 )
 
-type PwnMethod byte
+type PwnMethod uint64
 
 const (
-	_ PwnMethod = iota
+	_ PwnMethod = 1 << iota
 	PwnCreateUser
 	PwnCreateGroup
 	PwnCreateComputer
@@ -116,7 +141,34 @@ const (
 	PwnLocalAdminRights
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
+
+	PwnAllMethods uint64 = 1<<64 - 1
 )
+
+func (m PwnMethod) JoinedString() string {
+	var result string
+	for i := 0; i < 64; i++ {
+		thismethod := PwnMethod(1 << i)
+		if m&thismethod != 0 {
+			if len(result) != 0 {
+				result += ", "
+			}
+			result += thismethod.String()
+		}
+	}
+	return result
+}
+
+func (m PwnMethod) StringSlice() []string {
+	var result []string
+	for i := 0; i < 64; i++ {
+		thismethod := PwnMethod(1 << i)
+		if m&thismethod != 0 {
+			result = append(result, thismethod.String())
+		}
+	}
+	return result
+}
 
 var PwnAnalyzers = []PwnAnalyzer{
 	/* It's a Unicorn, dang ...
@@ -552,7 +604,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 					log.Error().Msgf("Could not locate Authenticated Users")
 					return results
 				}
-				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPN, AuthenticatedUsers})
+				o.PwnableBy.Set(AuthenticatedUsers, PwnHasSPN)
 			}
 			return results
 		},
@@ -573,7 +625,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			if len(o.Attr(ServicePrincipalName)) > 0 {
-				o.PwnableBy = append(o.PwnableBy, PwnInfo{PwnHasSPNNoPreauth, AttackerObject})
+				o.PwnableBy.Set(AttackerObject, PwnHasSPNNoPreauth)
 			}
 			return results
 		},
@@ -897,18 +949,12 @@ type PwnPair struct {
 
 type PwnConnection struct {
 	Source, Target *Object
-	Methods        []PwnMethod
+	Methods        PwnMethod
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod, mode string, maxdepth int) (pg PwnGraph) {
-	connectionsmap := make(map[PwnPair][]PwnMethod) // Pwn Connection between objects
-	implicatedobjectsmap := make(map[*Object]int)   // Object -> Processed in round n
-	// targetsmap := make(map[*Object]bool)            // Object -> Processed?
-
-	selectedmethodsmap := make([]bool, len(_PwnMethodIndex))
-	for _, method := range methods {
-		selectedmethodsmap[method] = true
-	}
+func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, mode string, maxdepth int) (pg PwnGraph) {
+	connectionsmap := make(map[PwnPair]PwnMethod) // Pwn Connection between objects
+	implicatedobjectsmap := make(map[*Object]int) // Object -> Processed in round n
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := strings.HasPrefix(mode, "normal")
@@ -946,7 +992,9 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 
 			for _, pwninfo := range pwnlist {
 				// If this is not a chosen method, skip it
-				if !selectedmethodsmap[pwninfo.Method] {
+				detectedmethods := pwninfo.Method & methods
+				if detectedmethods == 0 || detectedmethods == PwnACLContainsDeny {
+					// Nothing useful or just a deny ACL, skip it
 					continue
 				}
 
@@ -981,22 +1029,13 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 
 				// Append the method to the connection pair
 				if forward {
-					methods := connectionsmap[PwnPair{Source: pwntarget, Target: object}]
-					methods = append(methods, pwninfo.Method)
-					connectionsmap[PwnPair{Source: pwntarget, Target: object}] = methods
+					connectionsmap[PwnPair{Source: pwntarget, Target: object}] = detectedmethods
 				} else {
-					methods := connectionsmap[PwnPair{Source: object, Target: pwntarget}]
-					methods = append(methods, pwninfo.Method)
-					connectionsmap[PwnPair{Source: object, Target: pwntarget}] = methods
+					connectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
 				}
 
-				// The Pwner is not in the tree, lets add it and see who can Pwn that
-				if pwninfo.Method != PwnACLContainsDeny {
-					// We don't add deny ACL targets, if they're added because of a positive pwn then it's fine
-					if _, found := implicatedobjectsmap[pwntarget]; !found {
-						// log.Debug().Msgf("Including target %v", pwntarget.DN())
-						newimplicatedobjects[pwntarget] = struct{}{} // Add this to work map as non-processed
-					}
+				if _, found := implicatedobjectsmap[pwntarget]; !found {
+					newimplicatedobjects[pwntarget] = struct{}{} // Add this to work map as non-processed
 				}
 			}
 			implicatedobjectsmap[object] = processinground // We're done processing this
@@ -1009,34 +1048,36 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods []PwnMethod
 	}
 
 	// Remove dangling connections, this is deny ACLs that didn't have the target added
-	for conn, methods := range connectionsmap {
-		if _, found := implicatedobjectsmap[conn.Source]; !found {
-			// Bonus sanity check
-			onlydeny := true
-			for _, method := range methods {
-				if method != PwnACLContainsDeny {
-					onlydeny = false
+	/*
+		for conn, methods := range connectionsmap {
+			if _, found := implicatedobjectsmap[conn.Source]; !found {
+				// Bonus sanity check
+				onlydeny := true
+				for _, method := range methods {
+					if method != PwnACLContainsDeny {
+						onlydeny = false
+					}
 				}
-			}
-			if !onlydeny {
-				log.Error().Msgf("Source from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
-			}
-			delete(connectionsmap, conn)
-		}
-		if _, found := implicatedobjectsmap[conn.Target]; !found {
-			// Bonus sanity check
-			onlydeny := true
-			for _, method := range methods {
-				if method != PwnACLContainsDeny {
-					onlydeny = false
+				if !onlydeny {
+					log.Error().Msgf("Source from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
 				}
+				delete(connectionsmap, conn)
 			}
-			if !onlydeny {
-				log.Error().Msgf("Target from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
+			if _, found := implicatedobjectsmap[conn.Target]; !found {
+				// Bonus sanity check
+				onlydeny := true
+				for _, method := range methods {
+					if method != PwnACLContainsDeny {
+						onlydeny = false
+					}
+				}
+				if !onlydeny {
+					log.Error().Msgf("Target from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
+				}
+				delete(connectionsmap, conn)
 			}
-			delete(connectionsmap, conn)
 		}
-	}
+	*/
 
 	// Convert map to slice
 	pg.Connections = make([]PwnConnection, len(connectionsmap))
