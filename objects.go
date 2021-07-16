@@ -16,6 +16,8 @@ type Objects struct {
 	sidmap    map[SID]*Object
 	guidmap   map[uuid.UUID]*Object
 	typecount [OBJECTTYPEMAX]int
+
+	classmap map[string]*Object // top, user, person -> schema object
 }
 
 func (os *Objects) Init(base string) {
@@ -24,6 +26,8 @@ func (os *Objects) Init(base string) {
 	os.dnmap = make(map[string]*Object)
 	os.sidmap = make(map[SID]*Object)
 	os.guidmap = make(map[uuid.UUID]*Object)
+
+	os.classmap = make(map[string]*Object)
 }
 
 func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
@@ -71,6 +75,13 @@ func (os *Objects) Add(o *Object) {
 		copy(guid[:], guidstring)
 		os.guidmap[guid] = o
 	}
+
+	// Attributes etc
+	ldn := o.OneAttr(LDAPDisplayName)
+	if ldn != "" {
+		os.classmap[strings.ToLower(ldn)] = o
+	}
+
 	// Statistics
 	os.typecount[o.Type()]++
 }
@@ -156,5 +167,10 @@ func (os *Objects) FindOrAddSID(s SID) *Object {
 
 func (os *Objects) FindGUID(g uuid.UUID) (o *Object, found bool) {
 	o, found = os.guidmap[g]
+	return
+}
+
+func (os *Objects) FindClass(class string) (o *Object, found bool) {
+	o, found = os.classmap[strings.ToLower(class)]
 	return
 }

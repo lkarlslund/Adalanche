@@ -96,6 +96,9 @@ func ParseQuery(s string) (string, Query, error) {
 		if err != nil {
 			return "", nil, err
 		}
+		if len(s) == 0 {
+			return "", nil, errors.New("Missing closing ) in query")
+		}
 		// Strip )
 		return s[1:], query, nil
 	case '&':

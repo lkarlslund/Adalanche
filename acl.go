@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type SecurityDescriptorControlFlag uint16
@@ -196,18 +197,41 @@ func parseACLentry(data []byte) (ACE, []byte, error) {
 }
 
 // Is the ACE something that allows this type of GUID?
-func (a ACE) AllowObjectClass(g uuid.UUID) bool {
+func (a ACE) AllowObjectClass(o *Object) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
+	if a.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 {
+		// Only for child objects, not for this one
+		return false
+	}
 	if a.Type == ACETYPE_ACCESS_ALLOWED {
+		// All objects allowed
 		return true
 	}
 	if a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
-		if a.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 && a.InheritedObjectType != g && a.InheritedObjectType != NullGUID {
+		// Only some object classes
+		if a.Flags&INHERITED_OBJECT_TYPE_PRESENT == 0 {
+			// Only this object
+			return true
+		}
+
+		if a.InheritedObjectType == NullGUID {
+			// It's an allow only this class NULL (all object types)
+			log.Warn().Msgf("ACE indicates allowed object, but is actually allowing all kinds through null GUID")
+			return true
+		}
+
+		// We weren't passed a type, so if we don't have general access return false
+		if o == nil {
 			return false
 		}
-		return true
+
+		for _, class := range o.ObjectClassGUIDs() {
+			if a.InheritedObjectType == class {
+				return true
+			}
+		}
 	}
 	return false
 }
