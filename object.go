@@ -44,8 +44,9 @@ type Object struct {
 	reach     int // AD ControlPower Measurement
 	value     int // This objects value
 
-	objecttype     ObjectType
-	objecttypeguid uuid.UUID
+	objecttype       ObjectType
+	objectclassguids []uuid.UUID
+	objecttypeguid   uuid.UUID
 
 	sidcached bool
 	sid       SID
@@ -134,6 +135,28 @@ func (o Object) Type() ObjectType {
 		o.objecttype = ObjectTypeOther
 	}
 	return o.objecttype
+}
+
+func (o *Object) ObjectClassGUIDs() []uuid.UUID {
+	if len(o.objectclassguids) == 0 {
+		for _, class := range o.Attr(ObjectClass) {
+			if oto, found := AllObjects.FindClass(class); found {
+				var err error
+				classguid := oto.OneAttr(SchemaIDGUID)
+				og, err := uuid.FromBytes([]byte(classguid))
+				if err != nil {
+					log.Debug().Msgf("%v", oto)
+					log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
+				} else {
+					og = SwapUUIDEndianess(og)
+					o.objectclassguids = append(o.objectclassguids, og)
+				}
+			} else {
+				log.Fatal().Msgf("Sorry, could not resolve object class %v, perhaps you didn't get a dump of the schema?", class)
+			}
+		}
+	}
+	return o.objectclassguids
 }
 
 func (o *Object) ObjectTypeGUID() uuid.UUID {
