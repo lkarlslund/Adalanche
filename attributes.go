@@ -50,7 +50,6 @@ var (
 	BadPwdCount                 = NewAttribute("badPwdCount")
 	MAX_DEDUP                   = BadPwdCount
 	SchemaIDGUID                = NewAttribute("schemaIDGUID")
-	LDAPDisplayName             = NewAttribute("lDAPDisplayName")
 	ServicePrincipalName        = NewAttribute("servicePrincipalName")
 	Name                        = NewAttribute("name")
 	DisplayName                 = NewAttribute("displayName")
