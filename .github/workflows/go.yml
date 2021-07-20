@@ -18,17 +18,8 @@ jobs:
     - name: Build
       run: ./build.sh
 
-    - name: Archive Windows artifacts
+    - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
-        path: adalanche-windows-*
-
-    - name: Archive Linux artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        path: adalanche-linux-*
-
-    - name: Archive OSX artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        path: adalanche-osx-*
+        name: Binaries
+        path: adalanche-*
