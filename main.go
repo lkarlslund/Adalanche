@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -114,6 +115,9 @@ func main() {
 	} else {
 		log.Debug().Msg("Debug logging enabled")
 	}
+
+	// We do lots of allocations when importing stuff, so lets set this aggressively
+	debug.SetGCPercent(10)
 
 	log.Info().Msg("adalanche (c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
 
@@ -637,8 +641,8 @@ func main() {
 					continue
 				}
 				// log.Debug().Msgf("Detected that %v can pwn %v by %v", pwnobject.DN(), object.DN(), analyzer.Method)
-				pwnobject.CanPwn = pwnobject.CanPwn.Set(object, analyzer.Method)
-				object.PwnableBy = object.PwnableBy.Set(pwnobject, analyzer.Method)
+				pwnobject.CanPwn[object] = pwnobject.CanPwn[object].Set(analyzer.Method)
+				object.PwnableBy[pwnobject] = object.PwnableBy[pwnobject].Set(analyzer.Method)
 				pwnlinks++
 			}
 		}

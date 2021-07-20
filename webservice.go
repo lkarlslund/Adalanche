@@ -130,12 +130,12 @@ func webservice(bind string) http.Server {
 			return
 		}
 
-		for _, pwninfo := range o.CanPwn {
-			od.CanPwn[pwninfo.Target.DN()] = append(od.CanPwn[pwninfo.Target.DN()], pwninfo.Method.String())
+		for target, pwnmethod := range o.CanPwn {
+			od.CanPwn[target.DN()] = pwnmethod.StringSlice()
 		}
 
-		for _, pwninfo := range o.PwnableBy {
-			od.PwnableBy[pwninfo.Target.DN()] = append(od.PwnableBy[pwninfo.Target.DN()], pwninfo.Method.String())
+		for target, pwnmethod := range o.PwnableBy {
+			od.PwnableBy[target.DN()] = pwnmethod.StringSlice()
 		}
 		e := qjson.NewEncoder(w)
 		e.SetIndent("", "  ")
@@ -152,6 +152,8 @@ func webservice(bind string) http.Server {
 		uq := r.URL.Query()
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
+
+		anonymize, _ := ParseBool(uq.Get("anonymize"))
 
 		mode := uq.Get("mode")
 		if mode == "" {
@@ -265,6 +267,16 @@ func webservice(bind string) http.Server {
 			w.WriteHeader(500)
 			encoder.Encode("Error during graph creation")
 			return
+		}
+
+		if anonymize {
+			for _, node := range cytograph.Elements.Nodes {
+				node.Data["label"] = StringScrambler(node.Data["label"].(string))
+				node.Data[DistinguishedName.String()] = StringScrambler(node.Data[DistinguishedName.String()].(string))
+				node.Data[Name.String()] = StringScrambler(node.Data[Name.String()].(string))
+				node.Data[DisplayName.String()] = StringScrambler(node.Data[DisplayName.String()].(string))
+				node.Data[SAMAccountName.String()] = StringScrambler(node.Data[SAMAccountName.String()].(string))
+			}
 		}
 
 		response := struct {

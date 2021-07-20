@@ -117,9 +117,9 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - synthetic attribute: _pwnable - allows you to select objects based on how they can be pwned *directly* (&(objectclass=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
 
 ## Current limitations
-- A large AD with 500.000 objects results in a file approximately 250MB in size.
-- adalanche IS A MEMORY HOG right now. Above AD will use up to 10GB RAM at times. RAM is cheap, getting pwned is not.
-- There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome, but 
+- A large AD with 500.000 objects results in a file approximately 250MB in size
+- adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
+- There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome!
 
 # Shoutouts
 To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow lol) where I dug up technical stuff

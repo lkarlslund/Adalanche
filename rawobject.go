@@ -21,18 +21,17 @@ func (r *RawObject) init() {
 func (r *RawObject) ToObject(importall bool) Object {
 	var result Object
 	result.init()
-	result.DistinguishedName = r.DistinguishedName
+	result.DistinguishedName = stringdedup.S(r.DistinguishedName) // This is possibly repeated in member attributes, so dedup it
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
 			continue
 		}
 		attribute := NewAttribute(name)
+		// do we even want this?
+		if !importall && attribute > MAX_IMPORTED {
+			continue
+		}
 		for valindex, value := range values {
-			// do we even want this?
-			if !importall && attribute > MAX_IMPORTED {
-				continue
-			}
-
 			// statistics
 			attributesizes[attribute] += len(value)
 
@@ -40,20 +39,13 @@ func (r *RawObject) ToObject(importall bool) Object {
 				if err := result.cacheSecurityDescriptor([]byte(value)); err != nil {
 					log.Error().Msgf("Problem parsing security descriptor: %v", err)
 				}
-
-				continue
 			}
-
-			// mangling ObjectCategory
-			// if attribute == ObjectCategory {
-			// change CN=bla blabla,xxxxxxxxx -> bla blabla
-			// value = value[3:strings.Index(value, ",")]
-			// }
 
 			// dedup
-			if attribute <= MAX_DEDUP {
-				values[valindex] = stringdedup.S(value)
-			}
+			// if attribute <= MAX_DEDUP {
+			// values[valindex] = value
+			values[valindex] = stringdedup.S(value)
+			// }
 		}
 		result.Attributes[attribute] = values
 	}

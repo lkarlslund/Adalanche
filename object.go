@@ -378,8 +378,9 @@ func (o *Object) Load(filename string) error {
 }*/
 
 func (o *Object) init() {
-	o.DistinguishedName = ""
 	o.Attributes = make(map[Attribute][]string)
+	o.CanPwn = make(map[*Object]PwnMethod)
+	o.PwnableBy = make(map[*Object]PwnMethod)
 }
 
 func (o *Object) String() string {
@@ -455,12 +456,7 @@ func (o *Object) Value() int {
 		value += 1
 	}
 
-	targets := make(map[*Object]struct{})
-	for _, cp := range o.CanPwn {
-		targets[cp.Target] = struct{}{}
-	}
-
-	for target := range targets {
+	for target := range o.CanPwn {
 		value += target.Value()
 	}
 

@@ -21,29 +21,15 @@ type PwnInfo struct {
 	Method PwnMethod
 }
 
-func (pm *PwnMethod) Set(method PwnMethod) {
-	*pm = *pm | method
+func (pm PwnMethod) Set(method PwnMethod) PwnMethod {
+	return pm | method
 }
 
-type PwnSet []PwnInfo
+type PwnSet map[*Object]PwnMethod
 
-func (ps PwnSet) Set(o *Object, method PwnMethod) PwnSet {
+func (ps PwnSet) Set(o *Object, method PwnMethod) {
 	// See if object is in the list
-	if ps == nil {
-		ps = make(PwnSet, 0)
-	} else {
-		for pi := len(ps) - 1; pi >= 0; pi-- {
-			if ps[pi].Target == o {
-				ps[pi].Method.Set(method)
-				return ps
-			}
-		}
-	}
-	ps = append(ps, PwnInfo{
-		Target: o,
-		Method: method,
-	})
-	return ps
+	ps[o] = ps[o].Set(method)
 }
 
 // Interesting permissions on AD
@@ -983,23 +969,20 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 			}
 			somethingprocessed = true
 
-			var pwnlist []PwnInfo
+			var pwnlist PwnSet
 			if forward {
 				pwnlist = object.PwnableBy
 			} else {
 				pwnlist = object.CanPwn
 			}
 
-			for _, pwninfo := range pwnlist {
+			for pwntarget, pwninfo := range pwnlist {
 				// If this is not a chosen method, skip it
-				detectedmethods := pwninfo.Method & methods
+				detectedmethods := pwninfo & methods
 				if detectedmethods == 0 || detectedmethods == PwnACLContainsDeny {
 					// Nothing useful or just a deny ACL, skip it
 					continue
 				}
-
-				// Skip links to prior runs
-				pwntarget := pwninfo.Target
 
 				// If we allow backlinks, all pwns are mapped, no matter who is the victim
 				// Targets are allowed to pwn each other as a way to reach the goal of pwning all of them

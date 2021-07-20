@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/lkarlslund/stringdedup"
 )
 
 type SID string
@@ -19,7 +21,7 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return SID(""), data, errors.New("No data supplied")
 	}
 	if data[0] != 0x01 {
-		return "", data, errors.New("SID revision must be 1")
+		return "", data, fmt.Errorf("SID revision must be 1 (dump %x)", data)
 	}
 	subauthoritycount := int(data[1])
 	var sid = make([]byte, 8+4*subauthoritycount)
@@ -27,7 +29,7 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
 	copy(sid, data[0:len(sid)])
-	return SID(sid), data[8+subauthoritycount*4:], nil
+	return SID(stringdedup.S(string(sid))), data[8+subauthoritycount*4:], nil
 }
 
 func SIDFromString(input string) (SID, error) {
@@ -67,7 +69,7 @@ func SIDFromString(input string) (SID, error) {
 		}
 		binary.LittleEndian.PutUint32(sid[8+4*i:], uint32(subauthority))
 	}
-	return SID(sid), nil
+	return SID(stringdedup.S(string(sid))), nil
 }
 
 func (sid SID) IsNull() bool {

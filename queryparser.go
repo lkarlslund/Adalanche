@@ -608,8 +608,8 @@ func (p pwnquery) Evaluate(o *Object) bool {
 	if !p.canpwn {
 		items = o.PwnableBy
 	}
-	for _, pwninfo := range items {
-		if p.method == 0 || p.method == pwninfo.Method {
+	for _, pwnmethod := range items {
+		if p.method == 0 || p.method == pwnmethod {
 			return true
 		}
 	}
@@ -619,8 +619,8 @@ func (p pwnquery) Evaluate(o *Object) bool {
 type pwnable PwnMethod
 
 func (p pwnable) Evaluate(o *Object) bool {
-	for _, pwninfo := range o.PwnableBy {
-		if pwninfo.Method == PwnMethod(p) {
+	for _, pwnmethod := range o.PwnableBy {
+		if pwnmethod == PwnMethod(p) {
 			return true
 		}
 	}

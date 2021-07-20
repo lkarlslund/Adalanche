@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"regexp"
 	"strconv"
 	"time"
@@ -101,4 +102,21 @@ func Default(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func StringScrambler(s string) string {
+	var result string
+	for _, c := range s {
+		switch {
+		case c == ' ', c == '(', c == '-', c == ')':
+			result += string(c)
+		case c >= '0' && c <= '9':
+			result += string('0' + byte(rand.Intn(9)))
+		case c >= 'A' && c <= 'Z':
+			result += string('A' + byte(rand.Intn(25)))
+		case c >= 'a' && c <= 'z':
+			result += string('a' + byte(rand.Intn(25)))
+		}
+	}
+	return result
 }
