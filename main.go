@@ -575,7 +575,7 @@ func main() {
 								return results
 							}
 							for _, acl := range sd.DACL.Entries {
-								if acl.Type == ACETYPE_ACCESS_ALLOWED_OBJECT && acl.Mask&RIGHT_DS_READ_PROPERTY != 0 && acl.ObjectType == objectGUID {
+								if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_READ_PROPERTY, objectGUID) {
 									results = append(results, AllObjects.FindOrAddSID(acl.SID))
 								}
 							}
@@ -585,7 +585,7 @@ func main() {
 				}
 			}
 		} else if object.HasAttrValue(ObjectClass, "classSchema") {
-			u, err := uuid.FromBytes([]byte(object.OneAttr(A("schemaIDGUID"))))
+			u, err := uuid.FromBytes([]byte(object.OneAttr(SchemaIDGUID)))
 			u = SwapUUIDEndianess(u)
 			// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
 			if err == nil {

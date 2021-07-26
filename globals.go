@@ -21,9 +21,9 @@ var (
 	}
 	AllObjects              Objects
 	SecurityDescriptorCache = make(map[uint32]*SecurityDescriptor)
-	AllRights               = make(map[uuid.UUID]*Object)
-	AllSchemaClasses        = make(map[uuid.UUID]*Object)
-	AllSchemaAttributes     = make(map[uuid.UUID]*Object)
+	AllRights               = make(map[uuid.UUID]*Object) // Extented-Rights from Configuration - rightsGUID -> object
+	AllSchemaClasses        = make(map[uuid.UUID]*Object) // schemaIdGUID -> object
+	AllSchemaAttributes     = make(map[uuid.UUID]*Object) // attribute ...
 )
 
 func init() {

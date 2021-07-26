@@ -517,7 +517,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Type == ACETYPE_ACCESS_ALLOWED && acl.Mask&RIGHT_WRITE_OWNER != 0 {
+				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_WRITE_OWNER != 0 {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
