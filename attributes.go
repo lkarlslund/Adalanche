@@ -73,6 +73,7 @@ var (
 	TrustAttributes             = NewAttribute("trustAttributes")
 	TrustPartner                = NewAttribute("trustPartner")
 	DsHeuristics                = NewAttribute("dsHeuristics")
+	AttributeSecurityGUID       = NewAttribute("attributeSecurityGUID")
 	GPLink                      = NewAttribute("gPLink")
 	GPOptions                   = NewAttribute("gPOptions")
 	MAX_IMPORTED                = GPOptions

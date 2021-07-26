@@ -113,6 +113,7 @@ func main() {
 	if !*debuglogging {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	} else {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		log.Debug().Msg("Debug logging enabled")
 	}
 
@@ -548,7 +549,7 @@ func main() {
 				AllRights[u] = object
 			}
 		} else if object.HasAttrValue(ObjectClass, "attributeSchema") {
-			objectGUID, err := uuid.FromBytes([]byte(object.OneAttr(A("schemaIDGUID"))))
+			objectGUID, err := uuid.FromBytes([]byte(object.OneAttr(SchemaIDGUID)))
 			objectGUID = SwapUUIDEndianess(objectGUID)
 			// log.Debug().Msgf("Adding schema attribute %v %v", u, object.OneAttr(Name))
 			if err == nil {

@@ -246,10 +246,33 @@ func (a ACE) AllowMaskedClass(mask uint32, g uuid.UUID) bool {
 		return true
 	}
 	if a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
-		if a.Flags&OBJECT_TYPE_PRESENT != 0 && a.ObjectType != g && a.ObjectType != NullGUID {
-			return false
+		if a.Flags&OBJECT_TYPE_PRESENT == 0 {
+			// Allowing only an object, but none is present is like a wildcard allow
+			return true
 		}
-		return true
+		if a.ObjectType == NullGUID {
+			// Another wildcard
+			return true
+		}
+		if a.ObjectType == g {
+			// This is explicitly allowed
+			return true
+		}
+		// Lets chack if this requested guid is part of a group which is allowed
+		if s, found := AllSchemaAttributes[g]; found {
+			asg := s.OneAttr(AttributeSecurityGUID)
+			if asg != "" {
+				u, err := uuid.FromBytes([]byte(asg))
+				if err != nil {
+					log.Warn().Msgf("Problem converting GUID %v", err)
+				} else {
+					u = SwapUUIDEndianess(u)
+					if a.ObjectType == u {
+						return true
+					}
+				}
+			}
+		}
 	}
 	return false
 }

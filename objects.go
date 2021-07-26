@@ -77,9 +77,11 @@ func (os *Objects) Add(o *Object) {
 	}
 
 	// Attributes etc
-	ldn := o.OneAttr(LDAPDisplayName)
-	if ldn != "" {
-		os.classmap[strings.ToLower(ldn)] = o
+	if len(o.Attr(SchemaIDGUID)) > 0 {
+		ldn := o.OneAttr(LDAPDisplayName)
+		if ldn != "" {
+			os.classmap[strings.ToLower(ldn)] = o
+		}
 	}
 
 	// Statistics

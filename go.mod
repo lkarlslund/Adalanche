@@ -6,6 +6,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
+	github.com/dmarkham/enumer v1.5.3 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/frankban/quicktest v1.13.0 // indirect
 	github.com/gin-gonic/gin v1.7.2

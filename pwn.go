@@ -7,6 +7,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Enumer package from here:
+// go get github.com/dmarkham/enumer
+
 //go:generate enumer -type=PwnMethod -trimprefix=Pwn -json
 
 // PwnAnalyzer takes an Object, examines it an outputs a list of Objects that can Pwn it
@@ -47,7 +50,8 @@ var (
 	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
 	AttributeGPLink, _                              = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
 	AttributeMSDSKeyCredentialLink, _               = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
-	AttributeSecurityGUID, _                        = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
+	AttributeSecurityGUIDGUID, _                    = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
+	AttributeAltSecurityIdentitiesGUID, _           = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
 
 	ValidateWriteSelfMembership  = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ValidateWriteSPN             = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
@@ -127,6 +131,7 @@ const (
 	PwnLocalAdminRights
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
+	PwnWriteAltSecurityIdentities
 
 	PwnAllMethods uint64 = 1<<64 - 1
 )
@@ -548,7 +553,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUID) {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -754,6 +759,27 @@ var PwnAnalyzers = []PwnAnalyzer{
 							results = append(results, AllObjects.FindOrAddSID(acl.SID))
 						}
 					}
+				}
+			}
+			return results
+		},
+	},
+	{
+		Method:      PwnWriteAltSecurityIdentities,
+		Description: "Allows an attacker to define a certificate that can be used to authenticate as the user",
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only for users
+			if o.Type() != ObjectTypeUser {
+				return results
+			}
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
 			return results
