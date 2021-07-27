@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -108,6 +109,9 @@ func main() {
 	pagesize := flag.Int("pagesize", 1000, "Chunk requests into pages of this count of objects")
 	bind := flag.String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
 	nobrowser := flag.Bool("nobrowser", false, "Don't launch browser after starting webservice")
+
+	dumpgpos := flag.Bool("dumpgpos", false, "When dumping, do you want to include GPO file contents?")
+	gpopath := flag.String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar)")
 
 	flag.Parse()
 
@@ -333,12 +337,49 @@ func main() {
 		if err != nil {
 			log.Fatal().Msgf("Problem dumping AD: %v", err)
 		}
+
+		if *dumpgpos {
+			log.Debug().Msg("Collecting GPO files ...")
+			for _, object := range rawobjects {
+				// Let's check if it this is a GPO and then add some fake attributes to represent it
+				if gpfsp, found := object.Attributes["gPCFileSysPath"]; found {
+					gpodisplayname, _ := object.Attributes["displayName"]
+					gpoguid, _ := object.Attributes["name"]
+
+					gppath := gpfsp[0]
+					if *gpopath != "" {
+						if len(gpoguid) != 1 {
+							log.Warn().Msgf("GPO %v GUID not readable, skipping", gpodisplayname)
+							continue
+						}
+						// Override path, possibly on other OS'es or if you dont have DNS running
+						gppath = *gpopath
+						gppath = strings.ReplaceAll(gppath, "%SERVER%", *server)
+						gppath = strings.ReplaceAll(gppath, "%DOMAIN%", *domain)
+						gppath = strings.ReplaceAll(gppath, "%GUID%", gpoguid[0])
+					}
+					log.Info().Msgf("Dumping group policy files from %v ...", gppath)
+					_, err := os.Stat(gppath)
+					if err != nil {
+						log.Warn().Msg("Can't access path, aborting this GPO ...")
+					} else {
+						filepath.WalkDir(gppath, func(path string, d fs.DirEntry, err error) error {
+							if !d.IsDir() {
+								rawfile, err := ioutil.ReadFile(d.Name())
+								if err == nil {
+									object.Attributes["_gpofile/"+d.Name()] = []string{string(rawfile)}
+								}
+							}
+							return nil
+						})
+
+					}
+				}
+			}
+		}
+
 		log.Debug().Msgf("Saving %v AD objects ...", len(rawobjects))
 		for _, object := range rawobjects {
-
-			// Let's check if it this is a GPO and then add a fake attribute if it affects local groups
-			// if object.Attributes[]
-
 			err = object.EncodeMsg(e)
 			if err != nil {
 				log.Fatal().Msgf("Problem encoding LDAP object %v: %v", object.DistinguishedName, err)
