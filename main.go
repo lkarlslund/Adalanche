@@ -87,10 +87,12 @@ func main() {
 
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
 
-	authmodeString := flag.String("authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
-	if runtime.GOOS != "windows" {
+	var authmodeString string
+	if runtime.GOOS == "windows" {
+		flag.StringVar(&authmodeString, "authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+	} else {
 		// change default for non windows platofrms
-		authmodeString = flag.String("authmode", "ntlm", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+		flag.StringVar(&authmodeString, "authmode", "ntlm", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
 	}
 
 	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
@@ -170,7 +172,7 @@ func main() {
 		}
 
 		var authmode byte
-		switch *authmodeString {
+		switch authmodeString {
 		case "unauth":
 			authmode = 0
 		case "simple":
@@ -184,7 +186,7 @@ func main() {
 		case "ntlmsspi":
 			authmode = 5
 		default:
-			log.Error().Msgf("Unknown LDAP authentication mode %v", *authmodeString)
+			log.Error().Msgf("Unknown LDAP authentication mode %v", authmodeString)
 			showUsage()
 		}
 
