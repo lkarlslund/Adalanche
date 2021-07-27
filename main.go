@@ -1,9 +1,11 @@
 package main
 
 import (
+	"embed"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -27,11 +29,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Install AssetFS compiler:
-// go get github.com/go-bindata/go-bindata/...
-// go get github.com/elazarl/go-bindata-assetfs/...
-
-//go:generate go-bindata-assetfs html/... readme.MD
+//go:embed html/* readme.MD
+var embeddedassets embed.FS
 
 var (
 	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -577,7 +576,7 @@ func main() {
 								return results
 							}
 							for _, acl := range sd.DACL.Entries {
-								if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_READ_PROPERTY, objectGUID) {
+								if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, objectGUID) {
 									results = append(results, AllObjects.FindOrAddSID(acl.SID))
 								}
 							}

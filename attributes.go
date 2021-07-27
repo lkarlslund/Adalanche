@@ -76,7 +76,8 @@ var (
 	AttributeSecurityGUID       = NewAttribute("attributeSecurityGUID")
 	GPLink                      = NewAttribute("gPLink")
 	GPOptions                   = NewAttribute("gPOptions")
-	MAX_IMPORTED                = GPOptions
+	ScriptPath                  = NewAttribute("scriptPath")
+	MAX_IMPORTED                = ScriptPath
 	MetaProtectedUser           = NewAttribute("_protecteduser")
 	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")
 	MetaConstrainedDelegation   = NewAttribute("_constraineddelegation")

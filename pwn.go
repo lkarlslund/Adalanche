@@ -52,6 +52,8 @@ var (
 	AttributeMSDSKeyCredentialLink, _               = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
 	AttributeSecurityGUIDGUID, _                    = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
 	AttributeAltSecurityIdentitiesGUID, _           = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
+	AttributeProfilePathGUID, _                     = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
+	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
 
 	ValidateWriteSelfMembership  = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ValidateWriteSPN             = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
@@ -132,6 +134,8 @@ const (
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
 	PwnWriteAltSecurityIdentities
+	PwnWriteProfilePath
+	PwnWriteScriptPath
 
 	PwnAllMethods uint64 = 1<<64 - 1
 )
@@ -779,6 +783,48 @@ var PwnAnalyzers = []PwnAnalyzer{
 			}
 			for _, acl := range sd.DACL.Entries {
 				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
+				}
+			}
+			return results
+		},
+	},
+	{
+		Method:      PwnWriteProfilePath,
+		Description: "Allows an attacker to trigger a user auth against an attacker controlled UNC path (responder)",
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only for users
+			if o.Type() != ObjectTypeUser {
+				return results
+			}
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
+				}
+			}
+			return results
+		},
+	},
+	{
+		Method:      PwnWriteScriptPath,
+		Description: "Allows an attacker to trigger a user auth against an attacker controlled UNC path (responder)",
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			// Only for users
+			if o.Type() != ObjectTypeUser {
+				return results
+			}
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}

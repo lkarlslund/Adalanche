@@ -7,18 +7,31 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/absfs/gofs"
+	"github.com/absfs/osfs"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 	"github.com/gomarkdown/markdown"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
+
+type FSPrefix struct {
+	Prefix string
+	FS     fs.FS
+}
+
+func (f FSPrefix) Open(filename string) (fs.File, error) {
+	return f.FS.Open(path.Join(f.Prefix, filename))
+}
 
 func webservice(bind string) http.Server {
 	router := mux.NewRouter()
@@ -681,11 +694,14 @@ func webservice(bind string) http.Server {
 		srv.Shutdown(ctx)
 	})
 	// Serve embedded static files, or from html folder if it exists
-	var assets http.FileSystem
-	assets = assetFS()
+	var assets fs.FS
+	assets = embeddedassets
+
 	if _, err := os.Stat("html"); !os.IsNotExist(err) {
 		// Use local files if they exist
-		assets = http.Dir("html")
+		if osf, err := osfs.NewFS(); err == nil {
+			assets, _ = gofs.NewFs(osf)
+		}
 	}
 
 	// Rendered markdown file
@@ -695,7 +711,10 @@ func webservice(bind string) http.Server {
 		io.Copy(&readmedata, readmefile)
 		w.Write(markdown.ToHTML(readmedata.Bytes(), nil, nil))
 	})
-	router.PathPrefix("/").Handler(http.FileServer(assets))
+	router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
+		Prefix: "html",
+		FS:     assets,
+	})))
 
 	log.Debug().Msgf("Listening - navigate to %v ...", bind)
 
