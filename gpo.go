@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/xml"
-	"os"
 	"regexp"
 )
 
@@ -26,22 +25,19 @@ var (
 	importantsids = regexp.MustCompile(`S-1-5-32-(544|555|562)`)
 )
 
-func GPOparseScheduledTasksUNCs(path string) []string {
+func GPOparseScheduledTasks(rawxml string) []string {
 	var results []string
-	rawxml, err := os.ReadFile(path + `\Machine\Preferences\ScheduledTasks\ScheduledTasks.XML`)
+	var tasks ScheduledTasks
+	err := xml.Unmarshal([]byte(rawxml), &tasks)
 	if err == nil {
-		var tasks ScheduledTasks
-		err = xml.Unmarshal(rawxml, &tasks)
-		if err == nil {
-			for _, task := range tasks.Tasks {
-				if task.RunLevel == "HighestAvailable" {
-					for _, action := range task.Actions {
-						cmd := action.Command + " " + action.Arguments
+		for _, task := range tasks.Tasks {
+			if task.RunLevel == "HighestAvailable" {
+				for _, action := range task.Actions {
+					cmd := action.Command + " " + action.Arguments
 
-						// Check if we're running remote stuff
-						if remoteexec := uncexec.FindAllString(cmd, -1); remoteexec != nil {
-							results = append(results, remoteexec...)
-						}
+					// Check if we're running remote stuff
+					if remoteexec := uncexec.FindAllString(cmd, -1); remoteexec != nil {
+						results = append(results, remoteexec...)
 					}
 				}
 			}
@@ -51,19 +47,31 @@ func GPOparseScheduledTasksUNCs(path string) []string {
 }
 
 type Groups struct {
-	Groups []Group `xml:Group`
+	XMLName xml.Name `xml:"Groups"`
+	Group   []Group
 }
 
 type Group struct {
-	Action  string   `xml:"Properties>action"`
-	SID     string   `xml:"Properties>groupSid"`
-	Members []Member `xml:"Properties>Members`
+	XMLName    xml.Name `xml:"Group"`
+	Name       string   `xml:"name,attr"`
+	Properties []Properties
+}
+
+type Properties struct {
+	Action  string `xml:"action,attr"`
+	SID     string `xml:"groupSid,attr"`
+	Members Members
+}
+
+type Members struct {
+	Member []Member
 }
 
 type Member struct {
-	Name   string `xml:"name"`
-	Action string `xml:"action"`
-	SID    string `xml:"sid"`
+	// XMLName xml.Name `xml:"Member"`
+	Name   string `xml:"name,attr"`
+	Action string `xml:"action,attr"`
+	SID    string `xml:"sid,attr"`
 }
 
 type SIDpair struct {
@@ -72,20 +80,21 @@ type SIDpair struct {
 }
 
 // SID added to
-func GPOparseGroups(path string) []SIDpair {
+func GPOparseGroups(rawxml string) []SIDpair {
 	var results []SIDpair
-	rawxml, err := os.ReadFile(path + `\Machine\Preferences\Groups\Groups.XML`)
+	var groups Groups
+	err := xml.Unmarshal([]byte(rawxml), &groups)
 	if err == nil {
-		var groups Groups
-		err = xml.Unmarshal(rawxml, &groups)
-		if err == nil {
-			for _, group := range groups.Groups {
-				if group.Action == "U" && importantsids.MatchString(group.SID) {
-					for _, member := range group.Members {
-						results = append(results, SIDpair{
-							Group:  group.SID,
-							Member: member.SID,
-						})
+		for _, group := range groups.Group {
+			for _, prop := range group.Properties {
+				if prop.Action == "U" && importantsids.MatchString(prop.SID) {
+					for _, member := range prop.Members.Member {
+						if member.Action == "ADD" {
+							results = append(results, SIDpair{
+								Group:  prop.SID,
+								Member: member.SID,
+							})
+						}
 					}
 				}
 			}

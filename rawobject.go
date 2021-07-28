@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/rs/zerolog/log"
@@ -28,7 +30,7 @@ func (r *RawObject) ToObject(importall bool) Object {
 		}
 		attribute := NewAttribute(name)
 		// do we even want this?
-		if !importall && attribute > MAX_IMPORTED {
+		if !importall && attribute > MAX_IMPORTED && !strings.HasPrefix(name, "_") {
 			continue
 		}
 		for valindex, value := range values {

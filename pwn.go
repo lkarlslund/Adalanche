@@ -133,6 +133,7 @@ const (
 	PwnLocalAdminRights
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
+	PwnScheduledTaskOnUNCPath
 	PwnWriteAltSecurityIdentities
 	PwnWriteProfilePath
 	PwnWriteScriptPath
@@ -898,6 +899,96 @@ var PwnAnalyzers = []PwnAnalyzer{
 			return results
 		},
 	},
+	{
+		Method: PwnLocalAdminRights,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml == "" {
+				return nil
+			}
+			var results []*Object
+			for _, sidpair := range GPOparseGroups(groupsxml) {
+				if sidpair.Group == "S-1-5-32-544" {
+					membersid, err := SIDFromString(sidpair.Member)
+					if err == nil {
+						results = append(results, AllObjects.FindOrAddSID(membersid))
+					} else {
+						log.Warn().Msgf("Detected Local Admin, but could not parse SID %v", sidpair.Member)
+					}
+				}
+				log.Debug().Msgf("%v", sidpair)
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnLocalRDPRights,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml == "" {
+				return nil
+			}
+			var results []*Object
+			for _, sidpair := range GPOparseGroups(groupsxml) {
+				if sidpair.Group == "S-1-5-32-555" {
+					membersid, err := SIDFromString(sidpair.Member)
+					if err == nil {
+						results = append(results, AllObjects.FindOrAddSID(membersid))
+					} else {
+						log.Warn().Msgf("Detected Local RDP, but could not parse SID %v", sidpair.Member)
+					}
+				}
+				log.Debug().Msgf("%v", sidpair)
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnLocalDCOMRights,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml == "" {
+				return nil
+			}
+			var results []*Object
+			for _, sidpair := range GPOparseGroups(groupsxml) {
+				if sidpair.Group == "S-1-5-32-562" {
+					membersid, err := SIDFromString(sidpair.Member)
+					if err == nil {
+						results = append(results, AllObjects.FindOrAddSID(membersid))
+					} else {
+						log.Warn().Msgf("Detected Local DCOM, but could not parse SID %v", sidpair.Member)
+					}
+				}
+				log.Debug().Msgf("%v", sidpair)
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnScheduledTaskOnUNCPath,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			schtasksxml := o.OneAttr(A("_gpofile/Machine/Preferences/ScheduledTasks/ScheduledTasks.XML"))
+			if schtasksxml == "" {
+				return nil
+			}
+			var results []*Object
+			for _, task := range GPOparseScheduledTasks(schtasksxml) {
+				log.Debug().Msgf("Scheduled task: %v", task)
+				// if sidpair.Group == "S-1-5-32-555" {
+				// 	membersid, err := SIDFromString(sidpair.Member)
+				// 	if err == nil {
+				// 		results = append(results, AllObjects.FindOrAddSID(membersid))
+				// 	} else {
+				// 		log.Warn().Msgf("Detected Local RDP, but could not parse SID %v", sidpair.Member)
+				// 	}
+				// }
+				// log.Debug().Msgf("%v", sidpair)
+			}
+			return results
+		},
+	},
+
 	// LAPS password moved to pre-processing, as the attributes have different GUIDs from AD to AD (sigh)
 	{
 		Method: PwnDCReplicationGetChanges,

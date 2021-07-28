@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -363,11 +364,13 @@ func main() {
 					if err != nil {
 						log.Warn().Msg("Can't access path, aborting this GPO ...")
 					} else {
-						filepath.WalkDir(gppath, func(path string, d fs.DirEntry, err error) error {
+						offset := len(gppath)
+						filepath.WalkDir(gppath, func(curpath string, d fs.DirEntry, err error) error {
 							if !d.IsDir() {
-								rawfile, err := ioutil.ReadFile(d.Name())
+								rawfile, err := ioutil.ReadFile(curpath)
 								if err == nil {
-									object.Attributes["_gpofile/"+d.Name()] = []string{string(rawfile)}
+									subpath := curpath[offset:]
+									object.Attributes[path.Join("_gpofile", strings.TrimPrefix(strings.ReplaceAll(subpath, "\\", "/"), "/"))] = []string{string(rawfile)}
 								}
 							}
 							return nil
