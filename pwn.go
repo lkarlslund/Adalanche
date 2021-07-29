@@ -902,12 +902,20 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnLocalAdminRights,
 		ObjectAnalyzer: func(o *Object) []*Object {
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
-			if groupsxml == "" {
-				return nil
-			}
 			var results []*Object
-			for _, sidpair := range GPOparseGroups(groupsxml) {
+			var pairs []SIDpair
+
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml != "" {
+				pairs = GPOparseGroups(groupsxml)
+			}
+
+			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			if groupsini != "" {
+				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
+			}
+
+			for _, sidpair := range pairs {
 				if sidpair.Group == "S-1-5-32-544" {
 					membersid, err := SIDFromString(sidpair.Member)
 					if err == nil {
@@ -924,12 +932,20 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnLocalRDPRights,
 		ObjectAnalyzer: func(o *Object) []*Object {
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
-			if groupsxml == "" {
-				return nil
-			}
 			var results []*Object
-			for _, sidpair := range GPOparseGroups(groupsxml) {
+			var pairs []SIDpair
+
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml != "" {
+				pairs = GPOparseGroups(groupsxml)
+			}
+
+			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			if groupsini != "" {
+				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
+			}
+
+			for _, sidpair := range pairs {
 				if sidpair.Group == "S-1-5-32-555" {
 					membersid, err := SIDFromString(sidpair.Member)
 					if err == nil {
@@ -946,12 +962,20 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnLocalDCOMRights,
 		ObjectAnalyzer: func(o *Object) []*Object {
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
-			if groupsxml == "" {
-				return nil
-			}
 			var results []*Object
-			for _, sidpair := range GPOparseGroups(groupsxml) {
+			var pairs []SIDpair
+
+			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			if groupsxml != "" {
+				pairs = GPOparseGroups(groupsxml)
+			}
+
+			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			if groupsini != "" {
+				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
+			}
+
+			for _, sidpair := range pairs {
 				if sidpair.Group == "S-1-5-32-562" {
 					membersid, err := SIDFromString(sidpair.Member)
 					if err == nil {

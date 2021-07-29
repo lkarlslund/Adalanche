@@ -12,6 +12,7 @@ require (
 	github.com/frankban/quicktest v1.13.0 // indirect
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-asn1-ber/asn1-ber v1.5.3
+	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/gomarkdown/markdown v0.0.0-20210514010506-3b9f47219fe7
