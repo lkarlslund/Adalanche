@@ -74,6 +74,7 @@ var (
 	TrustPartner                = NewAttribute("trustPartner")
 	DsHeuristics                = NewAttribute("dsHeuristics")
 	AttributeSecurityGUID       = NewAttribute("attributeSecurityGUID")
+	RightsGUID                  = NewAttribute("rightsGUID")
 	GPLink                      = NewAttribute("gPLink")
 	GPOptions                   = NewAttribute("gPOptions")
 	ScriptPath                  = NewAttribute("scriptPath")

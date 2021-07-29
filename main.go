@@ -355,9 +355,10 @@ func main() {
 						}
 						// Override path, possibly on other OS'es or if you dont have DNS running
 						gppath = *gpopath
-						gppath = strings.ReplaceAll(gppath, "%SERVER%", *server)
-						gppath = strings.ReplaceAll(gppath, "%DOMAIN%", *domain)
-						gppath = strings.ReplaceAll(gppath, "%GUID%", gpoguid[0])
+						// gppath = strings.ReplaceAll(gppath, "%SERVER%", *server)
+						// gppath = strings.ReplaceAll(gppath, "%DOMAIN%", *domain)
+						// gppath = strings.ReplaceAll(gppath, "%GUID%", gpoguid[0])
+						gppath = filepath.Join(*gpopath, gpoguid[0])
 					}
 					log.Info().Msgf("Dumping group policy files from %v ...", gppath)
 					_, err := os.Stat(gppath)
@@ -588,7 +589,7 @@ func main() {
 
 		// Special types of Objects
 		if object.HasAttrValue(ObjectClass, "controlAccessRight") {
-			u, err := uuid.FromString(object.OneAttr(A("rightsGuid")))
+			u, err := uuid.FromString(object.OneAttr(RightsGUID))
 			// log.Debug().Msgf("Adding right %v %v", u, object.OneAttr(DisplayName))
 			if err == nil {
 				AllRights[u] = object
