@@ -12,7 +12,7 @@ require (
 	github.com/frankban/quicktest v1.13.0 // indirect
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-asn1-ber/asn1-ber v1.5.3
-	github.com/go-ini/ini v1.62.0 // indirect
+	github.com/go-ini/ini v1.62.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/gomarkdown/markdown v0.0.0-20210514010506-3b9f47219fe7
@@ -26,12 +26,13 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	github.com/rs/zerolog v1.23.0
 	github.com/schollz/progressbar/v3 v3.8.2
+	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/tinylib/msgp v1.1.6
-	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
 	github.com/xtgo/set v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	golang.org/x/text v0.3.6
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/ini.v1 v1.62.0 // indirect
 )

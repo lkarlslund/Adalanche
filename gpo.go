@@ -116,7 +116,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 		utf8 = []byte(rawini)
 	}
 
-	ini.LineBreak = "\n"
+	// ini.LineBreak = "\n"
 
 	gpt, err := ini.LoadSources(ini.LoadOptions{
 		SkipUnrecognizableLines: true,

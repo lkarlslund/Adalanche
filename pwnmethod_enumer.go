@@ -8,55 +8,57 @@ import (
 	"strings"
 )
 
-const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkWriteAttributeSecurityGUIDSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNHasSPNNoPreauthAdminSDHolderOverwriteACLComputerAffectedByGPOGPOMachineConfigPartOfGPOGPOUserConfigPartOfGPOLocalAdminRightsLocalRDPRightsLocalDCOMRightsScheduledTaskOnUNCPathWriteAltSecurityIdentitiesWriteProfilePathWriteScriptPath"
-const _PwnMethodLowerName = "createusercreategroupcreatecomputercreateanyobjectdeletechildrentargetdeleteobjectinheritssecurityaclcontainsdenyresetpasswordownsgenericallwriteallwritepropertyalltakeownershipwritedaclwritespnwritevalidatedspnwriteallowedtoactaddmemberaddmembergroupattraddselfmemberreadmsapasswordhasmsawritekeycredentiallinkwriteattributesecurityguidsidhistoryequalityallextendedrightsdcreplicationgetchangesdcreplicationsyncronizedsreplicationgetchangesallreadlapspasswordmemberofgrouphasspnhasspnnopreauthadminsdholderoverwriteaclcomputeraffectedbygpogpomachineconfigpartofgpogpouserconfigpartofgpolocaladminrightslocalrdprightslocaldcomrightsscheduledtaskonuncpathwritealtsecurityidentitieswriteprofilepathwritescriptpath"
+const _PwnMethodName = "CreateUserCreateGroupCreateComputerCreateAnyObjectDeleteChildrenTargetDeleteObjectInheritsSecurityACLContainsDenyResetPasswordOwnsGenericAllWriteAllWritePropertyAllWriteExtendedAllTakeOwnershipWriteDACLWriteSPNWriteValidatedSPNWriteAllowedToActAddMemberAddMemberGroupAttrAddSelfMemberReadMSAPasswordHasMSAWriteKeyCredentialLinkWriteAttributeSecurityGUIDSIDHistoryEqualityAllExtendedRightsDCReplicationGetChangesDCReplicationSyncronizeDSReplicationGetChangesAllReadLAPSPasswordMemberOfGroupHasSPNHasSPNNoPreauthAdminSDHolderOverwriteACLComputerAffectedByGPOGPOMachineConfigPartOfGPOGPOUserConfigPartOfGPOLocalAdminRightsLocalRDPRightsLocalDCOMRightsScheduledTaskOnUNCPathPwdMachineScriptWriteAltSecurityIdentitiesWriteProfilePathWriteScriptPath"
+const _PwnMethodLowerName = "createusercreategroupcreatecomputercreateanyobjectdeletechildrentargetdeleteobjectinheritssecurityaclcontainsdenyresetpasswordownsgenericallwriteallwritepropertyallwriteextendedalltakeownershipwritedaclwritespnwritevalidatedspnwriteallowedtoactaddmemberaddmembergroupattraddselfmemberreadmsapasswordhasmsawritekeycredentiallinkwriteattributesecurityguidsidhistoryequalityallextendedrightsdcreplicationgetchangesdcreplicationsyncronizedsreplicationgetchangesallreadlapspasswordmemberofgrouphasspnhasspnnopreauthadminsdholderoverwriteaclcomputeraffectedbygpogpomachineconfigpartofgpogpouserconfigpartofgpolocaladminrightslocalrdprightslocaldcomrightsscheduledtaskonuncpathpwdmachinescriptwritealtsecurityidentitieswriteprofilepathwritescriptpath"
 
 var _PwnMethodMap = map[PwnMethod]string{
-	2:              _PwnMethodName[0:10],
-	4:              _PwnMethodName[10:21],
-	8:              _PwnMethodName[21:35],
-	16:             _PwnMethodName[35:50],
-	32:             _PwnMethodName[50:70],
-	64:             _PwnMethodName[70:82],
-	128:            _PwnMethodName[82:98],
-	256:            _PwnMethodName[98:113],
-	512:            _PwnMethodName[113:126],
-	1024:           _PwnMethodName[126:130],
-	2048:           _PwnMethodName[130:140],
-	4096:           _PwnMethodName[140:148],
-	8192:           _PwnMethodName[148:164],
-	16384:          _PwnMethodName[164:177],
-	32768:          _PwnMethodName[177:186],
-	65536:          _PwnMethodName[186:194],
-	131072:         _PwnMethodName[194:211],
-	262144:         _PwnMethodName[211:228],
-	524288:         _PwnMethodName[228:237],
-	1048576:        _PwnMethodName[237:255],
-	2097152:        _PwnMethodName[255:268],
-	4194304:        _PwnMethodName[268:283],
-	8388608:        _PwnMethodName[283:289],
-	16777216:       _PwnMethodName[289:311],
-	33554432:       _PwnMethodName[311:337],
-	67108864:       _PwnMethodName[337:355],
-	134217728:      _PwnMethodName[355:372],
-	268435456:      _PwnMethodName[372:395],
-	536870912:      _PwnMethodName[395:418],
-	1073741824:     _PwnMethodName[418:444],
-	2147483648:     _PwnMethodName[444:460],
-	4294967296:     _PwnMethodName[460:473],
-	8589934592:     _PwnMethodName[473:479],
-	17179869184:    _PwnMethodName[479:494],
-	34359738368:    _PwnMethodName[494:519],
-	68719476736:    _PwnMethodName[519:540],
-	137438953472:   _PwnMethodName[540:565],
-	274877906944:   _PwnMethodName[565:587],
-	549755813888:   _PwnMethodName[587:603],
-	1099511627776:  _PwnMethodName[603:617],
-	2199023255552:  _PwnMethodName[617:632],
-	4398046511104:  _PwnMethodName[632:654],
-	8796093022208:  _PwnMethodName[654:680],
-	17592186044416: _PwnMethodName[680:696],
-	35184372088832: _PwnMethodName[696:711],
+	2:               _PwnMethodName[0:10],
+	4:               _PwnMethodName[10:21],
+	8:               _PwnMethodName[21:35],
+	16:              _PwnMethodName[35:50],
+	32:              _PwnMethodName[50:70],
+	64:              _PwnMethodName[70:82],
+	128:             _PwnMethodName[82:98],
+	256:             _PwnMethodName[98:113],
+	512:             _PwnMethodName[113:126],
+	1024:            _PwnMethodName[126:130],
+	2048:            _PwnMethodName[130:140],
+	4096:            _PwnMethodName[140:148],
+	8192:            _PwnMethodName[148:164],
+	16384:           _PwnMethodName[164:180],
+	32768:           _PwnMethodName[180:193],
+	65536:           _PwnMethodName[193:202],
+	131072:          _PwnMethodName[202:210],
+	262144:          _PwnMethodName[210:227],
+	524288:          _PwnMethodName[227:244],
+	1048576:         _PwnMethodName[244:253],
+	2097152:         _PwnMethodName[253:271],
+	4194304:         _PwnMethodName[271:284],
+	8388608:         _PwnMethodName[284:299],
+	16777216:        _PwnMethodName[299:305],
+	33554432:        _PwnMethodName[305:327],
+	67108864:        _PwnMethodName[327:353],
+	134217728:       _PwnMethodName[353:371],
+	268435456:       _PwnMethodName[371:388],
+	536870912:       _PwnMethodName[388:411],
+	1073741824:      _PwnMethodName[411:434],
+	2147483648:      _PwnMethodName[434:460],
+	4294967296:      _PwnMethodName[460:476],
+	8589934592:      _PwnMethodName[476:489],
+	17179869184:     _PwnMethodName[489:495],
+	34359738368:     _PwnMethodName[495:510],
+	68719476736:     _PwnMethodName[510:535],
+	137438953472:    _PwnMethodName[535:556],
+	274877906944:    _PwnMethodName[556:581],
+	549755813888:    _PwnMethodName[581:603],
+	1099511627776:   _PwnMethodName[603:619],
+	2199023255552:   _PwnMethodName[619:633],
+	4398046511104:   _PwnMethodName[633:648],
+	8796093022208:   _PwnMethodName[648:670],
+	17592186044416:  _PwnMethodName[670:686],
+	35184372088832:  _PwnMethodName[686:712],
+	70368744177664:  _PwnMethodName[712:728],
+	140737488355328: _PwnMethodName[728:743],
 }
 
 func (i PwnMethod) String() string {
@@ -83,41 +85,43 @@ func _PwnMethodNoOp() {
 	_ = x[PwnGenericAll-(2048)]
 	_ = x[PwnWriteAll-(4096)]
 	_ = x[PwnWritePropertyAll-(8192)]
-	_ = x[PwnTakeOwnership-(16384)]
-	_ = x[PwnWriteDACL-(32768)]
-	_ = x[PwnWriteSPN-(65536)]
-	_ = x[PwnWriteValidatedSPN-(131072)]
-	_ = x[PwnWriteAllowedToAct-(262144)]
-	_ = x[PwnAddMember-(524288)]
-	_ = x[PwnAddMemberGroupAttr-(1048576)]
-	_ = x[PwnAddSelfMember-(2097152)]
-	_ = x[PwnReadMSAPassword-(4194304)]
-	_ = x[PwnHasMSA-(8388608)]
-	_ = x[PwnWriteKeyCredentialLink-(16777216)]
-	_ = x[PwnWriteAttributeSecurityGUID-(33554432)]
-	_ = x[PwnSIDHistoryEquality-(67108864)]
-	_ = x[PwnAllExtendedRights-(134217728)]
-	_ = x[PwnDCReplicationGetChanges-(268435456)]
-	_ = x[PwnDCReplicationSyncronize-(536870912)]
-	_ = x[PwnDSReplicationGetChangesAll-(1073741824)]
-	_ = x[PwnReadLAPSPassword-(2147483648)]
-	_ = x[PwnMemberOfGroup-(4294967296)]
-	_ = x[PwnHasSPN-(8589934592)]
-	_ = x[PwnHasSPNNoPreauth-(17179869184)]
-	_ = x[PwnAdminSDHolderOverwriteACL-(34359738368)]
-	_ = x[PwnComputerAffectedByGPO-(68719476736)]
-	_ = x[PwnGPOMachineConfigPartOfGPO-(137438953472)]
-	_ = x[PwnGPOUserConfigPartOfGPO-(274877906944)]
-	_ = x[PwnLocalAdminRights-(549755813888)]
-	_ = x[PwnLocalRDPRights-(1099511627776)]
-	_ = x[PwnLocalDCOMRights-(2199023255552)]
-	_ = x[PwnScheduledTaskOnUNCPath-(4398046511104)]
-	_ = x[PwnWriteAltSecurityIdentities-(8796093022208)]
-	_ = x[PwnWriteProfilePath-(17592186044416)]
-	_ = x[PwnWriteScriptPath-(35184372088832)]
+	_ = x[PwnWriteExtendedAll-(16384)]
+	_ = x[PwnTakeOwnership-(32768)]
+	_ = x[PwnWriteDACL-(65536)]
+	_ = x[PwnWriteSPN-(131072)]
+	_ = x[PwnWriteValidatedSPN-(262144)]
+	_ = x[PwnWriteAllowedToAct-(524288)]
+	_ = x[PwnAddMember-(1048576)]
+	_ = x[PwnAddMemberGroupAttr-(2097152)]
+	_ = x[PwnAddSelfMember-(4194304)]
+	_ = x[PwnReadMSAPassword-(8388608)]
+	_ = x[PwnHasMSA-(16777216)]
+	_ = x[PwnWriteKeyCredentialLink-(33554432)]
+	_ = x[PwnWriteAttributeSecurityGUID-(67108864)]
+	_ = x[PwnSIDHistoryEquality-(134217728)]
+	_ = x[PwnAllExtendedRights-(268435456)]
+	_ = x[PwnDCReplicationGetChanges-(536870912)]
+	_ = x[PwnDCReplicationSyncronize-(1073741824)]
+	_ = x[PwnDSReplicationGetChangesAll-(2147483648)]
+	_ = x[PwnReadLAPSPassword-(4294967296)]
+	_ = x[PwnMemberOfGroup-(8589934592)]
+	_ = x[PwnHasSPN-(17179869184)]
+	_ = x[PwnHasSPNNoPreauth-(34359738368)]
+	_ = x[PwnAdminSDHolderOverwriteACL-(68719476736)]
+	_ = x[PwnComputerAffectedByGPO-(137438953472)]
+	_ = x[PwnGPOMachineConfigPartOfGPO-(274877906944)]
+	_ = x[PwnGPOUserConfigPartOfGPO-(549755813888)]
+	_ = x[PwnLocalAdminRights-(1099511627776)]
+	_ = x[PwnLocalRDPRights-(2199023255552)]
+	_ = x[PwnLocalDCOMRights-(4398046511104)]
+	_ = x[PwnScheduledTaskOnUNCPath-(8796093022208)]
+	_ = x[PwdMachineScript-(17592186044416)]
+	_ = x[PwnWriteAltSecurityIdentities-(35184372088832)]
+	_ = x[PwnWriteProfilePath-(70368744177664)]
+	_ = x[PwnWriteScriptPath-(140737488355328)]
 }
 
-var _PwnMethodValues = []PwnMethod{PwnCreateUser, PwnCreateGroup, PwnCreateComputer, PwnCreateAnyObject, PwnDeleteChildrenTarget, PwnDeleteObject, PwnInheritsSecurity, PwnACLContainsDeny, PwnResetPassword, PwnOwns, PwnGenericAll, PwnWriteAll, PwnWritePropertyAll, PwnTakeOwnership, PwnWriteDACL, PwnWriteSPN, PwnWriteValidatedSPN, PwnWriteAllowedToAct, PwnAddMember, PwnAddMemberGroupAttr, PwnAddSelfMember, PwnReadMSAPassword, PwnHasMSA, PwnWriteKeyCredentialLink, PwnWriteAttributeSecurityGUID, PwnSIDHistoryEquality, PwnAllExtendedRights, PwnDCReplicationGetChanges, PwnDCReplicationSyncronize, PwnDSReplicationGetChangesAll, PwnReadLAPSPassword, PwnMemberOfGroup, PwnHasSPN, PwnHasSPNNoPreauth, PwnAdminSDHolderOverwriteACL, PwnComputerAffectedByGPO, PwnGPOMachineConfigPartOfGPO, PwnGPOUserConfigPartOfGPO, PwnLocalAdminRights, PwnLocalRDPRights, PwnLocalDCOMRights, PwnScheduledTaskOnUNCPath, PwnWriteAltSecurityIdentities, PwnWriteProfilePath, PwnWriteScriptPath}
+var _PwnMethodValues = []PwnMethod{PwnCreateUser, PwnCreateGroup, PwnCreateComputer, PwnCreateAnyObject, PwnDeleteChildrenTarget, PwnDeleteObject, PwnInheritsSecurity, PwnACLContainsDeny, PwnResetPassword, PwnOwns, PwnGenericAll, PwnWriteAll, PwnWritePropertyAll, PwnWriteExtendedAll, PwnTakeOwnership, PwnWriteDACL, PwnWriteSPN, PwnWriteValidatedSPN, PwnWriteAllowedToAct, PwnAddMember, PwnAddMemberGroupAttr, PwnAddSelfMember, PwnReadMSAPassword, PwnHasMSA, PwnWriteKeyCredentialLink, PwnWriteAttributeSecurityGUID, PwnSIDHistoryEquality, PwnAllExtendedRights, PwnDCReplicationGetChanges, PwnDCReplicationSyncronize, PwnDSReplicationGetChangesAll, PwnReadLAPSPassword, PwnMemberOfGroup, PwnHasSPN, PwnHasSPNNoPreauth, PwnAdminSDHolderOverwriteACL, PwnComputerAffectedByGPO, PwnGPOMachineConfigPartOfGPO, PwnGPOUserConfigPartOfGPO, PwnLocalAdminRights, PwnLocalRDPRights, PwnLocalDCOMRights, PwnScheduledTaskOnUNCPath, PwdMachineScript, PwnWriteAltSecurityIdentities, PwnWriteProfilePath, PwnWriteScriptPath}
 
 var _PwnMethodNameToValueMap = map[string]PwnMethod{
 	_PwnMethodName[0:10]:         PwnCreateUser,
@@ -146,70 +150,74 @@ var _PwnMethodNameToValueMap = map[string]PwnMethod{
 	_PwnMethodLowerName[140:148]: PwnWriteAll,
 	_PwnMethodName[148:164]:      PwnWritePropertyAll,
 	_PwnMethodLowerName[148:164]: PwnWritePropertyAll,
-	_PwnMethodName[164:177]:      PwnTakeOwnership,
-	_PwnMethodLowerName[164:177]: PwnTakeOwnership,
-	_PwnMethodName[177:186]:      PwnWriteDACL,
-	_PwnMethodLowerName[177:186]: PwnWriteDACL,
-	_PwnMethodName[186:194]:      PwnWriteSPN,
-	_PwnMethodLowerName[186:194]: PwnWriteSPN,
-	_PwnMethodName[194:211]:      PwnWriteValidatedSPN,
-	_PwnMethodLowerName[194:211]: PwnWriteValidatedSPN,
-	_PwnMethodName[211:228]:      PwnWriteAllowedToAct,
-	_PwnMethodLowerName[211:228]: PwnWriteAllowedToAct,
-	_PwnMethodName[228:237]:      PwnAddMember,
-	_PwnMethodLowerName[228:237]: PwnAddMember,
-	_PwnMethodName[237:255]:      PwnAddMemberGroupAttr,
-	_PwnMethodLowerName[237:255]: PwnAddMemberGroupAttr,
-	_PwnMethodName[255:268]:      PwnAddSelfMember,
-	_PwnMethodLowerName[255:268]: PwnAddSelfMember,
-	_PwnMethodName[268:283]:      PwnReadMSAPassword,
-	_PwnMethodLowerName[268:283]: PwnReadMSAPassword,
-	_PwnMethodName[283:289]:      PwnHasMSA,
-	_PwnMethodLowerName[283:289]: PwnHasMSA,
-	_PwnMethodName[289:311]:      PwnWriteKeyCredentialLink,
-	_PwnMethodLowerName[289:311]: PwnWriteKeyCredentialLink,
-	_PwnMethodName[311:337]:      PwnWriteAttributeSecurityGUID,
-	_PwnMethodLowerName[311:337]: PwnWriteAttributeSecurityGUID,
-	_PwnMethodName[337:355]:      PwnSIDHistoryEquality,
-	_PwnMethodLowerName[337:355]: PwnSIDHistoryEquality,
-	_PwnMethodName[355:372]:      PwnAllExtendedRights,
-	_PwnMethodLowerName[355:372]: PwnAllExtendedRights,
-	_PwnMethodName[372:395]:      PwnDCReplicationGetChanges,
-	_PwnMethodLowerName[372:395]: PwnDCReplicationGetChanges,
-	_PwnMethodName[395:418]:      PwnDCReplicationSyncronize,
-	_PwnMethodLowerName[395:418]: PwnDCReplicationSyncronize,
-	_PwnMethodName[418:444]:      PwnDSReplicationGetChangesAll,
-	_PwnMethodLowerName[418:444]: PwnDSReplicationGetChangesAll,
-	_PwnMethodName[444:460]:      PwnReadLAPSPassword,
-	_PwnMethodLowerName[444:460]: PwnReadLAPSPassword,
-	_PwnMethodName[460:473]:      PwnMemberOfGroup,
-	_PwnMethodLowerName[460:473]: PwnMemberOfGroup,
-	_PwnMethodName[473:479]:      PwnHasSPN,
-	_PwnMethodLowerName[473:479]: PwnHasSPN,
-	_PwnMethodName[479:494]:      PwnHasSPNNoPreauth,
-	_PwnMethodLowerName[479:494]: PwnHasSPNNoPreauth,
-	_PwnMethodName[494:519]:      PwnAdminSDHolderOverwriteACL,
-	_PwnMethodLowerName[494:519]: PwnAdminSDHolderOverwriteACL,
-	_PwnMethodName[519:540]:      PwnComputerAffectedByGPO,
-	_PwnMethodLowerName[519:540]: PwnComputerAffectedByGPO,
-	_PwnMethodName[540:565]:      PwnGPOMachineConfigPartOfGPO,
-	_PwnMethodLowerName[540:565]: PwnGPOMachineConfigPartOfGPO,
-	_PwnMethodName[565:587]:      PwnGPOUserConfigPartOfGPO,
-	_PwnMethodLowerName[565:587]: PwnGPOUserConfigPartOfGPO,
-	_PwnMethodName[587:603]:      PwnLocalAdminRights,
-	_PwnMethodLowerName[587:603]: PwnLocalAdminRights,
-	_PwnMethodName[603:617]:      PwnLocalRDPRights,
-	_PwnMethodLowerName[603:617]: PwnLocalRDPRights,
-	_PwnMethodName[617:632]:      PwnLocalDCOMRights,
-	_PwnMethodLowerName[617:632]: PwnLocalDCOMRights,
-	_PwnMethodName[632:654]:      PwnScheduledTaskOnUNCPath,
-	_PwnMethodLowerName[632:654]: PwnScheduledTaskOnUNCPath,
-	_PwnMethodName[654:680]:      PwnWriteAltSecurityIdentities,
-	_PwnMethodLowerName[654:680]: PwnWriteAltSecurityIdentities,
-	_PwnMethodName[680:696]:      PwnWriteProfilePath,
-	_PwnMethodLowerName[680:696]: PwnWriteProfilePath,
-	_PwnMethodName[696:711]:      PwnWriteScriptPath,
-	_PwnMethodLowerName[696:711]: PwnWriteScriptPath,
+	_PwnMethodName[164:180]:      PwnWriteExtendedAll,
+	_PwnMethodLowerName[164:180]: PwnWriteExtendedAll,
+	_PwnMethodName[180:193]:      PwnTakeOwnership,
+	_PwnMethodLowerName[180:193]: PwnTakeOwnership,
+	_PwnMethodName[193:202]:      PwnWriteDACL,
+	_PwnMethodLowerName[193:202]: PwnWriteDACL,
+	_PwnMethodName[202:210]:      PwnWriteSPN,
+	_PwnMethodLowerName[202:210]: PwnWriteSPN,
+	_PwnMethodName[210:227]:      PwnWriteValidatedSPN,
+	_PwnMethodLowerName[210:227]: PwnWriteValidatedSPN,
+	_PwnMethodName[227:244]:      PwnWriteAllowedToAct,
+	_PwnMethodLowerName[227:244]: PwnWriteAllowedToAct,
+	_PwnMethodName[244:253]:      PwnAddMember,
+	_PwnMethodLowerName[244:253]: PwnAddMember,
+	_PwnMethodName[253:271]:      PwnAddMemberGroupAttr,
+	_PwnMethodLowerName[253:271]: PwnAddMemberGroupAttr,
+	_PwnMethodName[271:284]:      PwnAddSelfMember,
+	_PwnMethodLowerName[271:284]: PwnAddSelfMember,
+	_PwnMethodName[284:299]:      PwnReadMSAPassword,
+	_PwnMethodLowerName[284:299]: PwnReadMSAPassword,
+	_PwnMethodName[299:305]:      PwnHasMSA,
+	_PwnMethodLowerName[299:305]: PwnHasMSA,
+	_PwnMethodName[305:327]:      PwnWriteKeyCredentialLink,
+	_PwnMethodLowerName[305:327]: PwnWriteKeyCredentialLink,
+	_PwnMethodName[327:353]:      PwnWriteAttributeSecurityGUID,
+	_PwnMethodLowerName[327:353]: PwnWriteAttributeSecurityGUID,
+	_PwnMethodName[353:371]:      PwnSIDHistoryEquality,
+	_PwnMethodLowerName[353:371]: PwnSIDHistoryEquality,
+	_PwnMethodName[371:388]:      PwnAllExtendedRights,
+	_PwnMethodLowerName[371:388]: PwnAllExtendedRights,
+	_PwnMethodName[388:411]:      PwnDCReplicationGetChanges,
+	_PwnMethodLowerName[388:411]: PwnDCReplicationGetChanges,
+	_PwnMethodName[411:434]:      PwnDCReplicationSyncronize,
+	_PwnMethodLowerName[411:434]: PwnDCReplicationSyncronize,
+	_PwnMethodName[434:460]:      PwnDSReplicationGetChangesAll,
+	_PwnMethodLowerName[434:460]: PwnDSReplicationGetChangesAll,
+	_PwnMethodName[460:476]:      PwnReadLAPSPassword,
+	_PwnMethodLowerName[460:476]: PwnReadLAPSPassword,
+	_PwnMethodName[476:489]:      PwnMemberOfGroup,
+	_PwnMethodLowerName[476:489]: PwnMemberOfGroup,
+	_PwnMethodName[489:495]:      PwnHasSPN,
+	_PwnMethodLowerName[489:495]: PwnHasSPN,
+	_PwnMethodName[495:510]:      PwnHasSPNNoPreauth,
+	_PwnMethodLowerName[495:510]: PwnHasSPNNoPreauth,
+	_PwnMethodName[510:535]:      PwnAdminSDHolderOverwriteACL,
+	_PwnMethodLowerName[510:535]: PwnAdminSDHolderOverwriteACL,
+	_PwnMethodName[535:556]:      PwnComputerAffectedByGPO,
+	_PwnMethodLowerName[535:556]: PwnComputerAffectedByGPO,
+	_PwnMethodName[556:581]:      PwnGPOMachineConfigPartOfGPO,
+	_PwnMethodLowerName[556:581]: PwnGPOMachineConfigPartOfGPO,
+	_PwnMethodName[581:603]:      PwnGPOUserConfigPartOfGPO,
+	_PwnMethodLowerName[581:603]: PwnGPOUserConfigPartOfGPO,
+	_PwnMethodName[603:619]:      PwnLocalAdminRights,
+	_PwnMethodLowerName[603:619]: PwnLocalAdminRights,
+	_PwnMethodName[619:633]:      PwnLocalRDPRights,
+	_PwnMethodLowerName[619:633]: PwnLocalRDPRights,
+	_PwnMethodName[633:648]:      PwnLocalDCOMRights,
+	_PwnMethodLowerName[633:648]: PwnLocalDCOMRights,
+	_PwnMethodName[648:670]:      PwnScheduledTaskOnUNCPath,
+	_PwnMethodLowerName[648:670]: PwnScheduledTaskOnUNCPath,
+	_PwnMethodName[670:686]:      PwdMachineScript,
+	_PwnMethodLowerName[670:686]: PwdMachineScript,
+	_PwnMethodName[686:712]:      PwnWriteAltSecurityIdentities,
+	_PwnMethodLowerName[686:712]: PwnWriteAltSecurityIdentities,
+	_PwnMethodName[712:728]:      PwnWriteProfilePath,
+	_PwnMethodLowerName[712:728]: PwnWriteProfilePath,
+	_PwnMethodName[728:743]:      PwnWriteScriptPath,
+	_PwnMethodLowerName[728:743]: PwnWriteScriptPath,
 }
 
 var _PwnMethodNames = []string{
@@ -226,38 +234,40 @@ var _PwnMethodNames = []string{
 	_PwnMethodName[130:140],
 	_PwnMethodName[140:148],
 	_PwnMethodName[148:164],
-	_PwnMethodName[164:177],
-	_PwnMethodName[177:186],
-	_PwnMethodName[186:194],
-	_PwnMethodName[194:211],
-	_PwnMethodName[211:228],
-	_PwnMethodName[228:237],
-	_PwnMethodName[237:255],
-	_PwnMethodName[255:268],
-	_PwnMethodName[268:283],
-	_PwnMethodName[283:289],
-	_PwnMethodName[289:311],
-	_PwnMethodName[311:337],
-	_PwnMethodName[337:355],
-	_PwnMethodName[355:372],
-	_PwnMethodName[372:395],
-	_PwnMethodName[395:418],
-	_PwnMethodName[418:444],
-	_PwnMethodName[444:460],
-	_PwnMethodName[460:473],
-	_PwnMethodName[473:479],
-	_PwnMethodName[479:494],
-	_PwnMethodName[494:519],
-	_PwnMethodName[519:540],
-	_PwnMethodName[540:565],
-	_PwnMethodName[565:587],
-	_PwnMethodName[587:603],
-	_PwnMethodName[603:617],
-	_PwnMethodName[617:632],
-	_PwnMethodName[632:654],
-	_PwnMethodName[654:680],
-	_PwnMethodName[680:696],
-	_PwnMethodName[696:711],
+	_PwnMethodName[164:180],
+	_PwnMethodName[180:193],
+	_PwnMethodName[193:202],
+	_PwnMethodName[202:210],
+	_PwnMethodName[210:227],
+	_PwnMethodName[227:244],
+	_PwnMethodName[244:253],
+	_PwnMethodName[253:271],
+	_PwnMethodName[271:284],
+	_PwnMethodName[284:299],
+	_PwnMethodName[299:305],
+	_PwnMethodName[305:327],
+	_PwnMethodName[327:353],
+	_PwnMethodName[353:371],
+	_PwnMethodName[371:388],
+	_PwnMethodName[388:411],
+	_PwnMethodName[411:434],
+	_PwnMethodName[434:460],
+	_PwnMethodName[460:476],
+	_PwnMethodName[476:489],
+	_PwnMethodName[489:495],
+	_PwnMethodName[495:510],
+	_PwnMethodName[510:535],
+	_PwnMethodName[535:556],
+	_PwnMethodName[556:581],
+	_PwnMethodName[581:603],
+	_PwnMethodName[603:619],
+	_PwnMethodName[619:633],
+	_PwnMethodName[633:648],
+	_PwnMethodName[648:670],
+	_PwnMethodName[670:686],
+	_PwnMethodName[686:712],
+	_PwnMethodName[712:728],
+	_PwnMethodName[728:743],
 }
 
 // PwnMethodString retrieves an enum value from the enum constants string name.

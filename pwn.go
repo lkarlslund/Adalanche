@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/go-ini/ini"
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/text/encoding/unicode"
 )
 
 // Enumer package from here:
@@ -105,6 +108,7 @@ const (
 	PwnGenericAll
 	PwnWriteAll
 	PwnWritePropertyAll
+	PwnWriteExtendedAll
 	PwnTakeOwnership
 	PwnWriteDACL
 	PwnWriteSPN
@@ -134,6 +138,7 @@ const (
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
 	PwnScheduledTaskOnUNCPath
+	PwdMachineScript
 	PwnWriteAltSecurityIdentities
 	PwnWriteProfilePath
 	PwnWriteScriptPath
@@ -505,7 +510,23 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(nil) && acl.Mask&RIGHT_DS_WRITE_PROPERTY != 0 && acl.ObjectType == NullGUID {
+				if acl.AllowObjectClass(nil) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, NullGUID) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
+				}
+			}
+			return results
+		},
+	},
+	{
+		Method: PwnWriteExtendedAll,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY_EXTENDED, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -538,7 +559,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Type == ACETYPE_ACCESS_ALLOWED && acl.Mask&RIGHT_WRITE_DACL != 0 {
+				if acl.AllowObjectClass(o) && /* acl.Type == ACETYPE_ACCESS_ALLOWED && */ acl.Mask&RIGHT_WRITE_DACL != 0 {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -1009,6 +1030,65 @@ var PwnAnalyzers = []PwnAnalyzer{
 				// }
 				// log.Debug().Msgf("%v", sidpair)
 			}
+			return results
+		},
+	},
+
+	{
+		Method: PwdMachineScript,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			scripts := o.OneAttr(A("_gpofile/Machine/Scripts/Scripts.ini"))
+			if scripts == "" {
+				return nil
+			}
+			var results []*Object
+
+			utf8 := make([]byte, len(scripts)/2)
+			_, _, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder().Transform(utf8, []byte(scripts), true)
+			if err != nil {
+				utf8 = []byte(scripts)
+			}
+
+			// ini.LineBreak = "\n"
+
+			inifile, err := ini.LoadSources(ini.LoadOptions{
+				SkipUnrecognizableLines: true,
+			}, utf8)
+
+			scriptnum := 0
+			for {
+				k1 := inifile.Section("Startup").Key(fmt.Sprintf("%vCmdLine", scriptnum))
+				k2 := inifile.Section("Startup").Key(fmt.Sprintf("%vParameters", scriptnum))
+				if k1.String() == "" {
+					break
+				}
+				// Create new synthetic object
+				sob := NewObject()
+				sob.SetAttr(ObjectCategory, "Script")
+				sob.DistinguishedName = fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name))
+				sob.SetAttr(Name, "Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " "))
+				AllObjects.Add(sob)
+				results = append(results, sob)
+				scriptnum++
+			}
+
+			scriptnum = 0
+			for {
+				k1 := inifile.Section("Shutdown").Key(fmt.Sprintf("%vCmdLine", scriptnum))
+				k2 := inifile.Section("Shutdown").Key(fmt.Sprintf("%vParameters", scriptnum))
+				if k1.String() == "" {
+					break
+				}
+				// Create new synthetic object
+				sob := NewObject()
+				sob.DistinguishedName = fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name))
+				sob.SetAttr(ObjectCategory, "Script")
+				sob.SetAttr(Name, "Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " "))
+				AllObjects.Add(sob)
+				results = append(results, sob)
+				scriptnum++
+			}
+
 			return results
 		},
 	},
