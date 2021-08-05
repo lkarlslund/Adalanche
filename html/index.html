@@ -13,6 +13,17 @@
   <script src="cytoscape-context-menus.js"></script>
   <script src="dagre.min.js"></script>
   <script src="cytoscape-dagre.js"></script>
+
+  <script src="d3-dispatch.v3.js"></script>
+  <script src="d3-quadtree.v3.js"></script>
+  <script src="d3-timer.v3.js"></script>
+  <script src="d3-force.v3.js"></script>
+
+  <script>
+    window['d3-force'] = d3
+  </script>
+
+  <script src="cytoscape-d3-force.js"></script>
   <script src="layout-base.js"></script>
   <script src="cose-base.js"></script>
   <script src="cytoscape-fcose.js"></script>
@@ -114,6 +125,7 @@
               <label for="graphlayout">Choose layout</label>
               <select class="form-control" id="graphlayout">
                 <option value="fcose">FCOSE</option>
+                <option value="d3force">D3 Force</option>
                 <option value="cose">COSE</option>
                 <option value="dagre">DAGRE</option>
                 <option value="cise">CISE</option>

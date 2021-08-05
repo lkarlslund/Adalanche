@@ -10,7 +10,7 @@ require (
 	github.com/absfs/osfs v0.0.0-20190429001717-928ef43c6db3
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/frankban/quicktest v1.13.0 // indirect
-	github.com/gin-gonic/gin v1.7.2
+	github.com/gin-gonic/gin v1.7.3
 	github.com/go-asn1-ber/asn1-ber v1.5.3
 	github.com/go-ini/ini v1.62.0
 	github.com/gobwas/glob v0.2.3
