@@ -35,6 +35,9 @@ function setquery(query, depth, methods, mode) {
     }
 }
 
+var cy
+var nodemenu
+
 $(function() {
     $("#route").hide();
     $("#details").hide();
@@ -49,12 +52,64 @@ $(function() {
         });
     */
 
-    var cy
-    var nodemenu
+    // Configure
+
+
+    var d3forcelayout = {
+        name: "d3-force",
+        animate: true, // whether to show the layout as it's running; special 'end' value makes the layout animate like a discrete layout
+        maxIterations: 0, // max iterations before the layout will bail out
+        maxSimulationTime: 0, // max length in ms to run the layout
+        ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
+        fixedAfterDragging: false, // fixed node after dragging
+        fit: false, // on every layout reposition of nodes, fit the viewport
+        padding: 30, // padding around the simulation
+        boundingBox: undefined, // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
+        /**d3-force API**/
+        alpha: 0.4, // sets the current alpha to the specified number in the range [0,1]
+        alphaMin: 0.001, // sets the minimum alpha to the specified number in the range [0,1]
+        alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
+        alphaTarget: 0, // sets the current target alpha to the specified number in the range [0,1]
+        velocityDecay: 0.4, // sets the velocity decay factor to the specified number in the range [0,1]
+        collideRadius: 60, // sets the radius accessor to the specified number or function
+        collideStrength: 0.7, // sets the force strength to the specified number in the range [0,1]
+        collideIterations: 1, // sets the number of iterations per application to the specified number
+        linkId: function id(d) {
+            // return d.index;
+            return d.id;
+        }, // sets the node id accessor to the specified function
+        linkDistance: 40, // sets the distance accessor to the specified number or function
+        linkStrength: function strength(link) {
+            // return 1 / Math.min(count(link.source), count(link.target));
+            return 1 / link.methods.length;
+        }, // sets the strength accessor to the specified number or function
+        linkIterations: 1, // sets the number of iterations per application to the specified number
+        manyBodyStrength: -600, // sets the strength accessor to the specified number or function
+        manyBodyTheta: 0.5, // sets the Barnes–Hut approximation criterion to the specified number
+        manyBodyDistanceMin: 1, // sets the minimum distance between nodes over which this force is considered
+        manyBodyDistanceMax: Infinity, // sets the maximum distance between nodes over which this force is considered
+        xStrength: 0.1, // sets the strength accessor to the specified number or function
+        xX: 0, // sets the x-coordinate accessor to the specified number or function
+        yStrength: 0.1, // sets the strength accessor to the specified number or function
+        yY: 0, // sets the y-coordinate accessor to the specified number or function
+        radialStrength: 0.1, // sets the strength accessor to the specified number or function
+        radialRadius: 5, // sets the circle radius to the specified number or function
+        radialX: 0, // sets the x-coordinate of the circle center to the specified number
+        radialY: 0, // sets the y-coordinate of the circle center to the specified number
+        // layout event callbacks
+        ready: function() {}, // on layoutready
+        stop: function() {}, // on layoutstop
+        tick: function(progress) {}, // on every iteration
+        // positioning options
+        randomize: false, // use random node positions at beginning of layout
+        // infinite layout options
+        infinite: false // overrides all other options for a forces-all-the-time mode
+    }
 
     // Our layout options
     var coselayout = {
         name: 'cose',
+        animate: true,
         idealEdgeLength: 100,
         nodeOverlap: 30,
         refresh: 20,
@@ -74,6 +129,7 @@ $(function() {
 
     var dagrelayout = {
         name: 'dagre',
+        animate: true,
         // dagre algo options, uses default value on undefined
         nodeSep: undefined, // the separation between adjacent nodes in the same rank
         edgeSep: undefined, // the separation between adjacent edges in the same rank
@@ -100,6 +156,7 @@ $(function() {
 
     var fcoselayout = {
         name: 'fcose',
+        animate: true,
 
         // 'draft', 'default' or 'proof' 
         // - "draft" only applies spectral layout 
@@ -219,6 +276,8 @@ $(function() {
                 return dagrelayout
             case "fcose":
                 return fcoselayout
+            case "d3force":
+                return d3forcelayout
             case "random":
                 return randomlayout
             case "cise":
@@ -240,6 +299,7 @@ $(function() {
     function initgraph(data) {
         cy = (window.cy = cytoscape({
             container: document.getElementById("cy"),
+            wheelSensitivity: 0.2,
             style: [{
                     selector: "node",
                     style: {
