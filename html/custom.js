@@ -560,6 +560,9 @@ $(function() {
                 if (ele.data("pwn_owns")) {
                     return 1
                 }
+                if (ele.data("pwn_addmember")) {
+                    return 0
+                }
                 if (ele.data("pwn_allextendedrights")) {
                     return 2
                 }
@@ -575,7 +578,7 @@ $(function() {
                 if (ele.data("pwn_resetpassword")) {
                     return 5
                 }
-                return 1
+                return 8
             },
             directed: true
         })
