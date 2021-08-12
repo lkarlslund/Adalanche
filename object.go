@@ -31,6 +31,7 @@ const (
 	ObjectTypeOrganizationalUnit
 	ObjectTypeContainer
 	ObjectTypeGroupPolicyContainer
+	ObjectTypeCertificateTemplate
 	ObjectTypeTrust
 	OBJECTTYPEMAX = ObjectTypeTrust
 )
@@ -141,6 +142,8 @@ func (o Object) Type() ObjectType {
 		o.objecttype = ObjectTypeTrust
 	case "Attribute-Schema":
 		o.objecttype = ObjectTypeAttributeSchema
+	case "PKI-Certificate-Template":
+		o.objecttype = ObjectTypeCertificateTemplate
 	default:
 		o.objecttype = ObjectTypeOther
 	}
@@ -378,9 +381,13 @@ func (o *Object) Load(filename string) error {
 }*/
 
 func (o *Object) init() {
-	o.Attributes = make(map[Attribute][]string)
-	o.CanPwn = make(map[*Object]PwnMethod)
-	o.PwnableBy = make(map[*Object]PwnMethod)
+	if o.Attributes == nil {
+		o.Attributes = make(map[Attribute][]string)
+	}
+	if o.CanPwn == nil || o.PwnableBy == nil {
+		o.CanPwn = make(map[*Object]PwnMethod)
+		o.PwnableBy = make(map[*Object]PwnMethod)
+	}
 }
 
 func (o *Object) String() string {

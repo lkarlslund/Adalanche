@@ -43,29 +43,40 @@ const (
 	OBJECT_TYPE_PRESENT           = 0x01
 	INHERITED_OBJECT_TYPE_PRESENT = 0x02
 
-	RIGHT_GENERIC_READ = 0x80000000 /*
-		The right to read permissions and all properties of the object, and list the contents of the
-		object in the case of containers.
+	RIGHT_GENERIC_READ = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT /*
+		** Mask value is not stored in AD but deduced from mask bits combined **
+		RIGHT_GENERIC_READ = 0x80000000 /*
+			The right to read permissions and all properties of the object, and list the contents of the
+			object in the case of containers.
 
-		Equivalent to:RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT */
-	RIGHT_GENERIC_WRITE = 0x40000000 /*
-		Includes the right to read permissions on the object, and the right to write all the properties
-		on the object.
+			Equivalent to:RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT */
 
-		Equivalent to: RIGHT_READ_CONTROL | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_WRITE_PROPERTY_EXTENDED */
-	RIGHT_GENERIC_EXECUTE = 0x20000000 /*
-		The right to read permissions/list the contents of a container object.
+	RIGHT_GENERIC_WRITE = RIGHT_READ_CONTROL | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_WRITE_PROPERTY_EXTENDED /*
+		** Mask value is not stored in AD but deduced from mask bits combined **
+		RIGHT_GENERIC_WRITE = 0x40000000 /*
+			Includes the right to read permissions on the object, and the right to write all the properties
+			on the object.
 
-		Equivalent to: RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS */
-	RIGHT_GENERIC_ALL = 0x10000000 /*
-		The right to create/delete child objects, read/write all properties, see any child objects, add and remove the object,
-		and read/write with an extended right.
+			Equivalent to: RIGHT_READ_CONTROL | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_WRITE_PROPERTY_EXTENDED */
 
-		Equivalent to: RIGHT_DELETE |  RIGHT_READ_CONTROL | RIGHT_WRITE_DAC |  |RIGHT_WRITE_OWNER | RIGHT_DS_CREATE_CHILD | RIGHT_DS_DELETE_CHILD | RIGHT_DS_DELETE_TREE | RIGHT_DS_READ_PROPERTY | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_LIST_OBJECT | RIGHT_DS_CONTROL_ACCESS | RIGHT_DS_WRITE_PROPERTY_EXTENDED)
+	RIGHT_GENERIC_EXECUTE = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS /*
+		** Mask value is not stored in AD but deduced from mask bits combined **
+		RIGHT_GENERIC_EXECUTE = 0x20000000 /*
+			The right to read permissions/list the contents of a container object.
+
+			Equivalent to: RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS */
+	RIGHT_GENERIC_ALL = RIGHT_DELETE | RIGHT_READ_CONTROL | RIGHT_WRITE_DACL | RIGHT_WRITE_OWNER | RIGHT_DS_CREATE_CHILD | RIGHT_DS_DELETE_CHILD | RIGHT_DS_DELETE_TREE | RIGHT_DS_READ_PROPERTY | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_LIST_OBJECT | RIGHT_DS_CONTROL_ACCESS | RIGHT_DS_WRITE_PROPERTY_EXTENDED /*
+		** Mask value is not stored in AD but deduced from mask bits combined **
+		RIGHT_GENERIC_ALL = 0x10000000 /*
+			The right to create/delete child objects, read/write all properties, see any child objects, add and remove the object,
+			and read/write with an extended right.
+
+			Equivalent to: RIGHT_DELETE |  RIGHT_READ_CONTROL | RIGHT_WRITE_DACL | RIGHT_WRITE_OWNER | RIGHT_DS_CREATE_CHILD | RIGHT_DS_DELETE_CHILD | RIGHT_DS_DELETE_TREE | RIGHT_DS_READ_PROPERTY | RIGHT_DS_WRITE_PROPERTY | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_LIST_OBJECT | RIGHT_DS_CONTROL_ACCESS | RIGHT_DS_WRITE_PROPERTY_EXTENDED)
 	*/
-	RIGHT_MAXIMUM_ALLOWED = 0x02000000
 
-	RIGHT_ACCESS_SYSTEM_SECURITY = 0x01000000
+	RIGHT_MAXIMUM_ALLOWED = 0x02000000 /* Not stored in AD, just for requests */
+
+	RIGHT_ACCESS_SYSTEM_SECURITY = 0x01000000 /* Not stored in AD, just for requests */
 
 	RIGHT_SYNCRONIZE  = 0x00100000
 	RIGHT_WRITE_OWNER = 0x00080000 /*
@@ -77,6 +88,9 @@ const (
 		The right to read alldata from the security descriptor except the SACL. */
 	RIGHT_DELETE = 0x00010000 /*
 		The right to delete the object. */
+
+	RIGHT_DS_VOODOO_BIT = 0x00001000 /* No clue - see https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/4be42fa6-c421-4763-890b-07a9ab5a319d for second option */
+
 	RIGHT_DS_CONTROL_ACCESS = 0x00000100 /*
 		A specific control access right (if the ObjectType GUID refers to an extended right registered in the forest schema)
 		or the right to read a confidential property (if the ObjectType GUID refers to a confidential property).

@@ -3,12 +3,10 @@
   <title>adalanche - Active Directory ACL Visualizer</title>
   <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
   <link rel="stylesheet" href="bootstrap.min.css" />
-  <link rel="stylesheet" href="bootstrap4-toggle.min.css" />
   <link rel="stylesheet" href="cytoscape-context-menus.css" />
   <link rel="stylesheet" href="tippy.css" />
   <script src="jquery.min.js"></script>
   <script src="bootstrap.bundle.min.js"></script>
-  <script src="bootstrap4-toggle.min.js"></script>
   <script src="cytoscape.min.js"></script>
   <script src="cytoscape-context-menus.js"></script>
   <script src="dagre.min.js"></script>
@@ -86,7 +84,6 @@
           top: 0px;
           width: 500px;
       }
-
   </style>
 </head>
 
@@ -106,10 +103,10 @@
       <div id="optionsdiv" class="p-2">
         <ul class="nav nav-tabs nav-fill" id="optionstabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <a class="nav-link active" id="pwnoptions-tab" data-toggle="tab" href="#pwnoptionsdiv" role="tab" aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
+            <a class="nav-link active" id="pwnoptions-tab" data-bs-toggle="tab" href="#pwnoptionsdiv" role="tab" aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link" id="graphoptions-tab" data-toggle="tab" href="#graphoptionsdiv" role="tab" aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
+            <a class="nav-link" id="graphoptions-tab" data-bs-toggle="tab" href="#graphoptionsdiv" role="tab" aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
           </li>
         </ul>
         <div class="tab-content" id="optionstabsContent">
@@ -145,14 +142,19 @@
           <div id="queryerror"></div>
           <div id="querybuttons" class="mt-2">
             <div class="btn-group dropup">
-              <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 Sample Queries
               </button>
 
-              
-
-              <div id="predefinedqueries" class="dropdown-menu">
-                <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=Administrators)(name=Domain Admins)(name=Enterprise Admins)))" mode="Normal" depth=99 methods="default">Who owns your AD?</a>
+              <div id="predefinedqueries" class="dropdown-menu overflow-auto">
+                <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=Administrators)(name=Domain Admins)(name=Enterprise Admins)(name=Enterprise PKI Admins)))" mode="Normal" depth=99 methods="default">Who owns your AD?</a>
+                <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
+                <a class="dropdown-item" href="#"
+                  query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                  mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
+                <a class="dropdown-item" href="#"
+                  query="(|(name=Domain Users)(name=Authenticated Users))"
+                  mode="Reverse" depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
                 <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via DA/EA/Admins)</a>
                 <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups, but not via DA/EA/Admins)</a>
@@ -171,10 +173,10 @@
                 <a class="dropdown-item" href="#" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal" depth=1>Accounts with no Kerberos preauth requirement</a>
               </div>
             </div>
-            <input id="force" type="checkbox" name="force"  data-on="Force" data-off="Safe" data-toggle="toggle" data-size="sm">
+            <input id="force" type="checkbox" name="force"  data-on="Force" data-off="Safe" data-bs-toggle="toggle" data-size="sm">
             <label for="maxdepth">Max depth:</label><input style="text-align: right; width: 50px" id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99">
             <div class="btn-group float-right" role="group">
-              <button id="querysubmit" type="button" class="btn dropdown-toggle btn-light btn-sm" data-toggle="dropdown">
+              <button id="querysubmit" type="button" class="btn dropdown-toggle btn-light btn-sm" data-bs-toggle="dropdown">
                 Analyze
               </button>
               <ul class="dropdown-menu">

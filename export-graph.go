@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -48,31 +49,17 @@ type NodeData struct {
 }
 */
 type CytoNode struct {
-	Data    map[string]interface{} `json:"data"`
-	Classes []string               `json:"classes"`
+	Data map[string]interface{} `json:"data"`
+	// Classes []string               `json:"classes"`
 }
 
-type EdgeData struct {
-	Id                   string   `json:"id"`
-	Source               string   `json:"source"`
-	Target               string   `json:"target"`
-	Methods              []string `json:"methods,omitempty"`
-	PwnACLContainsDeny   bool     `json:"pwn_aclcontainsdeny,omitempty"`
-	PwnOwns              bool     `json:"pwn_owns,omitempty"`
-	PwnMemberOfGroup     bool     `json:"pwn_memberofgroup,omitempty"`
-	PwnGenericAll        bool     `json:"pwn_genericall,omitempty"`
-	PwnWriteAll          bool     `json:"pwn_writeall,omitempty"`
-	PwnWritePropertyAll  bool     `json:"pwn_writepropertyall,omitempty"`
-	PwnTakeOwnership     bool     `json:"pwn_takeownership,omitempty"`
-	PwnWriteDACL         bool     `json:"pwn_writedacl,omitempty"`
-	PwnResetPassword     bool     `json:"pwn_resetpassword,omitempty"`
-	PwnAddMember         bool     `json:"pwn_addmember,omitempty"`
-	PwnAllExtendedRights bool     `json:"pwn_allextendedrights,omitempty"`
-}
+type MethodMap map[string]bool
+
+type EdgeData map[string]interface{}
 
 type CytoEdge struct {
-	Data    EdgeData `json:"data"`
-	Classes []string `json:"classes"`
+	Data EdgeData `json:"data"`
+	// Classes []string `json:"classes"`
 }
 
 type CytoData struct {
@@ -150,7 +137,7 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 			}}
 
 		for attr, values := range object.Attributes {
-			if attr.IsMeta() || alldetails {
+			if (attr.IsMeta() && !strings.HasPrefix(attr.String(), "_gpofile/")) || alldetails {
 				if len(values) == 1 {
 					newnode.Data[attr.String()] = values[0]
 				} else {
@@ -184,25 +171,18 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 			continue
 		}
 
-		g.Elements.Edges[edgecount] = CytoEdge{
+		edge := CytoEdge{
 			Data: EdgeData{
-				Id:                   fmt.Sprintf("e%v", idcount),
-				Source:               fmt.Sprintf("n%v", sourceid),
-				Target:               fmt.Sprintf("n%v", targetid),
-				Methods:              connection.Methods.StringSlice(),
-				PwnACLContainsDeny:   PwnACLContainsDeny&connection.Methods != 0,
-				PwnOwns:              PwnOwns&connection.Methods != 0,
-				PwnGenericAll:        PwnGenericAll&connection.Methods != 0,
-				PwnWriteAll:          PwnWriteAll&connection.Methods != 0,
-				PwnWritePropertyAll:  PwnWritePropertyAll&connection.Methods != 0,
-				PwnTakeOwnership:     PwnTakeOwnership&connection.Methods != 0,
-				PwnWriteDACL:         PwnWriteDACL&connection.Methods != 0,
-				PwnResetPassword:     PwnResetPassword&connection.Methods != 0,
-				PwnAddMember:         PwnAddMember&connection.Methods != 0,
-				PwnMemberOfGroup:     PwnMemberOfGroup&connection.Methods != 0,
-				PwnAllExtendedRights: PwnAllExtendedRights&connection.Methods != 0,
+				"id":     fmt.Sprintf("e%v", idcount),
+				"source": fmt.Sprintf("n%v", sourceid),
+				"target": fmt.Sprintf("n%v", targetid),
 			},
 		}
+		for _, method := range connection.Methods.StringSlice() {
+			edge.Data["method_"+method] = true
+		}
+		g.Elements.Edges[edgecount] = edge
+
 		idcount++
 		edgecount++
 	}

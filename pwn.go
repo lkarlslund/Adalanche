@@ -58,8 +58,11 @@ var (
 	AttributeProfilePathGUID, _                     = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
 	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
 
-	ValidateWriteSelfMembership  = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ValidateWriteSPN             = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
+
+	ValidateWriteSelfMembership, _ = uuid.FromString("bf9679c0-0de6-11d0-a285-00aa003049e2")
+	ValidateWriteSPN, _            = uuid.FromString("f3a64788-5306-11d1-a9c5-0000f80367c1")
+
 	ObjectGuidUser               = uuid.UUID{0xbf, 0x96, 0x7a, 0xba, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ObjectGuidComputer           = uuid.UUID{0xbf, 0x96, 0x7a, 0x86, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ObjectGuidGroup              = uuid.UUID{0xbf, 0x96, 0x7a, 0x9c, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
@@ -75,7 +78,6 @@ var (
 	SystemSID, _       = SIDFromString("S-1-5-18")
 	CreatorOwnerSID, _ = SIDFromString("S-1-3-0")
 	SelfSID, _         = SIDFromString("S-1-5-10")
-	AttackerSID, _     = SIDFromString("S-1-555-1337")
 
 	AccountOperatorsSID, _          = SIDFromString("S-1-5-32-548")
 	DAdministratorSID, _            = SIDFromString("S-1-5-21domain-500")
@@ -142,6 +144,7 @@ const (
 	PwnWriteAltSecurityIdentities
 	PwnWriteProfilePath
 	PwnWriteScriptPath
+	PwnCertificateEnroll
 
 	PwnAllMethods uint64 = 1<<64 - 1
 )
@@ -166,6 +169,17 @@ func (m PwnMethod) StringSlice() []string {
 		thismethod := PwnMethod(1 << i)
 		if m&thismethod != 0 {
 			result = append(result, thismethod.String())
+		}
+	}
+	return result
+}
+
+func (m PwnMethod) StringBoolMap() map[string]bool {
+	var result = make(map[string]bool)
+	for i := 0; i < 64; i++ {
+		thismethod := PwnMethod(1 << i)
+		if m&thismethod != 0 {
+			result["pwn_"+thismethod.String()] = true
 		}
 	}
 	return result
@@ -478,7 +492,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_ALL != 0 {
+				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_ALL == RIGHT_GENERIC_ALL {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -494,7 +508,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_WRITE != 0 {
+				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_WRITE == RIGHT_GENERIC_WRITE {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -1011,6 +1025,26 @@ var PwnAnalyzers = []PwnAnalyzer{
 		},
 	},
 	{
+		Method: PwnCertificateEnroll,
+		ObjectAnalyzer: func(o *Object) []*Object {
+			var results []*Object
+			if o.Type() != ObjectTypeCertificateTemplate {
+				return results
+			}
+			// It's a group
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return results
+			}
+			for _, acl := range sd.DACL.Entries {
+				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll) {
+					results = append(results, AllObjects.FindOrAddSID(acl.SID))
+				}
+			}
+			return results
+		},
+	},
+	{
 		Method: PwnScheduledTaskOnUNCPath,
 		ObjectAnalyzer: func(o *Object) []*Object {
 			schtasksxml := o.OneAttr(A("_gpofile/Machine/Preferences/ScheduledTasks/ScheduledTasks.XML"))
@@ -1273,7 +1307,8 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 
 				// Reverse search, stop at domain admins and administrators
 				if !forward && (object.OneAttr(Name) == "Domain Admins" ||
-					object.OneAttr(Name) == "Enterprise Admins") {
+					object.OneAttr(Name) == "Enterprise Admins") ||
+					object.OneAttr(Name) == "Administrators" {
 					continue
 				}
 
@@ -1296,38 +1331,6 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 		}
 		processinground++
 	}
-
-	// Remove dangling connections, this is deny ACLs that didn't have the target added
-	/*
-		for conn, methods := range connectionsmap {
-			if _, found := implicatedobjectsmap[conn.Source]; !found {
-				// Bonus sanity check
-				onlydeny := true
-				for _, method := range methods {
-					if method != PwnACLContainsDeny {
-						onlydeny = false
-					}
-				}
-				if !onlydeny {
-					log.Error().Msgf("Source from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
-				}
-				delete(connectionsmap, conn)
-			}
-			if _, found := implicatedobjectsmap[conn.Target]; !found {
-				// Bonus sanity check
-				onlydeny := true
-				for _, method := range methods {
-					if method != PwnACLContainsDeny {
-						onlydeny = false
-					}
-				}
-				if !onlydeny {
-					log.Error().Msgf("Target from %v to %v using %v not found", conn.Source.DN(), conn.Target.DN(), methods)
-				}
-				delete(connectionsmap, conn)
-			}
-		}
-	*/
 
 	// Convert map to slice
 	pg.Connections = make([]PwnConnection, len(connectionsmap))

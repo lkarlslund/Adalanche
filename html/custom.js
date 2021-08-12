@@ -359,7 +359,15 @@ $(function() {
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/gpo.svg",
-                        "background-color": "lightpurple"
+                        "background-color": "purple"
+                    }
+                },
+                {
+                    selector: 'node[_type="CertificateTemplate"]',
+                    style: {
+                        shape: "rectangle",
+                        "background-image": "icons/certificate.svg",
+                        "background-color": "pink"
                     }
                 },
                 {
@@ -408,7 +416,7 @@ $(function() {
                 {
                     selector: "edge",
                     style: {
-                        _content: "data(methods)",
+                        // _content: "data(methods)",
                         color: "white",
                         "curve-style": "haystack",
                         // "curve-style": "bezier",
@@ -416,41 +424,41 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'edge[pwn_aclcontainsdeny]',
+                    selector: 'edge[?method_ACLContainsDeny]',
                     style: {
                         "line-style": "dotted"
                     }
                 },
                 {
-                    selector: 'edge[pwn_memberofgroup]',
+                    selector: 'edge[?method_MemberOfGroup]',
                     style: {
                         "target-arrow-color": "orange",
                         "line-color": "orange"
                     }
                 },
                 {
-                    selector: 'edge[pwn_resetpassword]',
+                    selector: 'edge[?method_ResetPassword]',
                     style: {
                         "target-arrow-color": "red",
                         "line-color": "red"
                     }
                 },
                 {
-                    selector: 'edge[pwn_canaddmember]',
+                    selector: 'edge[?method_AddMember]',
                     style: {
                         "target-arrow-color": "yellow",
                         "line-color": "yellow"
                     }
                 },
                 {
-                    selector: 'edge[pwn_takeownership]',
+                    selector: 'edge[?method_Takeownership]',
                     style: {
                         "target-arrow-color": "lightgreen",
                         "line-color": "lightgreen"
                     }
                 },
                 {
-                    selector: 'edge[pwn_owns]',
+                    selector: 'edge[method_Owns]',
                     style: {
                         "target-arrow-color": "green",
                         "line-color": "green"
@@ -574,13 +582,15 @@ $(function() {
     }
 
     function renderedge(ele) {
-        return rendernode(ele.source()) + rendermethods(ele.data("methods")) + rendernode(ele.target());
+        return rendernode(ele.source()) + rendermethods(ele.data()) + rendernode(ele.target());
     }
 
     function rendermethods(methods) {
         s = ""
         for (i in methods) {
-            s += '<span class="badge badge-warning">' + methods[i] + '</span>';
+            if (i.startsWith("method_")) {
+                s += '<span class="badge badge-warning">' + i.substr(7) + '</span>';
+            }
         }
         return s
     }
@@ -607,35 +617,35 @@ $(function() {
                     // Account disabled, but this route does not allow us to enable it
                     return 10000
                 }
-                if (ele.data("pwn_aclcontainsdeny")) {
+                if (ele.data("methods.ACLContainsDeny")) {
                     // Use this as a hint to avoid
                     return 10
                 }
-                if (ele.data("pwn_memberof")) {
+                if (ele.data("method_MemberOfGroup")) {
                     return 0
                 }
-                if (ele.data("pwn_writedacl")) {
+                if (ele.data("method_WriteDACL")) {
                     return 1
                 }
-                if (ele.data("pwn_owns")) {
+                if (ele.data("method_Owns")) {
                     return 1
                 }
-                if (ele.data("pwn_addmember")) {
-                    return 0
+                if (ele.data("method_AddMember")) {
+                    return 1
                 }
-                if (ele.data("pwn_allextendedrights")) {
+                if (ele.data("method_AllExtenededRights")) {
                     return 2
                 }
-                if (ele.data("pwn_writeall")) {
+                if (ele.data("method_WriteAll")) {
                     return 2
                 }
-                if (ele.data("pwn_writepropertyall")) {
+                if (ele.data("method_WritePropertyAll")) {
                     return 2
                 }
-                if (ele.data("pwn_takeownership")) {
+                if (ele.data("method_Takeownership")) {
                     return 3
                 }
-                if (ele.data("pwn_resetpassword")) {
+                if (ele.data("method_ResetPassword")) {
                     return 5
                 }
                 return 8
@@ -777,8 +787,6 @@ $(function() {
                             $("#pwnfilter").html(checkboxes); */
             }
             // Refresh styling after dynamic load
-            $("[data-toggle='toggle']").bootstrapToggle('destroy')
-            $("[data-toggle='toggle']").bootstrapToggle();
             $("#querymode").val("normal");
             // Run initial query
             $("#queryform").submit();

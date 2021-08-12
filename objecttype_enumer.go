@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-const _ObjectTypeName = "OtherAttributeSchemaGroupForeignSecurityPrincipalUserComputerManagedServiceAccountOrganizationalUnitContainerGroupPolicyContainerTrust"
+const _ObjectTypeName = "OtherAttributeSchemaGroupForeignSecurityPrincipalUserComputerManagedServiceAccountOrganizationalUnitContainerGroupPolicyContainerCertificateTemplateTrust"
 
-var _ObjectTypeIndex = [...]uint8{0, 5, 20, 25, 49, 53, 61, 82, 100, 109, 129, 134}
+var _ObjectTypeIndex = [...]uint8{0, 5, 20, 25, 49, 53, 61, 82, 100, 109, 129, 148, 153}
 
-const _ObjectTypeLowerName = "otherattributeschemagroupforeignsecurityprincipalusercomputermanagedserviceaccountorganizationalunitcontainergrouppolicycontainertrust"
+const _ObjectTypeLowerName = "otherattributeschemagroupforeignsecurityprincipalusercomputermanagedserviceaccountorganizationalunitcontainergrouppolicycontainercertificatetemplatetrust"
 
 func (i ObjectType) String() string {
 	i -= 1
@@ -36,10 +36,11 @@ func _ObjectTypeNoOp() {
 	_ = x[ObjectTypeOrganizationalUnit-(8)]
 	_ = x[ObjectTypeContainer-(9)]
 	_ = x[ObjectTypeGroupPolicyContainer-(10)]
-	_ = x[ObjectTypeTrust-(11)]
+	_ = x[ObjectTypeCertificateTemplate-(11)]
+	_ = x[ObjectTypeTrust-(12)]
 }
 
-var _ObjectTypeValues = []ObjectType{ObjectTypeOther, ObjectTypeAttributeSchema, ObjectTypeGroup, ObjectTypeForeignSecurityPrincipal, ObjectTypeUser, ObjectTypeComputer, ObjectTypeManagedServiceAccount, ObjectTypeOrganizationalUnit, ObjectTypeContainer, ObjectTypeGroupPolicyContainer, ObjectTypeTrust}
+var _ObjectTypeValues = []ObjectType{ObjectTypeOther, ObjectTypeAttributeSchema, ObjectTypeGroup, ObjectTypeForeignSecurityPrincipal, ObjectTypeUser, ObjectTypeComputer, ObjectTypeManagedServiceAccount, ObjectTypeOrganizationalUnit, ObjectTypeContainer, ObjectTypeGroupPolicyContainer, ObjectTypeCertificateTemplate, ObjectTypeTrust}
 
 var _ObjectTypeNameToValueMap = map[string]ObjectType{
 	_ObjectTypeName[0:5]:          ObjectTypeOther,
@@ -62,8 +63,10 @@ var _ObjectTypeNameToValueMap = map[string]ObjectType{
 	_ObjectTypeLowerName[100:109]: ObjectTypeContainer,
 	_ObjectTypeName[109:129]:      ObjectTypeGroupPolicyContainer,
 	_ObjectTypeLowerName[109:129]: ObjectTypeGroupPolicyContainer,
-	_ObjectTypeName[129:134]:      ObjectTypeTrust,
-	_ObjectTypeLowerName[129:134]: ObjectTypeTrust,
+	_ObjectTypeName[129:148]:      ObjectTypeCertificateTemplate,
+	_ObjectTypeLowerName[129:148]: ObjectTypeCertificateTemplate,
+	_ObjectTypeName[148:153]:      ObjectTypeTrust,
+	_ObjectTypeLowerName[148:153]: ObjectTypeTrust,
 }
 
 var _ObjectTypeNames = []string{
@@ -77,7 +80,8 @@ var _ObjectTypeNames = []string{
 	_ObjectTypeName[82:100],
 	_ObjectTypeName[100:109],
 	_ObjectTypeName[109:129],
-	_ObjectTypeName[129:134],
+	_ObjectTypeName[129:148],
+	_ObjectTypeName[148:153],
 }
 
 // ObjectTypeString retrieves an enum value from the enum constants string name.

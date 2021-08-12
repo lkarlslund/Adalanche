@@ -587,6 +587,40 @@ func main() {
 			}
 		}
 
+		/*
+			// Add DA EA AD to Hackers Won
+			switch object.Type() {
+			case ObjectTypeGroup:
+				switch object.OneAttr(Name) {
+				case "Domain Admins", "Enterprise Admins", "Administrators":
+					HackersWonObject.CanPwn.Set(object, PwnMemberOfGroup)
+					object.PwnableBy.Set(HackersWonObject, PwnMemberOfGroup)
+				}
+			case ObjectTypeCertificateTemplate:
+				if nf, ok := object.AttrInt(MSPKICertificateNameFlag); nf&1 == 1 && ok {
+					// Template that users can supply SAN to - can it be abused to do Client Auth?
+					var clientauth bool
+
+					// No usage == client auth, so says SpectreOps
+					if len(object.Attr(PKIExtendedUsage)) == 0 {
+						clientauth = true
+					}
+
+					for _, eu := range object.Attr(PKIExtendedUsage) {
+						switch eu {
+						case "1.3.6.1.5.5.7.3.2", "1.3.5.1.5.2.3.4", "1.3.6.1.4.1.311.20.2.2", "2.5.29.37.0":
+							clientauth = true
+						}
+					}
+
+					if clientauth {
+						HackersWonObject.CanPwn.Set(object, PwnMemberOfGroup)
+						object.PwnableBy.Set(HackersWonObject, PwnMemberOfGroup)
+					}
+				}
+			}
+		*/
+
 		// Special types of Objects
 		if object.HasAttrValue(ObjectClass, "controlAccessRight") {
 			u, err := uuid.FromString(object.OneAttr(RightsGUID))

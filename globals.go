@@ -11,14 +11,27 @@ import (
 
 var (
 	randguid, _    = uuid.NewV4()
+	AttackerSID, _ = SIDFromString("S-1-555-1337")
 	AttackerObject = &Object{
-		DistinguishedName: "Attacker",
+		DistinguishedName: "CN=Attacker",
 		Attributes: map[Attribute][]string{
 			Name:       {"Attacker"},
 			ObjectSid:  {string(AttackerSID)},
 			ObjectGUID: {string(randguid.Bytes())},
 		},
 	}
+
+	// HackersWonSID, _ = SIDFromString("S-1-555-13337")
+	// randguid2, _     = uuid.NewV4()
+	// HackersWonObject = &Object{
+	// 	DistinguishedName: "CN=Hackers Won",
+	// 	Attributes: map[Attribute][]string{
+	// 		Name:       {"Hackers Won"},
+	// 		ObjectSid:  {string(HackersWonSID)},
+	// 		ObjectGUID: {string(randguid2.Bytes())},
+	// 	},
+	// }
+
 	AllObjects              Objects
 	SecurityDescriptorCache = make(map[uint32]*SecurityDescriptor)
 	AllRights               = make(map[uuid.UUID]*Object) // Extented-Rights from Configuration - rightsGUID -> object
@@ -27,7 +40,11 @@ var (
 )
 
 func init() {
+	AttackerObject.init()
+	// HackersWonObject.init()
+
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
 	AllObjects.Init("")
 	AllObjects.Add(AttackerObject)
+	// AllObjects.Add(HackersWonObject)
 }
