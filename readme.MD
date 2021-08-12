@@ -6,19 +6,23 @@ Active Directory security is notoriously difficult. Small organizations generall
 ### Run adalanche on your own infrastructure
 You should ensure you have permission before you run this :-) Though the software is harmless any only uses the LDAP service to read data *any user* can access, your infrastructure/SOC team might get real mad at you none the less.
 
-#### Quick start:
-- Download latest release from Releases
+#### Quick start, choose one of these:
 - Build your own:
-  - Install go 1.16+
-  - <code>go build</code>
-  - You will have a binary for your OS
+  - Install go 1.16
+  - <code>go build</code> - you will have a binary for your OS
+  - <code>build</code> - you will have binaries for Windows, Linux and OSX
+- Download the binary artifacts from the "actions" tab for any recent commit
+- Download latest release from Releases (actually not preferred, as all releases seem to get outdated a few days later with new commits)
 
-If no command is given, the tool will run in a dump-analyze mode (dump, then analyze).
 
-The tool tries to autodetect as much as it can, so running it on a domain joined machine should just work without any parameters:
+The tool tries to autodetect as much as it can, so running it on a Windows domain joined machine should just work without any parameters:
 <code>adalanche.exe</code>
 
-If you're on a non-domain joined Windows machine or another OS, you'll need at least the -domain parameter as well. 
+If no command is given, the tool will run in a dump-analyze mode (dump, then analyze). See program options for other possibilities.
+
+If you're on a non-domain joined Windows machine or another OS, you'll need at least the -domain parameter as well.
+
+LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Switch to LDAP with <code>adalanche -authmode NoTLS -port 389</code>
 
 Create cache file for contoso.local:
 <code>adalanche -domain contoso.local -username joe -password Hunter42 dump</code>
@@ -52,7 +56,7 @@ When you press the "LDAP Query" tab on the bottom portion of the page, and you g
 
 <img src="readme-images/ldap-query.png" width="50%">
 
-You enter a query for things you want to search for. Optionally you can also add a secondary exclude query, seperating the include and expclude quereries with a comma.
+You enter a query for things you want to search for. Optionally you can also add a secondary exclude query, seperating the include and expclude quereries with a comma. Things matching in the exclude query will never get added to the results.
 
 - "Quieries" button is just for inspiration, with some predefined queries to get you going. 
 - "Safe"/"Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab). 
