@@ -48,7 +48,6 @@ var (
 	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	AttributeSetGroupMembership                     = uuid.UUID{0xBC, 0x0A, 0xC2, 0x40, 0x79, 0xA9, 0x11, 0xD0, 0x90, 0x20, 0x00, 0xC0, 0x4F, 0xC2, 0xD4, 0xCF}
 	AttributeSIDHistory                             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	AttributeSPN                                    = uuid.UUID{0xf3, 0xa6, 0x47, 0x88, 0x53, 0x06, 0x11, 0xd1, 0xa9, 0xc5, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
 	AttributeAllowedToActOnBehalfOfOtherIdentity, _ = uuid.FromString("{3F78C3E5-F79A-46BD-A0B8-9D18116DDC79}")
 	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
 	AttributeGPLink, _                              = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
@@ -662,7 +661,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		},
 	},
 	{
-		Method: PwnWriteSPN,
+		Method: PwnWriteSPN, // Same GUID as Validated writes, just a different permission (?)
 		ObjectAnalyzer: func(o *Object) []*Object {
 			var results []*Object
 			// Only computers and users
@@ -674,7 +673,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 				return results
 			}
 			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeSPN) {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}

@@ -214,8 +214,17 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask uint32, g uuid.UUID) bo
 	if a.Entries[index].checkObjectClass(true, o, mask, g) {
 		// See if a prior one denies it
 		for i := 0; i < index; i++ {
-			if a.Entries[i].checkObjectClass(false, o, mask, g) {
-				return false // yes, strange, but if a deny matches then you're not allowed
+			if a.Entries[i].checkObjectClass(false, o, mask, g) && a.Entries[index].SID == a.Entries[i].SID {
+				if g == NullGUID && a.Entries[i].ObjectType != NullGUID {
+					// We tested for all properties / extended rights, but the DENY blocks some of these
+					log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
+					return false
+				}
+				if a.Entries[i].ObjectType != NullGUID && a.Entries[i].ObjectType == g {
+					// The DENY is specific to attributes / extended rights etc. so it only blocks if the requested is the same
+					log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
+					return false
+				}
 			}
 		}
 		return true // No deny match

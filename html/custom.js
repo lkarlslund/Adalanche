@@ -582,14 +582,14 @@ $(function() {
     }
 
     function renderedge(ele) {
-        return rendernode(ele.source()) + rendermethods(ele.data()) + rendernode(ele.target());
+        return rendernode(ele.source()) + rendermethods(ele) + rendernode(ele.target());
     }
 
     function rendermethods(methods) {
         s = ""
-        for (i in methods) {
+        for (i in methods.data()) {
             if (i.startsWith("method_")) {
-                s += '<span class="badge badge-warning">' + i.substr(7) + '</span>';
+                s += '<span class="badge bg-warning text-dark">' + i.substr(7) + '</span>';
             }
         }
         return s
@@ -660,7 +660,7 @@ $(function() {
                 if (ele.isNode()) {
                     $("#route").append(rendernode(ele));
                 } else if (ele.isEdge()) {
-                    $("#route").append(rendermethods(ele.data("methods")));
+                    $("#route").append(rendermethods(ele));
                 }
             })
         } else {
