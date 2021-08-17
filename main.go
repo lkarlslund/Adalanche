@@ -654,8 +654,8 @@ func main() {
 							if err != nil {
 								return results
 							}
-							for _, acl := range sd.DACL.Entries {
-								if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, objectGUID) {
+							for index, acl := range sd.DACL.Entries {
+								if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, objectGUID) {
 									results = append(results, AllObjects.FindOrAddSID(acl.SID))
 								}
 							}

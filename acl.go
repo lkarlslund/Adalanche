@@ -210,8 +210,21 @@ func parseACLentry(data []byte) (ACE, []byte, error) {
 	return ace, data, nil
 }
 
-// Is the ACE something that allows this type of GUID?
-func (a ACE) AllowObjectClass(o *Object) bool {
+func (a ACL) AllowObjectClass(index int, o *Object, mask uint32, g uuid.UUID) bool {
+	if a.Entries[index].checkObjectClass(true, o, mask, g) {
+		// See if a prior one denies it
+		for i := 0; i < index; i++ {
+			if a.Entries[i].checkObjectClass(false, o, mask, g) {
+				return false // yes, strange, but if a deny matches then you're not allowed
+			}
+		}
+		return true // No deny match
+	}
+	return false // No allow match
+}
+
+// Is the ACE something that allows or denies this type of GUID?
+func (a ACE) checkObjectClass(allow bool, o *Object, mask uint32, g uuid.UUID) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
@@ -219,11 +232,43 @@ func (a ACE) AllowObjectClass(o *Object) bool {
 		// Only for child objects, not for this one
 		return false
 	}
-	if a.Type == ACETYPE_ACCESS_ALLOWED {
+
+	if mask != 0 && a.Mask&mask != mask {
+		return false
+	}
+
+	if a.ObjectType != NullGUID {
+		// Only some attributes, extended rights or whatever apply
+		typematch := a.ObjectType == g
+		if !typematch {
+			// Lets chack if this requested guid is part of a group which is allowed
+			if s, found := AllSchemaAttributes[g]; found {
+				asg := s.OneAttr(AttributeSecurityGUID)
+				if asg != "" {
+					u, err := uuid.FromBytes([]byte(asg))
+					if err != nil {
+						log.Warn().Msgf("Problem converting GUID %v", err)
+					} else {
+						u = SwapUUIDEndianess(u)
+						if a.ObjectType == u {
+							typematch = true
+						}
+					}
+				}
+			}
+		}
+		if !typematch {
+			return false
+		}
+	}
+
+	if (allow && a.Type == ACETYPE_ACCESS_ALLOWED) || (!allow && a.Type == ACETYPE_ACCESS_DENIED) {
 		// All objects allowed
 		return true
 	}
-	if a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
+
+	if (allow && a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT) || (!allow && a.Type == ACETYPE_ACCESS_DENIED_OBJECT) {
+
 		// Only some object classes
 		if a.Flags&INHERITED_OBJECT_TYPE_PRESENT == 0 {
 			// Only this object
@@ -247,47 +292,7 @@ func (a ACE) AllowObjectClass(o *Object) bool {
 			}
 		}
 	}
-	return false
-}
 
-func (a ACE) AllowMaskedClass(mask uint32, g uuid.UUID) bool {
-	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
-	// Don't to drugs while reading the above ^^^^^
-	if a.Mask&mask != mask {
-		return false
-	}
-	if a.Type == ACETYPE_ACCESS_ALLOWED {
-		return true
-	}
-	if a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
-		if a.Flags&OBJECT_TYPE_PRESENT == 0 {
-			// Allowing only an object, but none is present is like a wildcard allow
-			return true
-		}
-		if a.ObjectType == NullGUID {
-			// Another wildcard
-			return true
-		}
-		if a.ObjectType == g {
-			// This is explicitly allowed
-			return true
-		}
-		// Lets chack if this requested guid is part of a group which is allowed
-		if s, found := AllSchemaAttributes[g]; found {
-			asg := s.OneAttr(AttributeSecurityGUID)
-			if asg != "" {
-				u, err := uuid.FromBytes([]byte(asg))
-				if err != nil {
-					log.Warn().Msgf("Problem converting GUID %v", err)
-				} else {
-					u = SwapUUIDEndianess(u)
-					if a.ObjectType == u {
-						return true
-					}
-				}
-			}
-		}
-	}
 	return false
 }
 

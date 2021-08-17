@@ -308,8 +308,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CREATE_CHILD, ObjectGuidUser) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CREATE_CHILD, ObjectGuidUser) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -328,8 +328,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CREATE_CHILD, ObjectGuidGroup) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CREATE_CHILD, ObjectGuidGroup) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -348,8 +348,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CREATE_CHILD, ObjectGuidComputer) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CREATE_CHILD, ObjectGuidComputer) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -368,8 +368,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CREATE_CHILD, NullGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CREATE_CHILD, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -385,8 +385,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DELETE, NullGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DELETE, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -403,8 +403,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 				if err != nil {
 					return results
 				}
-				for _, acl := range sd.DACL.Entries {
-					if acl.AllowObjectClass(parent) && acl.AllowMaskedClass(RIGHT_DS_DELETE_CHILD, o.ObjectTypeGUID()) {
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, parent, RIGHT_DS_DELETE_CHILD, o.ObjectTypeGUID()) {
 						results = append(results, AllObjects.FindOrAddSID(acl.SID))
 					}
 				}
@@ -491,8 +491,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_ALL == RIGHT_GENERIC_ALL {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_GENERIC_ALL, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -507,8 +507,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_GENERIC_WRITE == RIGHT_GENERIC_WRITE {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_GENERIC_WRITE, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -523,8 +523,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(nil) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, NullGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -539,8 +539,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY_EXTENDED, NullGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY_EXTENDED, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -556,8 +556,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.Mask&RIGHT_WRITE_OWNER != 0 {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_WRITE_OWNER, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -572,8 +572,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && /* acl.Type == ACETYPE_ACCESS_ALLOWED && */ acl.Mask&RIGHT_WRITE_DACL != 0 {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_WRITE_DACL, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -592,8 +592,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -612,8 +612,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, ResetPwd) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, ResetPwd) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -673,8 +673,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSPN) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeSPN) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -715,8 +715,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -736,8 +736,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeMember) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeMember) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -757,8 +757,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -778,8 +778,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -817,8 +817,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -838,8 +838,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -859,8 +859,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -894,8 +894,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -926,8 +926,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, NullGUID) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, NullGUID) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -1036,8 +1036,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll) {
 					results = append(results, AllObjects.FindOrAddSID(acl.SID))
 				}
 			}
@@ -1136,8 +1136,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
 					po := AllObjects.FindOrAddSID(acl.SID)
 					info := dcsyncobjects[po]
 					info.changes = true
@@ -1155,8 +1155,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
 					po := AllObjects.FindOrAddSID(acl.SID)
 					info := dcsyncobjects[po]
 					info.sync = true
@@ -1174,8 +1174,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if err != nil {
 				return results
 			}
-			for _, acl := range sd.DACL.Entries {
-				if acl.AllowObjectClass(o) && acl.AllowMaskedClass(RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
 					po := AllObjects.FindOrAddSID(acl.SID)
 					info := dcsyncobjects[po]
 					info.all = true
