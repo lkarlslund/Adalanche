@@ -3,7 +3,5 @@
 data/*
 !data/beyond.local.objects.lz4.msgp
 # Locally built executables
-__debug_bin
-*.exe
-adalanche-linux-*
-adalanche-osx-*
+__debug_bin*
+adalanche-*

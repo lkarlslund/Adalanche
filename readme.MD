@@ -128,6 +128,8 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 # Shoutouts
 To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow lol) where I dug up technical stuff
 
+If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at [PayloadsAllTheThings Active Directory section](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md)
+
 ## Happy hunting!
 
 Feedback is welcome -> [@lkarlslund](https://twitter.com/lkarlslund)

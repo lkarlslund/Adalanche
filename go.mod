@@ -3,11 +3,13 @@ module github.com/lkarlslund/adalanche
 go 1.16
 
 require (
+	github.com/Microsoft/go-winio v0.5.0
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/absfs/fstesting v0.0.0-20180810212821-8b575cdeb80d // indirect
 	github.com/absfs/gofs v0.0.0-20210326223041-415ec8094056
 	github.com/absfs/osfs v0.0.0-20190429001717-928ef43c6db3
+	github.com/antchfx/xmlquery v1.3.6
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/frankban/quicktest v1.13.0 // indirect
 	github.com/gin-gonic/gin v1.7.3
@@ -17,8 +19,10 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/gomarkdown/markdown v0.0.0-20210514010506-3b9f47219fe7
 	github.com/gorilla/mux v1.8.0
+	github.com/gravwell/gravwell/v3 v3.8.0
 	github.com/icza/gox v0.0.0-20210726201659-cd40a3f8d324
 	github.com/json-iterator/go v1.1.11
+	github.com/lkarlslund/go-win64api v0.0.0-20210901131734-3c6bba943601
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
 	github.com/lkarlslund/stringdedup v0.2.1
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
@@ -31,7 +35,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/xtgo/set v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 	golang.org/x/text v0.3.6
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect

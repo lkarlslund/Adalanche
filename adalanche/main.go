@@ -31,7 +31,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-//go:embed html/* readme.MD
+//go:embed html/*
 var embeddedassets embed.FS
 
 var (
