@@ -138,6 +138,9 @@ const (
 	PwnLocalAdminRights
 	PwnLocalRDPRights
 	PwnLocalDCOMRights
+	PwnLocalSessionLastDay
+	PwnLocalSessionLastWeek
+	PwnLocalSessionLastMonth
 	PwnScheduledTaskOnUNCPath
 	PwdMachineScript
 	PwnWriteAltSecurityIdentities

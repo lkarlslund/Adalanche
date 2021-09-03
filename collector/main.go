@@ -16,119 +16,25 @@ import (
 	winio "github.com/Microsoft/go-winio"
 	"github.com/antchfx/xmlquery"
 	"github.com/gravwell/gravwell/v3/winevent"
+	"github.com/lkarlslund/adalanche/modules/collector"
 	winapi "github.com/lkarlslund/go-win64api"
-	"github.com/lkarlslund/go-win64api/shared"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows/registry"
 )
 
-type Info struct {
-	Collected       time.Time
-	Machine         Machine `json:",omitempty"`
-	Hardware        shared.Hardware
-	OperatingSystem shared.OperatingSystem
-	Memory          shared.Memory
-	LoginPopularity LoginPopularity
-	Users           Users    `json:",omitempty"`
-	Groups          Groups   `json:",omitempty"`
-	Shares          Shares   `json:",omitempty"`
-	Services        Services `json:",omitempty"`
-}
-
-type Machine struct {
-	Name           string `json:",omitempty"`
-	Domain         string `json:",omitempty"`
-	IsDomainJoined bool   `json:",omitempty"`
-
-	Architecture       string `json:",omitempty"`
-	NumberOfProcessors int    `json:",omitempty"`
-
-	ProductName        string `json:",omitempty"`
-	EditionID          string `json:",omitempty"`
-	ReleaseID          string `json:",omitempty"`
-	BuildBranch        string `json:",omitempty"`
-	MajorVersionNumber uint64 `json:",omitempty"`
-	Version            string `json:",omitempty"`
-	BuildNumber        string `json:",omitempty"`
-
-	DefaultUsername    string `json:",omitempty"`
-	DefaultDomain      string `json:",omitempty"`
-	AltDefaultUsername string `json:",omitempty"`
-	AltDefaultDomain   string `json:",omitempty"`
-
-	UACConsentPromptBehaviorAdmin    uint64 `json:",omitempty"`
-	UACEnableLUA                     uint64 `json:",omitempty"`
-	UACLocalAccountTokenFilterPolicy uint64 `json:",omitempty"`
-	UACFilterAdministratorToken      uint64 `json:",omitempty"`
-}
-
-type LoginPopularity struct {
-	Day   []LoginCount
-	Week  []LoginCount
-	Month []LoginCount
-}
-
-type LoginCount struct {
-	Name  string
-	SID   string
-	Count uint64
-}
-
-type Shares []Share
-type Share struct {
-	Name        string `json:",omitempty"`
-	Path        string `json:",omitempty"`
-	Remark      string `json:",omitempty"`
-	Permissions int    `json:",omitempty"`
-	Type        int    `json:",omitempty"`
-	DACL        []byte `json:",omitempty"`
-}
-
-type Services []Service
-type Service struct {
-	Name        string
-	DisplayName string
-	Description string
-
-	ImagePath string
-
-	Start int
-	Type  int
-
-	Account    string
-	AccountSID string
-}
-
-type Users []User
-type User struct {
-	Name                 string
-	SID                  string
-	FullName             string
-	IsEnabled            bool
-	IsLocked             bool
-	IsAdmin              bool
-	PasswordNeverExpires bool
-	NoChangePassword     bool
-	PasswordLastSet      time.Time
-	LastLogon            time.Time
-	BadPasswordCount     int
-	NumberOfLogins       int
-}
-
-type Groups []Group
-type Group struct {
-	Name    string
-	SID     string
-	Comment string
-	Members []Member
-}
-type Member struct {
-	Name string
-	SID  string
-}
+var (
+	programname = "adalanche-collector"
+	builddate   = "unknown_date"
+	commit      = "unknown_commit"
+)
 
 func main() {
+	log.Info().Msgf("%v built %v commit %v", programname, builddate, commit)
+	log.Info().Msg("(c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
+
 	// MACHINE
 	hostname, _ := os.Hostname()
+	hostsid, _ := winio.LookupSidByName(hostname)
 
 	var domain *uint16
 	var status uint32
@@ -136,10 +42,19 @@ func main() {
 	defer syscall.NetApiBufferFree((*byte)(unsafe.Pointer(domain)))
 
 	numcpus, _ := strconv.Atoi(os.Getenv(`NUMBER_OF_PROCESSORS`))
-	machineinfo := Machine{
+
+	isdomainjoined := status == syscall.NetSetupDomainName
+	var hostdomainsid string
+	if isdomainjoined {
+		hostdomainsid, _ = winio.LookupSidByName(hostname + "$")
+	}
+
+	machineinfo := collector.Machine{
 		Name:               hostname,
+		LocalSID:           hostsid,
 		Domain:             winapi.UTF16toString(domain),
-		IsDomainJoined:     status == syscall.NetSetupDomainName,
+		IsDomainJoined:     isdomainjoined,
+		ComputerDomainSID:  hostdomainsid,
 		Architecture:       os.Getenv(`PROCESSOR_ARCHITECTURE`),
 		NumberOfProcessors: numcpus,
 	}
@@ -193,7 +108,7 @@ func main() {
 	}
 
 	// SHARES
-	var sharesinfo Shares
+	var sharesinfo collector.Shares
 
 	shares_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Services\LanmanServer\Shares`,
@@ -210,7 +125,7 @@ func main() {
 			if err == nil {
 				for _, share := range shares {
 					permissions, _, _ := permissions_key.GetBinaryValue(share)
-					shareinfo := Share{
+					shareinfo := collector.Share{
 						Name: share,
 						DACL: permissions,
 					}
@@ -259,7 +174,7 @@ func main() {
 	weekmap := make(map[string]uint64)
 	daymap := make(map[string]uint64)
 
-	log, err := winevent.NewStream(winevent.EventStreamParams{
+	elog, err := winevent.NewStream(winevent.EventStreamParams{
 		Channel:  "Microsoft-Windows-Winlogon/Operational",
 		EventIDs: "811,812",
 		BuffSize: 2048000,
@@ -267,7 +182,7 @@ func main() {
 
 	if err == nil {
 		for {
-			events, _, _, err := log.Read()
+			events, _, _, err := elog.Read()
 			if err != nil {
 				// fmt.Println(err)
 				break
@@ -299,14 +214,14 @@ func main() {
 			}
 		}
 	}
-	var logininfo LoginPopularity
+	var logininfo collector.LoginPopularity
 	for usersid, count := range monthmap {
 		var name, domain string
 		sid, err := syscall.StringToSid(usersid)
 		if err == nil {
 			name, domain, _, err = sid.LookupAccount("")
 		}
-		logininfo.Month = append(logininfo.Month, LoginCount{
+		logininfo.Month = append(logininfo.Month, collector.LoginCount{
 			Name:  domain + "\\" + name,
 			SID:   usersid,
 			Count: count,
@@ -318,7 +233,7 @@ func main() {
 		if err == nil {
 			name, domain, _, err = sid.LookupAccount("")
 		}
-		logininfo.Week = append(logininfo.Week, LoginCount{
+		logininfo.Week = append(logininfo.Week, collector.LoginCount{
 			Name:  domain + "\\" + name,
 			SID:   usersid,
 			Count: count,
@@ -330,7 +245,7 @@ func main() {
 		if err == nil {
 			name, domain, _, err = sid.LookupAccount("")
 		}
-		logininfo.Day = append(logininfo.Day, LoginCount{
+		logininfo.Day = append(logininfo.Day, collector.LoginCount{
 			Name:  domain + "\\" + name,
 			SID:   usersid,
 			Count: count,
@@ -338,7 +253,7 @@ func main() {
 	}
 
 	// SERVICES
-	var servicesinfo Services
+	var servicesinfo collector.Services
 
 	services_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Services`,
@@ -360,7 +275,7 @@ func main() {
 					start, _, _ := service_key.GetIntegerValue("Start")
 					stype, _, _ := service_key.GetIntegerValue("Type")
 					if stype >= 16 {
-						servicesinfo = append(servicesinfo, Service{
+						servicesinfo = append(servicesinfo, collector.Service{
 							Name:        service,
 							DisplayName: displayname,
 							Description: description,
@@ -377,13 +292,12 @@ func main() {
 	}
 
 	// LOCAL USERS AND GROUPS
-	var usersinfo Users
+	var usersinfo collector.Users
 	users, _ := winapi.ListLocalUsers()
 	for _, user := range users {
-		usersid, _ := winio.LookupSidByName(user.Username)
-		usersinfo = append(usersinfo, User{
+		usersinfo = append(usersinfo, collector.User{
 			Name:                 user.Username,
-			SID:                  usersid,
+			SID:                  user.SID,
 			FullName:             user.FullName,
 			IsEnabled:            user.IsEnabled,
 			IsLocked:             user.IsLocked,
@@ -392,24 +306,25 @@ func main() {
 			NoChangePassword:     user.NoChangePassword,
 			PasswordLastSet:      user.PasswordAge.Time,
 			LastLogon:            user.LastLogon.Time,
+			LastLogoff:           user.LastLogoff.Time,
 			BadPasswordCount:     int(user.BadPasswordCount),
 			NumberOfLogins:       int(user.NumberOfLogons),
 		})
 	}
 
 	// GROUPS
-	var groupsinfo Groups
+	var groupsinfo collector.Groups
 	groups, _ := winapi.ListLocalGroups()
 	for _, group := range groups {
 		groupsid, _ := winio.LookupSidByName(group.Name)
-		grp := Group{
+		grp := collector.Group{
 			Name: group.Name,
 			SID:  groupsid,
 		}
 		members, _ := winapi.LocalGroupGetMembers(group.Name)
 		for _, member := range members {
 			membersid, _ := winio.LookupSidByName(member.DomainAndName)
-			grp.Members = append(grp.Members, Member{
+			grp.Members = append(grp.Members, collector.Member{
 				Name: member.DomainAndName,
 				SID:  membersid,
 			})
@@ -418,7 +333,7 @@ func main() {
 	}
 	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
-	info := Info{
+	info := collector.Info{
 		Collected:       time.Now(),
 		Machine:         machineinfo,
 		Hardware:        hwinfo,
@@ -444,7 +359,11 @@ func main() {
 		targetname = info.Machine.Name + "$" + info.Machine.Domain + ".json"
 	}
 	output, _ := json.MarshalIndent(info, "", "  ")
-
-	ioutil.WriteFile(filepath.Join(*outputpath, targetname), output, 0600)
-	// fmt.Print(string(output))
+	outputfile := filepath.Join(*outputpath, targetname)
+	err = ioutil.WriteFile(outputfile, output, 0600)
+	if err != nil {
+		log.Error().Msgf("Problem writing to file %v: %v", outputfile, err)
+		os.Exit(1)
+	}
+	log.Info().Msgf("Information collected to file %v", outputfile)
 }

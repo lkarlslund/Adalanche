@@ -47,7 +47,7 @@ func SIDFromString(input string) (SID, error) {
 
 	strnums := strings.Split(input, "-")
 
-	version, err := strconv.ParseInt(strnums[1], 10, 8)
+	version, err := strconv.ParseUint(strnums[1], 10, 8)
 	if err != nil {
 		return "", err
 	}
@@ -63,7 +63,7 @@ func SIDFromString(input string) (SID, error) {
 	copy(sid[2:], authslice[0:6])
 
 	for i := 0; i < subauthoritycount; i++ {
-		subauthority, err := strconv.ParseInt(strnums[3+i], 10, 32)
+		subauthority, err := strconv.ParseUint(strnums[3+i], 10, 32)
 		if err != nil {
 			return "", err
 		}
@@ -102,6 +102,26 @@ func (sid SID) String() string {
 	}
 
 	return s
+}
+
+func (sid SID) Component(n int) uint64 {
+	switch n {
+	case 0:
+		return uint64(sid[1])
+	case 1:
+		var authority uint64
+		for i := 2; i <= 7; i++ {
+			authority = authority<<8 | uint64(sid[i])
+		}
+		return authority
+	default:
+		offset := n * 4
+		if len(sid) < offset+3 {
+			return 0
+		}
+		return uint64(binary.LittleEndian.Uint32([]byte(sid[offset:])))
+	}
+	return 0
 }
 
 func (sid SID) RID() uint32 {

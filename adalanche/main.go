@@ -114,6 +114,8 @@ func main() {
 	dumpgpos := flag.Bool("dumpgpos", false, "When dumping, do you want to include GPO file contents?")
 	gpopath := flag.String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar)")
 
+	collectorpath := flag.String("collectorpath", "collectordata", "Path to where collector JSON files are located")
+
 	flag.Parse()
 
 	if !*debuglogging {
@@ -126,7 +128,8 @@ func main() {
 	// We do lots of allocations when importing stuff, so lets set this aggressively
 	debug.SetGCPercent(10)
 
-	log.Info().Msg("adalanche (c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
+	log.Info().Msgf("%v built %v commit %v", programname, builddate, commit)
+	log.Info().Msg("(c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
 
 	// Ensure the cache folder is available
 	if _, err := os.Stat(*datapath); os.IsNotExist(err) {
@@ -728,8 +731,13 @@ func main() {
 			}
 		}
 	}
+
 	pwnbar.Finish()
 	log.Debug().Msgf("Detected %v ways to pwn objects", pwnlinks)
+
+	log.Info().Msgf("Importing collector files from %v ...", *collectorpath)
+	importCollectorFiles(*collectorpath, &AllObjects)
+	log.Info().Msg("Import done")
 
 	switch command {
 	case "exportacls":
