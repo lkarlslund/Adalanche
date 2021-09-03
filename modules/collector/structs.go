@@ -13,10 +13,11 @@ type Info struct {
 	OperatingSystem shared.OperatingSystem
 	Memory          shared.Memory
 	LoginPopularity LoginPopularity
-	Users           Users    `json:",omitempty"`
-	Groups          Groups   `json:",omitempty"`
-	Shares          Shares   `json:",omitempty"`
-	Services        Services `json:",omitempty"`
+	Users           Users             `json:",omitempty"`
+	Groups          Groups            `json:",omitempty"`
+	Shares          Shares            `json:",omitempty"`
+	Services        Services          `json:",omitempty"`
+	Software        []shared.Software `json:",omitempty"`
 }
 
 type Machine struct {

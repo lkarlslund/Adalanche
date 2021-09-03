@@ -18,6 +18,8 @@ import (
 	"github.com/gravwell/gravwell/v3/winevent"
 	"github.com/lkarlslund/adalanche/modules/collector"
 	winapi "github.com/lkarlslund/go-win64api"
+	"github.com/mattn/go-colorable"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows/registry"
 )
@@ -29,6 +31,8 @@ var (
 )
 
 func main() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
+
 	log.Info().Msgf("%v built %v commit %v", programname, builddate, commit)
 	log.Info().Msg("(c) 2020-2021 Lars Karlslund, released under GPLv3, This program comes with ABSOLUTELY NO WARRANTY")
 
@@ -331,6 +335,9 @@ func main() {
 		}
 		groupsinfo = append(groupsinfo, grp)
 	}
+
+	softwareinfo, _ := winapi.InstalledSoftwareList()
+
 	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
 	info := collector.Info{
@@ -344,6 +351,7 @@ func main() {
 		Groups:          groupsinfo,
 		Shares:          sharesinfo,
 		Services:        servicesinfo,
+		Software:        softwareinfo,
 	}
 
 	outputpath := flag.String("outputpath", "", "Dump output JSON file in this folder")
