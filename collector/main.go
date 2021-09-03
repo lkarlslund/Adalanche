@@ -341,7 +341,10 @@ func main() {
 	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
 	info := collector.Info{
-		Collected:       time.Now(),
+		Collected: time.Now(),
+		BuildDate: builddate,
+		Commit:    commit,
+
 		Machine:         machineinfo,
 		Hardware:        hwinfo,
 		OperatingSystem: osinfo,

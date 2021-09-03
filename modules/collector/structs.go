@@ -7,7 +7,10 @@ import (
 )
 
 type Info struct {
-	Collected       time.Time
+	Collected time.Time
+	BuildDate string
+	Commit    string
+
 	Machine         Machine `json:",omitempty"`
 	Hardware        shared.Hardware
 	OperatingSystem shared.OperatingSystem
