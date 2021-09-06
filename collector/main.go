@@ -269,6 +269,7 @@ func main() {
 
 	var availabilityinfo collector.Availability
 	var laststart, laststop time.Time
+	laststart = laststart.Add(time.Minute) // First hit in event log might be a shutdown event, so we just assume it was powered on ages ago
 	if err == nil {
 		for {
 			events, _, _, err := elog.Read()
