@@ -15,12 +15,15 @@ type Info struct {
 	Hardware        shared.Hardware
 	OperatingSystem shared.OperatingSystem
 	Memory          shared.Memory
+
+	Availability    Availability
 	LoginPopularity LoginPopularity
-	Users           Users             `json:",omitempty"`
-	Groups          Groups            `json:",omitempty"`
-	Shares          Shares            `json:",omitempty"`
-	Services        Services          `json:",omitempty"`
-	Software        []shared.Software `json:",omitempty"`
+
+	Users    Users             `json:",omitempty"`
+	Groups   Groups            `json:",omitempty"`
+	Shares   Shares            `json:",omitempty"`
+	Services Services          `json:",omitempty"`
+	Software []shared.Software `json:",omitempty"`
 }
 
 type Machine struct {
@@ -50,6 +53,12 @@ type Machine struct {
 	UACEnableLUA                     uint64 `json:",omitempty"`
 	UACLocalAccountTokenFilterPolicy uint64 `json:",omitempty"`
 	UACFilterAdministratorToken      uint64 `json:",omitempty"`
+}
+
+type Availability struct {
+	Day   uint64 `json:",omitempty"`
+	Week  uint64 `json:",omitempty"`
+	Month uint64 `json:",omitempty"`
 }
 
 type LoginPopularity struct {

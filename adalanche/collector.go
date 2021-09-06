@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,17 +32,31 @@ func importCollectorFiles(path string, objs *Objects) error {
 			//				return nil // Machine is domain joined, but not to this domain!? Ignore for now
 			//			}
 
-			// find computer object
-			mo := objs.Filter(func(o *Object) bool {
-				return o.HasAttrValue(SAMAccountName, strings.ToUpper(cinfo.Machine.Name+"$"))
-			})
-			co := mo.AsArray()
-			if len(co) != 1 {
-				return nil // We didn't find it
+			// find computer object by SID
+			var computerobject *Object
+			if cinfo.Machine.ComputerDomainSID != "" {
+				csid, err := SIDFromString(cinfo.Machine.ComputerDomainSID)
+				if err == nil {
+					computerobject, _ = objs.FindSID(csid)
+				}
 			}
-			computerobject := co[0]
+			// Fallback to looking by machine account name
+			if computerobject == nil {
+				mo := objs.Filter(func(o *Object) bool {
+					return o.HasAttrValue(SAMAccountName, strings.ToUpper(cinfo.Machine.Name+"$"))
+				})
+				co := mo.AsArray()
+				if len(co) != 1 {
+					return nil // We didn't find it
+				}
+				computerobject = co[0]
+			}
+
+			// Save the Info object on the Object, we can use this for presentation later on
+			computerobject.collectorinfo = &cinfo
 
 			// Add local accounts as synthetic objects
+			// If it brings value ... ?
 
 			// Iterate over Groups
 			for _, group := range cinfo.Groups {
@@ -117,6 +132,19 @@ func importCollectorFiles(path string, objs *Objects) error {
 					computerobject.CanPwn.Set(user, PwnLocalSessionLastMonth)
 					user.PwnableBy.Set(computerobject, PwnLocalSessionLastMonth)
 				}
+			}
+
+			// MACHINE AVAILABILITY
+
+			// SOFTWARE INVENTORY AS ATTRIBUTES
+			var installedsoftware []string
+			for _, software := range cinfo.Software {
+				installedsoftware = append(installedsoftware, fmt.Sprintf(
+					"%v %v %v", software.Publisher, software.DisplayName, software.DisplayVersion,
+				))
+			}
+			if len(installedsoftware) > 0 {
+				computerobject.Attributes[A("_InstalledSoftware")] = installedsoftware
 			}
 
 		}

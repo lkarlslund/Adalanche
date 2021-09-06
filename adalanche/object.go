@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/adalanche/modules/collector"
 	"github.com/rs/zerolog/log"
 )
 
@@ -42,8 +43,8 @@ type Object struct {
 
 	PwnableBy PwnSet
 	CanPwn    PwnSet
-	reach     int // AD ControlPower Measurement
-	value     int // This objects value
+	// reach     int // AD ControlPower Measurement
+	// value     int // This objects value
 
 	objecttype       ObjectType
 	objectclassguids []uuid.UUID
@@ -54,6 +55,8 @@ type Object struct {
 
 	guidcached bool
 	guid       uuid.UUID
+
+	collectorinfo *collector.Info
 
 	memberofinit bool
 	memberof     []*Object
@@ -443,7 +446,7 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	return err
 }
 
-func (o *Object) Value() int {
+/*func (o *Object) Value() int {
 	// We cache this, as it's heavy to calculate (0 = not calulated, -1 = cached zero value, otherwise the power factor)
 	if o.value != 0 {
 		if o.value == -1 {
@@ -473,7 +476,7 @@ func (o *Object) Value() int {
 		o.value = value
 	}
 	return value
-}
+}*/
 
 func (o *Object) SID() SID {
 	if !o.sidcached {

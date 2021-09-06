@@ -171,9 +171,6 @@ func main() {
 
 	// Who has logged on and when https://nasbench.medium.com/finding-forensic-goodness-in-obscure-windows-event-logs-60e978ea45a3
 	// Event 811 and 812 :-)
-	amonthago := time.Now().Add(-30 * 24 * time.Hour)
-	aweekago := time.Now().Add(-7 * 24 * time.Hour)
-	adayago := time.Now().Add(-1 * 24 * time.Hour)
 	monthmap := make(map[string]uint64)
 	weekmap := make(map[string]uint64)
 	daymap := make(map[string]uint64)
@@ -254,6 +251,113 @@ func main() {
 			SID:   usersid,
 			Count: count,
 		})
+	}
+
+	// MACHINE AVAILABILITY
+	var timeonmonth, timeonweek, timeonday time.Duration
+	elog, err = winevent.NewStream(winevent.EventStreamParams{
+		Channel: "System",
+		Providers: []string{
+			"Eventlog",
+			"Microsoft-Windows-Kernel-General",
+			"Microsoft-Windows-Power",
+			"Microsoft-Windows-Power-Troubleshooter",
+		},
+		EventIDs: "1,12,13,42,6008",
+		BuffSize: 2048000,
+	}, 0)
+
+	var availabilityinfo collector.Availability
+	var laststart, laststop time.Time
+	if err == nil {
+		for {
+			events, _, _, err := elog.Read()
+			if err != nil {
+				// fmt.Println(err)
+				break
+			}
+			for _, event := range events {
+				doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
+				if err == nil {
+					providername := xmlquery.FindOne(doc, "//Event//System//Provider").SelectAttr("Name")
+					eventid := xmlquery.FindOne(doc, "//Event//System//EventID").InnerText()
+
+					timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
+					t, err := time.Parse(time.RFC3339Nano, timestamp.InnerText())
+					if err == nil {
+						switch eventid {
+						case "1": // Power on
+							if providername == "Microsoft-Windows-Power-Troubleshooter" {
+								eventdata := xmlquery.Find(doc, "//Event//EventData//Data")
+								for _, event := range eventdata {
+									if event.SelectAttr("Name") == "SleepTime" {
+										st, err := time.Parse(time.RFC3339Nano, event.InnerText())
+										if err == nil {
+											laststop = st
+											// Might be an interval ...
+											if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
+												// log.Info().Msgf("%v -> %v", laststart, laststop)
+												registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
+												laststart = time.Time{}
+												laststop = time.Time{}
+											}
+										}
+									} else if event.SelectAttr("Name") == "WakeTime" {
+										st, err := time.Parse(time.RFC3339Nano, event.InnerText())
+										if err == nil {
+											laststart = st
+										}
+									}
+								}
+
+								laststart = t
+								// log.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
+								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+							}
+						case "12": // Startup
+							if providername == "Microsoft-Windows-Kernel-General" {
+								laststart = t
+								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+							}
+						case "13": // Shutdown
+							if providername == "Microsoft-Windows-Kernel-General" {
+								laststop = t
+								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+							}
+						case "42": // Sleep
+							if providername == "Microsoft-Windows-Kernel-Power" {
+								laststop = t
+								// log.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
+								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+							}
+						case "6008": // Unexpected shutdown
+							if providername == "Eventlog" {
+								laststop = t
+								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+							}
+						}
+					}
+
+					if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
+						// log.Info().Msgf("%v -> %v", laststart, laststop)
+						registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
+						laststart = time.Time{}
+						laststop = time.Time{}
+					}
+				}
+			}
+
+		}
+		if !laststart.IsZero() && laststop.IsZero() {
+			laststop = time.Now() // We're still running we assume ;-D
+			registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
+		}
+	}
+	// log.Info().Msgf("%v %v %v", timeonmonth, timeonweek, timeonday)
+	availabilityinfo = collector.Availability{
+		Day:   uint64(timeonday.Minutes()),
+		Week:  uint64(timeonweek.Minutes()),
+		Month: uint64(timeonmonth.Minutes()),
 	}
 
 	// SERVICES
@@ -349,12 +453,15 @@ func main() {
 		Hardware:        hwinfo,
 		OperatingSystem: osinfo,
 		Memory:          meminfo,
+
+		Availability:    availabilityinfo,
 		LoginPopularity: logininfo,
-		Users:           usersinfo,
-		Groups:          groupsinfo,
-		Shares:          sharesinfo,
-		Services:        servicesinfo,
-		Software:        softwareinfo,
+
+		Users:    usersinfo,
+		Groups:   groupsinfo,
+		Shares:   sharesinfo,
+		Services: servicesinfo,
+		Software: softwareinfo,
 	}
 
 	outputpath := flag.String("outputpath", "", "Dump output JSON file in this folder")
