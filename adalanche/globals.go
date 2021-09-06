@@ -44,7 +44,7 @@ func init() {
 	// HackersWonObject.init()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
-	AllObjects.Init("")
+	AllObjects.Init(nil)
 	AllObjects.Add(AttackerObject)
 	// AllObjects.Add(HackersWonObject)
 }

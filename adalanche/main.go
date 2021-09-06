@@ -420,6 +420,8 @@ func main() {
 		if AllObjects.Base == "" { // Shoot me, this is horrible
 			AllObjects.Base = "dc=" + strings.Replace(domain, ".", ",dc=", -1)
 			AllObjects.Domain = domain
+			domainparts := strings.Split(domain, ".") // From bad to worse FIXME
+			AllObjects.DomainNetbios = strings.ToUpper(domainparts[0])
 		}
 
 		cachefile, err := os.Open(filepath.Join(*datapath, domain+".objects.lz4.msgp"))

@@ -141,6 +141,8 @@ const (
 	PwnLocalSessionLastDay
 	PwnLocalSessionLastWeek
 	PwnLocalSessionLastMonth
+	PwnHasServiceAccountCredentials
+	PwnHasAutoAdminLogonCredentials
 	PwnScheduledTaskOnUNCPath
 	PwdMachineScript
 	PwnWriteAltSecurityIdentities

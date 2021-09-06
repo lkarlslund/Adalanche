@@ -40,16 +40,13 @@ func importCollectorFiles(path string, objs *Objects) error {
 					computerobject, _ = objs.FindSID(csid)
 				}
 			}
+
 			// Fallback to looking by machine account name
 			if computerobject == nil {
-				mo := objs.Filter(func(o *Object) bool {
-					return o.HasAttrValue(SAMAccountName, strings.ToUpper(cinfo.Machine.Name+"$"))
-				})
-				co := mo.AsArray()
-				if len(co) != 1 {
+				computerobject, err = objs.FindOne(SAMAccountName, cinfo.Machine.Name+"$")
+				if err != nil {
 					return nil // We didn't find it
 				}
-				computerobject = co[0]
 			}
 
 			// Save the Info object on the Object, we can use this for presentation later on
@@ -131,6 +128,30 @@ func importCollectorFiles(path string, objs *Objects) error {
 				if user, found := objs.FindSID(usersid); found {
 					computerobject.CanPwn.Set(user, PwnLocalSessionLastMonth)
 					user.PwnableBy.Set(computerobject, PwnLocalSessionLastMonth)
+				}
+			}
+
+			// AUTOLOGIN CREDENTIALS
+			if cinfo.Machine.DefaultUsername != "" && cinfo.Machine.DefaultDomain != "" {
+				if cinfo.Machine.DefaultDomain == objs.DomainNetbios {
+					// NETBIOS name for domain check FIXME
+					account, err := objs.FindOne(SAMAccountName, cinfo.Machine.DefaultUsername)
+					if err == nil {
+						computerobject.CanPwn.Set(account, PwnHasAutoAdminLogonCredentials)
+						account.PwnableBy.Set(computerobject, PwnHasAutoAdminLogonCredentials)
+					}
+				}
+			}
+
+			// SERVICES
+			for _, service := range cinfo.Services {
+				nameparts := strings.Split(service.Account, "\\")
+				if len(nameparts) == 2 && nameparts[0] == objs.DomainNetbios {
+					svcaccount, err := objs.FindOne(SAMAccountName, nameparts[1])
+					if err == nil {
+						computerobject.CanPwn.Set(svcaccount, PwnHasServiceAccountCredentials)
+						svcaccount.PwnableBy.Set(computerobject, PwnHasServiceAccountCredentials)
+					}
 				}
 			}
 

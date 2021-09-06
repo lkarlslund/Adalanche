@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -8,20 +9,25 @@ import (
 )
 
 type Objects struct {
-	Domain    string // tld
-	Base      string // dc=blabla,dc=com
-	asarray   []*Object
-	objectmap map[*Object]struct{}
-	dnmap     map[string]*Object
-	sidmap    map[SID]*Object
-	guidmap   map[uuid.UUID]*Object
-	typecount [OBJECTTYPEMAX]int
+	Domain        string // tld
+	DomainNetbios string
+	Base          string // dc=blabla ,dc=com
+	asarray       []*Object
+	objectmap     map[*Object]struct{}
+	dnmap         map[string]*Object
+	sidmap        map[SID]*Object
+	guidmap       map[uuid.UUID]*Object
+	typecount     [OBJECTTYPEMAX]int
 
 	classmap map[string]*Object // top, user, person -> schema object
 }
 
-func (os *Objects) Init(base string) {
-	os.Base = base
+func (os *Objects) Init(ios *Objects) {
+	if ios != nil {
+		os.Base = ios.Base
+		os.Domain = ios.Domain
+		os.DomainNetbios = ios.DomainNetbios
+	}
 	os.objectmap = make(map[*Object]struct{})
 	os.dnmap = make(map[string]*Object)
 	os.sidmap = make(map[SID]*Object)
@@ -32,7 +38,7 @@ func (os *Objects) Init(base string) {
 
 func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 	var result Objects
-	result.Init(os.Base)
+	result.Init(os)
 
 	for _, object := range os.dnmap {
 		if evaluate(object) {
@@ -146,6 +152,17 @@ func (os *Objects) Subordinates(o *Object) *Objects {
 func (os *Objects) FindSID(s SID) (o *Object, found bool) {
 	o, found = os.sidmap[s]
 	return
+}
+
+func (os *Objects) FindOne(a Attribute, value string) (*Object, error) {
+	fo := os.Filter(func(o *Object) bool {
+		return o.HasAttrValue(a, value)
+	})
+	foa := fo.AsArray()
+	if len(foa) != 1 {
+		return nil, errors.New("None or multiple objects found")
+	}
+	return foa[0], nil
 }
 
 func (os *Objects) FindOrAddSID(s SID) *Object {

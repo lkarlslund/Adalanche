@@ -247,7 +247,7 @@ func (o Object) OneAttrRendered(attr Attribute) string {
 
 func (o Object) HasAttrValue(attr Attribute, hasvalue string) bool {
 	for _, value := range o.Attr(attr) {
-		if value == hasvalue {
+		if strings.EqualFold(value, hasvalue) {
 			return true
 		}
 	}
