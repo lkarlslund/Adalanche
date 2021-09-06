@@ -120,6 +120,19 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - synthetic attribute: _canpwn - allows you to select objects based on what they can pwn *directly* (&(objectclass=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
 - synthetic attribute: _pwnable - allows you to select objects based on how they can be pwned *directly* (&(objectclass=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
 
+## Collector module
+For Windows systems that are members of your Active Directory domain you can collect more information from the local machines by running the collector executable. It's a 32-bit Windows executable, but works transperently on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
+
+<code>adalanche-collector.exe -outputpath \\some\share\where\youcanwrite\butnotread</code>
+
+Please remember to secure your UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
+
+You can then import all these files when doing analysis:
+
+<code>adalanche.exe analyze -collectorpath \\your\data\folder</code>
+
+This will give you insight into who uses what systems, service accounts that are domaun users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
+
 ## Current limitations
 - A large AD with 500.000 objects results in a file approximately 250MB in size
 - adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
