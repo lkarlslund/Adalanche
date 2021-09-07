@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -19,7 +17,6 @@ import (
 	"github.com/absfs/osfs"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
-	"github.com/gomarkdown/markdown"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
@@ -39,6 +36,8 @@ func webservice(bind string) http.Server {
 		Addr:    bind,
 		Handler: router,
 	}
+	// Lists available pwnmethods that the system understands - this allows us to expand functionality
+	// in the code, without toughting the HTML
 	router.HandleFunc("/pwnmethods", func(w http.ResponseWriter, r *http.Request) {
 		type methodinfo struct {
 			Name           string `json:"name"`
@@ -58,6 +57,8 @@ func webservice(bind string) http.Server {
 		mj, _ := json.MarshalIndent(methods, "", "  ")
 		w.Write(mj)
 	})
+	// Checks a LDAP style query for input errors, and returns a hint to the user
+	// It supports the include,exclude syntax specific to this program
 	router.HandleFunc("/validatequery", func(w http.ResponseWriter, r *http.Request) {
 		rest, _, err := ParseQuery(r.URL.Query().Get("query"))
 		if err != nil {
@@ -79,6 +80,7 @@ func webservice(bind string) http.Server {
 		}
 		w.Write([]byte("ok"))
 	})
+	// Returns JSON descruibing an object located by distinguishedName, sid or guid
 	router.HandleFunc("/details/{locateby}/{id}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		var o *Object
@@ -161,6 +163,7 @@ func webservice(bind string) http.Server {
 		}
 		w.WriteHeader(200)
 	})
+	// Graph based query analysis - core functionality
 	router.HandleFunc("/cytograph.json", func(w http.ResponseWriter, r *http.Request) {
 		uq := r.URL.Query()
 		encoder := qjson.NewEncoder(w)
@@ -181,6 +184,13 @@ func webservice(bind string) http.Server {
 		maxdepth := 99
 		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
 			maxdepth = maxdepthval
+		}
+
+		// Maximum number of outgoing connections from one object in analysis
+		// If more are available you can right click the object and select EXPAND
+		maxoutgoing := 0
+		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
+			maxoutgoing = maxoutgoingval
 		}
 
 		alldetails, _ := ParseBool(uq.Get("alldetails"))
@@ -240,20 +250,22 @@ func webservice(bind string) http.Server {
 		for _, m := range selectedmethods {
 			methods |= m
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth)
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
 
 		targetmap := make(map[*Object]bool)
-		for _, target := range pg.Targets {
-			targetmap[target] = true
+		for _, node := range pg.Nodes {
+			if node.Target {
+				targetmap[node.Object] = true
+			}
 		}
 
 		var targets, users, computers, groups, others int
-		for _, object := range pg.Implicated {
-			if targetmap[object] {
+		for _, node := range pg.Nodes {
+			if targetmap[node.Object] {
 				targets++
 				continue
 			}
-			switch object.Type() {
+			switch node.Object.Type() {
 			case ObjectTypeComputer:
 				computers++
 			case ObjectTypeGroup:
@@ -265,7 +277,7 @@ func webservice(bind string) http.Server {
 			}
 		}
 
-		if len(pg.Implicated) > 1000 && !force {
+		if len(pg.Nodes) > 1000 && !force {
 			w.WriteHeader(413) // too big payload response
 			if strings.HasPrefix(mode, "inverted") {
 				fmt.Fprintf(w, "Too much data, %v targets can pwn %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>", targets, users, groups, computers, others, len(pg.Connections), "/export-graph?format=xgmml&"+r.URL.RawQuery)
@@ -304,7 +316,7 @@ func webservice(bind string) http.Server {
 
 			Elements *CytoElements `json:"elements"`
 		}{
-			Total: len(pg.Implicated),
+			Total: len(pg.Nodes),
 
 			Targets: targets,
 
@@ -346,6 +358,11 @@ func webservice(bind string) http.Server {
 		maxdepth := 99
 		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
 			maxdepth = maxdepthval
+		}
+
+		maxoutgoing := 0
+		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
+			maxoutgoing = maxoutgoingval
 		}
 
 		alldetails, err := ParseBool(uq.Get("alldetails"))
@@ -407,18 +424,13 @@ func webservice(bind string) http.Server {
 		for _, m := range selectedmethods {
 			methods |= m
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth)
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
 
 		idmap := make(map[*Object]int)
 		var id int
-		for _, obj := range pg.Implicated {
-			idmap[obj] = id
+		for _, node := range pg.Nodes {
+			idmap[node.Object] = id
 			id++
-		}
-
-		targetmap := make(map[*Object]bool)
-		for _, target := range pg.Targets {
-			targetmap[target] = true
 		}
 
 		// Make browser download this
@@ -438,7 +450,7 @@ func webservice(bind string) http.Server {
 			// Lets go
 			w.Write([]byte("graph\n[\n"))
 
-			for id, node := range pg.Implicated {
+			for id, node := range pg.Nodes {
 				fmt.Fprintf(w,
 					`  node
   [
@@ -468,36 +480,31 @@ func webservice(bind string) http.Server {
   ]
 `, idmap[pwn.Source], idmap[pwn.Target], methods.JoinedString())
 			}
-			targetmap := make(map[*Object]bool)
-			for _, target := range pg.Targets {
-				targetmap[target] = true
-			}
 
 			w.Write([]byte("]\n"))
 
 		case "xgmml":
 			graph := NewXGMMLGraph()
 
-			for id, object := range pg.Implicated {
-				node := XGMMLNode{
+			for id, node := range pg.Nodes {
+				object := node.Object
+				xmlnode := XGMMLNode{
 					Id:    id,
 					Label: object.Label(),
-					// Weight:     0,
-					// Attributes: []XGMMLAttribute{},
 				}
 
 				if alldetails {
 					for attribute, values := range object.Attributes {
 						valuesjoined := strings.Join(values, ", ")
 						if IsASCII(valuesjoined) {
-							node.Attributes = append(node.Attributes, XGMMLAttribute{
+							xmlnode.Attributes = append(xmlnode.Attributes, XGMMLAttribute{
 								Name:  attribute.String(),
 								Value: valuesjoined,
 							})
 						}
 					}
 				}
-				graph.Nodes = append(graph.Nodes, node)
+				graph.Nodes = append(graph.Nodes, xmlnode)
 			}
 
 			for _, pwn := range pg.Connections {
@@ -705,12 +712,12 @@ func webservice(bind string) http.Server {
 	}
 
 	// Rendered markdown file
-	router.HandleFunc("/readme", func(w http.ResponseWriter, r *http.Request) {
-		readmefile, _ := assets.Open("readme.MD")
-		var readmedata bytes.Buffer
-		io.Copy(&readmedata, readmefile)
-		w.Write(markdown.ToHTML(readmedata.Bytes(), nil, nil))
-	})
+	// router.HandleFunc("/readme", func(w http.ResponseWriter, r *http.Request) {
+	// 	readmefile, _ := assets.Open("readme.MD")
+	// 	var readmedata bytes.Buffer
+	// 	io.Copy(&readmedata, readmefile)
+	// 	w.Write(markdown.ToHTML(readmedata.Bytes(), nil, nil))
+	// })
 	router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
 		Prefix: "html",
 		FS:     assets,

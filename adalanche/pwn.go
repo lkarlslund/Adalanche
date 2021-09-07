@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/go-ini/ini"
@@ -33,6 +34,17 @@ func (pm PwnMethod) Set(method PwnMethod) PwnMethod {
 
 type PwnSet map[*Object]PwnMethod
 
+func (ps PwnSet) Objects() ObjectSlice {
+	result := make(ObjectSlice, len(ps))
+	var i int
+	for object, _ := range ps {
+		result[i] = object
+		i++
+	}
+	sort.Sort(result)
+	return result
+}
+
 func (ps PwnSet) Set(o *Object, method PwnMethod) {
 	// See if object is in the list
 	ps[o] = ps[o].Set(method)
@@ -46,7 +58,7 @@ var (
 	DSReplicationSyncronize    = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
 
 	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	AttributeSetGroupMembership                     = uuid.UUID{0xBC, 0x0A, 0xC2, 0x40, 0x79, 0xA9, 0x11, 0xD0, 0x90, 0x20, 0x00, 0xC0, 0x4F, 0xC2, 0xD4, 0xCF}
+	AttributeSetGroupMembership, _                  = uuid.FromString("{BC0AC240-79A9-11D0-9020-00C04FC2D4CF}")
 	AttributeSIDHistory                             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
 	AttributeAllowedToActOnBehalfOfOtherIdentity, _ = uuid.FromString("{3F78C3E5-F79A-46BD-A0B8-9D18116DDC79}")
 	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
@@ -963,7 +975,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 						log.Warn().Msgf("Detected Local Admin, but could not parse SID %v", sidpair.Member)
 					}
 				}
-				log.Debug().Msgf("%v", sidpair)
 			}
 			return results
 		},
@@ -993,7 +1004,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 						log.Warn().Msgf("Detected Local RDP, but could not parse SID %v", sidpair.Member)
 					}
 				}
-				log.Debug().Msgf("%v", sidpair)
 			}
 			return results
 		},
@@ -1023,7 +1033,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 						log.Warn().Msgf("Detected Local DCOM, but could not parse SID %v", sidpair.Member)
 					}
 				}
-				log.Debug().Msgf("%v", sidpair)
 			}
 			return results
 		},
@@ -1228,9 +1237,14 @@ type syncinfo struct {
 
 var dcsyncobjects = make(map[*Object]syncinfo)
 
+type GraphObject struct {
+	*Object
+	Target    bool
+	CanExpand bool
+}
+
 type PwnGraph struct {
-	Targets     []*Object       // The ones we want to pwn
-	Implicated  []*Object       // Everyone implicated, including the targets
+	Nodes       []GraphObject
 	Connections []PwnConnection // Connection to Methods map
 }
 
@@ -1243,23 +1257,19 @@ type PwnConnection struct {
 	Methods        PwnMethod
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, mode string, maxdepth int) (pg PwnGraph) {
+func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, mode string, maxdepth, maxoutgoingconnections int) (pg PwnGraph) {
 	connectionsmap := make(map[PwnPair]PwnMethod) // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]int) // Object -> Processed in round n
+	canexpand := make(map[*Object]struct{})
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := strings.HasPrefix(mode, "normal")
 	// Backlinks = include all links, don't limit per round
 	backlinks := strings.HasSuffix(mode, "backlinks")
 
-	// Save this for later
-	pg.Targets = includeobjects.AsArray()
-
 	// Convert to our working map
 	for _, object := range includeobjects.AsArray() {
-		// if !excludeobjects.Contains(object) {
 		implicatedobjectsmap[object] = 0
-		// }
 	}
 
 	somethingprocessed := true
@@ -1268,6 +1278,8 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 		somethingprocessed = false
 		log.Debug().Msgf("Processing round %v with %v total objects", processinground, len(implicatedobjectsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
+		newconnectionsmap := make(map[PwnPair]PwnMethod) // Pwn Connection between objects
+
 		for object, processed := range implicatedobjectsmap {
 			if processed != 0 {
 				continue
@@ -1281,7 +1293,11 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 				pwnlist = object.CanPwn
 			}
 
-			for pwntarget, pwninfo := range pwnlist {
+			// Iterate over ever outgoing pwn
+			// This is not efficient, but we sort the pwnlist first
+			for _, pwntarget := range pwnlist.Objects() {
+				pwninfo := pwnlist[pwntarget]
+
 				// If this is not a chosen method, skip it
 				detectedmethods := pwninfo & methods
 				if detectedmethods == 0 || detectedmethods == PwnACLContainsDeny {
@@ -1309,23 +1325,35 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 					continue
 				}
 
-				// Reverse search, stop at domain admins and administrators
+				// Reverse search, stop at domain admins and administrators DIRTY - FIXME
 				if !forward && (object.OneAttr(Name) == "Domain Admins" ||
 					object.OneAttr(Name) == "Enterprise Admins") ||
 					object.OneAttr(Name) == "Administrators" {
-					continue
+					break
 				}
 
-				// Append the method to the connection pair
 				if forward {
-					connectionsmap[PwnPair{Source: pwntarget, Target: object}] = detectedmethods
+					newconnectionsmap[PwnPair{Source: pwntarget, Target: object}] = detectedmethods
 				} else {
-					connectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
+					newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
 				}
+			}
 
-				if _, found := implicatedobjectsmap[pwntarget]; !found {
-					newimplicatedobjects[pwntarget] = struct{}{} // Add this to work map as non-processed
+			if maxoutgoingconnections == 0 || len(newconnectionsmap) < maxoutgoingconnections {
+				for pwnpair, detectedmethods := range newconnectionsmap {
+					connectionsmap[pwnpair] = detectedmethods
+					target := pwnpair.Target
+					if forward {
+						target = pwnpair.Source
+					}
+					if _, found := implicatedobjectsmap[target]; !found {
+						newimplicatedobjects[target] = struct{}{} // Add this to work map as non-processed
+					}
 				}
+				// Add pwn target to graph for processing
+			} else {
+				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v", maxoutgoingconnections, object.Label())
+				canexpand[object] = struct{}{}
 			}
 			implicatedobjectsmap[object] = processinground // We're done processing this
 		}
@@ -1344,10 +1372,16 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethod, 
 		i++
 	}
 
-	pg.Implicated = make([]*Object, len(implicatedobjectsmap))
+	pg.Nodes = make([]GraphObject, len(implicatedobjectsmap))
 	i = 0
 	for object := range implicatedobjectsmap {
-		pg.Implicated[i] = object
+		pg.Nodes[i].Object = object
+		if includeobjects.Contains(object) {
+			pg.Nodes[i].Target = true
+		}
+		if _, found := canexpand[object]; found {
+			pg.Nodes[i].CanExpand = true
+		}
 		i++
 	}
 

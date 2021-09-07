@@ -15,7 +15,8 @@ func ExportGraphViz(pg PwnGraph, filename string) error {
 	defer df.Close()
 
 	fmt.Fprintln(df, "digraph G {")
-	for _, object := range pg.Implicated {
+	for _, node := range pg.Nodes {
+		object := node.Object
 		var formatting = ""
 		switch object.Type() {
 		case ObjectTypeComputer:
@@ -81,9 +82,6 @@ type CytoGraph struct {
 	Elements                 CytoElements `json:"elements"`
 }
 
-/*
- */
-
 func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
@@ -95,18 +93,14 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		},
 	}
 
-	targetmap := make(map[*Object]struct{})
-	for _, target := range pg.Targets {
-		targetmap[target] = struct{}{}
-	}
 	nodeidmap := make(map[*Object]int)
 
 	// Sort the nodes to get consistency
-	sort.Slice(pg.Implicated, func(i, j int) bool {
-		return bytes.Compare(pg.Implicated[i].GUID().Bytes(), pg.Implicated[j].GUID().Bytes()) == -1
+	sort.Slice(pg.Nodes, func(i, j int) bool {
+		return bytes.Compare(pg.Nodes[i].Object.GUID().Bytes(), pg.Nodes[j].Object.GUID().Bytes()) == -1
 	})
 
-	// Sort the nodes to get consistency
+	// Sort the connections to get consistency
 	sort.Slice(pg.Connections, func(i, j int) bool {
 		return bytes.Compare(
 			pg.Connections[i].Source.GUID().Bytes(),
@@ -118,10 +112,9 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	nodecount := 0
 	idcount := 0
 
-	g.Elements.Nodes = make([]CytoNode, len(pg.Implicated))
-	for _, object := range pg.Implicated {
-		_, istarget := targetmap[object]
-
+	g.Elements.Nodes = make([]CytoNode, len(pg.Nodes))
+	for _, node := range pg.Nodes {
+		object := node.Object
 		nodeidmap[object] = idcount
 
 		newnode := CytoNode{
@@ -146,8 +139,11 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 			}
 		}
 
-		if istarget {
+		if node.Target {
 			newnode.Data["_querytarget"] = true
+		}
+		if node.CanExpand {
+			newnode.Data["_canexpand"] = true
 		}
 
 		g.Elements.Nodes[nodecount] = newnode

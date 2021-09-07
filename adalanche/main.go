@@ -771,7 +771,7 @@ func main() {
 		if *exportinverted {
 			mode = "inverted"
 		}
-		resultgraph := AnalyzeObjects(includeobjects, nil, PwnMethod(PwnAllMethods), mode, 99)
+		resultgraph := AnalyzeObjects(includeobjects, nil, PwnMethod(PwnAllMethods), mode, 99, 0)
 
 		switch *exporttype {
 		case "graphviz":
