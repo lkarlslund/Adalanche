@@ -136,34 +136,41 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					log.Warn().Msgf("GPO GptTmplInf Memberof non-SID member %v ignored", member)
 					continue
 				}
-				// membersid, err := SIDFromString(strings.Trim(member[1:], " "))
-				// if err != nil {
-				// 	log.Warn().Msgf("GPO GptTmplInf Memberof SID member %v parsing failed", member)
-				// 	continue
-				// }
 				groups := strings.Split(v, ",")
 				for _, group := range groups {
 					if !strings.HasPrefix(group, "*") {
-						log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v ignored", group)
-						continue
+						// Not a SID - using localized group name (thanks, Microsoft)
+						// We have a couple we can try - please contribute with more
+						groupsid, err := TranslateLocalizedGroupToSID(group)
+						if err != nil {
+							log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v ignored", group)
+							continue
+						}
+						group = groupsid.String()
+					} else {
+						group = strings.Trim(group[1:], " ")
 					}
-					// groupsid, err := SIDFromString(strings.Trim(group[1:], " "))
-					// if err != nil {
-					// 	log.Warn().Msgf("GPO GptTmplInf Memberof SID group %v parsing failed", group)
-					// 	continue
-					// }
 
 					results = append(results, SIDpair{
-						Group:  strings.Trim(group[1:], " "),
+						Group:  group,
 						Member: strings.Trim(member[1:], " "),
 					})
 				}
 			} else if strings.HasSuffix(k, "__Members") {
 				// LHS SID group has RHS SID as members
 				group := strings.TrimSuffix(k, "__Members")
+
 				if !strings.HasPrefix(group, "*") {
-					log.Warn().Msgf("GPO GptTmplInf Members non-SID group %v ignored", group)
-					continue
+					// Not a SID - using localized group name (thanks, Microsoft)
+					// We have a couple we can try - please contribute with more
+					groupsid, err := TranslateLocalizedGroupToSID(group)
+					if err != nil {
+						log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v ignored", group)
+						continue
+					}
+					group = groupsid.String()
+				} else {
+					group = strings.Trim(group[1:], " ")
 				}
 
 				members := strings.Split(v, ",")
@@ -172,14 +179,9 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						log.Warn().Msgf("GPO GptTmplInf Members non-SID member %v ignored", member)
 						continue
 					}
-					// groupsid, err := SIDFromString(strings.Trim(group[1:], " "))
-					// if err != nil {
-					// 	log.Warn().Msgf("GPO GptTmplInf Memberof SID group %v parsing failed", group)
-					// 	continue
-					// }
 
 					results = append(results, SIDpair{
-						Group:  strings.Trim(group[1:], " "),
+						Group:  group,
 						Member: strings.Trim(member[1:], " "),
 					})
 				}
