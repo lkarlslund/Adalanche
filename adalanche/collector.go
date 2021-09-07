@@ -63,11 +63,22 @@ func importCollectorFiles(path string, objs *Objects) error {
 					continue
 				}
 				for _, member := range group.Members {
-					membersid, err := SIDFromString(member.SID)
-					if err != nil {
-						log.Warn().Msgf("Can't convert local group member SID %v: %v", member.SID, err)
-						continue
+					var membersid SID
+					if member.SID != "" {
+						membersid, err = SIDFromString(member.SID)
+						if err != nil {
+							log.Warn().Msgf("Can't convert local group member SID %v: %v", member.SID, err)
+							continue
+						}
+					} else {
+						// Some members show up with the SID in the name field FML
+						membersid, err = SIDFromString(member.Name)
+						if err != nil {
+							log.Info().Msgf("Fallback SID translation on %v failed: %v", member.Name, err)
+							continue
+						}
 					}
+
 					if membersid.Component(2) != 21 {
 						continue // Not a domain SID, skip it
 					}
