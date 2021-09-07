@@ -1,4 +1,5 @@
 <html>
+
 <head>
   <title>adalanche - Active Directory ACL Visualizer</title>
   <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
@@ -29,61 +30,70 @@
   <script src="custom.js"></script>
 
   <style>
-      body {
-        overflow: hidden;
-      }
-      #cy {
-          background: black;
-          width: 100%;
-          height: 100%;
-          position: absolute;
-          top: 0px;
-          left: 0px;
-      }
-      #infoboxes > div {
-          position: absolute;
-      }
-      #status {
-          color: white;
-          max-width: 220px;
-          bottom: 20px;
-          left: 20px;
-      }
-      #status > a {
-          color: lightblue;
-      }
-      #route {
-          color: white;
-          max-width: 40%;
-          top: 20px;
-          right: 20px;
-      }
-      #details {
-          color: white;
-          max-width: 55%;
-          top: 20px;
-          left: 20px;
-      }
-      #about {
-          right: 20px;
-          bottom: 20px;
-      }
-      #outerquery {
-          color: white;
-          position: absolute;
-          left: 50%;
-          margin-left: -250px;
-          bottom: 0px;
-          width: 500px;
-      }
-      #outeroptions {
-          color: white;
-          position: absolute;
-          left: 50%;
-          margin-left: -400px;
-          top: 0px;
-          width: 800px;
-      }
+    body {
+      overflow: hidden;
+    }
+
+    #cy {
+      background: black;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0px;
+      left: 0px;
+    }
+
+    #infoboxes>div {
+      position: absolute;
+    }
+
+    #status {
+      color: white;
+      max-width: 220px;
+      bottom: 20px;
+      left: 20px;
+    }
+
+    #status>a {
+      color: lightblue;
+    }
+
+    #route {
+      color: white;
+      max-width: 40%;
+      top: 20px;
+      right: 20px;
+    }
+
+    #details {
+      color: white;
+      max-width: 55%;
+      top: 20px;
+      left: 20px;
+    }
+
+    #about {
+      right: 20px;
+      bottom: 20px;
+    }
+
+    #outerquery {
+      color: white;
+      position: absolute;
+      left: 50%;
+      margin-left: -300px;
+      bottom: 0px;
+      width: 600px;
+    }
+
+    #outeroptions {
+      color: white;
+      position: absolute;
+      left: 50%;
+      margin-left: -400px;
+      top: 0px;
+      width: 800px;
+    }
   </style>
 </head>
 
@@ -91,7 +101,8 @@
   <div id="cy"></div>
   <div id="infoboxes">
     <div id="status" class="p-2 bg-primary text-white">Welcome ...</div>
-    <div id="route" style="display: block; max-width: 30%; max-height: 70%" class="p-2 bg-primary overflow-auto">No route yet</div>
+    <div id="route" style="display: block; max-width: 30%; max-height: 70%" class="p-2 bg-primary overflow-auto">No
+      route yet</div>
     <div id="details" class="p-2 bg-primary text-white">No details</div>
     <div id="about" class="text-right">
       <!-- <a href="https://www.netsection.com/adalanche"><img src="adalanche-logo-white.svg" height="32px"></a><br/><span class="text-white"> by  </span>
@@ -99,96 +110,143 @@
       <a href="https://twitter.com/lkarlslund"><img src="icons/twitter.svg" height="16px"> @lkarlslund</a>
     </div>
   </div>
-    <div id="outeroptions" class="bg-primary">
-      <div id="optionsdiv" class="p-2">
-        <ul class="nav nav-tabs nav-fill" id="optionstabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <a class="nav-link active" id="pwnoptions-tab" data-bs-toggle="tab" href="#pwnoptionsdiv" role="tab" aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
-          </li>
-          <li class="nav-item" role="presentation">
-            <a class="nav-link" id="graphoptions-tab" data-bs-toggle="tab" href="#graphoptionsdiv" role="tab" aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
-          </li>
-        </ul>
-        <div class="tab-content" id="optionstabsContent">
-          <div class="tab-pane fade show active" id="pwnoptionsdiv" role="tabpanel" aria-labelledby="pwnoptions-tab">
-            <form id="optionsform">
-              <div id="pwnfilter">
-                Loading ...
-              </div>
-            </form> 
-          </div>
-          <div class="tab-pane fade" id="graphoptionsdiv" role="tabpanel" aria-labelledby="graphoptions-tab">
-            <div class="form-group">
-              <label for="graphlayout">Choose layout</label>
-              <select class="form-control" id="graphlayout">
-                <option value="fcose">FCOSE</option>
-                <option value="d3force">D3 Force</option>
-                <option value="cose">COSE</option>
-                <option value="dagre">DAGRE</option>
-                <option value="cise">CISE</option>
-                <option value="random">Random</option>
-              </select>
+  <div id="outeroptions" class="bg-primary mh-75">
+    <div id="optionsdiv" class="p-2">
+      <ul class="nav nav-tabs nav-fill" id="optionstabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <a class="nav-link active" id="pwnoptions-tab" data-bs-toggle="tab" href="#pwnoptionsdiv" role="tab"
+            aria-controls="pwnoptionsdiv" aria-selected="true">Pwn Analyzers</a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a class="nav-link" id="graphoptions-tab" data-bs-toggle="tab" href="#graphoptionsdiv" role="tab"
+            aria-controls="graphoptionsdiv" aria-selected="false">Graph Settings</a>
+        </li>
+      </ul>
+      <div class="tab-content" id="optionstabsContent">
+        <div class="tab-pane fade show active" id="pwnoptionsdiv" role="tabpanel" aria-labelledby="pwnoptions-tab">
+          <form id="optionsform" class="mt-2 overflow-auto">
+            <div id="pwnfilter">
+              Loading ...
             </div>
+          </form>
+        </div>
+        <div class="tab-pane fade" id="graphoptionsdiv" role="tabpanel" aria-labelledby="graphoptions-tab">
+          <div class="form-group">
+            <label for="graphlayout">Choose layout</label>
+            <select class="form-control" id="graphlayout">
+              <option value="fcose">FCOSE</option>
+              <option value="d3force">D3 Force</option>
+              <option value="cose">COSE</option>
+              <option value="dagre">DAGRE</option>
+              <option value="cise">CISE</option>
+              <option value="random">Random</option>
+            </select>
           </div>
         </div>
-      </div>   
-      <div id="optionspop" class="text-center">Options</div>
-    </div>
-    <div id="outerquery" class="bg-primary">
-      <div id="querypop" class="text-center">LDAP Query</div>
-      <div id="querydiv" class="p-2"> 
-        <form id="queryform" class="m-0">
-          <textarea id="querytext" class="form-control" name="query" rows=4></textarea>
-          <div id="queryerror"></div>
-          <div id="querybuttons" class="mt-2">
-            <div class="btn-group dropup">
-              <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Sample Queries
-              </button>
-
-              <div id="predefinedqueries" class="dropdown-menu overflow-auto">
-                <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=Administrators)(name=Domain Admins)(name=Enterprise Admins)(name=Enterprise PKI Admins)))" mode="Normal" depth=99 methods="default">Who owns your AD?</a>
-                <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
-                <a class="dropdown-item" href="#"
-                  query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
-                  mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
-                <a class="dropdown-item" href="#"
-                  query="(|(name=Domain Users)(name=Authenticated Users))"
-                  mode="Reverse" depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
-                <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups, but not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(objectCategory=Group-Policy-Container),(|(name=Domain Admins)(name=Administrators)(name=Enterprise Admins))" mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99 methods="default">Users not required to have a password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))" mode="Normal" depth=99 methods="default">Users that can't change password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))" mode="Normal" depth=99 methods="default">Users where password never expire</a>
-                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">Accounts that has a password older than 5 years</a>
-                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(pwdLastSet=0)(|(logonCount=0)(!(logonCount=*)))(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))" mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal" depth=1 methods="default">Users that are direct members of more than 10 groups</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal" depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(member:count:>100))" mode="Normal" depth=99 methods="default">Groups that have more than 100 direct members</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))" mode="Normal" depth=99>Domain Controllers</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))" mode="Normal" depth=99>Servers or Workstations (100 random)</a>
-                <a class="dropdown-item" href="#" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal" depth=1>Accounts with no Kerberos preauth requirement</a>
-              </div>
-            </div>
-            <input id="force" type="checkbox" name="force"  data-on="Force" data-off="Safe" data-bs-toggle="toggle" data-size="sm">
-            <label for="maxdepth">Max depth:</label><input style="text-align: right; width: 50px" id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99">
-            <div class="btn-group float-right" role="group">
-              <button id="querysubmit" type="button" class="btn dropdown-toggle btn-light btn-sm" data-bs-toggle="dropdown">
-                Analyze
-              </button>
-              <ul class="dropdown-menu">
-                <li class="dropdown-item" onclick="$('#querymode').val('normal'); $('#queryform').submit()">Normal</li>
-                <li class="dropdown-item" onclick="$('#querymode').val('inverted'); $('#queryform').submit()">Reverse</li>
-              </ul>
-            </div>
-            <input id="querymode" type="hidden" name="mode">
-            <!--button id="querysubmit" type="submit" class="btn btn-sm ml-2 btn-light float-right">Analyze</button-->
-          </div>
-        </form>
       </div>
     </div>
-  </body>
+    <div id="optionspop" class="text-center">Options</div>
+  </div>
+  <div id="outerquery" class="bg-primary">
+    <div id="querypop" class="text-center">LDAP Query</div>
+    <div id="querydiv" class="p-2">
+      <form id="queryform" class="m-0">
+        <textarea id="querytext" class="form-control" name="query" rows=4></textarea>
+        <div id="queryerror"></div>
+        <div id="querybuttons" class="mt-2">
+          <div class="btn-group dropup">
+            <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown"
+              aria-haspopup="true" aria-expanded="false">
+              Sample Queries
+            </button>
+
+            <div id="predefinedqueries" class="dropdown-menu vh-100 overflow-auto">
+              <a id="defaultquery" class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(name=Administrators)(name=Domain Admins)(name=Enterprise Admins)(name=Enterprise PKI Admins)))"
+                mode="Normal" depth=99 methods="default">Who owns your AD?</a>
+              <a class="dropdown-item" href="#"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
+                DNS DLL on your DC?</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a
+                Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
+              <a class="dropdown-item" href="#" query="(|(name=Domain Users)(name=Authenticated Users))" mode="Reverse"
+                depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
+              <a class="dropdown-item" href="#"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
+                DNS DLL on your DC?</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via
+                DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups,
+                but not via DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(objectCategory=Group-Policy-Container),(|(name=Domain Admins)(name=Administrators)(name=Enterprise Admins))"
+                mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99
+                methods="default">Users not required to have a password</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))" mode="Normal" depth=99
+                methods="default">Users that can't change password</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))" mode="Normal"
+                depth=99 methods="default">Users where password never expire</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))"
+                mode="Reverse" depth=99 methods="default">Accounts that has a password older than 5 years</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectClass=Person)(pwdLastSet=0)(|(logonCount=0)(!(logonCount=*)))(!(userAccountControl:and:=2)))"
+                mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))"
+                mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal"
+                depth=1 methods="default">Users that are direct members of more than 10 groups</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal"
+                depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(member:count:>100))" mode="Normal"
+                depth=99 methods="default">Groups that have more than 100 direct members</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))" mode="Normal"
+                depth=99>Domain Controllers</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))"
+                mode="Normal" depth=99>Servers or Workstations (100 random)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal"
+                depth=1>Accounts with no Kerberos preauth requirement</a>
+            </div>
+          </div>
+          <input id="force" class="btn-check" type="checkbox" name="force" autocomplete="off">
+          <label class="btn btn-outline-light" for="force">
+            Force
+          </label>
+          <label for="maxdepth">Max depth:</label><input style="text-align: right; width: 50px" id="maxdepth"
+            type="number" name="maxdepth" min="0" max="99" value="99">
+          <label for="maxoutgoing">Max out:</label><input style="text-align: right; width: 60px" id="maxoutgoing"
+            type="number" name="maxoutgoing" min="0" max="5000" value="200">
+          <div class="btn-group float-end" role="group">
+            <button id="querysubmit" type="button" class="btn dropdown-toggle btn-light btn-sm"
+              data-bs-toggle="dropdown">
+              Analyze
+            </button>
+            <ul class="dropdown-menu">
+              <li class="dropdown-item" onclick="$('#querymode').val('normal'); $('#queryform').submit()">Normal</li>
+              <li class="dropdown-item" onclick="$('#querymode').val('inverted'); $('#queryform').submit()">Reverse</li>
+            </ul>
+          </div>
+          <input id="querymode" type="hidden" name="mode">
+          <!--button id="querysubmit" type="submit" class="btn btn-sm ml-2 btn-light float-right">Analyze</button-->
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+
 </html>

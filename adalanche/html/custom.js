@@ -387,6 +387,12 @@ $(function() {
                     }
                 },
                 {
+                    selector: "node[?_canexpand]",
+                    style: {
+                        "font-style": "italic"
+                    }
+                },
+                {
                     selector: "node[?_querytarget]",
                     style: {
                         "background-color": "red"
@@ -753,39 +759,13 @@ $(function() {
         url: "/pwnmethods",
         dataType: "json",
         success: function(methods) {
-            // buttons = '<div class="w-50 col-sm btn-group" data-toggle="buttons">';
             buttons = "";
             for (i in methods) {
-                // buttons += `<button type="checkbox" name="` + methods[i].name + `" class="w-50 btn btn-primary btm-xs` + (methods[i].defaultenabled ? " active" : "") + `" data-toggle="button" aria-pressed="` + (methods[i].defaultenabled ? "true" : "false") + `" autocomplete="off">` + methods[i].name + `</button>`;
-                buttons += `
-                <div class="btn-group-toggle d-inline" data-toggle="buttons">
-                    <label class="btn btn-light btn-xs w-auto` + (methods[i].defaultenabled ? " active" : "") + `">
-                        <input type="checkbox" ` + (methods[i].defaultenabled ? "default" : "") + ` id="` + methods[i].name + `" name="` + methods[i].name + `"` + (methods[i].defaultenabled ? " checked" : "") + `>` +
-                    methods[i].name +
-                    `</label>
-                </div>`;
-                // class="w-50 btn btn-primary btm-xs` + (methods[i].defaultenabled ? " active" : "") + `" data-toggle="button" aria-pressed="` + (methods[i].defaultenabled ? "true" : "false") + `" autocomplete="off">` + methods[i].name + `</button>`;
+                buttons += `<input type="checkbox" ` + (methods[i].defaultenabled ? "checked" : "") + ` class="btn-check" id="` + methods[i].name + `" name="` + methods[i].name + `"  autocomplete="off">`+
+                `<label class="btn btn-outline-light btn-sm mb-2 me-2" for="` + methods[i].name + `">`+methods[i].name + `</label>`;
             }
-            // buttons += '</div>';
             $("#pwnfilter").html(buttons);
 
-            {
-                /* checkboxes = `<div class="d-inline">`;
-                            for (i in methods) {
-                                if (i % 2 == 0) {
-                                    checkboxes += `<div class="row m-0">`;
-                                }
-                                checkboxes += `<div class="w-50 col-sm form-check form-check-inline">
-                      <input class="form-check-input" type="checkbox" ` + (methods[i].defaultenabled ? "checked " : "") + `id="inlineCheckbox` + methods[i].name + `" name="` + methods[i].name + `" value="true">
-                      <label class="form-check-label" for="inlineCheckbox` + methods[i].name + `">` + methods[i].name + `</label>
-                    </div>`;
-                                if (i % 2 == 1) {
-                                    checkboxes += `</div>`;
-                                }
-                            }
-                            checkboxes += `</div>`; 
-                            $("#pwnfilter").html(checkboxes); */
-            }
             // Refresh styling after dynamic load
             $("#querymode").val("normal");
             // Run initial query
