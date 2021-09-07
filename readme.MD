@@ -133,6 +133,63 @@ You can then import all these files when doing analysis:
 
 This will give you insight into who uses what systems, service accounts that are domaun users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
 
+## Detectors and what they mean
+| Detector | Explanation |
+| -------- | ----------- |
+| CreateUser | Permission in ACL allows entity to create user objects in the container |
+| CreateGroup | Permission in ACL allows entity to create group objects in the container |
+| CreateComputer | Permission in ACL allows entity to create computer objects in the container |
+| CreateAnyObject | Permission in ACL allows entity to create any kind of objects in the container |
+| DeleteChildrenTarget | Permission in ACL allows entity to delete all children via the DELETE_CHILD permission on the parent |
+| DeleteObject | Permission in ACL allows entity to delete any kind objects in the container |
+| InheritsSecurity | This flag simply indicates that the object inherits its security ACL from the parent. If it is moved, the permissins will change to what its new parent dictates |
+| ACLContainsDeny | This flag simply indicates that the ACL contains a deny entry, possibly making other detections false positives. You can check effective permissions directly on the AD with the Security tab |
+| ResetPassword | The ACL allows entity to forcibly reset the user account password without knowing the current password. This is noisy, and will alert at least the user, who then no longer can log in. |
+| Owns | The entity owns the object, and can do anything it wishes to it |
+| GenericAll | The entity has GenericAll permissions on the object, which means more or less the same as "Owns" |
+| WriteAll | The entity is allowed all write operations |
+| WritePropertyAll | The entity can write to any property (same as above, ACL is just a bit different) |
+| WriteExtendedAll | The entity is allowed to do all extended write operations |
+| TakeOwnership | The entity can make itself the owner |
+| WriteDACL | The entity can write to the DACL, effectively giving it all permissions after granting them |
+| WriteSPN | The entity can freely write to the Service-Principal-Name attributes using SETSPN.EXE or similar tools. You can then kerberoast the account |
+| WriteValidatedSPN | The entity can do validated writes to the Service-Principal-Name attributes using SETSPN.EXE or similar tools. You can then kerberoast the account |
+| WriteAllowedToAct | The entity is allowed to write to the ms-DS-Allowed-To-Act-On-Behalf-Of-Other-Identity attribute of the object, so we can get it to accept impersonations what would otherwise not work |
+| AddMember | The entity can change members to the group via the Member attribute |
+| AddMemberGroupAttr | The entity can change members to the group via the Member attribute (the set also contains the Is-Member-of-DL attribute, but you can't write to that) |
+| AddSelfMember| The entity can add or remove itself to the list of members |
+| ReadMSAPassword | The entity is allowed to read the plaintext password in the object |
+| HasMSA | |
+| WriteKeyCredentialLink | The entity can write to the msDK-KeyCredentialLink attribute |
+| WriteAttributeSecurityGUID | The entity can write to the AttributeSecurityGUID. I'm not sure if this will work, but it has the potential to allows you to add an important attribute to a less important attribute set |
+| SIDHistoryEquality | The objects SID-History attribute points to this entity, making them equal from a permission point of view |
+| AllExtendedRights | The entity has all extended rights on the object |
+| DCReplicationGetChanges | |
+| DCReplicationSyncronize | |
+| DSReplicationGetChangesAll | |
+| ReadLAPSPassword | The entity is allowed to read the plaintext LAPS password in the mS-MCS-AdmPwd attribute |
+| MemberOfGroup | The entity is a member of this group |
+| HasSPN | The entity has a SPN, and can be kerberoasted by any authenticated user |
+| HasSPNNoPreauth | The entity has a SPN, and can be kerberoasted by an unauthenticated user |
+| AdminSDHolderOverwriteACL | The entity will get it's ACL overwritten by the one on the AdminADHolder object periodically |
+| ComputerAffectedByGPO | The computer object is potentially affected by this GPO. If filtering is in use there will be false positives |
+| GPOMachineConfigPartOfGPO | Experimental |
+| GPOUserConfigPartOfGPO | Experimental |
+| LocalAdminRights | The entity has local administrative rights on the object. This is detected via GPOs or the collector module |
+| LocalRDPRights | The entity has the right to RDP to the object. This is detected via GPOs or the collector module. It doesn't mean you pwn the machine, but you can get a session and try to do PrivEsc |
+| LocalDCOMRights | The entity has the right to use DCOM against the object. This is detected via GPOs or the collector module |
+| LocalSessionLastDay | The entity was seen having a session at least once within the last day |
+| LocalSessionLastWeek | The entity was seen having a session at least once within the last week |
+| LocalSessionLastMonth | The entity was seen having a session at least once within the last month |
+| HasServiceAccountCredentials | The object uses the entitys credentials for a locally installed service, and can be extracted if you pwn the machine |
+| HasAutoAdminLogonCredentials | The object is set to auto login using the entitys credentials which is stored in plain text in the registry for any user to read |
+| ScheduledTaskOnUNCPath | The object contains a scheduled task that sits on a UNC path. If you can control the UNC path you can control what gets executed |
+| MachineScript | Same as above, just as either a startup or shutdown script. Detected via GPOs |
+| WriteAltSecurityIdentities | The entity is allowed to write to the Alt-Security-Identities attribute, so you can put your own certificate there and then authenticate as that user with this certificate |
+| WriteProfilePath | The entity can write to the user profile path of the user |
+| WriteScriptPath | The entity can write to the script path of the user, giving them instant remote execution when the user logs on |
+| CertificateEnroll | The entity is allowed to enroll into this certificate template. That does not mean it's published on a CA server where you're alloed to do enrollment though |
+
 ## Current limitations
 - A large AD with 500.000 objects results in a file approximately 250MB in size
 - adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
