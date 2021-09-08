@@ -6,8 +6,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 func ExportGraphViz(pg PwnGraph, filename string) error {
@@ -26,7 +24,7 @@ func ExportGraphViz(pg PwnGraph, filename string) error {
 	}
 	fmt.Fprintln(df, "")
 	for _, connection := range pg.Connections {
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.Methods.JoinedString())
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.GetMethodBitmap().JoinedString())
 	}
 	fmt.Fprintln(df, "}")
 
@@ -93,8 +91,6 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		},
 	}
 
-	nodeidmap := make(map[*Object]int)
-
 	// Sort the nodes to get consistency
 	sort.Slice(pg.Nodes, func(i, j int) bool {
 		return bytes.Compare(pg.Nodes[i].Object.GUID().Bytes(), pg.Nodes[j].Object.GUID().Bytes()) == -1
@@ -115,11 +111,10 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	g.Elements.Nodes = make([]CytoNode, len(pg.Nodes))
 	for _, node := range pg.Nodes {
 		object := node.Object
-		nodeidmap[object] = idcount
 
 		newnode := CytoNode{
 			Data: map[string]interface{}{
-				"id":                       fmt.Sprintf("n%v", idcount),
+				"id":                       fmt.Sprintf("n%v", object.ID),
 				"label":                    object.Label(),
 				DistinguishedName.String(): object.DN(),
 				Name.String():              object.OneAttr(Name),
@@ -156,26 +151,15 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	edgecount := 0
 
 	for _, connection := range pg.Connections {
-		sourceid, found := nodeidmap[connection.Source]
-		if !found {
-			log.Error().Msg("Source object not found - this should never happen")
-			continue
-		}
-		targetid, found := nodeidmap[connection.Target]
-		if !found {
-			log.Error().Msg("Target object not found - this should never happen")
-			continue
-		}
-
 		edge := CytoEdge{
 			Data: EdgeData{
-				"id":     fmt.Sprintf("e%v", idcount),
-				"source": fmt.Sprintf("n%v", sourceid),
-				"target": fmt.Sprintf("n%v", targetid),
+				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID, connection.Target.ID),
+				"source": fmt.Sprintf("n%v", connection.Source.ID),
+				"target": fmt.Sprintf("n%v", connection.Target.ID),
 			},
 		}
-		for _, method := range connection.Methods.StringSlice() {
-			edge.Data["method_"+method] = true
+		for _, method := range connection.Methods() {
+			edge.Data["method_"+method.String()] = connection.GetProbability(method)
 		}
 		g.Elements.Edges[edgecount] = edge
 

@@ -38,6 +38,8 @@ const (
 )
 
 type Object struct {
+	ID uint64 // Unique ID in Objects collection
+
 	DistinguishedName string
 	Attributes        map[Attribute][]string
 

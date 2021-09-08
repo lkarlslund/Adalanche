@@ -609,7 +609,7 @@ func (p pwnquery) Evaluate(o *Object) bool {
 		items = o.PwnableBy
 	}
 	for _, pwnmethod := range items {
-		if p.method == 0 || pwnmethod.Methods().IsSet(p.method) {
+		if p.method == 0 || pwnmethod.IsSet(p.method) {
 			return true
 		}
 	}

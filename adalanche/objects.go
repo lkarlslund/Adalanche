@@ -12,12 +12,15 @@ type Objects struct {
 	Domain        string // tld
 	DomainNetbios string
 	Base          string // dc=blabla ,dc=com
-	asarray       []*Object
-	objectmap     map[*Object]struct{}
-	dnmap         map[string]*Object
-	sidmap        map[SID]*Object
-	guidmap       map[uuid.UUID]*Object
-	typecount     [OBJECTTYPEMAX]int
+
+	idcounter uint64 // Unique ID +1 to assign to Object added to this collection if it's zero
+
+	asarray   []*Object
+	objectmap map[*Object]struct{}
+	dnmap     map[string]*Object
+	sidmap    map[SID]*Object
+	guidmap   map[uuid.UUID]*Object
+	typecount [OBJECTTYPEMAX]int
 
 	classmap map[string]*Object // top, user, person -> schema object
 }
@@ -27,6 +30,7 @@ func (os *Objects) Init(ios *Objects) {
 		os.Base = ios.Base
 		os.Domain = ios.Domain
 		os.DomainNetbios = ios.DomainNetbios
+		os.idcounter = ios.idcounter
 	}
 	os.objectmap = make(map[*Object]struct{})
 	os.dnmap = make(map[string]*Object)
@@ -49,6 +53,11 @@ func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 }
 
 func (os *Objects) Add(o *Object) {
+	if o.ID == 0 {
+		os.idcounter++
+		o.ID = os.idcounter
+	}
+
 	os.asarray = append(os.asarray, o)
 	os.objectmap[o] = struct{}{}
 	os.dnmap[strings.ToLower(o.DN())] = o

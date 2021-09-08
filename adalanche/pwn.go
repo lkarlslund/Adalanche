@@ -19,11 +19,12 @@ type PwnAnalyzer struct {
 
 type PwnMethodBitmap uint64
 type Probability float32
+
 type Probabilities []Probability
 
 type PwnInfo struct {
 	Target      *Object
-	Method      PwnMethodBitmap
+	Method      PwnMethod
 	Probability Probability
 }
 
@@ -35,6 +36,18 @@ func (pm PwnMethodBitmap) Set(method PwnMethod) PwnMethodBitmap {
 
 func (pm PwnMethodBitmap) Match(methods PwnMethodBitmap) PwnMethodBitmap {
 	return pm & methods
+}
+
+func (pm PwnMethodBitmap) Methods() []PwnMethod {
+	result := make([]PwnMethod, bits.OnesCount64(uint64(pm)))
+	var n int
+	for i := PwnMethod(1); i <= MaxPwnMethod; i++ {
+		if pm.IsSet(i) {
+			result[n] = i
+			n++
+		}
+	}
+	return result
 }
 
 func (pc PwnConnections) Objects() ObjectSlice {
@@ -54,8 +67,8 @@ func (pc PwnConnections) Set(o *Object, method PwnMethod, probability Probabilit
 	pc[o] = p
 }
 
-func (pmc *PwnMethodsAndprobabilities) Set(method PwnMethod, probability Probability) {
-	pmc.bitmap = pmc.bitmap.Set(method)
+func (pmc *PwnMethodsAndProbabilities) Set(method PwnMethod, probability Probability) {
+	pmc.PwnMethodBitmap = pmc.PwnMethodBitmap.Set(method)
 	if probability != 100 {
 		// find location for this
 		var offset int
@@ -75,8 +88,8 @@ func (pmc *PwnMethodsAndprobabilities) Set(method PwnMethod, probability Probabi
 	}
 }
 
-func (pmc *PwnMethodsAndprobabilities) Getprobability(method PwnMethod) Probability {
-	if !pmc.bitmap.IsSet(method) {
+func (pmc *PwnMethodsAndProbabilities) GetProbability(method PwnMethod) Probability {
+	if !pmc.IsSet(method) {
 		return 0
 	}
 	if !pmc.probabilitymap.IsSet(method) {
@@ -91,8 +104,8 @@ func (pmc *PwnMethodsAndprobabilities) Getprobability(method PwnMethod) Probabil
 	return pmc.probabilities[offset]
 }
 
-func (pmc PwnMethodsAndprobabilities) Methods() PwnMethodBitmap {
-	return pmc.bitmap
+func (pmc PwnMethodsAndProbabilities) GetMethodBitmap() PwnMethodBitmap {
+	return pmc.PwnMethodBitmap
 }
 
 const (
@@ -163,16 +176,16 @@ func init() {
 	}
 }
 
-type PwnMethodsAndprobabilities struct {
-	bitmap         PwnMethodBitmap // Indicates if we have this method registered
-	probabilitymap PwnMethodBitmap // Indicates if we have a probability set or should just return 100
-	probabilities  Probabilities
+type PwnMethodsAndProbabilities struct {
+	PwnMethodBitmap                 // Indicates if we have this method registered
+	probabilitymap  PwnMethodBitmap // Indicates if we have a probability set or should just return 100
+	probabilities   Probabilities
 }
 
-type PwnConnections map[*Object]PwnMethodsAndprobabilities
+type PwnConnections map[*Object]PwnMethodsAndProbabilities
 
 func (m PwnMethodBitmap) IsSet(method PwnMethod) bool {
-	return m&1<<m != 0 // Uuuuh, nasty and unreadable
+	return (m & (1 << method)) != 0 // Uuuuh, nasty and unreadable
 }
 
 func (m PwnMethodBitmap) Intersect(methods PwnMethodBitmap) PwnMethodBitmap {

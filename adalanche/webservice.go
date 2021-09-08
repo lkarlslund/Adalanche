@@ -146,11 +146,11 @@ func webservice(bind string) http.Server {
 		}
 
 		for target, pwnmethod := range o.CanPwn {
-			od.CanPwn[target.DN()] = pwnmethod.Methods().StringSlice()
+			od.CanPwn[target.DN()] = pwnmethod.GetMethodBitmap().StringSlice()
 		}
 
 		for target, pwnmethod := range o.PwnableBy {
-			od.PwnableBy[target.DN()] = pwnmethod.Methods().StringSlice()
+			od.PwnableBy[target.DN()] = pwnmethod.GetMethodBitmap().StringSlice()
 		}
 		e := qjson.NewEncoder(w)
 		e.SetIndent("", "  ")
@@ -252,16 +252,9 @@ func webservice(bind string) http.Server {
 		}
 		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
 
-		targetmap := make(map[*Object]bool)
-		for _, node := range pg.Nodes {
-			if node.Target {
-				targetmap[node.Object] = true
-			}
-		}
-
 		var targets, users, computers, groups, others int
 		for _, node := range pg.Nodes {
-			if targetmap[node.Object] {
+			if node.Target {
 				targets++
 				continue
 			}
@@ -511,7 +504,7 @@ func webservice(bind string) http.Server {
 				graph.Edges = append(graph.Edges, XGMMLEdge{
 					Source: idmap[pwn.Source],
 					Target: idmap[pwn.Target],
-					Label:  pwn.Methods.JoinedString(),
+					Label:  pwn.GetMethodBitmap().JoinedString(),
 				})
 			}
 			fmt.Fprint(w, xml.Header)

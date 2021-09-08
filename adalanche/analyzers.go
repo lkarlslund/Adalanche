@@ -1023,12 +1023,12 @@ type PwnPair struct {
 
 type PwnConnection struct {
 	Source, Target *Object
-	Methods        PwnMethodBitmap
+	PwnMethodsAndProbabilities
 }
 
 func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int) (pg PwnGraph) {
-	connectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
-	implicatedobjectsmap := make(map[*Object]int)       // Object -> Processed in round n
+	connectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
+	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
 	canexpand := make(map[*Object]struct{})
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
@@ -1047,7 +1047,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 		somethingprocessed = false
 		log.Debug().Msgf("Processing round %v with %v total objects", processinground, len(implicatedobjectsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
-		newconnectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
+		newconnectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 
 		for object, processed := range implicatedobjectsmap {
 			if processed != 0 {
@@ -1068,7 +1068,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 				pwninfo := pwnlist[pwntarget]
 
 				// If this is not a chosen method, skip it
-				detectedmethods := pwninfo.Methods().Intersect(methods)
+				detectedmethods := pwninfo.Intersect(methods)
 				if detectedmethods.Count() == 0 || detectedmethods.IsSet(PwnACLContainsDeny) {
 					// Nothing useful or just a deny ACL, skip it
 					continue
@@ -1101,10 +1101,20 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 					break
 				}
 
-				if forward {
-					newconnectionsmap[PwnPair{Source: pwntarget, Target: object}] = detectedmethods
+				var filteredmethods PwnMethodsAndProbabilities
+				if detectedmethods == pwninfo.PwnMethodBitmap {
+					filteredmethods = pwninfo
 				} else {
-					newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
+					for _, method := range detectedmethods.Methods() {
+						filteredmethods.Set(method, pwninfo.GetProbability(method)) // Sloooow
+					}
+
+				}
+
+				if forward {
+					newconnectionsmap[PwnPair{Source: pwntarget, Target: object}] = filteredmethods
+				} else {
+					newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = filteredmethods
 				}
 			}
 
@@ -1137,7 +1147,11 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 	pg.Connections = make([]PwnConnection, len(connectionsmap))
 	i := 0
 	for connection, methods := range connectionsmap {
-		pg.Connections[i] = PwnConnection{Source: connection.Source, Target: connection.Target, Methods: methods}
+		pg.Connections[i] = PwnConnection{
+			Source:                     connection.Source,
+			Target:                     connection.Target,
+			PwnMethodsAndProbabilities: methods,
+		}
 		i++
 	}
 
