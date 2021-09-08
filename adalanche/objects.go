@@ -178,8 +178,8 @@ func (os *Objects) FindOrAddSID(s SID) *Object {
 			ObjectGUID: {string(u.Bytes())},
 			ObjectSid:  {string(s)},
 		},
-		CanPwn:    make(map[*Object]PwnMethod),
-		PwnableBy: make(map[*Object]PwnMethod),
+		CanPwn:    make(PwnConnections),
+		PwnableBy: make(PwnConnections),
 	}
 	log.Info().Msgf("Adding unknown SID %v as %v", s, o.DistinguishedName)
 	os.Add(o)

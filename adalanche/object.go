@@ -41,8 +41,8 @@ type Object struct {
 	DistinguishedName string
 	Attributes        map[Attribute][]string
 
-	PwnableBy PwnSet
-	CanPwn    PwnSet
+	PwnableBy PwnConnections
+	CanPwn    PwnConnections
 	// reach     int // AD ControlPower Measurement
 	// value     int // This objects value
 
@@ -288,7 +288,7 @@ func (o *Object) Members(recursive bool) []*Object {
 	if !recursive {
 		return o.members
 	}
-	var members map[*Object]struct{}
+	members := make(map[*Object]struct{})
 	for _, directmember := range o.members {
 		members[directmember] = struct{}{}
 		if recursive {
@@ -388,8 +388,8 @@ func (o *Object) init() {
 		o.Attributes = make(map[Attribute][]string)
 	}
 	if o.CanPwn == nil || o.PwnableBy == nil {
-		o.CanPwn = make(map[*Object]PwnMethod)
-		o.PwnableBy = make(map[*Object]PwnMethod)
+		o.CanPwn = make(PwnConnections)
+		o.PwnableBy = make(PwnConnections)
 	}
 }
 
@@ -500,6 +500,21 @@ func (o *Object) GUID() uuid.UUID {
 		o.guidcached = true
 	}
 	return o.guid
+}
+
+func (o *Object) Pwns(target *Object, method PwnMethod, probability Probability) {
+	if o == target || o.SID() == target.SID() { // SID check solves (some) dual-AD analysis problems
+		// We don't care about self owns
+		return
+	}
+
+	// Ignore these, SELF = self own, Creator/Owner always has full rights
+	if o.SID() == SelfSID || o.SID() == CreatorOwnerSID || o.SID() == SystemSID {
+		return
+	}
+
+	o.CanPwn.Set(target, method, probability)    // Add the connection
+	target.PwnableBy.Set(o, method, probability) // Add the reverse connection too
 }
 
 /*

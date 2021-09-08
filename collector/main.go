@@ -99,6 +99,15 @@ func main() {
 		}
 	}
 
+	// SCCM SETTINGS
+	ccmsetup_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Microsoft\CCMSetup`,
+		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err == nil {
+		defer ccmsetup_key.Close()
+		machineinfo.SCCMLastValidMP, _, _ = ccmsetup_key.GetStringValue(`LastValidMP`)
+	}
+
 	// UAC SETTINGS
 	polsys_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Policies\System`,

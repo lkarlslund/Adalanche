@@ -146,11 +146,11 @@ func webservice(bind string) http.Server {
 		}
 
 		for target, pwnmethod := range o.CanPwn {
-			od.CanPwn[target.DN()] = pwnmethod.StringSlice()
+			od.CanPwn[target.DN()] = pwnmethod.Methods().StringSlice()
 		}
 
 		for target, pwnmethod := range o.PwnableBy {
-			od.PwnableBy[target.DN()] = pwnmethod.StringSlice()
+			od.PwnableBy[target.DN()] = pwnmethod.Methods().StringSlice()
 		}
 		e := qjson.NewEncoder(w)
 		e.SetIndent("", "  ")
@@ -189,7 +189,7 @@ func webservice(bind string) http.Server {
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
 		maxoutgoing := 0
-		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
+		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxoutgoing")); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
 
@@ -246,9 +246,9 @@ func webservice(bind string) http.Server {
 			selectedmethods = PwnMethodValues()
 		}
 
-		var methods PwnMethod
+		var methods PwnMethodBitmap
 		for _, m := range selectedmethods {
-			methods |= m
+			methods = methods.Set(m)
 		}
 		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
 
@@ -420,9 +420,9 @@ func webservice(bind string) http.Server {
 			selectedmethods = PwnMethodValues()
 		}
 
-		var methods PwnMethod
+		var methods PwnMethodBitmap
 		for _, m := range selectedmethods {
-			methods |= m
+			methods = methods.Set(m)
 		}
 		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
 

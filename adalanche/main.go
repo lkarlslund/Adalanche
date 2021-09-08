@@ -644,27 +644,26 @@ func main() {
 					log.Info().Msg("Detected LAPS schema extension, adding extra analyzer")
 					PwnAnalyzers = append(PwnAnalyzers, PwnAnalyzer{
 						Method: PwnReadLAPSPassword,
-						ObjectAnalyzer: func(o *Object) []*Object {
-							var results []*Object
+						ObjectAnalyzer: func(o *Object) {
 							// Only for computers
 							if o.Type() != ObjectTypeComputer {
-								return results
+								return
 							}
 							// ... that has LAPS installed
 							if len(o.Attr(MSmcsAdmPwdExpirationTime)) == 0 {
-								return results
+								return
 							}
 							// Analyze ACL
 							sd, err := o.SecurityDescriptor()
 							if err != nil {
-								return results
+								return
 							}
 							for index, acl := range sd.DACL.Entries {
 								if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, objectGUID) {
-									results = append(results, AllObjects.FindOrAddSID(acl.SID))
+									AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnReadLAPSPassword, 100)
 								}
 							}
-							return results
+							return
 						},
 					})
 				}
@@ -714,26 +713,11 @@ func main() {
 	var pwnlinks int
 	for _, object := range AllObjects.AsArray() {
 		pwnbar.Add(1)
-		// log.Info().Msg(object.String())
 		for _, analyzer := range PwnAnalyzers {
-			for _, pwnobject := range analyzer.ObjectAnalyzer(object) {
-				if pwnobject == object || pwnobject.SID() == object.SID() { // SID check solves (some) dual-AD analysis problems
-					// We don't care about self owns
-					continue
-				}
-
-				// Ignore these, SELF = self own, Creator/Owner always has full rights
-				if pwnobject.SID() == SelfSID || pwnobject.SID() == CreatorOwnerSID || pwnobject.SID() == SystemSID {
-					continue
-				}
-				// log.Debug().Msgf("Detected that %v can pwn %v by %v", pwnobject.DN(), object.DN(), analyzer.Method)
-				pwnobject.CanPwn[object] = pwnobject.CanPwn[object].Set(analyzer.Method)
-				object.PwnableBy[pwnobject] = object.PwnableBy[pwnobject].Set(analyzer.Method)
-				pwnlinks++
-			}
+			analyzer.ObjectAnalyzer(object)
+			pwnlinks++
 		}
 	}
-
 	pwnbar.Finish()
 	log.Debug().Msgf("Detected %v ways to pwn objects", pwnlinks)
 
@@ -771,7 +755,7 @@ func main() {
 		if *exportinverted {
 			mode = "inverted"
 		}
-		resultgraph := AnalyzeObjects(includeobjects, nil, PwnMethod(PwnAllMethods), mode, 99, 0)
+		resultgraph := AnalyzeObjects(includeobjects, nil, AllPwnMethods, mode, 99, 0)
 
 		switch *exporttype {
 		case "graphviz":

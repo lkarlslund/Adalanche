@@ -178,6 +178,7 @@ This will give you insight into who uses what systems, service accounts that are
 | LocalAdminRights | The entity has local administrative rights on the object. This is detected via GPOs or the collector module |
 | LocalRDPRights | The entity has the right to RDP to the object. This is detected via GPOs or the collector module. It doesn't mean you pwn the machine, but you can get a session and try to do PrivEsc |
 | LocalDCOMRights | The entity has the right to use DCOM against the object. This is detected via GPOs or the collector module |
+| LocalSMSAdmins | The entity has the right to use SCCM Configuration Manager against the object. This is detected via the collector module. It does not mean that everyone are SCCM admins, but some are |
 | LocalSessionLastDay | The entity was seen having a session at least once within the last day |
 | LocalSessionLastWeek | The entity was seen having a session at least once within the last week |
 | LocalSessionLastMonth | The entity was seen having a session at least once within the last month |

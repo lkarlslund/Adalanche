@@ -14,6 +14,9 @@ import (
 
 func importCollectorFiles(path string, objs *Objects) error {
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
 			// Import it
 			raw, err := ioutil.ReadFile(path)
@@ -58,7 +61,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 			// Iterate over Groups
 			for _, group := range cinfo.Groups {
 				groupsid, err := SIDFromString(group.SID)
-				if err != nil {
+				if err != nil && group.Name != "SMS Admins" {
 					log.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
 					continue
 				}
@@ -82,17 +85,17 @@ func importCollectorFiles(path string, objs *Objects) error {
 					if membersid.Component(2) != 21 {
 						continue // Not a domain SID, skip it
 					}
+
 					if member, found := objs.FindSID(membersid); found {
-						switch groupsid {
-						case SIDAdministrators:
-							member.CanPwn.Set(computerobject, PwnLocalAdminRights)
-							computerobject.PwnableBy.Set(member, PwnLocalAdminRights)
-						case SIDDCOMUsers:
-							member.CanPwn.Set(computerobject, PwnLocalDCOMRights)
-							computerobject.PwnableBy.Set(member, PwnLocalDCOMRights)
-						case SIDRemoteDesktopUsers:
-							member.CanPwn.Set(computerobject, PwnLocalRDPRights)
-							computerobject.PwnableBy.Set(member, PwnLocalRDPRights)
+						switch {
+						case group.Name == "SMS Admins":
+							member.Pwns(computerobject, PwnLocalSMSAdmins, 50)
+						case groupsid == SIDAdministrators:
+							member.Pwns(computerobject, PwnLocalAdminRights, 100)
+						case groupsid == SIDDCOMUsers:
+							member.Pwns(computerobject, PwnLocalDCOMRights, 50)
+						case groupsid == SIDRemoteDesktopUsers:
+							member.Pwns(computerobject, PwnLocalRDPRights, 30)
 						}
 					}
 				}
@@ -109,8 +112,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 					continue // Not a domain SID, skip it
 				}
 				if user, found := objs.FindSID(usersid); found {
-					computerobject.CanPwn.Set(user, PwnLocalSessionLastDay)
-					user.PwnableBy.Set(computerobject, PwnLocalSessionLastDay)
+					computerobject.Pwns(user, PwnLocalSessionLastDay, 100)
 				}
 			}
 			for _, login := range cinfo.LoginPopularity.Week {
@@ -123,8 +125,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 					continue // Not a domain SID, skip it
 				}
 				if user, found := objs.FindSID(usersid); found {
-					computerobject.CanPwn.Set(user, PwnLocalSessionLastWeek)
-					user.PwnableBy.Set(computerobject, PwnLocalSessionLastWeek)
+					computerobject.Pwns(user, PwnLocalSessionLastWeek, 100)
 				}
 			}
 			for _, login := range cinfo.LoginPopularity.Month {
@@ -137,8 +138,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 					continue // Not a domain SID, skip it
 				}
 				if user, found := objs.FindSID(usersid); found {
-					computerobject.CanPwn.Set(user, PwnLocalSessionLastMonth)
-					user.PwnableBy.Set(computerobject, PwnLocalSessionLastMonth)
+					computerobject.Pwns(user, PwnLocalSessionLastMonth, 100)
 				}
 			}
 
@@ -148,8 +148,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 					// NETBIOS name for domain check FIXME
 					account, err := objs.FindOne(SAMAccountName, cinfo.Machine.DefaultUsername)
 					if err == nil {
-						computerobject.CanPwn.Set(account, PwnHasAutoAdminLogonCredentials)
-						account.PwnableBy.Set(computerobject, PwnHasAutoAdminLogonCredentials)
+						computerobject.Pwns(account, PwnHasAutoAdminLogonCredentials, 100)
 					}
 				}
 			}
@@ -160,8 +159,7 @@ func importCollectorFiles(path string, objs *Objects) error {
 				if len(nameparts) == 2 && nameparts[0] == objs.DomainNetbios {
 					svcaccount, err := objs.FindOne(SAMAccountName, nameparts[1])
 					if err == nil {
-						computerobject.CanPwn.Set(svcaccount, PwnHasServiceAccountCredentials)
-						svcaccount.PwnableBy.Set(computerobject, PwnHasServiceAccountCredentials)
+						computerobject.Pwns(svcaccount, PwnHasServiceAccountCredentials, 100)
 					}
 				}
 			}
