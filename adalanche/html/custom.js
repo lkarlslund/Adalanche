@@ -423,8 +423,8 @@ $(function() {
                     style: {
                         // _content: "data(methods)",
                         color: "white",
-                        "curve-style": "haystack",
-                        // "curve-style": "bezier",
+                        // "curve-style": "haystack",
+                        "curve-style": "bezier",
                         "target-arrow-shape": "triangle"
                     }
                 },
