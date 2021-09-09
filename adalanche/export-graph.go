@@ -31,63 +31,39 @@ func ExportGraphViz(pg PwnGraph, filename string) error {
 	return nil
 }
 
-/*
-type CytoID string
-
-type NodeData struct {
-	Id                CytoID            `json:"id"`
-	Label             string            `json:"label"`
-	DistinguishedName string            `json:"distinguishedname,omitempty"`
-	Name              string            `json:"name,omitempty"`
-	DisplayName       string            `json:"displayname,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	SID               string            `json:"sid,omitempty"`
-	Target            bool              `json:"target,omitempty"`
-	SAMaccountname    string            `json:"samaccountname,omitempty"`
-	Meta              map[string]string `json:"-,inline"`
-}
-*/
-type CytoNode struct {
-	Data map[string]interface{} `json:"data"`
-	// Classes []string               `json:"classes"`
-}
-
 type MethodMap map[string]bool
 
-type EdgeData map[string]interface{}
+type CytoData map[string]interface{}
 
-type CytoEdge struct {
-	Data EdgeData `json:"data"`
-	// Classes []string `json:"classes"`
+type CytoGraph struct {
+	FormatVersion            string        `json:"format_version"`
+	GeneratedBy              string        `json:"generated_by"`
+	TargetCytoscapeJSVersion string        `json:"target_cytoscapejs_version"`
+	Data                     CytoGraphData `json:"data"`
+	Elements                 CytoElements  `json:"elements"`
 }
 
-type CytoData struct {
+type CytoGraphData struct {
 	SharedName string `json:"shared_name"`
 	Name       string `json:"name"`
 	SUID       int    `json:"SUID"`
 }
 
-type CytoElements struct {
-	Nodes []CytoNode `json:"nodes"`
-	Edges []CytoEdge `json:"edges"`
-}
+type CytoElements []CytoFlatElement
 
-type CytoGraph struct {
-	FormatVersion            string       `json:"format_version"`
-	GeneratedBy              string       `json:"generated_by"`
-	TargetCytoscapeJSVersion string       `json:"target_cytoscapejs_version"`
-	Data                     CytoData     `json:"data"`
-	Elements                 CytoElements `json:"elements"`
+type CytoFlatElement struct {
+	Group string   `json:"group"` // nodes or edges
+	Data  CytoData `json:"data"`
 }
 
 func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
-		GeneratedBy:              "AD Takeover",
-		TargetCytoscapeJSVersion: "~2.1",
-		Data: CytoData{
-			SharedName: "AD Takeover",
-			Name:       "AD Takeover",
+		GeneratedBy:              programname + " " + commit + " " + builddate,
+		TargetCytoscapeJSVersion: "~3.0",
+		Data: CytoGraphData{
+			SharedName: "adalanche analysis data",
+			Name:       "adalanche analysis data",
 		},
 	}
 
@@ -105,14 +81,13 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 				pg.Connections[i].Target.GUID().Bytes()) == -1
 	})
 
-	nodecount := 0
-	idcount := 0
-
-	g.Elements.Nodes = make([]CytoNode, len(pg.Nodes))
+	g.Elements = make(CytoElements, len(pg.Nodes)+len(pg.Connections))
+	var i int
 	for _, node := range pg.Nodes {
 		object := node.Object
 
-		newnode := CytoNode{
+		newnode := CytoFlatElement{
+			Group: "nodes",
 			Data: map[string]interface{}{
 				"id":                       fmt.Sprintf("n%v", object.ID),
 				"label":                    object.Label(),
@@ -137,22 +112,19 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		if node.Target {
 			newnode.Data["_querytarget"] = true
 		}
-		if node.CanExpand {
-			newnode.Data["_canexpand"] = true
+		if node.CanExpand != 0 {
+			newnode.Data["_canexpand"] = node.CanExpand
 		}
 
-		g.Elements.Nodes[nodecount] = newnode
+		g.Elements[i] = newnode
 
-		idcount++
-		nodecount++
+		i++
 	}
 
-	g.Elements.Edges = make([]CytoEdge, len(pg.Connections))
-	edgecount := 0
-
 	for _, connection := range pg.Connections {
-		edge := CytoEdge{
-			Data: EdgeData{
+		edge := CytoFlatElement{
+			Group: "edges",
+			Data: CytoData{
 				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID, connection.Target.ID),
 				"source": fmt.Sprintf("n%v", connection.Source.ID),
 				"target": fmt.Sprintf("n%v", connection.Target.ID),
@@ -161,10 +133,9 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		for _, method := range connection.Methods() {
 			edge.Data["method_"+method.String()] = connection.GetProbability(method)
 		}
-		g.Elements.Edges[edgecount] = edge
+		g.Elements[i] = edge
 
-		idcount++
-		edgecount++
+		i++
 	}
 
 	return g, nil

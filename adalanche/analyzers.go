@@ -1009,7 +1009,7 @@ var dcsyncobjects = make(map[*Object]syncinfo)
 type GraphObject struct {
 	*Object
 	Target    bool
-	CanExpand bool
+	CanExpand int
 }
 
 type PwnGraph struct {
@@ -1029,7 +1029,7 @@ type PwnConnection struct {
 func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int) (pg PwnGraph) {
 	connectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
-	canexpand := make(map[*Object]struct{})
+	canexpand := make(map[*Object]int)
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := strings.HasPrefix(mode, "normal")
@@ -1047,13 +1047,14 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 		somethingprocessed = false
 		log.Debug().Msgf("Processing round %v with %v total objects", processinground, len(implicatedobjectsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
-		newconnectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 
 		for object, processed := range implicatedobjectsmap {
 			if processed != 0 {
 				continue
 			}
 			somethingprocessed = true
+
+			newconnectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 
 			var pwnlist PwnConnections
 			if forward {
@@ -1131,8 +1132,8 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 				}
 				// Add pwn target to graph for processing
 			} else {
-				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v", maxoutgoingconnections, object.Label())
-				canexpand[object] = struct{}{}
+				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", maxoutgoingconnections, object.Label(), len(newconnectionsmap))
+				canexpand[object] = len(newconnectionsmap)
 			}
 			implicatedobjectsmap[object] = processinground // We're done processing this
 		}
@@ -1162,8 +1163,8 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 		if includeobjects.Contains(object) {
 			pg.Nodes[i].Target = true
 		}
-		if _, found := canexpand[object]; found {
-			pg.Nodes[i].CanExpand = true
+		if expandnum, found := canexpand[object]; found {
+			pg.Nodes[i].CanExpand = expandnum
 		}
 		i++
 	}

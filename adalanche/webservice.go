@@ -165,41 +165,63 @@ func webservice(bind string) http.Server {
 	})
 	// Graph based query analysis - core functionality
 	router.HandleFunc("/cytograph.json", func(w http.ResponseWriter, r *http.Request) {
-		uq := r.URL.Query()
+		vars := make(map[string]string)
+		err := json.NewDecoder(r.Body).Decode(&vars)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, "Can't decode body: %v", err)
+			return
+		}
+
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 
-		anonymize, _ := ParseBool(uq.Get("anonymize"))
+		anonymize, _ := ParseBool(vars["anonymize"])
 
-		mode := uq.Get("mode")
+		mode := vars["mode"]
 		if mode == "" {
 			mode = "normal"
 		}
 
-		query := uq.Get("query")
+		query := vars["query"]
 		if query == "" {
 			query = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
 
 		maxdepth := 99
-		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
+		if maxdepthval, err := strconv.Atoi(vars["maxdepth"]); err == nil {
 			maxdepth = maxdepthval
 		}
 
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
 		maxoutgoing := 0
-		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxoutgoing")); err == nil {
+		if maxoutgoingval, err := strconv.Atoi(vars["maxoutgoing"]); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
 
-		alldetails, _ := ParseBool(uq.Get("alldetails"))
-		force, _ := ParseBool(uq.Get("force"))
+		alldetails, _ := ParseBool(vars["alldetails"])
+		force, _ := ParseBool(vars["force"])
 
 		var includeobjects *Objects
 		var excludeobjects *Objects
 
 		var excludequery Query
+
+		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
+		if expanddn := vars["expanddn"]; expanddn != "" {
+			query = `(distinguishedName=` + expanddn + `)`
+			maxoutgoing = 0
+			maxdepth = 1
+			force = true
+
+			// tricky this is - if we're expanding a node it's suddenly the target, so we need to reverse the mode
+			/*			if mode == "normal" {
+							mode = "reverse"
+						} else {
+							mode = "normal"
+						}*/
+		}
 
 		rest, includequery, err := ParseQuery(query)
 		if err != nil {
@@ -233,12 +255,12 @@ func webservice(bind string) http.Server {
 		}
 
 		var selectedmethods []PwnMethod
-		for potentialmethod, values := range uq {
+		for potentialmethod, _ := range vars {
 			if method, ok := PwnMethodString(potentialmethod); ok == nil {
-				enabled, _ := ParseBool(values[0])
-				if len(values) == 1 && enabled {
-					selectedmethods = append(selectedmethods, method)
-				}
+				// enabled, _ := value.(bool)
+				// if enabled {
+				selectedmethods = append(selectedmethods, method)
+				// }
 			}
 		}
 		// If everything is deselected, select everything
@@ -288,12 +310,14 @@ func webservice(bind string) http.Server {
 		}
 
 		if anonymize {
-			for _, node := range cytograph.Elements.Nodes {
-				node.Data["label"] = StringScrambler(node.Data["label"].(string))
-				node.Data[DistinguishedName.String()] = StringScrambler(node.Data[DistinguishedName.String()].(string))
-				node.Data[Name.String()] = StringScrambler(node.Data[Name.String()].(string))
-				node.Data[DisplayName.String()] = StringScrambler(node.Data[DisplayName.String()].(string))
-				node.Data[SAMAccountName.String()] = StringScrambler(node.Data[SAMAccountName.String()].(string))
+			for _, node := range cytograph.Elements {
+				if node.Group == "nodes" {
+					node.Data["label"] = StringScrambler(node.Data["label"].(string))
+					node.Data[DistinguishedName.String()] = StringScrambler(node.Data[DistinguishedName.String()].(string))
+					node.Data[Name.String()] = StringScrambler(node.Data[Name.String()].(string))
+					node.Data[DisplayName.String()] = StringScrambler(node.Data[DisplayName.String()].(string))
+					node.Data[SAMAccountName.String()] = StringScrambler(node.Data[SAMAccountName.String()].(string))
+				}
 			}
 		}
 

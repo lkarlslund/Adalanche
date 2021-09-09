@@ -388,7 +388,8 @@ $(function() {
                 {
                     selector: "node[?_canexpand]",
                     style: {
-                        "font-style": "italic"
+                        "font-style": "italic",
+                        "color": "orange"
                     }
                 },
                 {
@@ -424,7 +425,8 @@ $(function() {
                         // _content: "data(methods)",
                         color: "white",
                         // "curve-style": "haystack",
-                        "curve-style": "bezier",
+                        // "curve-style": "bezier",
+                        "curve-style": "straight",
                         "target-arrow-shape": "triangle"
                     }
                 },
@@ -524,12 +526,46 @@ $(function() {
                         selector: 'node',
                         onClickFunction: function(event) {
                             findroute(event.target);
-                        }
+                        },
+                        hasTrailingDivider: true, // Whether the item will have a trailing divider
+                    },
+                    {
+                        id: 'expand', // ID of menu item
+                        content: 'Expand node', // Display content of menu item
+                        tooltipText: 'Load missing edges and nodes', // Tooltip text for menu item
+                        // image: {src : "remove.svg", width : 12, height : 12, x : 6, y : 4}, // menu icon
+                        // Filters the elements to have this menu item on cxttap
+                        // If the selector is not truthy no elements will have this menu item on cxttap
+                        selector: 'node[_canexpand>0]',
+                        onClickFunction: function (event) { // The function to be executed on click
+                            // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
+                            expanddata = $("#queryform, #optionsform").serializeArray()
+                            expanddata.push({name: "expanddn", value: event.target.attr("distinguishedname")})
+                            
+                            $.ajax({
+                                type: "POST",
+                                url: "cytograph.json",
+                                data: JSON.stringify(expanddata.reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
+                                dataType: "json",
+                                success: function (data) {
+                                    neweles = cy.add(data.elements)
+                                    replaceele = neweles.getElementById(event.target.attr("id"))
+                                    cy.elements().merge(neweles) // merge adds what is missing
+                                    cy.elements().add(replaceele) // then we forcibly update the old object
+                                },
+                                error: function (xhr, status, error) {
+                                    $("#status").html("Problem loading graph:<br>" + xhr.responseText).show()
+                                }
+                            });
+
+
+                        },
+                        hasTrailingDivider: true, // Whether the item will have a trailing divider
                     },
                     {
                         id: 'whatcanipwn',
                         content: 'What can this node pwn?',
-                        tooltipText: 'Does inverse search on this node (clears graph)',
+                        tooltipText: 'Does reverse search on this node (clears graph)',
                         selector: 'node',
                         onClickFunction: function(event) {
                             $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedname") + ")")
@@ -618,6 +654,19 @@ $(function() {
             root: source,
             goal: target,
             weight: function(ele) {
+                maxprobability = -1
+                for (i in ele.data()) {
+                    if (i.startsWith("method_")) {
+                        probability = ele.data(i)
+                        if (probability>maxprobability) {
+                            maxprobability = probability
+                        }
+                    }
+                }
+                if (maxprobability != -1) {
+                    return maxprobability-100 // higher probability equals lower priority number
+                }
+
                 if (ele.target().data("accountdisabled") && !(ele.target().data("pwn_writedacl") || ele.target().data("pwn_writeall") || ele.target().data("pwn_writepropertyall") || ele.target().data("pwn_takeownership") || ele.target().data("pwn_owns"))) {
                     // Account disabled, but this route does not allow us to enable it
                     return 10000
@@ -693,9 +742,9 @@ $(function() {
         $("#status").html("Loading ...").show()
 
         $.ajax({
-            type: "GET",
+            type: "POST",
             url: "cytograph.json",
-            data: $("#queryform, #optionsform").serialize(),
+            data: JSON.stringify($("#queryform, #optionsform").serializeArray().reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
             dataType: "json",
             success: function(data) {
                 $("#route").hide();
