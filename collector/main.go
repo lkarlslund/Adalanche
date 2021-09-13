@@ -17,10 +17,12 @@ import (
 	"github.com/antchfx/xmlquery"
 	"github.com/gravwell/gravwell/v3/winevent"
 	"github.com/lkarlslund/adalanche/modules/collector"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	winapi "github.com/lkarlslund/go-win64api"
 	"github.com/mattn/go-colorable"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -411,18 +413,76 @@ func main() {
 					objectname, _, _ := service_key.GetStringValue("ObjectName")
 					objectnamesid, _ := winio.LookupSidByName(objectname)
 					imagepath, _, _ := service_key.GetStringValue("ImagePath")
+
+					// Grab ImagePath key security
+					_, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+
+					// let's see if we can grab a DACL
+					var imagepathowner string
+					var imageexecutable string
+					var imagepathdacl []byte
+					if imagepath != "" {
+						// Windows service executable names is a hot effin mess
+						if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
+							imagepath = `%SystemRoot%\` + imagepath
+						} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
+							imagepath = `%SystemRoot%\` + imagepath[12:]
+						}
+
+						// find the executable name ... windows .... arrrgh
+						var executable string
+						if imagepath[0] == '"' {
+							// Quoted
+							nextquote := strings.Index(imagepath[1:], `"`)
+							if nextquote != -1 {
+								executable = imagepath[1 : nextquote+1]
+							}
+						} else {
+							// Unquoted
+							trypath := imagepath
+							for {
+								statpath, _ := registry.ExpandString(trypath)
+								if _, err := os.Stat(statpath); err == nil {
+									executable = trypath
+									break
+								}
+								lastspace := strings.LastIndex(trypath, " ")
+								if lastspace == -1 {
+									break // give up
+								}
+								trypath = imagepath[:lastspace]
+								if !strings.HasSuffix(strings.ToLower(trypath), ".exe") {
+									trypath += ".exe"
+								}
+							}
+						}
+						executable, _ = registry.ExpandString(executable)
+						imageexecutable = executable
+						if executable != "" {
+							ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+							if err == nil {
+								imagepathowner = ownersid.String()
+							}
+							imagepathdacl = dacl
+						}
+					}
+
 					start, _, _ := service_key.GetIntegerValue("Start")
 					stype, _, _ := service_key.GetIntegerValue("Type")
 					if stype >= 16 {
 						servicesinfo = append(servicesinfo, collector.Service{
-							Name:        service,
-							DisplayName: displayname,
-							Description: description,
-							ImagePath:   imagepath,
-							Start:       int(start),
-							Type:        int(stype),
-							Account:     objectname,
-							AccountSID:  objectnamesid,
+							RegistryDACL:         registrydacl,
+							Name:                 service,
+							DisplayName:          displayname,
+							Description:          description,
+							ImagePath:            imagepath,
+							ImageExecutable:      imageexecutable,
+							ImageExecutableOwner: imagepathowner,
+							ImageExecutableDACL:  imagepathdacl,
+							Start:                int(start),
+							Type:                 int(stype),
+							Account:              objectname,
+							AccountSID:           objectnamesid,
 						})
 					}
 				}

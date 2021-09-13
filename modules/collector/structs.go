@@ -89,17 +89,22 @@ type Share struct {
 
 type Services []Service
 type Service struct {
-	Name        string
-	DisplayName string
-	Description string
+	RegistryDACL []byte `json:",omitempty"`
 
-	ImagePath string
+	Name        string `json:",omitempty"`
+	DisplayName string `json:",omitempty"`
+	Description string `json:",omitempty"`
 
-	Start int
-	Type  int
+	ImagePath            string `json:",omitempty"`
+	ImageExecutable      string `json:",omitempty"`
+	ImageExecutableOwner string `json:",omitempty"`
+	ImageExecutableDACL  []byte `json:",omitempty"`
 
-	Account    string
-	AccountSID string
+	Start int `json:",omitempty"`
+	Type  int `json:",omitempty"`
+
+	Account    string `json:",omitempty"`
+	AccountSID string `json:",omitempty"`
 }
 
 type Users []User

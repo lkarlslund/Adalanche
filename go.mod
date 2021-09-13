@@ -79,3 +79,5 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+require github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
