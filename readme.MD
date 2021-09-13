@@ -1,4 +1,5 @@
-# adalanche - Active Directory ACL Visualizer and Explorer
+# adalanche: Active Directory ACL Visualizer and Explorer
+*adalanche* gives instant results, showing you what permissions users and groups have in an Active Directory, and is useful for visualizing and exploring who can take over accounts, machines or the entire domain.
 
 ## I Can Haz Domain Admin?
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
