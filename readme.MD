@@ -22,7 +22,7 @@ If no command is given, the tool will run in a dump-analyze mode (dump, then ana
 
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the -domain parameter as well.
 
-LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Switch to LDAP with <code>adalanche -authmode NoTLS -port 389</code>
+LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "-ignorecert" switch, or change protocol to LDAP with <code>adalanche -authmode NoTLS -port 389</code>
 
 Create cache file for contoso.local:
 <code>adalanche -domain contoso.local -username joe -password Hunter42 dump</code>
