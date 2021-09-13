@@ -193,9 +193,14 @@ func webservice(bind string) http.Server {
 			maxdepth = maxdepthval
 		}
 
+		minprobability := 1
+		if minprobabilityval, err := strconv.Atoi(vars["minprobability"]); err == nil {
+			minprobability = minprobabilityval
+		}
+
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
-		maxoutgoing := 0
+		maxoutgoing := 500
 		if maxoutgoingval, err := strconv.Atoi(vars["maxoutgoing"]); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
@@ -272,7 +277,7 @@ func webservice(bind string) http.Server {
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, minprobability)
 
 		var targets, users, computers, groups, others int
 		for _, node := range pg.Nodes {
@@ -441,7 +446,7 @@ func webservice(bind string) http.Server {
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing)
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, 1)
 
 		idmap := make(map[*Object]int)
 		var id int

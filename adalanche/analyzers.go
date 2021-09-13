@@ -1026,7 +1026,7 @@ type PwnConnection struct {
 	PwnMethodsAndProbabilities
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int) (pg PwnGraph) {
+func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections, minprobability int) (pg PwnGraph) {
 	connectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
 	canexpand := make(map[*Object]int)
@@ -1095,13 +1095,6 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 					continue
 				}
 
-				// Reverse search, stop at domain admins and administrators DIRTY - FIXME
-				if !forward && (object.OneAttr(Name) == "Domain Admins" ||
-					object.OneAttr(Name) == "Enterprise Admins") ||
-					object.OneAttr(Name) == "Administrators" {
-					break
-				}
-
 				var filteredmethods PwnMethodsAndProbabilities
 				if detectedmethods == pwninfo.PwnMethodBitmap {
 					filteredmethods = pwninfo
@@ -1112,28 +1105,31 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 
 				}
 
-				if forward {
-					newconnectionsmap[PwnPair{Source: pwntarget, Target: object}] = filteredmethods
-				} else {
-					newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = filteredmethods
-				}
+				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = filteredmethods
 			}
 
 			if maxoutgoingconnections == 0 || len(newconnectionsmap) < maxoutgoingconnections {
 				for pwnpair, detectedmethods := range newconnectionsmap {
 					connectionsmap[pwnpair] = detectedmethods
-					target := pwnpair.Target
-					if forward {
-						target = pwnpair.Source
-					}
-					if _, found := implicatedobjectsmap[target]; !found {
-						newimplicatedobjects[target] = struct{}{} // Add this to work map as non-processed
+					if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
+						newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
 					}
 				}
 				// Add pwn target to graph for processing
 			} else {
 				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", maxoutgoingconnections, object.Label(), len(newconnectionsmap))
-				canexpand[object] = len(newconnectionsmap)
+				var addedanyway int
+				for pwnpair, detectedmethods := range newconnectionsmap {
+					// We assume the number of groups are limited and add them anyway
+					if pwnpair.Target.Type() == ObjectTypeGroup {
+						connectionsmap[pwnpair] = detectedmethods
+						if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
+							newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
+						}
+						addedanyway++
+					}
+				}
+				canexpand[object] = len(newconnectionsmap) - addedanyway
 			}
 			implicatedobjectsmap[object] = processinground // We're done processing this
 		}
@@ -1148,11 +1144,15 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 	pg.Connections = make([]PwnConnection, len(connectionsmap))
 	i := 0
 	for connection, methods := range connectionsmap {
-		pg.Connections[i] = PwnConnection{
+		nc := PwnConnection{
 			Source:                     connection.Source,
 			Target:                     connection.Target,
 			PwnMethodsAndProbabilities: methods,
 		}
+		if forward {
+			nc.Source, nc.Target = nc.Target, nc.Source // swap 'em to get arrows pointing correctly
+		}
+		pg.Connections[i] = nc
 		i++
 	}
 
