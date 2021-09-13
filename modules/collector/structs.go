@@ -49,6 +49,8 @@ type Machine struct {
 	AltDefaultUsername string `json:",omitempty"`
 	AltDefaultDomain   string `json:",omitempty"`
 
+	AppCache [][]byte `json:",omitempty"`
+
 	SCCMLastValidMP string `json:",omitempty"`
 
 	UACConsentPromptBehaviorAdmin    uint64 `json:",omitempty"`

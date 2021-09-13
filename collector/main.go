@@ -99,6 +99,27 @@ func main() {
 		}
 	}
 
+	// APP COMPAT CACHE - LAST 1024 PROGRAM EXECUTIONS
+	system_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SYSTEM`,
+		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err == nil {
+		defer system_key.Close()
+		subnames, _ := system_key.ReadSubKeyNames(-1)
+		for _, subkey := range subnames {
+			appcache_key, err := registry.OpenKey(system_key, subkey+`\Control\Session Manager\AppCompatCache`,
+				registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+			if err == nil {
+				defer appcache_key.Close()
+				cache, _, err := appcache_key.GetBinaryValue(`AppCompatCache`)
+				if err == nil {
+					// Export data
+					machineinfo.AppCache = append(machineinfo.AppCache, cache)
+				}
+			}
+		}
+	}
+
 	// SCCM SETTINGS
 	ccmsetup_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\CCMSetup`,
