@@ -11,7 +11,7 @@ import (
 )
 
 type ScheduledTasks struct {
-	Tasks []TaskV2 `xml:TaskV2`
+	Tasks []TaskV2 `xml:"TaskV2"`
 }
 
 type TaskV2 struct {
