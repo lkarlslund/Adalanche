@@ -348,7 +348,7 @@ $(function() {
                     style: {
                         shape: "cut-rectangle",
                         "background-image": "icons/people-fill.svg",
-                        "background-color": "yellow"
+                        "background-color": "orange"
                     }
                 },
                 {
@@ -403,7 +403,8 @@ $(function() {
                     selector: "node[?_canexpand]",
                     style: {
                         "font-style": "italic",
-                        "color": "orange"
+                        "color": "yellow",
+                        "background-color": "yellow"
                     }
                 },
                 {
@@ -445,9 +446,66 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'edge[?method_ACLContainsDeny]',
+                    selector: 'edge[_maxprob<=90]',
                     style: {
-                        "line-style": "dotted"
+                        "line-style": "dashed",
+                        "line-dash-pattern": [9, 1]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=80]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [8, 2]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=70]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [7, 3]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=60]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [6, 4]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=50]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [5, 5]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=40]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [4, 6]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=30]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [3, 7]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=20]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [2, 8]
+                    }
+                },
+                {
+                    selector: 'edge[_maxprob<=10]',
+                    style: {
+                        "line-style": "dashed",
+                        "line-dash-pattern": [1, 9]
                     }
                 },
                 {
@@ -566,6 +624,11 @@ $(function() {
                                     replaceele = neweles.getElementById(event.target.attr("id"))
                                     cy.elements().merge(neweles) // merge adds what is missing
                                     cy.elements().add(replaceele) // then we forcibly update the old object
+                                    
+                                    event.target.removeData('_canexpand')
+
+                                    // Apply layout again
+                                    cy.elements().layout(getGraphlayout($("#graphlayout").val())).run()
                                 },
                                 error: function (xhr, status, error) {
                                     $("#status").html("Problem loading graph:<br>" + xhr.responseText).show()

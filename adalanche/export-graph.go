@@ -130,9 +130,16 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 				"target": fmt.Sprintf("n%v", connection.Target.ID),
 			},
 		}
+		var maxprob Probability
 		for _, method := range connection.Methods() {
-			edge.Data["method_"+method.String()] = connection.GetProbability(method)
+			prob := connection.GetProbability(method)
+			edge.Data["method_"+method.String()] = prob
+			if prob > maxprob {
+				maxprob = prob
+			}
 		}
+		edge.Data["_maxprob"] = maxprob
+
 		g.Elements[i] = edge
 
 		i++
