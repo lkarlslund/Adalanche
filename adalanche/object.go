@@ -158,16 +158,11 @@ func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 	if len(o.objectclassguids) == 0 {
 		for _, class := range o.AttrString(ObjectClass) {
 			if oto, found := AllObjects.FindClass(class); found {
-				if classguidval := oto.OneAttr(SchemaIDGUID); classguidval != nil {
-					if og, ok := classguidval.Raw().(uuid.UUID); !ok {
-						log.Debug().Msgf("%v", oto)
-						log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
-					} else {
-						og = SwapUUIDEndianess(og)
-						o.objectclassguids = append(o.objectclassguids, og)
-					}
+				if og, ok := oto.OneAttrRaw(SchemaIDGUID).(uuid.UUID); !ok {
+					log.Debug().Msgf("%v", oto)
+					log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
 				} else {
-					log.Fatal().Msgf("Sorry, could not resolve object class %v, perhaps you didn't get a dump of the schema?", class)
+					o.objectclassguids = append(o.objectclassguids, og)
 				}
 			}
 		}
