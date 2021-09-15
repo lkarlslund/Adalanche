@@ -155,39 +155,38 @@
         <div id="queryerror"></div>
         <div id="querybuttons" class="mt-2">
           <div class="btn-group dropup">
-            <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown"
-              aria-haspopup="true" aria-expanded="false">
+            <button class="btn btn-secondary btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
               Sample Queries
             </button>
 
-            <div id="predefinedqueries" class="dropdown-menu vh-100 overflow-auto">
+            <ul id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-auto" style="max-height:75vh">
               <a id="defaultquery" class="dropdown-item" href="#"
-                query="(&(objectCategory=Group)(|(name=Administrators)(name=Domain Admins)(name=Enterprise Admins)(name=Enterprise PKI Admins)))"
+                query="(&(objectCategory=Group)(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519)))"
                 mode="Normal" depth=99 methods="default">Who owns your AD?</a>
               <a class="dropdown-item" href="#"
-                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519))"
                 mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
                 DNS DLL on your DC?</a>
               <a class="dropdown-item" href="#"
                 query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
                 mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a
                 Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
-              <a class="dropdown-item" href="#" query="(|(name=Domain Users)(name=Authenticated Users))" mode="Reverse"
+              <a class="dropdown-item" href="#" query="(|(objectSID=S-1-5-21-*-513)(objectSID=S-1-5-11))" mode="Reverse"
                 depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
               <a class="dropdown-item" href="#"
-                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519))"
                 mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
                 DNS DLL on your DC?</a>
               <a class="dropdown-item" href="#"
-                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519))"
                 mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via
                 DA/EA/Admins)</a>
               <a class="dropdown-item" href="#"
-                query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519))"
                 mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups,
                 but not via DA/EA/Admins)</a>
               <a class="dropdown-item" href="#"
-                query="(objectCategory=Group-Policy-Container),(|(name=Domain Admins)(name=Administrators)(name=Enterprise Admins))"
+                query="(objectCategory=Group-Policy-Container),(|(objectSID=S-1-5-32-544)(objectSID=S-1-5-21-*-512)(objectSID=S-1-5-21-*-519))"
                 mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
               <a class="dropdown-item" href="#"
                 query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99
@@ -221,7 +220,7 @@
               <a class="dropdown-item" href="#"
                 query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal"
                 depth=1>Accounts with no Kerberos preauth requirement</a>
-            </div>
+              </ul>
           </div>
           <input id="force" class="btn-check" type="checkbox" name="force" autocomplete="off">
           <label class="btn btn-outline-light" for="force">

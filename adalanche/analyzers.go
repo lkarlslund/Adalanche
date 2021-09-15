@@ -93,7 +93,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 			var hasparent bool
 			p := o
 			for {
-				gpoptions := p.OneAttr(GPOptions)
+				gpoptions := p.OneAttrString(GPOptions)
 				if gpoptions == "1" {
 					// inheritance is blocked, so don't move upwards
 					break
@@ -104,7 +104,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 					break
 				}
 
-				gplinks := strings.Trim(p.OneAttr(GPLink), " ")
+				gplinks := strings.Trim(p.OneAttrString(GPLink), " ")
 				if len(gplinks) == 0 {
 					continue
 				}
@@ -141,7 +141,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnGPOMachineConfigPartOfGPO,
 		ObjectAnalyzer: func(o *Object) {
-			if o.Type() != ObjectTypeContainer || o.OneAttr(Name) != "Machine" {
+			if o.Type() != ObjectTypeContainer || o.OneAttrString(Name) != "Machine" {
 				return
 			}
 			// Only for computers, you can't really pwn users this way
@@ -158,7 +158,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnGPOUserConfigPartOfGPO,
 		ObjectAnalyzer: func(o *Object) {
-			if o.Type() != ObjectTypeContainer || o.OneAttr(Name) != "User" {
+			if o.Type() != ObjectTypeContainer || o.OneAttrString(Name) != "User" {
 				return
 			}
 			// Only for users, you can't really pwn users this way
@@ -610,7 +610,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnReadMSAPassword,
 		ObjectAnalyzer: func(o *Object) {
-			msasds := o.Attr(MSDSGroupMSAMembership)
+			msasds := o.AttrString(MSDSGroupMSAMembership)
 			for _, msasd := range msasds {
 				sd, err := ParseSecurityDescriptor([]byte(msasd))
 				if err == nil {
@@ -685,8 +685,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) {
 			msas := o.Attr(MSDSHostServiceAccount)
 			for _, dn := range msas {
-				targetmsa, found := AllObjects.Find(dn)
-				if found {
+				if targetmsa, found := AllObjects.Find(dn.String()); found {
 					o.Pwns(targetmsa, PwnHasMSA, 100)
 				}
 			}
@@ -715,9 +714,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 		Method: PwnSIDHistoryEquality,
 		ObjectAnalyzer: func(o *Object) {
 			sids := o.Attr(SIDHistory)
-			for _, stringsid := range sids {
-				sid, err := SIDFromString(stringsid)
-				if err == nil {
+			for _, sidval := range sids {
+				if sid, ok := sidval.Raw().(SID); ok {
 					target := AllObjects.FindOrAddSID(sid)
 					o.Pwns(target, PwnSIDHistoryEquality, 100)
 				}
@@ -744,12 +742,12 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) {
 			var pairs []SIDpair
 
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			groupsxml := o.OneAttrString(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
 			if groupsxml != "" {
 				pairs = GPOparseGroups(groupsxml)
 			}
 
-			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			groupsini := o.OneAttrString(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
 			if groupsini != "" {
 				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
 			}
@@ -771,12 +769,12 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) {
 			var pairs []SIDpair
 
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			groupsxml := o.OneAttrString(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
 			if groupsxml != "" {
 				pairs = GPOparseGroups(groupsxml)
 			}
 
-			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			groupsini := o.OneAttrString(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
 			if groupsini != "" {
 				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
 			}
@@ -798,12 +796,12 @@ var PwnAnalyzers = []PwnAnalyzer{
 		ObjectAnalyzer: func(o *Object) {
 			var pairs []SIDpair
 
-			groupsxml := o.OneAttr(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
+			groupsxml := o.OneAttrString(A("_gpofile/Machine/Preferences/Groups/Groups.XML"))
 			if groupsxml != "" {
 				pairs = GPOparseGroups(groupsxml)
 			}
 
-			groupsini := o.OneAttr(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
+			groupsini := o.OneAttrString(A("_gpofile/Machine/Microsoft/Windows NT/SecEdit/GptTmpl.Inf"))
 			if groupsini != "" {
 				pairs = append(pairs, GPOparseGptTmplInf(groupsini)...)
 			}
@@ -841,7 +839,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnScheduledTaskOnUNCPath,
 		ObjectAnalyzer: func(o *Object) {
-			schtasksxml := o.OneAttr(A("_gpofile/Machine/Preferences/ScheduledTasks/ScheduledTasks.XML"))
+			schtasksxml := o.OneAttrString(A("_gpofile/Machine/Preferences/ScheduledTasks/ScheduledTasks.XML"))
 			if schtasksxml == "" {
 				return
 			}
@@ -863,7 +861,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnMachineScript,
 		ObjectAnalyzer: func(o *Object) {
-			scripts := o.OneAttr(A("_gpofile/Machine/Scripts/Scripts.ini"))
+			scripts := o.OneAttrString(A("_gpofile/Machine/Scripts/Scripts.ini"))
 			if scripts == "" {
 				return
 			}

@@ -76,7 +76,7 @@ func (sid SID) IsNull() bool {
 	return sid == ""
 }
 
-func (sid SID) ToString() string {
+func (sid SID) String() string {
 	if sid == "" {
 		return "NULL SID"
 	}
@@ -91,16 +91,6 @@ func (sid SID) ToString() string {
 		subauthority := binary.LittleEndian.Uint32([]byte(sid[i:]))
 		s += fmt.Sprintf("-%d", subauthority)
 	}
-	return s
-}
-
-func (sid SID) String() string {
-	s := sid.ToString()
-
-	if o, found := AllObjects.FindSID(sid); found {
-		s += " (" + o.DN() + ")"
-	}
-
 	return s
 }
 

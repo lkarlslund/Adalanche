@@ -134,7 +134,7 @@ func webservice(bind string) http.Server {
 		}
 
 		for attr, values := range o.Attributes {
-			od.Attributes[attr.String()] = values
+			od.Attributes[attr.String()] = values.StringSlice()
 		}
 
 		if r.FormValue("format") == "json" {
@@ -483,7 +483,7 @@ func webservice(bind string) http.Server {
 
 				if alldetails {
 					for attribute, values := range node.Attributes {
-						valuesjoined := strings.Join(values, ", ")
+						valuesjoined := strings.Join(values.StringSlice(), ", ")
 						if IsASCII(valuesjoined) {
 							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
 						}
@@ -517,7 +517,7 @@ func webservice(bind string) http.Server {
 
 				if alldetails {
 					for attribute, values := range object.Attributes {
-						valuesjoined := strings.Join(values, ", ")
+						valuesjoined := strings.Join(values.StringSlice(), ", ")
 						if IsASCII(valuesjoined) {
 							xmlnode.Attributes = append(xmlnode.Attributes, XGMMLAttribute{
 								Name:  attribute.String(),
@@ -634,9 +634,9 @@ func webservice(bind string) http.Server {
 		var result []info
 		for _, object := range AllObjects.AsArray() {
 			if object.Type() == ObjectTypeUser &&
-				object.OneAttr(MetaWorkstation) != "1" &&
-				object.OneAttr(MetaServer) != "1" &&
-				object.OneAttr(MetaAccountDisabled) != "1" {
+				object.OneAttrString(MetaWorkstation) != "1" &&
+				object.OneAttrString(MetaServer) != "1" &&
+				object.OneAttrString(MetaAccountDisabled) != "1" {
 				lastlogin, ok := object.AttrTimestamp(LastLogon)
 				lastlogints, ok := object.AttrTimestamp(LastLogonTimestamp)
 				last, ok := object.AttrTimestamp(PwdLastSet)
@@ -667,14 +667,14 @@ func webservice(bind string) http.Server {
 					Expires:    expires,
 					Type:       object.Type().String(),
 
-					Unconstrained: object.OneAttr(MetaUnconstrainedDelegation) == "1",
-					Workstation:   object.OneAttr(MetaWorkstation) == "1",
-					Server:        object.OneAttr(MetaServer) == "1",
-					Enabled:       object.OneAttr(MetaAccountDisabled) != "1",
-					CantChangePwd: object.OneAttr(MetaPasswordCantChange) == "1",
-					NoExpirePwd:   object.OneAttr(MetaPasswordNoExpire) == "1",
-					NoRequirePwd:  object.OneAttr(MetaPasswordNotRequired) == "1",
-					HasLAPS:       object.OneAttr(MetaLAPSInstalled) == "1",
+					Unconstrained: object.OneAttrString(MetaUnconstrainedDelegation) == "1",
+					Workstation:   object.OneAttrString(MetaWorkstation) == "1",
+					Server:        object.OneAttrString(MetaServer) == "1",
+					Enabled:       object.OneAttrString(MetaAccountDisabled) != "1",
+					CantChangePwd: object.OneAttrString(MetaPasswordCantChange) == "1",
+					NoExpirePwd:   object.OneAttrString(MetaPasswordNoExpire) == "1",
+					NoRequirePwd:  object.OneAttrString(MetaPasswordNotRequired) == "1",
+					HasLAPS:       object.OneAttrString(MetaLAPSInstalled) == "1",
 				}
 
 				// if uac&UAC_NOT_DELEGATED != 0 {

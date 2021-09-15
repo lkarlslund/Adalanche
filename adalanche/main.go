@@ -478,11 +478,11 @@ func main() {
 			log.Info().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 			AllObjects.Add(&Object{
 				DistinguishedName: dn,
-				Attributes: map[Attribute][]string{
-					Name:           {name},
-					ObjectSid:      {string(binsid)},
-					ObjectClass:    {"person", "user", "top"},
-					ObjectCategory: {"Group"},
+				Attributes: map[Attribute]AttributeValues{
+					Name:           {AttributeValueString(name)},
+					ObjectSid:      {AttributeValueSID(binsid)},
+					ObjectClass:    {AttributeValueString("person"), AttributeValueString("user"), AttributeValueString("top")},
+					ObjectCategory: {AttributeValueString("Group")},
 				},
 			})
 		}
@@ -531,10 +531,10 @@ func main() {
 		if passwordlastset, ok := object.AttrTimestamp(PwdLastSet); ok {
 			object.SetAttr(MetaPasswordAge, strconv.Itoa(int(time.Since(passwordlastset)/time.Hour)))
 		}
-		if strings.Contains(strings.ToLower(object.OneAttr(OperatingSystem)), "linux") {
+		if strings.Contains(strings.ToLower(object.OneAttrString(OperatingSystem)), "linux") {
 			object.SetAttr(MetaLinux, "1")
 		}
-		if strings.Contains(strings.ToLower(object.OneAttr(OperatingSystem)), "windows") {
+		if strings.Contains(strings.ToLower(object.OneAttrString(OperatingSystem)), "windows") {
 			object.SetAttr(MetaWindows, "1")
 		}
 		if len(object.Attr(MSmcsAdmPwdExpirationTime)) > 0 {
@@ -627,19 +627,16 @@ func main() {
 		*/
 
 		// Special types of Objects
+
 		if object.HasAttrValue(ObjectClass, "controlAccessRight") {
-			u, err := uuid.FromString(object.OneAttr(RightsGUID))
-			// log.Debug().Msgf("Adding right %v %v", u, object.OneAttr(DisplayName))
-			if err == nil {
+			if u, ok := object.OneAttrRaw(RightsGUID).(uuid.UUID); ok {
 				AllRights[u] = object
 			}
 		} else if object.HasAttrValue(ObjectClass, "attributeSchema") {
-			objectGUID, err := uuid.FromBytes([]byte(object.OneAttr(SchemaIDGUID)))
-			objectGUID = SwapUUIDEndianess(objectGUID)
-			// log.Debug().Msgf("Adding schema attribute %v %v", u, object.OneAttr(Name))
-			if err == nil {
+			if objectGUID, ok := object.OneAttrRaw(SchemaIDGUID).(uuid.UUID); ok {
+
 				AllSchemaAttributes[objectGUID] = object
-				switch object.OneAttr(Name) {
+				switch object.OneAttrString(Name) {
 				case "ms-Mcs-AdmPwd":
 					log.Info().Msg("Detected LAPS schema extension, adding extra analyzer")
 					PwnAnalyzers = append(PwnAnalyzers, PwnAnalyzer{
@@ -669,10 +666,8 @@ func main() {
 				}
 			}
 		} else if object.HasAttrValue(ObjectClass, "classSchema") {
-			u, err := uuid.FromBytes([]byte(object.OneAttr(SchemaIDGUID)))
-			u = SwapUUIDEndianess(u)
-			// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
-			if err == nil {
+			if u, ok := object.OneAttrRaw(SchemaIDGUID).(uuid.UUID); ok {
+				// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
 				AllSchemaClasses[u] = object
 			}
 		}
@@ -690,7 +685,7 @@ func main() {
 
 	var excluded string
 	if ds, found := AllObjects.Find("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration," + ad.RootDn()); found {
-		excluded = ds.OneAttr(DsHeuristics)
+		excluded = ds.OneAttrString(DsHeuristics)
 	}
 
 	// Let's see if we can find the AdminSDHolder container

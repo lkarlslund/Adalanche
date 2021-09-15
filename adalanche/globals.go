@@ -14,10 +14,10 @@ var (
 	AttackerSID, _ = SIDFromString("S-1-555-1337")
 	AttackerObject = &Object{
 		DistinguishedName: "CN=Attacker",
-		Attributes: map[Attribute][]string{
-			Name:       {"Attacker"},
-			ObjectSid:  {string(AttackerSID)},
-			ObjectGUID: {string(randguid.Bytes())},
+		Attributes: map[Attribute]AttributeValues{
+			Name:       {AttributeValueString("Attacker")},
+			ObjectSid:  {AttributeValueSID(AttackerSID)},
+			ObjectGUID: {AttributeValueGUID(randguid)},
 		},
 	}
 

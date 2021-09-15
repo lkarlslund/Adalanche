@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +40,7 @@ type Object struct {
 	ID uint64 // Unique ID in Objects collection
 
 	DistinguishedName string
-	Attributes        map[Attribute][]string
+	Attributes        map[Attribute]AttributeValues
 
 	PwnableBy PwnConnections
 	CanPwn    PwnConnections
@@ -96,18 +95,18 @@ func (o Object) DN() string {
 		if len(dn) != 1 {
 			log.Fatal().Msgf("Attribute distinguishedName does not have a value count of 1")
 		}
-		return dn[0]
+		return dn[0].String()
 	}
 	return o.DistinguishedName
 }
 
 func (o Object) Label() string {
 	return Default(
-		o.OneAttr(LDAPDisplayName),
-		o.OneAttr(DisplayName),
-		o.OneAttr(Name),
-		o.OneAttr(SAMAccountName),
-		o.OneAttr(ObjectGUID),
+		o.OneAttrString(LDAPDisplayName),
+		o.OneAttrString(DisplayName),
+		o.OneAttrString(Name),
+		o.OneAttrString(SAMAccountName),
+		o.OneAttrString(ObjectGUID),
 	)
 }
 
@@ -157,20 +156,19 @@ func (o Object) Type() ObjectType {
 
 func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 	if len(o.objectclassguids) == 0 {
-		for _, class := range o.Attr(ObjectClass) {
+		for _, class := range o.AttrString(ObjectClass) {
 			if oto, found := AllObjects.FindClass(class); found {
-				var err error
-				classguid := oto.OneAttr(SchemaIDGUID)
-				og, err := uuid.FromBytes([]byte(classguid))
-				if err != nil {
-					log.Debug().Msgf("%v", oto)
-					log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
+				if classguidval := oto.OneAttr(SchemaIDGUID); classguidval != nil {
+					if og, ok := classguidval.Raw().(uuid.UUID); !ok {
+						log.Debug().Msgf("%v", oto)
+						log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
+					} else {
+						og = SwapUUIDEndianess(og)
+						o.objectclassguids = append(o.objectclassguids, og)
+					}
 				} else {
-					og = SwapUUIDEndianess(og)
-					o.objectclassguids = append(o.objectclassguids, og)
+					log.Fatal().Msgf("Sorry, could not resolve object class %v, perhaps you didn't get a dump of the schema?", class)
 				}
-			} else {
-				log.Fatal().Msgf("Sorry, could not resolve object class %v, perhaps you didn't get a dump of the schema?", class)
 			}
 		}
 	}
@@ -179,20 +177,18 @@ func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 
 func (o *Object) ObjectTypeGUID() uuid.UUID {
 	if o.objecttypeguid == NullGUID {
-		typedn := o.OneAttr(ObjectCategory)
+		typedn := o.OneAttrString(ObjectCategory)
 		if typedn == "" {
 			// log.Warn().Msgf("Sorry, could not resolve object category %v for object %v, perhaps you didn't get a dump of the schema?", typedn, o.DN())
 			// return NullGUID
 			return UnknownGUID
 		}
 		if oto, found := AllObjects.Find(typedn); found {
-			var err error
-			classguid := oto.OneAttr(SchemaIDGUID)
-			o.objecttypeguid, err = uuid.FromBytes([]byte(classguid))
-			if err != nil {
+			if classguid, ok := oto.OneAttrRaw(SchemaIDGUID).(uuid.UUID); ok {
+				o.objecttypeguid = classguid
+			} else {
 				log.Debug().Msgf("%v", oto)
 				log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
-
 			}
 		} else {
 			log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
@@ -201,40 +197,51 @@ func (o *Object) ObjectTypeGUID() uuid.UUID {
 	return o.objecttypeguid
 }
 
-func (o Object) Attr(attr Attribute) []string {
+func (o Object) AttrString(attr Attribute) []string {
 	r := o.Attributes[attr]
 	if len(r) == 0 && attr == DistinguishedName {
 		return []string{o.DN()}
 	}
-	return r
+	return r.StringSlice()
 }
 
-func (o Object) OneAttr(attr Attribute) string {
+func (o Object) Attr(attr Attribute) AttributeValues {
+	return o.Attributes[attr]
+}
+
+func (o Object) OneAttrString(attr Attribute) string {
+	a := o.Attr(attr)
+	if len(a) == 1 {
+		return a[0].String()
+	}
+	return ""
+}
+
+func (o Object) OneAttrRaw(attr Attribute) interface{} {
+	a := o.Attr(attr)
+	if len(a) == 1 {
+		return a[0].Raw()
+	}
+	return nil
+}
+
+func (o Object) OneAttr(attr Attribute) AttributeValue {
 	a := o.Attr(attr)
 	if len(a) == 1 {
 		return a[0]
 	}
-	return ""
+	return nil
 }
 
 func (o Object) AttrRendered(attr Attribute) []string {
 	values := o.Attr(attr)
 	renderedvalues := make([]string, len(values))
-	copy(renderedvalues, values)
-	switch attr {
-	case ObjectSid:
-		for i, value := range values {
-			renderedvalues[i] = SID(value).String()
+	for i := 0; i < len(values); i++ {
+		if avr, ok := values[i].(AttributeValueRenderer); ok {
+			renderedvalues[i] = avr.Render()
+		} else {
+			renderedvalues[i] = values[i].String()
 		}
-	case ObjectCategory:
-		for i, value := range values {
-			firstcomma := strings.Index(value, ",")
-			if firstcomma > 3 {
-				renderedvalues[i] = value[3:firstcomma]
-			}
-		}
-	default:
-		return values
 	}
 	return renderedvalues
 }
@@ -249,7 +256,7 @@ func (o Object) OneAttrRendered(attr Attribute) string {
 
 func (o Object) HasAttrValue(attr Attribute, hasvalue string) bool {
 	for _, value := range o.Attr(attr) {
-		if strings.EqualFold(value, hasvalue) {
+		if strings.EqualFold(value.String(), hasvalue) {
 			return true
 		}
 	}
@@ -257,18 +264,14 @@ func (o Object) HasAttrValue(attr Attribute, hasvalue string) bool {
 }
 
 func (o Object) AttrInt(attr Attribute) (int64, bool) {
-	value := o.OneAttr(attr)
-	v, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return v, true
+	v, ok := o.OneAttrRaw(attr).(int64)
+	return v, ok
 }
 
-func (o Object) AttrTimestamp(attr Attribute) (time.Time, bool) {
+func (o Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, switch to auto-time formatting
 	v, ok := o.AttrInt(attr)
 	if !ok {
-		value := o.OneAttr(attr)
+		value := o.OneAttrString(attr)
 		if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
 			value = strings.TrimSuffix(value, "Z")  // strip "Z"
 			value = strings.TrimSuffix(value, ".0") // strip ".0"
@@ -310,32 +313,28 @@ func (o *Object) Members(recursive bool) []*Object {
 
 func (o *Object) MemberOf() []*Object {
 	if !o.memberofinit {
-		primaryGroupID := o.OneAttr(PrimaryGroupID)
-		if primaryGroupID != "" {
+		if rid, ok := o.AttrInt(PrimaryGroupID); ok {
 			sid := o.SID()
 			if len(sid) > 8 {
-				rid, err := strconv.ParseInt(primaryGroupID, 10, 32)
-				if err == nil {
-					sidbytes := []byte(sid)
-					binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
-					primarygroup := AllObjects.FindOrAddSID(SID(sidbytes))
-					primarygroup.imamemberofyou(o)
-					o.memberof = append(o.memberof, primarygroup)
-				}
+				sidbytes := []byte(sid)
+				binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
+				primarygroup := AllObjects.FindOrAddSID(SID(sidbytes))
+				primarygroup.imamemberofyou(o)
+				o.memberof = append(o.memberof, primarygroup)
 			}
 		}
 
 		for _, memberof := range o.Attr(MemberOf) {
-			target, found := AllObjects.Find(memberof)
+			target, found := AllObjects.Find(memberof.String())
 			if !found {
 				target = &Object{
-					DistinguishedName: memberof,
-					Attributes: map[Attribute][]string{
-						DistinguishedName: {memberof},
-						ObjectCategory:    {"CN=Group,CN=Schema,CN=Configuration," + AllObjects.Base},
-						ObjectClass:       {"top", "group"},
-						Name:              {"Synthetic group " + memberof},
-						Description:       {"Synthetic group"}},
+					DistinguishedName: memberof.String(),
+					Attributes: map[Attribute]AttributeValues{
+						DistinguishedName: {AttributeValueString(memberof.String())},
+						ObjectCategory:    {AttributeValueString("CN=Group,CN=Schema,CN=Configuration," + AllObjects.Base)},
+						ObjectClass:       {AttributeValueString("top"), AttributeValueString("group")},
+						Name:              {AttributeValueString("Synthetic group " + memberof.String())},
+						Description:       {AttributeValueString("Synthetic group")}},
 				}
 				log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group", o.DN(), memberof)
 				AllObjects.Add(target)
@@ -353,14 +352,14 @@ func (o *Object) MemberOf() []*Object {
 }
 
 func (o *Object) SetAttr(a Attribute, value string) {
-	o.Attributes[a] = []string{value}
+	o.Attributes[a] = AttributeValues{AttributeValueString(value)}
 }
 
 func (o *Object) Meta() map[string]string {
 	result := make(map[string]string)
 	for attr, value := range o.Attributes {
 		if attr.String()[0] == '_' {
-			result[attr.String()] = value[0]
+			result[attr.String()] = value[0].String()
 		}
 	}
 	return result
@@ -387,7 +386,7 @@ func (o *Object) Load(filename string) error {
 
 func (o *Object) init() {
 	if o.Attributes == nil {
-		o.Attributes = make(map[Attribute][]string)
+		o.Attributes = make(map[Attribute]AttributeValues)
 	}
 	if o.CanPwn == nil || o.PwnableBy == nil {
 		o.CanPwn = make(PwnConnections)
@@ -404,11 +403,11 @@ func (o *Object) String() string {
 		}
 		result += "  " + attributenums[attr] + ":\n"
 		for _, value := range values {
-			cleanval := stringsx.Clean(value)
-			if cleanval != value {
-				result += fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value), len(cleanval))
+			cleanval := stringsx.Clean(value.String())
+			if cleanval != value.String() {
+				result += fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value.String()), len(cleanval))
 			} else {
-				result += "    " + value + "\n"
+				result += "    " + value.String() + "\n"
 			}
 		}
 	}
@@ -483,13 +482,8 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 func (o *Object) SID() SID {
 	if !o.sidcached {
 		o.sidcached = true
-		var err error
-		rawsid := o.OneAttr(ObjectSid)
-		if rawsid != "" {
-			o.sid, _, err = ParseSID([]byte(rawsid))
-			if err != nil {
-				log.Fatal().Msgf("Could not parse SID %0x: %v", []byte(rawsid), err)
-			}
+		if sid, ok := o.OneAttrRaw(ObjectSid).(SID); ok {
+			o.sid = sid
 		}
 	}
 	return o.sid
@@ -497,8 +491,9 @@ func (o *Object) SID() SID {
 
 func (o *Object) GUID() uuid.UUID {
 	if !o.guidcached {
-		rawguid := o.OneAttr(ObjectGUID)
-		o.guid = uuid.FromBytesOrNil([]byte(rawguid))
+		if guid, ok := o.OneAttrRaw(ObjectGUID).(uuid.UUID); ok {
+			o.guid = guid
+		}
 		o.guidcached = true
 	}
 	return o.guid

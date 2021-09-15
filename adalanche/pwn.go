@@ -164,6 +164,10 @@ const (
 	PwnWriteProfilePath
 	PwnWriteScriptPath
 	PwnCertificateEnroll
+	PwnRunsExecutable
+	PwnHosts
+	PwnRunsAs
+	PwnExecuted
 
 	MaxPwnMethod = iota - 1
 )

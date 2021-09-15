@@ -27,7 +27,7 @@ type ACL struct {
 type ACE struct {
 	Type                byte
 	ACEFlags            byte
-	Mask                uint32
+	Mask                ACLPermissionMask
 	SID                 SID
 	Flags               uint32
 	ObjectType          uuid.UUID

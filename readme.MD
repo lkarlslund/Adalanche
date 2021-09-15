@@ -9,7 +9,7 @@ You should ensure you have permission before you run this :-) Though the softwar
 
 #### Quick start, choose one of these:
 - Build your own:
-  - Install go 1.16
+  - Install go 1.17
   - <code>go build</code> - you will have a binary for your OS
   - <code>build</code> - you will have binaries for Windows, Linux and OSX
 - Download the binary artifacts from the "actions" tab for any recent commit

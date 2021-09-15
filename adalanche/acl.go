@@ -11,6 +11,7 @@ import (
 )
 
 type SecurityDescriptorControlFlag uint16
+type ACLPermissionMask uint32
 
 // http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 
@@ -43,7 +44,7 @@ const (
 	OBJECT_TYPE_PRESENT           = 0x01
 	INHERITED_OBJECT_TYPE_PRESENT = 0x02
 
-	RIGHT_GENERIC_READ = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT /*
+	RIGHT_GENERIC_READ ACLPermissionMask = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT /*
 		** Mask value is not stored in AD but deduced from mask bits combined **
 		RIGHT_GENERIC_READ = 0x80000000 /*
 			The right to read permissions and all properties of the object, and list the contents of the
@@ -116,6 +117,38 @@ const (
 	RIGHT_DS_CREATE_CHILD = 0x00000001 /*
 		The right to create child objects under the object, if the object is a type of container.
 		If the ObjectType contains a GUID, the GUID will reference the type of child object that can be created. */
+
+	// REGISTRY PERMISSIONS MASK
+	KEY_ALL_ACCESS         = 0xF003F
+	KEY_READ               = 0x20019
+	KEY_WRITE              = 0x20006
+	KEY_EXECUTE            = 0x20019
+	KEY_CREATE_SUB_KEYS    = 0x0004
+	KEY_ENUMERATE_SUB_KEYS = 0x0008
+	KEY_NOTIFY             = 0x0010
+	KEY_QUERY_VALUE        = 0x0001
+	KEY_SET_VALUE          = 0x0002
+
+	// FILE PERMISSIONS
+
+	FILE_READ_DATA        = 0x00000001 // Grants the right to read data from the file.
+	FILE_LIST_DIRECTORY   = 0x00000001 // Grants the right to read data from the file. For a directory, this value grants the right to list the contents of the directory.
+	FILE_WRITE_DATA       = 0x00000002 // Grants the right to write data to the file.
+	FILE_ADD_FILE         = 0x00000002 // Grants the right to write data to the file. For a directory, this value grants the right to create a file in the directory.
+	FILE_APPEND_DATA      = 0x00000004 // Grants the right to append data to the file. For a directory, this value grants the right to create a subdirectory.
+	FILE_ADD_SUBDIRECTORY = 0x00000004 // Grants the right to append data to the file. For a directory, this value grants the right to create a subdirectory.
+	FILE_READ_EA          = 0x00000008 // Grants the right to read extended attributes.
+	FILE_WRITE_EA         = 0x00000010 // Grants the right to write extended attributes.
+	FILE_EXECUTE          = 0x00000020 // Grants the right to execute a file.
+	FILE_TRAVERSE         = 0x00000020 // Grants the right to execute a file. For a directory, the directory can be traversed.
+	FILE_DELETE_CHILD     = 0x00000040 // Grants the right to delete a directory and all the files it contains (its children), even if the files are read-only.
+	FILE_READ_ATTRIBUTES  = 0x00000080 // Grants the right to read file attributes.
+	FILE_WRITE_ATTRIBUTES = 0x00000100 // Grants the right to change file attributes.
+	DELETE                = 0x00010000 // Grants the right to delete the object.
+	READ_CONTROL          = 0x00020000 // Grants the right to read the information in the security descriptor for the object, not including the information in the SACL.
+	WRITE_DAC             = 0x00040000 // Grants the right to modify the DACL in the object security descriptor for the object.
+	WRITE_OWNER           = 0x00080000 // Grants the right to change the owner in the security descriptor for the object.
+	SYNCHRONIZE           = 0x00100000
 )
 
 /*
@@ -136,8 +169,13 @@ ms-Mcs-AdmPwd reading
 
 func parseACL(data []byte) (ACL, error) {
 	var acl ACL
+	if len(data) < 8 {
+		return acl, errors.New("Not enough data to be an ACL")
+	}
 	acl.Revision = data[0]
-	// log.Debug().Msgf("Parsing ACL with revision %v", acl.Revision)
+	if acl.Revision != 1 && acl.Revision != 2 && acl.Revision != 4 {
+		return acl, fmt.Errorf("Unsupported ACL revision %v", acl.Revision)
+	}
 	if data[1] != 0 {
 		return acl, errors.New("Bad Sbz1")
 	}
@@ -165,9 +203,9 @@ func parseACL(data []byte) (ACL, error) {
 }
 
 func (a ACL) String() string {
-	var result string
-	for _, acl := range a.Entries {
-		result += "ACL: " + acl.String() + "\n"
+	result := fmt.Sprintf("ACL revision %v:\n", a.Revision)
+	for _, ace := range a.Entries {
+		result += "ACE: " + ace.String() + "\n"
 	}
 	return result
 }
@@ -179,7 +217,7 @@ func parseACLentry(data []byte) (ACE, []byte, error) {
 	ace.Type = data[0]
 	ace.ACEFlags = data[1]
 	// acesize := binary.LittleEndian.Uint16(data[2:])
-	ace.Mask = binary.LittleEndian.Uint32(data[4:])
+	ace.Mask = ACLPermissionMask(binary.LittleEndian.Uint32(data[4:]))
 
 	data = data[8:]
 	if ace.Type == ACETYPE_ACCESS_ALLOWED_OBJECT || ace.Type == ACETYPE_ACCESS_DENIED_OBJECT {
@@ -210,7 +248,7 @@ func parseACLentry(data []byte) (ACE, []byte, error) {
 	return ace, data, nil
 }
 
-func (a ACL) AllowObjectClass(index int, o *Object, mask uint32, g uuid.UUID) bool {
+func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uuid.UUID) bool {
 	if a.Entries[index].checkObjectClass(true, o, mask, g) {
 		// See if a prior one denies it
 		for i := 0; i < index; i++ {
@@ -233,7 +271,7 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask uint32, g uuid.UUID) bo
 }
 
 // Is the ACE something that allows or denies this type of GUID?
-func (a ACE) checkObjectClass(allow bool, o *Object, mask uint32, g uuid.UUID) bool {
+func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g uuid.UUID) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
@@ -252,16 +290,9 @@ func (a ACE) checkObjectClass(allow bool, o *Object, mask uint32, g uuid.UUID) b
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
 			if s, found := AllSchemaAttributes[g]; found {
-				asg := s.OneAttr(AttributeSecurityGUID)
-				if asg != "" {
-					u, err := uuid.FromBytes([]byte(asg))
-					if err != nil {
-						log.Warn().Msgf("Problem converting GUID %v", err)
-					} else {
-						u = SwapUUIDEndianess(u)
-						if a.ObjectType == u {
-							typematch = true
-						}
+				if u, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
+					if a.ObjectType == u {
+						typematch = true
 					}
 				}
 			}
@@ -352,6 +383,9 @@ func (a ACE) String() string {
 			result += " inherited " + a.InheritedObjectType.String() + " (not found)"
 		}
 	}
+
+	result += fmt.Sprintf(" %08x", a.Mask)
+
 	var rights []string
 	if a.Mask&RIGHT_GENERIC_READ != 0 {
 		rights = append(rights, "GENERIC_READ")

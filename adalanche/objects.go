@@ -61,9 +61,9 @@ func (os *Objects) Add(o *Object) {
 	os.asarray = append(os.asarray, o)
 	os.objectmap[o] = struct{}{}
 	os.dnmap[strings.ToLower(o.DN())] = o
-	if sidstring := o.OneAttr(ObjectSid); sidstring != "" {
-		sid, _, err := ParseSID([]byte(sidstring))
-		if err == nil {
+
+	if sidval := o.OneAttr(ObjectSid); sidval != nil {
+		if sid, ok := sidval.Raw().(SID); ok {
 			existing, dupe := os.sidmap[sid]
 			if dupe {
 				log.Warn().Msgf("Duplicate SID when trying to add %v, already exists as %v, skipping import", o.DN(), existing.DN())
@@ -73,9 +73,9 @@ func (os *Objects) Add(o *Object) {
 			}
 		}
 	}
-	if sidstring := o.OneAttr(SIDHistory); sidstring != "" {
-		sid, _, err := ParseSID([]byte(sidstring))
-		if err == nil {
+
+	if sidval := o.OneAttr(SIDHistory); sidval != nil {
+		if sid, ok := sidval.Raw().(SID); ok {
 			existing, dupe := os.sidmap[sid]
 			if dupe {
 				log.Warn().Msgf("Duplicate SID when trying to add SIDhistory %v, already exists as %v, skipping import", o.DN(), existing.DN())
@@ -85,15 +85,16 @@ func (os *Objects) Add(o *Object) {
 			}
 		}
 	}
-	if guidstring := o.OneAttr(ObjectGUID); guidstring != "" {
-		var guid uuid.UUID
-		copy(guid[:], guidstring)
-		os.guidmap[guid] = o
+
+	if guidval := o.OneAttr(ObjectGUID); guidval != nil {
+		if guid, ok := guidval.Raw().(uuid.UUID); ok {
+			os.guidmap[guid] = o
+		}
 	}
 
 	// Attributes etc
 	if len(o.Attr(SchemaIDGUID)) > 0 {
-		ldn := o.OneAttr(LDAPDisplayName)
+		ldn := o.OneAttrString(LDAPDisplayName)
 		if ldn != "" {
 			os.classmap[strings.ToLower(ldn)] = o
 		}
@@ -182,10 +183,10 @@ func (os *Objects) FindOrAddSID(s SID) *Object {
 	u, _ := uuid.NewV4()
 	o = &Object{
 		DistinguishedName: "CN=" + s.String() + ",CN=synthetic",
-		Attributes: map[Attribute][]string{
-			Name:       {s.String()},
-			ObjectGUID: {string(u.Bytes())},
-			ObjectSid:  {string(s)},
+		Attributes: map[Attribute]AttributeValues{
+			Name:       {AttributeValueString(s.String())},
+			ObjectGUID: {AttributeValueGUID(u)},
+			ObjectSid:  {AttributeValueSID(s)},
 		},
 		CanPwn:    make(PwnConnections),
 		PwnableBy: make(PwnConnections),
