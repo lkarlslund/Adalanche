@@ -193,7 +193,7 @@ func webservice(bind string) http.Server {
 			maxdepth = maxdepthval
 		}
 
-		minprobability := 1
+		minprobability := 0
 		if minprobabilityval, err := strconv.Atoi(vars["minprobability"]); err == nil {
 			minprobability = minprobabilityval
 		}
@@ -277,7 +277,7 @@ func webservice(bind string) http.Server {
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, minprobability)
+		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, Probability(minprobability))
 
 		var targets, users, computers, groups, others int
 		for _, node := range pg.Nodes {

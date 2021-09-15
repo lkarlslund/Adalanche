@@ -18,7 +18,7 @@ type PwnAnalyzer struct {
 }
 
 type PwnMethodBitmap uint64
-type Probability float32
+type Probability uint8
 
 type Probabilities []Probability
 
@@ -169,7 +169,6 @@ const (
 	PwnHosts
 	PwnRunsAs
 	PwnExecuted
-
 	MaxPwnMethod = iota - 1
 )
 

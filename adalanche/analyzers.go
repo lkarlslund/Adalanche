@@ -1023,7 +1023,7 @@ type PwnConnection struct {
 	PwnMethodsAndProbabilities
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections, minprobability int) (pg PwnGraph) {
+func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int, minprobability Probability) (pg PwnGraph) {
 	connectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
 	canexpand := make(map[*Object]int)
@@ -1070,6 +1070,20 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 				if detectedmethods.Count() == 0 || detectedmethods.IsSet(PwnACLContainsDeny) {
 					// Nothing useful or just a deny ACL, skip it
 					continue
+				}
+
+				var maxprobability Probability
+				if minprobability > 0 {
+					for i := PwnMethod(0); i < MaxPwnMethod; i++ {
+						probability := pwninfo.GetProbability(i)
+						if probability > maxprobability {
+							maxprobability = probability
+						}
+					}
+					if maxprobability < Probability(minprobability) {
+						// Too unlikeliy, so we skip it
+						continue
+					}
 				}
 
 				// If we allow backlinks, all pwns are mapped, no matter who is the victim
