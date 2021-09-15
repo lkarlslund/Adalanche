@@ -80,4 +80,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-require github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+require (
+	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+	github.com/pkg/errors v0.9.1
+)

@@ -694,6 +694,42 @@ func main() {
 		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded))
 	}
 
+	// Import collector JSON files
+	if *collectorpath != "" {
+		if st, err := os.Stat(*collectorpath); err == nil && st.IsDir() {
+			log.Info().Msgf("Scanning for collector files from %v ...", *collectorpath)
+			var jsonfiles []string
+			filepath.Walk(*collectorpath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
+					jsonfiles = append(jsonfiles, path)
+				}
+				return nil
+			})
+
+			importcollectorbar := progressbar.NewOptions(len(jsonfiles),
+				progressbar.OptionSetDescription("Importing externally collected machine data ..."),
+				progressbar.OptionShowCount(),
+				progressbar.OptionShowIts(),
+				progressbar.OptionSetItsString("JSON files"),
+				progressbar.OptionOnCompletion(func() { fmt.Println() }),
+				progressbar.OptionThrottle(time.Second*1),
+			)
+			for _, path := range jsonfiles {
+				err = importCollectorFile(path, &AllObjects)
+				if err != nil {
+					log.Warn().Msgf("Problem processing collector file %v: %v", path, err)
+				}
+				importcollectorbar.Add(1)
+			}
+			importcollectorbar.Finish()
+		} else {
+			log.Warn().Msgf("Not importing collector files, path %v not accessible", *collectorpath)
+		}
+	}
+
 	// Generate member of chains
 	pwnbar := progressbar.NewOptions(int(len(AllObjects.dnmap)),
 		progressbar.OptionSetDescription("Analyzing who can pwn who ..."),
@@ -715,10 +751,6 @@ func main() {
 	}
 	pwnbar.Finish()
 	log.Debug().Msgf("Detected %v ways to pwn objects", pwnlinks)
-
-	log.Info().Msgf("Importing collector files from %v ...", *collectorpath)
-	importCollectorFiles(*collectorpath, &AllObjects)
-	log.Info().Msg("Import done")
 
 	switch command {
 	case "exportacls":
