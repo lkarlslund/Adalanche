@@ -35,6 +35,20 @@ function setquery(query, depth, methods, mode) {
     }
 }
 
+function edgeprobability(ele) {
+    maxprobability = -1
+    for (i in ele.data()) {
+        if (i.startsWith("method_")) {
+            probability = ele.data(i)
+            if (probability > maxprobability) {
+                maxprobability = probability
+            }
+        }
+    }
+    return maxprobability
+}
+
+
 var cy
 var nodemenu
 
@@ -627,7 +641,7 @@ $(function() {
     }
 
     function rendermethods(methods) {
-        s = ""
+        s = '<span class="badge bg-secondary">' + edgeprobability(methods) + '%</span>'
         for (i in methods.data()) {
             if (i.startsWith("method_")) {
                 s += '<span class="badge bg-warning text-dark">' + i.substr(7) + '</span>';
@@ -654,15 +668,7 @@ $(function() {
             root: source,
             goal: target,
             weight: function(ele) {
-                maxprobability = -1
-                for (i in ele.data()) {
-                    if (i.startsWith("method_")) {
-                        probability = ele.data(i)
-                        if (probability>maxprobability) {
-                            maxprobability = probability
-                        }
-                    }
-                }
+                maxprobability = edgeprobability(ele)
                 if (maxprobability != -1) {
                     return maxprobability-100 // higher probability equals lower priority number
                 }
@@ -709,7 +715,15 @@ $(function() {
         if (dfs.path) {
             dfs.path.select();
             console.log(dfs.distance);
-            $("#route").html("Path details<br>").show();
+            pathprobability = 1.0
+            dfs.path.forEach(function (ele) {
+                if (ele.isEdge()) {
+                    pathprobability =pathprobability * (edgeprobability(ele)/100);
+                }
+            })
+            pathprobability = pathprobability * 100 // Back to percentages
+            $("#route").html('Path details - probability '+pathprobability.toFixed(2)+'%<br>').show();
+            // Show path information
             dfs.path.forEach(function(ele) {
                 if (ele.isNode()) {
                     $("#route").append(rendernode(ele));

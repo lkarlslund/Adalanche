@@ -143,7 +143,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						// We have a couple we can try - please contribute with more
 						groupsid, err := TranslateLocalizedGroupToSID(group)
 						if err != nil {
-							log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v ignored", group)
+							log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v ignored: %v", group, err)
 							continue
 						}
 						group = groupsid.String()

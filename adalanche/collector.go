@@ -135,7 +135,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			continue // Not a domain SID, skip it
 		}
 		if user, found := objs.FindSID(usersid); found {
-			computerobject.Pwns(user, PwnLocalSessionLastDay, 100)
+			computerobject.Pwns(user, PwnLocalSessionLastDay, 80)
 		}
 	}
 	for _, login := range cinfo.LoginPopularity.Week {
@@ -148,7 +148,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			continue // Not a domain SID, skip it
 		}
 		if user, found := objs.FindSID(usersid); found {
-			computerobject.Pwns(user, PwnLocalSessionLastWeek, 100)
+			computerobject.Pwns(user, PwnLocalSessionLastWeek, 30)
 		}
 	}
 	for _, login := range cinfo.LoginPopularity.Month {
@@ -161,7 +161,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			continue // Not a domain SID, skip it
 		}
 		if user, found := objs.FindSID(usersid); found {
-			computerobject.Pwns(user, PwnLocalSessionLastMonth, 100)
+			computerobject.Pwns(user, PwnLocalSessionLastMonth, 10)
 		}
 	}
 

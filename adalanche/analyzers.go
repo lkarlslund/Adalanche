@@ -185,7 +185,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 					AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnCreateUser, 100)
 				}
 			}
-			return
 		},
 	},
 	{

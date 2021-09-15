@@ -83,6 +83,7 @@ func (pmc *PwnMethodsAndProbabilities) Set(method PwnMethod, probability Probabi
 			copy(newprobabilities, pmc.probabilities[:offset])
 			copy(newprobabilities[offset+1:], pmc.probabilities[offset:])
 			pmc.probabilities = newprobabilities
+			pmc.probabilitymap = pmc.probabilitymap.Set(method)
 		}
 		pmc.probabilities[offset] = probability
 	}

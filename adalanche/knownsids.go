@@ -1,6 +1,9 @@
 package main
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 var (
 	knownsids = map[string]string{
@@ -86,13 +89,13 @@ var (
 	SIDDCOMUsers, _          = SIDFromString("S-1-5-32-562")
 
 	groupTranslationTable = map[string]SID{
-		"Administrators":  SIDAdministrators, // EN
-		"Administratorer": SIDAdministrators, // DK
+		strings.ToLower("Administrators"):  SIDAdministrators, // EN
+		strings.ToLower("Administratorer"): SIDAdministrators, // DK
 	}
 )
 
 func TranslateLocalizedGroupToSID(groupname string) (SID, error) {
-	if sid, found := groupTranslationTable[groupname]; found {
+	if sid, found := groupTranslationTable[strings.ToLower(groupname)]; found {
 		return sid, nil
 	}
 	return SID(""), errors.New("Localized group name not found")
