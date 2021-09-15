@@ -31,7 +31,9 @@ function setquery(query, depth, methods, mode) {
         }
     }
     if (mode) {
-        $("#querymode").val(mode)
+        normal = (mode == "Normal")
+        $("#querymode_normal").prop('checked', normal);
+        $("#querymode_reverse").prop('checked', !normal);
     }
 }
 
