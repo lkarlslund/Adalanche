@@ -664,6 +664,9 @@ $(function() {
         if (target.length == 0) {
             return
         }
+
+        cy.elements().unselect() // unselect everything
+
         var dfs = cy.elements().aStar({
             root: source,
             goal: target,
