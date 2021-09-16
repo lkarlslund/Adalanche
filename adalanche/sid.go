@@ -12,6 +12,8 @@ import (
 
 type SID string
 
+const BlankSID = SID("")
+
 // 0 = revision
 // 1-6 = authority
 // 7-10+ = chunks of 4 with subauthorities

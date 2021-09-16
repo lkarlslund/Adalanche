@@ -33,7 +33,7 @@ const (
 	ObjectTypeGroupPolicyContainer
 	ObjectTypeCertificateTemplate
 	ObjectTypeTrust
-	OBJECTTYPEMAX = ObjectTypeTrust
+	OBJECTTYPEMAX = iota - 1
 )
 
 type Object struct {
@@ -114,6 +114,8 @@ func (o Object) Label() string {
 		o.OneAttrString(DisplayName),
 		o.OneAttrString(Name),
 		o.OneAttrString(SAMAccountName),
+		o.OneAttrString(Description),
+		o.OneAttrString(DistinguishedName),
 		o.OneAttrString(ObjectGUID),
 	)
 }
@@ -133,7 +135,11 @@ func (o Object) Type() ObjectType {
 
 	category := o.OneAttrString(ObjectCategory)
 	if len(category) > 4 {
-		category = strings.Split(category, ",")[0][3:]
+		splitted := strings.Split(category, ",")
+		if len(splitted) > 1 {
+			// This is a DN pointing to a category - otherwise it's just something we made up! :)
+			category = splitted[0][3:]
+		}
 		switch category {
 		case "Person":
 			o.objecttype = ObjectTypeUser
@@ -514,13 +520,31 @@ func (o *Object) GUID() uuid.UUID {
 }
 
 func (o *Object) Pwns(target *Object, method PwnMethod, probability Probability) {
-	if o == target || o.SID() == target.SID() { // SID check solves (some) dual-AD analysis problems
+	if o == target { // SID check solves (some) dual-AD analysis problems
 		// We don't care about self owns
 		return
 	}
 
+	if o.SID() != BlankSID && o.SID() == target.SID() {
+		return
+	}
+
+	if o.SID() == CreatorOwnerSID {
+		// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
+		if sd, err := target.SecurityDescriptor(); err == nil {
+			if sd.Owner != BlankSID {
+				if realo, found := AllObjects.Find(ObjectSid, AttributeValueSID(sd.Owner)); found {
+					realo.CanPwn.Set(target, method, probability)    // Add the connection
+					target.PwnableBy.Set(realo, method, probability) // Add the reverse connection too
+				}
+			}
+			// We're done
+			return
+		}
+	}
+
 	// Ignore these, SELF = self own, Creator/Owner always has full rights
-	if o.SID() == SelfSID || o.SID() == CreatorOwnerSID || o.SID() == SystemSID {
+	if o.SID() == SelfSID || o.SID() == SystemSID {
 		return
 	}
 

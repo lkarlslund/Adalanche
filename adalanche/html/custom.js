@@ -10,7 +10,7 @@ function makePopper(ele) {
     });
 }
 
-function setquery(query, depth, methods, mode) {
+function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
     if (query) {
         $('#querytext').val(query);
     }
@@ -34,6 +34,12 @@ function setquery(query, depth, methods, mode) {
         normal = (mode == "Normal")
         $("#querymode_normal").prop('checked', normal);
         $("#querymode_reverse").prop('checked', !normal);
+    }
+    if (maxoutgoing) {
+        $('#maxoutgoing').val(maxoutgoing);
+    }
+    if (minprobability) {
+        $('#minprobability').val(minprobability);
     }
 }
 
@@ -611,28 +617,28 @@ $(function() {
                         // Filters the elements to have this menu item on cxttap
                         // If the selector is not truthy no elements will have this menu item on cxttap
                         selector: 'node[_canexpand>0]',
-                        onClickFunction: function (event) { // The function to be executed on click
+                        onClickFunction: function(event) { // The function to be executed on click
                             // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
                             expanddata = $("#queryform, #optionsform").serializeArray()
-                            expanddata.push({name: "expanddn", value: event.target.attr("distinguishedname")})
-                            
+                            expanddata.push({ name: "expanddn", value: event.target.attr("distinguishedname") })
+
                             $.ajax({
                                 type: "POST",
                                 url: "cytograph.json",
-                                data: JSON.stringify(expanddata.reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
+                                data: JSON.stringify(expanddata.reduce(function(m, o) { m[o.name] = o.value; return m; }, {})),
                                 dataType: "json",
-                                success: function (data) {
+                                success: function(data) {
                                     neweles = cy.add(data.elements)
                                     replaceele = neweles.getElementById(event.target.attr("id"))
                                     cy.elements().merge(neweles) // merge adds what is missing
                                     cy.elements().add(replaceele) // then we forcibly update the old object
-                                    
+
                                     event.target.removeData('_canexpand')
 
                                     // Apply layout again
                                     cy.elements().layout(getGraphlayout($("#graphlayout").val())).run()
                                 },
-                                error: function (xhr, status, error) {
+                                error: function(xhr, status, error) {
                                     $("#status").html("Problem loading graph:<br>" + xhr.responseText).show()
                                 }
                             });
@@ -716,10 +722,10 @@ $(function() {
     }
 
     function rendernode(ele) {
-        s = '<h5>' +
-            ele.data("name") + ' (' + ele.data("samaccountname") + ')</h5><h6>' +
-            ele.data("distinguishedname") + '</h6>' +
-            '';
+        s = '<h5>' + ele.data("label");
+        if (ele.data("sAMAccountName")) s += ' (' + ele.data("sAMAccountName") + ')';
+        s += '</h5>';
+        if (ele.data("distinguishedName")) s += '<h6>' + ele.data("distinguishedName") + '</h6>';
         return s
     }
 
@@ -738,7 +744,7 @@ $(function() {
             weight: function(ele) {
                 maxprobability = edgeprobability(ele)
                 if (maxprobability != -1) {
-                    return maxprobability-100 // higher probability equals lower priority number
+                    return maxprobability - 100 // higher probability equals lower priority number
                 }
 
                 if (ele.target().data("accountdisabled") && !(ele.target().data("pwn_writedacl") || ele.target().data("pwn_writeall") || ele.target().data("pwn_writepropertyall") || ele.target().data("pwn_takeownership") || ele.target().data("pwn_owns"))) {
@@ -784,13 +790,13 @@ $(function() {
             dfs.path.select();
             console.log(dfs.distance);
             pathprobability = 1.0
-            dfs.path.forEach(function (ele) {
+            dfs.path.forEach(function(ele) {
                 if (ele.isEdge()) {
-                    pathprobability =pathprobability * (edgeprobability(ele)/100);
+                    pathprobability = pathprobability * (edgeprobability(ele) / 100);
                 }
             })
             pathprobability = pathprobability * 100 // Back to percentages
-            $("#route").html('Path details - probability '+pathprobability.toFixed(2)+'%<br>').show();
+            $("#route").html('Path details - probability ' + pathprobability.toFixed(2) + '%<br>').show();
             // Show path information
             dfs.path.forEach(function(ele) {
                 if (ele.isNode()) {
@@ -826,21 +832,27 @@ $(function() {
         $.ajax({
             type: "POST",
             url: "cytograph.json",
-            data: JSON.stringify($("#queryform, #optionsform").serializeArray().reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
+            data: JSON.stringify($("#queryform, #optionsform").serializeArray().reduce(function(m, o) { m[o.name] = o.value; return m; }, {})),
             dataType: "json",
             success: function(data) {
-                $("#route").hide();
-                $("#details").hide();
-                $("#status").html(
-                    data.targets + " targets can " + (!$("#inverted").is(":checked") ? "be reached via " : "reach ") + data.links + " possible pwns " + (!$("#inverted").is(":checked") ? "from" : "to") + ":<hr/>" +
-                    data.users + " users<br>" +
-                    data.computers + " computers<br>" +
-                    data.groups + " groups<br>" +
-                    data.others + " others<hr/>" +
-                    data.total + " total objects in analysis"
-                ).show()
+                if (data.total == 0) {
+                    $("#status").html(
+                        "No results"
+                    ).show()
+                } else {
+                    $("#route").hide();
+                    $("#details").hide();
+                    $("#status").html(
+                        data.targets + " targets can " + (!data.reversed ? "be reached via " : "reach ") + data.links + " possible pwns " + (!data.reversed ? "from" : "to") + ":<hr/>" +
+                        data.users + " users<br>" +
+                        data.computers + " computers<br>" +
+                        data.groups + " groups<br>" +
+                        data.others + " others<hr/>" +
+                        data.total + " total objects in analysis"
+                    ).show()
 
-                initgraph(data.elements);
+                    initgraph(data.elements);
+                }
             },
             error: function(xhr, status, error) {
                 $("#status").html("Problem loading graph:<br>" + xhr.responseText).show()
@@ -851,7 +863,6 @@ $(function() {
     if ($("#querytext").val() == "") {
         console.log("Setting default query ...")
         setquery($("#defaultquery").attr("query"), $("#defaultquery").attr("depth"), $("#defaultquery").attr("methods"), $("#defaultquery").attr("mode"));
-        // $("#querytext").val($("#defaultquery").attr("query"))
     }
 
     var changetimer;
@@ -881,7 +892,7 @@ $(function() {
     // Predefined queries dropdown button
     $("#predefinedqueries").on("click", "a", function(event) {
         console.log("You clicked the drop downs", event.target)
-        setquery(event.target.getAttribute("query"), event.target.getAttribute("depth"), event.target.getAttribute("methods"), event.target.getAttribute("mode"));
+        setquery(event.target.getAttribute("query"), event.target.getAttribute("depth"), event.target.getAttribute("methods"), event.target.getAttribute("mode"), event.target.getAttribute("maxoutgoing"), event.target.getAttribute("minprobability"));
     })
 
     $.ajax({
@@ -891,8 +902,8 @@ $(function() {
         success: function(methods) {
             buttons = "";
             for (i in methods) {
-                buttons += `<input type="checkbox" ` + (methods[i].defaultenabled ? "checked" : "") + ` class="btn-check" id="` + methods[i].name + `" name="` + methods[i].name + `"  autocomplete="off">`+
-                `<label class="btn btn-outline-light btn-sm mb-2 me-2" for="` + methods[i].name + `">`+methods[i].name + `</label>`;
+                buttons += `<input type="checkbox" ` + (methods[i].defaultenabled ? "checked" : "") + ` class="btn-check" id="` + methods[i].name + `" name="` + methods[i].name + `"  autocomplete="off">` +
+                    `<label class="btn btn-outline-light btn-sm mb-2 me-2" for="` + methods[i].name + `">` + methods[i].name + `</label>`;
             }
             $("#pwnfilter").html(buttons);
 

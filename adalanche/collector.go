@@ -178,8 +178,11 @@ func importCollectorFile(path string, objs *Objects) error {
 
 	// SERVICES
 	for _, service := range cinfo.Services {
-		serviceobject := NewObject()
-		serviceobject.SetAttr(DistinguishedName, AttributeValueString("CN="+service.Name+",CN=Services,"+computerobject.DN()))
+		serviceobject := NewObject(
+			DistinguishedName, AttributeValueString("CN="+service.Name+",CN=Services,"+computerobject.DN()),
+			DisplayName, AttributeValueString(service.Name),
+			ObjectCategory, AttributeValueString("Service"),
+		)
 		AllObjects.Add(serviceobject)
 
 		computerobject.Pwns(serviceobject, PwnHosts, 100)
@@ -220,8 +223,11 @@ func importCollectorFile(path string, objs *Objects) error {
 
 		// Change service executable contents
 		if sd, err := parseACL(service.ImageExecutableDACL); err == nil {
-			serviceimageobject := NewObject()
-			serviceimageobject.SetAttr(DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()))
+			serviceimageobject := NewObject(
+				DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()),
+				DisplayName, AttributeValueString(service.ImageExecutable),
+				ObjectClass, AttributeValueString("Executable"),
+			)
 			AllObjects.Add(serviceimageobject)
 
 			serviceimageobject.Pwns(serviceobject, PwnExecuted, 100)
@@ -231,13 +237,13 @@ func importCollectorFile(path string, objs *Objects) error {
 					// AD object
 					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&FILE_WRITE_DATA != FILE_WRITE_DATA {
-							o.Pwns(serviceobject, PwnWriteAll, 100)
+							o.Pwns(serviceimageobject, PwnWriteAll, 100)
 						}
 						if entry.Mask&RIGHT_WRITE_OWNER != RIGHT_WRITE_OWNER {
-							o.Pwns(serviceobject, PwnTakeOwnership, 100) // Not sure about this one
+							o.Pwns(serviceimageobject, PwnTakeOwnership, 100) // Not sure about this one
 						}
 						if entry.Mask&RIGHT_WRITE_DACL != RIGHT_WRITE_DACL {
-							o.Pwns(serviceobject, PwnWriteDACL, 100)
+							o.Pwns(serviceimageobject, PwnWriteDACL, 100)
 						}
 					}
 				}

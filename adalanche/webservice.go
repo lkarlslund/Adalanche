@@ -327,6 +327,8 @@ func webservice(bind string) http.Server {
 		}
 
 		response := struct {
+			Reversed bool `json:"reversed"`
+
 			Users     int `json:"users"`
 			Computers int `json:"computers"`
 			Groups    int `json:"groups"`
@@ -338,16 +340,16 @@ func webservice(bind string) http.Server {
 
 			Elements *CytoElements `json:"elements"`
 		}{
-			Total: len(pg.Nodes),
-
-			Targets: targets,
+			Reversed: mode != "normal",
 
 			Users:     users,
 			Computers: computers,
 			Groups:    groups,
 			Others:    others,
 
-			Links: len(pg.Connections),
+			Targets: targets,
+			Total:   len(pg.Nodes),
+			Links:   len(pg.Connections),
 
 			Elements: &cytograph.Elements,
 		}
@@ -744,7 +746,7 @@ func webservice(bind string) http.Server {
 		FS:     assets,
 	})))
 
-	log.Debug().Msgf("Listening - navigate to %v ...", bind)
+	log.Info().Msgf("Listening - navigate to %v ... (ctrl-c or similar to quit)", bind)
 
 	return srv
 }
