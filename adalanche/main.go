@@ -16,13 +16,14 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Showmax/go-fqdn"
 	"github.com/gofrs/uuid"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pierrec/lz4"
+	"github.com/pierrec/lz4/v4"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
@@ -87,13 +88,11 @@ func main() {
 
 	ignoreCert := flag.Bool("ignorecert", true, "Disable certificate checks")
 
-	var authmodeString string
+	defaultmode := "ntlm"
 	if runtime.GOOS == "windows" {
-		flag.StringVar(&authmodeString, "authmode", "ntlmsspi", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
-	} else {
-		// change default for non windows platofrms
-		flag.StringVar(&authmodeString, "authmode", "ntlm", "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+		defaultmode = "ntlmsspi"
 	}
+	authmodeString := flag.String("authmode", defaultmode, "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
 
 	authdomain := flag.String("authdomain", "", "domain for authentication, if using ntlm auth")
 
@@ -178,7 +177,7 @@ func main() {
 		}
 
 		var authmode byte
-		switch authmodeString {
+		switch *authmodeString {
 		case "unauth":
 			authmode = 0
 		case "simple":
@@ -266,7 +265,14 @@ func main() {
 			log.Fatal().Msgf("Problem opening domain cache file: %v", err)
 		}
 		boutfile := lz4.NewWriter(outfile)
-		boutfile.Header.CompressionLevel = 10
+		lz4options := []lz4.Option{
+			lz4.BlockChecksumOption(true),
+			lz4.BlockSizeOption(lz4.BlockSize(512 * 1024)),
+			lz4.ChecksumOption(true),
+			lz4.CompressionLevelOption(lz4.Level9),
+			lz4.ConcurrencyOption(-1),
+		}
+		boutfile.Apply(lz4options...)
 		e := msgp.NewWriter(boutfile)
 
 		dumpbar := progressbar.NewOptions(0,
@@ -429,6 +435,37 @@ func main() {
 		}
 		bcachefile := lz4.NewReader(cachefile)
 
+		lz4options := []lz4.Option{lz4.ConcurrencyOption(-1)}
+		bcachefile.Apply(lz4options...)
+
+		d := msgp.NewReaderSize(bcachefile, 4*1024*1024)
+
+		objectstoadd := make(chan *RawObject, 8192)
+		var importmutex sync.Mutex
+		var done sync.WaitGroup
+		for i := 0; i < runtime.NumCPU(); i++ {
+			done.Add(1)
+			go func() {
+				chunk := make([]*Object, 0, 64)
+				for addme := range objectstoadd {
+					o := addme.ToObject(*importall)
+					chunk = append(chunk, o)
+					if cap(chunk) == len(chunk) {
+						// Send chunk to objects
+						importmutex.Lock()
+						AllObjects.Add(chunk...)
+						importmutex.Unlock()
+						chunk = chunk[:0]
+					}
+				}
+				// Process the last incomplete chunk
+				importmutex.Lock()
+				AllObjects.Add(chunk...)
+				importmutex.Unlock()
+				done.Done()
+			}()
+		}
+
 		cachestat, _ := cachefile.Stat()
 
 		loadbar := progressbar.NewOptions(int(cachestat.Size()),
@@ -438,23 +475,27 @@ func main() {
 			progressbar.OptionOnCompletion(func() { fmt.Println() }),
 		)
 
-		d := msgp.NewReader(bcachefile)
 		// d := msgp.NewReader(&progressbar.Reader{bcachefile, &loadbar})
 
 		// Load all the stuff
 		var lastpos int64
+		// justread := make([]byte, 4*1024*1024)
+		var iteration uint32
 		for {
+			iteration++
+			if iteration%1000 == 0 {
+				pos, _ := cachefile.Seek(0, io.SeekCurrent)
+				loadbar.Add(int(pos - lastpos))
+				lastpos = pos
+			}
+
 			var rawObject RawObject
 			err = rawObject.DecodeMsg(d)
-
-			pos, _ := cachefile.Seek(0, io.SeekCurrent)
-			loadbar.Add(int(pos - lastpos))
-			lastpos = pos
-
 			if err == nil {
-				newObject := rawObject.ToObject(*importall)
-				AllObjects.Add(newObject)
+				objectstoadd <- &rawObject
 			} else if msgp.Cause(err) == io.EOF {
+				close(objectstoadd)
+				done.Wait()
 				break
 			} else {
 				log.Fatal().Msgf("Problem decoding object: %v", err)

@@ -64,6 +64,8 @@ var (
 	ServerOperatorsSID, _           = SIDFromString("S-1-5-32-549")
 )
 
+var warnedgpos = make(map[string]struct{})
+
 var PwnAnalyzers = []PwnAnalyzer{
 	/* It's a Unicorn, dang ...
 	{
@@ -129,7 +131,10 @@ var PwnAnalyzers = []PwnAnalyzer{
 
 					gpo, found := AllObjects.Find(DistinguishedName, AttributeValueString(linkedgpodn))
 					if !found {
-						log.Error().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+						if _, warned := warnedgpos[linkedgpodn]; !warned {
+							warnedgpos[linkedgpodn] = struct{}{}
+							log.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+						}
 					} else {
 						gpo.Pwns(o, PwnComputerAffectedByGPO, 100)
 					}

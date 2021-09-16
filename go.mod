@@ -45,7 +45,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20210819104631-275770b98743 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.13.5 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lkarlslund/go-win64api v0.0.0-20210901131734-3c6bba943601
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
@@ -83,4 +83,9 @@ require (
 require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/pkg/errors v0.9.1
+)
+
+require (
+	github.com/klauspost/pgzip v1.2.5 // indirect
+	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 )

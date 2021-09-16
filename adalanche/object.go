@@ -354,6 +354,14 @@ func (o *Object) SetAttr(a Attribute, values ...AttributeValue) {
 	} else {
 		o.Attributes[a] = AttributeValueSlice(values)
 	}
+
+	if a == NTSecurityDescriptor {
+		for _, sd := range values {
+			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {
+				log.Error().Msgf("Problem parsing security descriptor for %v: %v", o.DN(), err)
+			}
+		}
+	}
 }
 
 func (o *Object) Meta() map[string]string {
@@ -434,17 +442,22 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 		return errors.New("Empty nTSecurityDescriptor attribute!?")
 	}
 
+	securitydescriptorcachemutex.RLock()
 	cacheindex := xxhash.Checksum32(rawsd)
-	if sd, found := SecurityDescriptorCache[cacheindex]; found {
+	if sd, found := securityDescriptorCache[cacheindex]; found {
+		securitydescriptorcachemutex.RUnlock()
 		o.sdcache = sd
 		return nil
 	}
+	securitydescriptorcachemutex.RUnlock()
 
+	securitydescriptorcachemutex.Lock()
 	sd, err := ParseSecurityDescriptor([]byte(rawsd))
 	if err == nil {
 		o.sdcache = &sd
-		SecurityDescriptorCache[cacheindex] = &sd
+		securityDescriptorCache[cacheindex] = &sd
 	}
+	securitydescriptorcachemutex.Unlock()
 	return err
 }
 

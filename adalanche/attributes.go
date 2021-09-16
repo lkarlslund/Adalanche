@@ -3,6 +3,7 @@ package main
 import (
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 )
@@ -109,6 +110,8 @@ var (
 
 type Attribute uint16
 
+var attributemutex sync.RWMutex
+
 func NewAttribute(name string) Attribute {
 	if pos := strings.Index(name, ";"); pos != -1 {
 		if !strings.HasPrefix(name, "member;") {
@@ -118,17 +121,30 @@ func NewAttribute(name string) Attribute {
 	}
 
 	// Lowercase it, everything is case insensitive
-	name = strings.ToLower(name)
+	lowername := strings.ToLower(name)
 
-	if attribute, found := attributenames[name]; found {
+	attributemutex.RLock()
+	if attribute, found := attributenames[lowername]; found {
 		attributepopularity[attribute]++
+		attributemutex.RUnlock()
 		return attribute
 	}
+	attributemutex.RUnlock()
+	attributemutex.Lock()
+	// Retry, someone might have beaten us to it
+	if attribute, found := attributenames[lowername]; found {
+		attributepopularity[attribute]++
+		attributemutex.Unlock()
+		return attribute
+	}
+
 	newindex := Attribute(len(attributenames))
-	attributenames[name] = newindex
+	attributenames[lowername] = newindex
 	attributenums = append(attributenums, name)
 	attributepopularity = append(attributepopularity, 1)
 	attributesizes = append(attributesizes, 0)
+	attributemutex.Unlock()
+
 	return Attribute(newindex)
 }
 
@@ -137,14 +153,16 @@ func (a Attribute) String() string {
 }
 
 func LookupAttribute(name string) Attribute {
-	if attribute, found := attributenames[name]; found {
+	attributemutex.RLock()
+	defer attributemutex.RUnlock()
+	if attribute, found := attributenames[strings.ToLower(name)]; found {
 		return attribute
 	}
 	return NonExistingAttribute
 }
 
 func A(name string) Attribute {
-	return LookupAttribute(strings.ToLower(name))
+	return LookupAttribute(name)
 }
 
 func (a Attribute) IsMeta() bool {

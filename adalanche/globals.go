@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/gofrs/uuid"
 	"github.com/mattn/go-colorable"
 	"github.com/rs/zerolog"
@@ -23,11 +25,14 @@ var (
 	// 	},
 	// }
 
-	AllObjects              Objects
-	SecurityDescriptorCache = make(map[uint32]*SecurityDescriptor)
-	AllRights               = make(map[uuid.UUID]*Object) // Extented-Rights from Configuration - rightsGUID -> object
-	AllSchemaClasses        = make(map[uuid.UUID]*Object) // schemaIdGUID -> object
-	AllSchemaAttributes     = make(map[uuid.UUID]*Object) // attribute ...
+	AllObjects Objects
+
+	securitydescriptorcachemutex sync.RWMutex
+	securityDescriptorCache      = make(map[uint32]*SecurityDescriptor)
+
+	AllRights           = make(map[uuid.UUID]*Object) // Extented-Rights from Configuration - rightsGUID -> object
+	AllSchemaClasses    = make(map[uuid.UUID]*Object) // schemaIdGUID -> object
+	AllSchemaAttributes = make(map[uuid.UUID]*Object) // attribute ...
 )
 
 func init() {

@@ -66,39 +66,41 @@ func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 	return &result
 }
 
-func (os *Objects) Add(o *Object) {
-	if o.ID == 0 {
-		os.idcounter++
-		o.ID = os.idcounter
-	}
+func (os *Objects) Add(obs ...*Object) {
+	for _, o := range obs {
+		if o.ID == 0 {
+			os.idcounter++
+			o.ID = os.idcounter
+		}
 
-	// Do chunked extensions for speed
-	if len(os.asarray) == cap(os.asarray) {
-		newarray := make([]*Object, len(os.asarray), len(os.asarray)+256)
-		copy(newarray, os.asarray)
-		os.asarray = newarray
-	}
-	// Add this to the iterator array
-	os.asarray = append(os.asarray, o)
+		// Do chunked extensions for speed
+		if len(os.asarray) == cap(os.asarray) {
+			newarray := make([]*Object, len(os.asarray), len(os.asarray)+1024)
+			copy(newarray, os.asarray)
+			os.asarray = newarray
+		}
+		// Add this to the iterator array
+		os.asarray = append(os.asarray, o)
 
-	for attribute, _ := range os.index {
-		value := o.OneAttr(attribute)
-		if value != nil {
-			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			if vs, ok := value.(AttributeValueString); ok {
-				value = AttributeValueString(strings.ToLower(string(vs)))
-			}
-			existing, dupe := os.index[attribute][value.Raw()]
-			if dupe {
-				log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.DN(), existing.DN())
-			} else {
-				os.index[attribute][value.Raw()] = o
+		for attribute, _ := range os.index {
+			value := o.OneAttr(attribute)
+			if value != nil {
+				// If it's a string, lowercase it before adding to index, we do the same on lookups
+				if vs, ok := value.(AttributeValueString); ok {
+					value = AttributeValueString(strings.ToLower(string(vs)))
+				}
+				existing, dupe := os.index[attribute][value.Raw()]
+				if dupe {
+					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.DN(), existing.DN())
+				} else {
+					os.index[attribute][value.Raw()] = o
+				}
 			}
 		}
-	}
 
-	// Statistics
-	os.typecount[o.Type()]++
+		// Statistics
+		os.typecount[o.Type()]++
+	}
 }
 
 func (os Objects) Statistics() [OBJECTTYPEMAX]int {
@@ -174,7 +176,7 @@ func (os *Objects) FindOrAddSID(s SID) *Object {
 	o.SetAttr(Name, AttributeValueString(s.String()))
 	o.SetAttr(ObjectGUID, AttributeValueGUID(u))
 	o.SetAttr(ObjectSid, AttributeValueSID(s))
-	log.Info().Msgf("Adding unknown SID %v as %v", s, o.DN())
+	log.Debug().Msgf("Adding unknown SID %v as %v", s, o.DN())
 	os.Add(o)
 	return o
 }
