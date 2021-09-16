@@ -55,8 +55,8 @@ func importCollectorFile(path string, objs *Objects) error {
 
 	// Fallback to looking by machine account name
 	if computerobject == nil {
-		computerobject, found = objs.Find(SAMAccountName, AttributeValueString(cinfo.Machine.Name+"$")); !found {
-			log.Info().Msgf("Not importing collector data for machine %v - not found in object collection (%v)", cinfo.Machine.Name, err)
+		if computerobject, found = objs.Find(SAMAccountName, AttributeValueString(cinfo.Machine.Name+"$")); !found {
+			log.Info().Msgf("Not importing collector data for machine %v - not found in object collection", cinfo.Machine.Name)
 			return nil // We didn't find it
 		}
 	}
