@@ -17,7 +17,7 @@ type ACLPermissionMask uint32
 
 const (
 	CONTROLFLAG_OWNER_DEFAULTED     SecurityDescriptorControlFlag = 0x0001
-	CONTROLFLAG_GROUP_DEFAULTED                                   = 0x0002
+	CONTROLFLAG_GROUP_DEFAULTED     SecurityDescriptorControlFlag = 0x0002
 	CONTROLFLAG_DACL_PRESENT                                      = 0x0004
 	CONTROLFLAG_DACL_DEFAULTED                                    = 0x0008
 	CONTROLFLAG_SACL_PRESENT                                      = 0x0010

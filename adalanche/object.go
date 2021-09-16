@@ -303,7 +303,7 @@ func (o *Object) Members(recursive bool) []*Object {
 	}
 	membersarray := make([]*Object, len(members))
 	var i int
-	for member, _ := range members {
+	for member := range members {
 		membersarray[i] = member
 		i++
 	}

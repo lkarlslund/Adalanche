@@ -105,7 +105,7 @@ func EncodeAttributeData(attribute Attribute, values []string) AttributeValueSli
 				if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
 					tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
 					tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
-					if t, err := time.Parse("20060102150405", value); err == nil {
+					if t, err := time.Parse("20060102150405", tvalue); err == nil {
 						attributevalue = AttributeValueTime(t)
 					}
 				}

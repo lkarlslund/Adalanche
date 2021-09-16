@@ -120,10 +120,10 @@ func webservice(bind string) http.Server {
 		// default format
 
 		type ObjectDetails struct {
-			DistinguishedName string              `json:distinguishedname`
-			Attributes        map[string][]string `json:attributes`
-			CanPwn            map[string][]string `json:can_pwn`
-			PwnableBy         map[string][]string `json:pwnable_by`
+			DistinguishedName string              `json:"distinguishedname"`
+			Attributes        map[string][]string `json:"attributes"`
+			CanPwn            map[string][]string `json:"can_pwn"`
+			PwnableBy         map[string][]string `json:"pwnable_by"`
 		}
 
 		od := ObjectDetails{
@@ -260,7 +260,7 @@ func webservice(bind string) http.Server {
 		}
 
 		var selectedmethods []PwnMethod
-		for potentialmethod, _ := range vars {
+		for potentialmethod := range vars {
 			if method, ok := PwnMethodString(potentialmethod); ok == nil {
 				// enabled, _ := value.(bool)
 				// if enabled {
@@ -637,15 +637,14 @@ func webservice(bind string) http.Server {
 				object.OneAttrString(MetaWorkstation) != "1" &&
 				object.OneAttrString(MetaServer) != "1" &&
 				object.OneAttrString(MetaAccountDisabled) != "1" {
-				lastlogin, ok := object.AttrTimestamp(LastLogon)
-				lastlogints, ok := object.AttrTimestamp(LastLogonTimestamp)
-				last, ok := object.AttrTimestamp(PwdLastSet)
+				lastlogin, _ := object.AttrTimestamp(LastLogon)
+				lastlogints, _ := object.AttrTimestamp(LastLogonTimestamp)
+				last, _ := object.AttrTimestamp(PwdLastSet)
 
-				expires, ok := object.AttrTimestamp(AccountExpires)
-				created, ok := object.AttrTimestamp(WhenCreated)
-				changed, ok := object.AttrTimestamp(WhenChanged)
-				if !ok {
-				}
+				expires, _ := object.AttrTimestamp(AccountExpires)
+				created, _ := object.AttrTimestamp(WhenCreated)
+				changed, _ := object.AttrTimestamp(WhenChanged)
+
 				// log.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
 
 				if lastlogin.After(lastlogints) {

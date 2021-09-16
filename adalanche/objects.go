@@ -16,8 +16,7 @@ type Objects struct {
 
 	asarray []*Object
 
-	index         map[Attribute]map[interface{}]*Object
-	lookupcounter []uint64 // For auto-indexes
+	index map[Attribute]map[interface{}]*Object
 
 	typecount [OBJECTTYPEMAX]int
 
@@ -82,7 +81,7 @@ func (os *Objects) Add(obs ...*Object) {
 		// Add this to the iterator array
 		os.asarray = append(os.asarray, o)
 
-		for attribute, _ := range os.index {
+		for attribute := range os.index {
 			value := o.OneAttr(attribute)
 			if value != nil {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
@@ -115,7 +114,7 @@ func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, f
 	index, found := os.index[attribute]
 	if !found {
 		os.AddIndex(attribute)
-		index, _ = os.index[attribute]
+		index = os.index[attribute]
 	}
 
 	// If it's a string, lowercase it before adding to index, we do the same on lookups

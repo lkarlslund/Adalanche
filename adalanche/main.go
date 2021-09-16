@@ -28,7 +28,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 //go:embed html/*
@@ -222,7 +222,7 @@ func main() {
 
 			if *pass == "" {
 				fmt.Printf("Please enter password for %v: ", *user)
-				passwd, err := terminal.ReadPassword(int(syscall.Stdin))
+				passwd, err := term.ReadPassword(int(syscall.Stdin))
 				fmt.Println()
 				if err == nil {
 					*pass = string(passwd)
@@ -352,8 +352,8 @@ func main() {
 			for _, object := range rawobjects {
 				// Let's check if it this is a GPO and then add some fake attributes to represent it
 				if gpfsp, found := object.Attributes["gPCFileSysPath"]; found {
-					gpodisplayname, _ := object.Attributes["displayName"]
-					gpoguid, _ := object.Attributes["name"]
+					gpodisplayname := object.Attributes["displayName"]
+					gpoguid := object.Attributes["name"]
 
 					gppath := gpfsp[0]
 					if *gpopath != "" {
@@ -362,7 +362,7 @@ func main() {
 							continue
 						}
 						// Override path, possibly on other OS'es or if you dont have DNS running
-						gppath = *gpopath
+						// gppath = *gpopath
 						// gppath = strings.ReplaceAll(gppath, "%SERVER%", *server)
 						// gppath = strings.ReplaceAll(gppath, "%DOMAIN%", *domain)
 						// gppath = strings.ReplaceAll(gppath, "%GUID%", gpoguid[0])
@@ -505,7 +505,16 @@ func main() {
 		loadbar.Finish()
 	}
 
-	log.Debug().Msgf("Loaded %v ojects", len(AllObjects.AsArray()))
+	log.Info().Msgf("Loaded %v ojects", len(AllObjects.AsArray()))
+
+	var statarray []string
+	for stat, count := range AllObjects.Statistics() {
+		if stat == 0 {
+			continue
+		}
+		statarray = append(statarray, fmt.Sprintf("%v: %v", ObjectType(stat).String(), count))
+	}
+	log.Info().Msg(strings.Join(statarray, ", "))
 
 	// Add our known SIDs if they're missing
 	for sid, name := range knownsids {
@@ -788,7 +797,16 @@ func main() {
 		}
 	}
 	pwnbar.Finish()
-	log.Debug().Msgf("Detected %v ways to pwn objects", pwnlinks)
+	log.Info().Msgf("Detected %v ways to pwn objects", pwnlinks)
+
+	var pwnarray []string
+	for pwn, count := range pwnpopularity {
+		if pwn == 0 {
+			continue
+		}
+		pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", PwnMethod(pwn).String(), count))
+	}
+	log.Info().Msg(strings.Join(pwnarray, ", "))
 
 	switch command {
 	case "exportacls":

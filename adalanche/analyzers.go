@@ -917,7 +917,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 				sob.Pwns(o, PwnMachineScript, 100)
 				scriptnum++
 			}
-			return
 		},
 	},
 
@@ -937,7 +936,6 @@ var PwnAnalyzers = []PwnAnalyzer{
 					dcsyncobjects[po] = info
 				}
 			}
-			return
 		},
 	},
 	{

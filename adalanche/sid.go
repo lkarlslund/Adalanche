@@ -111,7 +111,6 @@ func (sid SID) Component(n int) uint64 {
 		}
 		return uint64(binary.LittleEndian.Uint32([]byte(sid[offset:])))
 	}
-	return 0
 }
 
 func (sid SID) RID() uint32 {

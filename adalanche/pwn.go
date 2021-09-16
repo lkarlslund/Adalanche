@@ -31,6 +31,7 @@ type PwnInfo struct {
 type PwnMethod int
 
 func (pm PwnMethodBitmap) Set(method PwnMethod) PwnMethodBitmap {
+	pwnpopularity[method]++
 	return pm | 1<<method
 }
 
@@ -53,7 +54,7 @@ func (pm PwnMethodBitmap) Methods() []PwnMethod {
 func (pc PwnConnections) Objects() ObjectSlice {
 	result := make(ObjectSlice, len(pc))
 	var i int
-	for object, _ := range pc {
+	for object := range pc {
 		result[i] = object
 		i++
 	}
@@ -173,6 +174,8 @@ const (
 )
 
 var AllPwnMethods PwnMethodBitmap
+
+var pwnpopularity [MaxPwnMethod + 1]uint64
 
 func init() {
 	for i := PwnMethod(1); i <= MaxPwnMethod; i++ {
