@@ -39,8 +39,7 @@ const (
 type Object struct {
 	ID uint64 // Unique ID in Objects collection
 
-	DistinguishedName string
-	Attributes        map[Attribute]AttributeValues
+	Attributes map[Attribute]AttributeValues
 
 	PwnableBy PwnConnections
 	CanPwn    PwnConnections
@@ -71,9 +70,29 @@ type Connection struct {
 	Target *Object
 }
 
-func NewObject() *Object {
+func NewObject(flexinit ...interface{}) *Object {
 	var result Object
 	result.init()
+	var attribute Attribute
+	var data AttributeValueSlice
+	for _, i := range flexinit {
+		switch v := i.(type) {
+		case Attribute:
+			if attribute != 0 && len(data) > 0 {
+				result.Attributes[attribute] = data
+			}
+			data = AttributeValueSlice{}
+			attribute = v
+		case AttributeValue:
+			data = append(data, v)
+		default:
+			log.Fatal().Msgf("Invalid type in object declaration")
+		}
+		if attribute != 0 && len(data) > 0 {
+			result.Attributes[attribute] = data
+		}
+	}
+
 	return &result
 }
 
@@ -86,18 +105,7 @@ func (o Object) MarshalJSON() ([]byte, error) {
 }
 
 func (o Object) DN() string {
-	if o.DistinguishedName == "" {
-		// !?!?
-		dn, found := o.Attributes[DistinguishedName]
-		if !found {
-			log.Fatal().Msgf("Object has no distinguishedName!?")
-		}
-		if len(dn) != 1 {
-			log.Fatal().Msgf("Attribute distinguishedName does not have a value count of 1")
-		}
-		return dn[0].String()
-	}
-	return o.DistinguishedName
+	return o.OneAttrString(DistinguishedName)
 }
 
 func (o Object) Label() string {
@@ -123,32 +131,36 @@ func (o Object) Type() ObjectType {
 		return o.objecttype
 	}
 
-	category := o.OneAttrRendered(ObjectCategory)
-
-	switch category {
-	case "Person":
-		o.objecttype = ObjectTypeUser
-	case "Group":
-		o.objecttype = ObjectTypeGroup
-	case "Foreign-Security-Principal":
-		o.objecttype = ObjectTypeForeignSecurityPrincipal
-	case "ms-DS-Group-Managed-Service-Account":
-		o.objecttype = ObjectTypeManagedServiceAccount
-	case "Organizational-Unit":
-		o.objecttype = ObjectTypeOrganizationalUnit
-	case "Container":
-		o.objecttype = ObjectTypeContainer
-	case "Computer":
-		o.objecttype = ObjectTypeComputer
-	case "Group-Policy-Container":
-		o.objecttype = ObjectTypeGroupPolicyContainer
-	case "Domain Trust":
-		o.objecttype = ObjectTypeTrust
-	case "Attribute-Schema":
-		o.objecttype = ObjectTypeAttributeSchema
-	case "PKI-Certificate-Template":
-		o.objecttype = ObjectTypeCertificateTemplate
-	default:
+	category := o.OneAttrString(ObjectCategory)
+	if len(category) > 4 {
+		category = strings.Split(category, ",")[0][3:]
+		switch category {
+		case "Person":
+			o.objecttype = ObjectTypeUser
+		case "Group":
+			o.objecttype = ObjectTypeGroup
+		case "Foreign-Security-Principal":
+			o.objecttype = ObjectTypeForeignSecurityPrincipal
+		case "ms-DS-Group-Managed-Service-Account":
+			o.objecttype = ObjectTypeManagedServiceAccount
+		case "Organizational-Unit":
+			o.objecttype = ObjectTypeOrganizationalUnit
+		case "Container":
+			o.objecttype = ObjectTypeContainer
+		case "Computer":
+			o.objecttype = ObjectTypeComputer
+		case "Group-Policy-Container":
+			o.objecttype = ObjectTypeGroupPolicyContainer
+		case "Domain Trust":
+			o.objecttype = ObjectTypeTrust
+		case "Attribute-Schema":
+			o.objecttype = ObjectTypeAttributeSchema
+		case "PKI-Certificate-Template":
+			o.objecttype = ObjectTypeCertificateTemplate
+		default:
+			o.objecttype = ObjectTypeOther
+		}
+	} else {
 		o.objecttype = ObjectTypeOther
 	}
 	return o.objecttype
@@ -172,13 +184,15 @@ func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 
 func (o *Object) ObjectTypeGUID() uuid.UUID {
 	if o.objecttypeguid == NullGUID {
-		typedn := o.OneAttrString(ObjectCategory)
-		if typedn == "" {
+		typedn := o.OneAttr(ObjectCategory)
+		if typedn == nil {
 			// log.Warn().Msgf("Sorry, could not resolve object category %v for object %v, perhaps you didn't get a dump of the schema?", typedn, o.DN())
 			// return NullGUID
-			return UnknownGUID
+			o.objecttypeguid = UnknownGUID
+			return o.objecttypeguid
 		}
-		if oto, found := AllObjects.Find(typedn); found {
+		// the next uncasting from AttributeValue and back to AttributeValueString is because it's wrapped in a render class otherwise
+		if oto, found := AllObjects.Find(DistinguishedName, AttributeValueString(typedn.String())); found {
 			if classguid, ok := oto.OneAttrRaw(SchemaIDGUID).(uuid.UUID); ok {
 				o.objecttypeguid = classguid
 			} else {
@@ -186,71 +200,61 @@ func (o *Object) ObjectTypeGUID() uuid.UUID {
 				log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
 			}
 		} else {
-			log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+			// log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+			o.objecttypeguid = UnknownGUID
 		}
 	}
 	return o.objecttypeguid
 }
 
 func (o Object) AttrString(attr Attribute) []string {
-	r := o.Attributes[attr]
-	if len(r) == 0 && attr == DistinguishedName {
-		return []string{o.DN()}
+	return o.Attr(attr).StringSlice()
+}
+
+func (o Object) AttrRendered(attr Attribute) []string {
+	if attr != ObjectCategory || o.ObjectTypeGUID() == UnknownGUID {
+		return o.Attr(attr).StringSlice()
 	}
-	return r.StringSlice()
+	if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectTypeGUID())); found {
+		// fmt.Println(schemaobject)
+		return []string{schemaobject.OneAttrString(LDAPDisplayName)}
+	}
+	return []string{"Unknown"}
 }
 
 func (o Object) Attr(attr Attribute) AttributeValues {
-	return o.Attributes[attr]
+	if attrs, found := o.Attributes[attr]; found {
+		return attrs
+	}
+	return AttributeValueSlice{}
 }
 
 func (o Object) OneAttrString(attr Attribute) string {
 	a := o.Attr(attr)
-	if len(a) == 1 {
-		return a[0].String()
+	if a.Len() == 1 {
+		return a.Slice()[0].String()
 	}
 	return ""
 }
 
 func (o Object) OneAttrRaw(attr Attribute) interface{} {
 	a := o.Attr(attr)
-	if len(a) == 1 {
-		return a[0].Raw()
+	if a.Len() == 1 {
+		return a.Slice()[0].Raw()
 	}
 	return nil
 }
 
 func (o Object) OneAttr(attr Attribute) AttributeValue {
 	a := o.Attr(attr)
-	if len(a) == 1 {
-		return a[0]
+	if a.Len() == 1 {
+		return a.Slice()[0]
 	}
 	return nil
 }
 
-func (o Object) AttrRendered(attr Attribute) []string {
-	values := o.Attr(attr)
-	renderedvalues := make([]string, len(values))
-	for i := 0; i < len(values); i++ {
-		if avr, ok := values[i].(AttributeValueRenderer); ok {
-			renderedvalues[i] = avr.Render()
-		} else {
-			renderedvalues[i] = values[i].String()
-		}
-	}
-	return renderedvalues
-}
-
-func (o Object) OneAttrRendered(attr Attribute) string {
-	a := o.AttrRendered(attr)
-	if len(a) == 1 {
-		return a[0]
-	}
-	return ""
-}
-
 func (o Object) HasAttrValue(attr Attribute, hasvalue string) bool {
-	for _, value := range o.Attr(attr) {
+	for _, value := range o.Attr(attr).Slice() {
 		if strings.EqualFold(value.String(), hasvalue) {
 			return true
 		}
@@ -319,18 +323,16 @@ func (o *Object) MemberOf() []*Object {
 			}
 		}
 
-		for _, memberof := range o.Attr(MemberOf) {
-			target, found := AllObjects.Find(memberof.String())
+		for _, memberof := range o.Attr(MemberOf).Slice() {
+			target, found := AllObjects.Find(DistinguishedName, memberof)
 			if !found {
-				target = &Object{
-					DistinguishedName: memberof.String(),
-					Attributes: map[Attribute]AttributeValues{
-						DistinguishedName: {AttributeValueString(memberof.String())},
-						ObjectCategory:    {AttributeValueString("CN=Group,CN=Schema,CN=Configuration," + AllObjects.Base)},
-						ObjectClass:       {AttributeValueString("top"), AttributeValueString("group")},
-						Name:              {AttributeValueString("Synthetic group " + memberof.String())},
-						Description:       {AttributeValueString("Synthetic group")}},
-				}
+				target = NewObject(
+					DistinguishedName, memberof,
+					ObjectCategory, AttributeValueString("CN=Group,CN=Schema,CN=Configuration,"+AllObjects.Base),
+					ObjectClass, AttributeValueString("top"), AttributeValueString("group"),
+					Name, AttributeValueString("Synthetic group "+memberof.String()),
+					Description, AttributeValueString("Synthetic group"),
+				)
 				log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group", o.DN(), memberof)
 				AllObjects.Add(target)
 			}
@@ -338,7 +340,7 @@ func (o *Object) MemberOf() []*Object {
 			o.memberof = append(o.memberof, target)
 
 			if target.SID().RID() == 525 { // "Protected Users"
-				o.SetAttr(MetaProtectedUser, "1")
+				o.SetAttr(MetaProtectedUser, AttributeValueInt(1))
 			}
 		}
 		o.memberofinit = true
@@ -346,15 +348,19 @@ func (o *Object) MemberOf() []*Object {
 	return o.memberof
 }
 
-func (o *Object) SetAttr(a Attribute, value string) {
-	o.Attributes[a] = AttributeValues{AttributeValueString(value)}
+func (o *Object) SetAttr(a Attribute, values ...AttributeValue) {
+	if len(values) == 1 {
+		o.Attributes[a] = AttributeValueOne{values[0]}
+	} else {
+		o.Attributes[a] = AttributeValueSlice(values)
+	}
 }
 
 func (o *Object) Meta() map[string]string {
 	result := make(map[string]string)
 	for attr, value := range o.Attributes {
 		if attr.String()[0] == '_' {
-			result[attr.String()] = value[0].String()
+			result[attr.String()] = value.Slice()[0].String()
 		}
 	}
 	return result
@@ -397,7 +403,7 @@ func (o *Object) String() string {
 			continue
 		}
 		result += "  " + attributenums[attr] + ":\n"
-		for _, value := range values {
+		for _, value := range values.Slice() {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {
 				result += fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value.String()), len(cleanval))

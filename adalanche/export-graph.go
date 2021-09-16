@@ -101,10 +101,10 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 
 		for attr, values := range object.Attributes {
 			if (attr.IsMeta() && !strings.HasPrefix(attr.String(), "_gpofile/")) || alldetails {
-				if len(values) == 1 {
-					newnode.Data[attr.String()] = values[0]
+				if values.Len() == 1 {
+					newnode.Data[attr.String()] = values.Slice()[0].String()
 				} else {
-					newnode.Data[attr.String()] = values
+					newnode.Data[attr.String()] = values.StringSlice()
 				}
 			}
 		}

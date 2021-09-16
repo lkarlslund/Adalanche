@@ -584,13 +584,13 @@ func recursiveDNmatchFunc(o *Object, a Attribute, dn string, maxdepth int) bool 
 		return false
 	}
 	// Check all attribute values for match or ancestry
-	for _, value := range o.AttrRendered(a) {
+	for _, value := range o.Attr(a).Slice() {
 		// We're at the end
-		if strings.ToLower(value) == strings.ToLower(dn) {
+		if strings.ToLower(value.String()) == strings.ToLower(dn) {
 			return true
 		}
 		// Perhaps parent matches?
-		if parent, found := AllObjects.Find(value); found {
+		if parent, found := AllObjects.Find(DistinguishedName, value); found {
 			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1)
 		}
 	}

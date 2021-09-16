@@ -47,7 +47,7 @@ func importCollectorFile(path string, objs *Objects) error {
 	if cinfo.Machine.ComputerDomainSID != "" {
 		csid, err := SIDFromString(cinfo.Machine.ComputerDomainSID)
 		if err == nil {
-			if computerobject, found = objs.FindSID(csid); !found {
+			if computerobject, found = objs.Find(ObjectSid, AttributeValueSID(csid)); !found {
 				log.Warn().Msgf("Could not locate machine %v with domain SID %v, falling back to name lookup", cinfo.Machine.Name, cinfo.Machine.ComputerDomainSID)
 			}
 		}
@@ -55,8 +55,7 @@ func importCollectorFile(path string, objs *Objects) error {
 
 	// Fallback to looking by machine account name
 	if computerobject == nil {
-		computerobject, err = objs.FindOne(SAMAccountName, cinfo.Machine.Name+"$")
-		if err != nil {
+		computerobject, found = objs.Find(SAMAccountName, AttributeValueString(cinfo.Machine.Name+"$")); !found {
 			log.Info().Msgf("Not importing collector data for machine %v - not found in object collection (%v)", cinfo.Machine.Name, err)
 			return nil // We didn't find it
 		}
@@ -66,15 +65,16 @@ func importCollectorFile(path string, objs *Objects) error {
 	computerobject.collectorinfo = &cinfo
 
 	// See if the machine has a unique SID
-	localsid := cinfo.Machine.LocalSID
-	if localsid == "" {
-		localsid = "S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-"
+	localsid, err := SIDFromString(cinfo.Machine.LocalSID)
+	if err != nil {
+		localsid, _ = SIDFromString("S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10))
 	}
-	if dupe, err := objs.FindOne(LocalMachineSID, localsid); err == nil {
-		localsid = "S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-"
+
+	if dupe, found := objs.Find(LocalMachineSID, AttributeValueSID(localsid)); found {
+		localsid, _ = SIDFromString("S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10))
 		log.Warn().Msgf("Not registering machine %v with real local SID %v, as it already exists as %v, using generated SID %v instead", cinfo.Machine.Name, cinfo.Machine.LocalSID, dupe.OneAttr(SAMAccountName), localsid)
 	}
-	computerobject.SetAttr(LocalMachineSID, localsid)
+	computerobject.SetAttr(LocalMachineSID, AttributeValueSID(localsid))
 
 	// Add local accounts as synthetic objects
 
@@ -109,7 +109,7 @@ func importCollectorFile(path string, objs *Objects) error {
 				continue // Not a domain SID, skip it
 			}
 
-			if member, found := objs.FindSID(membersid); found {
+			if member, found := objs.Find(ObjectSid, AttributeValueSID(membersid)); found {
 				switch {
 				case group.Name == "SMS Admins":
 					member.Pwns(computerobject, PwnLocalSMSAdmins, 50)
@@ -134,7 +134,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
-		if user, found := objs.FindSID(usersid); found {
+		if user, found := objs.Find(ObjectSid, AttributeValueSID(usersid)); found {
 			computerobject.Pwns(user, PwnLocalSessionLastDay, 80)
 		}
 	}
@@ -147,7 +147,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
-		if user, found := objs.FindSID(usersid); found {
+		if user, found := objs.Find(ObjectSid, AttributeValueSID(usersid)); found {
 			computerobject.Pwns(user, PwnLocalSessionLastWeek, 30)
 		}
 	}
@@ -160,7 +160,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
-		if user, found := objs.FindSID(usersid); found {
+		if user, found := objs.Find(ObjectSid, AttributeValueSID(usersid)); found {
 			computerobject.Pwns(user, PwnLocalSessionLastMonth, 10)
 		}
 	}
@@ -169,8 +169,8 @@ func importCollectorFile(path string, objs *Objects) error {
 	if cinfo.Machine.DefaultUsername != "" && cinfo.Machine.DefaultDomain != "" {
 		if cinfo.Machine.DefaultDomain == objs.DomainNetbios {
 			// NETBIOS name for domain check FIXME
-			account, err := objs.FindOne(SAMAccountName, cinfo.Machine.DefaultUsername)
-			if err == nil {
+			account, found := objs.Find(SAMAccountName, AttributeValueString(cinfo.Machine.DefaultUsername))
+			if found {
 				computerobject.Pwns(account, PwnHasAutoAdminLogonCredentials, 100)
 			}
 		}
@@ -179,15 +179,15 @@ func importCollectorFile(path string, objs *Objects) error {
 	// SERVICES
 	for _, service := range cinfo.Services {
 		serviceobject := NewObject()
-		serviceobject.SetAttr(DistinguishedName, "cn="+service.Name+",cn=Services,"+computerobject.DN())
+		serviceobject.SetAttr(DistinguishedName, AttributeValueString("CN="+service.Name+",CN=Services,"+computerobject.DN()))
 		AllObjects.Add(serviceobject)
 
 		computerobject.Pwns(serviceobject, PwnHosts, 100)
 
 		nameparts := strings.Split(service.Account, "\\")
 		if len(nameparts) == 2 && nameparts[0] == objs.DomainNetbios {
-			svcaccount, err := objs.FindOne(SAMAccountName, nameparts[1])
-			if err == nil {
+			svcaccount, found := objs.Find(SAMAccountName, AttributeValueString(nameparts[1]))
+			if found {
 				computerobject.Pwns(svcaccount, PwnHasServiceAccountCredentials, 100)
 
 				serviceobject.Pwns(svcaccount, PwnRunsAs, 100)
@@ -195,7 +195,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		}
 
 		if ownersid, err := SIDFromString(service.ImageExecutableOwner); err == nil {
-			if owner, found := AllObjects.FindSID(ownersid); found {
+			if owner, found := AllObjects.Find(ObjectSid, AttributeValueSID(ownersid)); found {
 				owner.Pwns(serviceobject, PwnOwns, 100)
 			}
 		}
@@ -205,7 +205,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			for _, entry := range sd.Entries {
 				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
 					// AD object
-					if o, found := AllObjects.FindSID(entry.SID); found {
+					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&KEY_SET_VALUE != KEY_SET_VALUE {
 							o.Pwns(serviceobject, PwnWriteAll, 100)
 						}
@@ -221,7 +221,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		// Change service executable contents
 		if sd, err := parseACL(service.ImageExecutableDACL); err == nil {
 			serviceimageobject := NewObject()
-			serviceimageobject.SetAttr(DistinguishedName, "cn="+service.ImageExecutable+","+serviceobject.DN())
+			serviceimageobject.SetAttr(DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()))
 			AllObjects.Add(serviceimageobject)
 
 			serviceimageobject.Pwns(serviceobject, PwnExecuted, 100)
@@ -229,7 +229,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			for _, entry := range sd.Entries {
 				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
 					// AD object
-					if o, found := AllObjects.FindSID(entry.SID); found {
+					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&FILE_WRITE_DATA != FILE_WRITE_DATA {
 							o.Pwns(serviceobject, PwnWriteAll, 100)
 						}
@@ -249,7 +249,7 @@ func importCollectorFile(path string, objs *Objects) error {
 	// MACHINE AVAILABILITY
 
 	// SOFTWARE INVENTORY AS ATTRIBUTES
-	installedsoftware := make(AttributeValues, len(cinfo.Software))
+	installedsoftware := make(AttributeValueSlice, len(cinfo.Software))
 	for i, software := range cinfo.Software {
 		installedsoftware[i] = AttributeValueString(fmt.Sprintf(
 			"%v %v %v", software.Publisher, software.DisplayName, software.DisplayVersion,

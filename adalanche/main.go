@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -454,7 +453,7 @@ func main() {
 
 			if err == nil {
 				newObject := rawObject.ToObject(*importall)
-				AllObjects.Add(&newObject)
+				AllObjects.Add(newObject)
 			} else if msgp.Cause(err) == io.EOF {
 				break
 			} else {
@@ -473,25 +472,23 @@ func main() {
 		if err != nil {
 			log.Fatal().Msgf("Problem parsing SID %v", sid)
 		}
-		if _, found := AllObjects.FindSID(binsid); !found {
+		if _, found := AllObjects.Find(ObjectSid, AttributeValueSID(binsid)); !found {
 			dn := "CN=" + name + ",CN=microsoft-builtin"
 			log.Info().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
-			AllObjects.Add(&Object{
-				DistinguishedName: dn,
-				Attributes: map[Attribute]AttributeValues{
-					Name:           {AttributeValueString(name)},
-					ObjectSid:      {AttributeValueSID(binsid)},
-					ObjectClass:    {AttributeValueString("person"), AttributeValueString("user"), AttributeValueString("top")},
-					ObjectCategory: {AttributeValueString("Group")},
-				},
-			})
+			AllObjects.Add(NewObject(
+				DistinguishedName, AttributeValueString(dn),
+				Name, AttributeValueString(name),
+				ObjectSid, AttributeValueSID(binsid),
+				ObjectClass, AttributeValueString("person"), AttributeValueString("user"), AttributeValueString("top"),
+				ObjectCategory, AttributeValueString("Group"),
+			))
 		}
 	}
 
 	// ShowAttributePopularity()
 
 	// Generate member of chains
-	processbar := progressbar.NewOptions(int(len(AllObjects.dnmap)),
+	processbar := progressbar.NewOptions(int(len(AllObjects.AsArray())),
 		progressbar.OptionSetDescription("Processing objects..."),
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowIts(),
@@ -524,49 +521,49 @@ func main() {
 		// 	object.memberof = append(object.memberof, everyone, authenticatedusers)
 		// }
 
-		object.SetAttr(MetaType, object.Type().String())
+		object.SetAttr(MetaType, AttributeValueString(object.Type().String()))
 		if lastlogon, ok := object.AttrTimestamp(LastLogonTimestamp); ok {
-			object.SetAttr(MetaLastLoginAge, strconv.Itoa(int(time.Since(lastlogon)/time.Hour)))
+			object.SetAttr(MetaLastLoginAge, AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 		}
 		if passwordlastset, ok := object.AttrTimestamp(PwdLastSet); ok {
-			object.SetAttr(MetaPasswordAge, strconv.Itoa(int(time.Since(passwordlastset)/time.Hour)))
+			object.SetAttr(MetaPasswordAge, AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 		}
 		if strings.Contains(strings.ToLower(object.OneAttrString(OperatingSystem)), "linux") {
-			object.SetAttr(MetaLinux, "1")
+			object.SetAttr(MetaLinux, AttributeValueInt(1))
 		}
 		if strings.Contains(strings.ToLower(object.OneAttrString(OperatingSystem)), "windows") {
-			object.SetAttr(MetaWindows, "1")
+			object.SetAttr(MetaWindows, AttributeValueInt(1))
 		}
-		if len(object.Attr(MSmcsAdmPwdExpirationTime)) > 0 {
-			object.SetAttr(MetaLAPSInstalled, "1")
+		if object.Attr(MSmcsAdmPwdExpirationTime).Len() > 0 {
+			object.SetAttr(MetaLAPSInstalled, AttributeValueInt(1))
 		}
 		if uac, ok := object.AttrInt(UserAccountControl); ok {
 			if uac&UAC_TRUSTED_FOR_DELEGATION != 0 {
-				object.SetAttr(MetaUnconstrainedDelegation, "1")
+				object.SetAttr(MetaUnconstrainedDelegation, AttributeValueInt(1))
 			}
 			if uac&UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
-				object.SetAttr(MetaConstrainedDelegation, "1")
+				object.SetAttr(MetaConstrainedDelegation, AttributeValueInt(1))
 			}
 			if uac&UAC_NOT_DELEGATED != 0 {
 				log.Debug().Msgf("%v has can't be used as delegation", object.DN())
 			}
 			if uac&UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
-				object.SetAttr(MetaWorkstation, "1")
+				object.SetAttr(MetaWorkstation, AttributeValueInt(1))
 			}
 			if uac&UAC_SERVER_TRUST_ACCOUNT != 0 {
-				object.SetAttr(MetaServer, "1")
+				object.SetAttr(MetaServer, AttributeValueInt(1))
 			}
 			if uac&UAC_ACCOUNTDISABLE != 0 {
-				object.SetAttr(MetaAccountDisabled, "1")
+				object.SetAttr(MetaAccountDisabled, AttributeValueInt(1))
 			}
 			if uac&UAC_PASSWD_CANT_CHANGE != 0 {
-				object.SetAttr(MetaPasswordCantChange, "1")
+				object.SetAttr(MetaPasswordCantChange, AttributeValueInt(1))
 			}
 			if uac&UAC_DONT_EXPIRE_PASSWORD != 0 {
-				object.SetAttr(MetaPasswordNoExpire, "1")
+				object.SetAttr(MetaPasswordNoExpire, AttributeValueInt(1))
 			}
 			if uac&UAC_PASSWD_NOTREQD != 0 {
-				object.SetAttr(MetaPasswordNotRequired, "1")
+				object.SetAttr(MetaPasswordNotRequired, AttributeValueInt(1))
 			}
 		}
 
@@ -647,7 +644,7 @@ func main() {
 								return
 							}
 							// ... that has LAPS installed
-							if len(o.Attr(MSmcsAdmPwdExpirationTime)) == 0 {
+							if o.Attr(MSmcsAdmPwdExpirationTime).Len() == 0 {
 								return
 							}
 							// Analyze ACL
@@ -684,12 +681,12 @@ func main() {
 	// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 
 	var excluded string
-	if ds, found := AllObjects.Find("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration," + ad.RootDn()); found {
+	if ds, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+ad.RootDn())); found {
 		excluded = ds.OneAttrString(DsHeuristics)
 	}
 
 	// Let's see if we can find the AdminSDHolder container
-	if adminsdholder, found := AllObjects.Find("cn=AdminSDHolder,cn=System," + ad.RootDn()); found {
+	if adminsdholder, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=AdminSDHolder,CN=System,"+ad.RootDn())); found {
 		// We found it - so we know it can theoretically "pwn" any object with AdminCount > 0
 		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded))
 	}
@@ -731,7 +728,7 @@ func main() {
 	}
 
 	// Generate member of chains
-	pwnbar := progressbar.NewOptions(int(len(AllObjects.dnmap)),
+	pwnbar := progressbar.NewOptions(int(len(AllObjects.AsArray())),
 		progressbar.OptionSetDescription("Analyzing who can pwn who ..."),
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowIts(),

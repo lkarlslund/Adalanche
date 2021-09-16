@@ -10,17 +10,8 @@ import (
 // Truly horrible, shoot me already
 
 var (
-	randguid, _    = uuid.NewV4()
 	AttackerSID, _ = SIDFromString("S-1-555-1337")
-	AttackerObject = &Object{
-		DistinguishedName: "CN=Attacker",
-		Attributes: map[Attribute]AttributeValues{
-			Name:       {AttributeValueString("Attacker")},
-			ObjectSid:  {AttributeValueSID(AttackerSID)},
-			ObjectGUID: {AttributeValueGUID(randguid)},
-		},
-	}
-
+	AttackerObject *Object
 	// HackersWonSID, _ = SIDFromString("S-1-555-13337")
 	// randguid2, _     = uuid.NewV4()
 	// HackersWonObject = &Object{
@@ -40,8 +31,13 @@ var (
 )
 
 func init() {
-	AttackerObject.init()
-	// HackersWonObject.init()
+	randguid, _ := uuid.NewV4()
+	AttackerObject = NewObject(
+		DistinguishedName, AttributeValueString("CN=Attacker"),
+		Name, AttributeValueString("Attacker"),
+		ObjectSid, AttributeValueSID(AttackerSID),
+		ObjectGUID, AttributeValueGUID(randguid),
+	)
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
 	AllObjects.Init(nil)

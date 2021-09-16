@@ -8,9 +8,19 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type AttributeValues []AttributeValue
+type AttributeValues interface {
+	Slice() []AttributeValue
+	StringSlice() []string
+	Len() int
+}
 
-func (avs AttributeValues) StringSlice() []string {
+type AttributeValueSlice []AttributeValue
+
+func (avs AttributeValueSlice) Slice() []AttributeValue {
+	return avs
+}
+
+func (avs AttributeValueSlice) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
 		result[i] = avs[i].String()
@@ -18,13 +28,29 @@ func (avs AttributeValues) StringSlice() []string {
 	return result
 }
 
+func (avs AttributeValueSlice) Len() int {
+	return len(avs)
+}
+
+type AttributeValueOne struct {
+	AttributeValue
+}
+
+func (avo AttributeValueOne) Len() int {
+	return 1
+}
+
+func (avo AttributeValueOne) Slice() []AttributeValue {
+	return AttributeValueSlice{avo.AttributeValue}
+}
+
+func (avo AttributeValueOne) StringSlice() []string {
+	return []string{avo.AttributeValue.String()}
+}
+
 type AttributeValue interface {
 	String() string
 	Raw() interface{}
-}
-
-type AttributeValueRenderer interface {
-	Render() string
 }
 
 type AttributeValueString string

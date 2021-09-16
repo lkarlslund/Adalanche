@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -15,36 +14,51 @@ type Objects struct {
 
 	idcounter uint64 // Unique ID +1 to assign to Object added to this collection if it's zero
 
-	asarray   []*Object
-	objectmap map[*Object]struct{}
-	dnmap     map[string]*Object
-	sidmap    map[SID]*Object
-	guidmap   map[uuid.UUID]*Object
+	asarray []*Object
+
+	index         map[Attribute]map[interface{}]*Object
+	lookupcounter []uint64 // For auto-indexes
+
 	typecount [OBJECTTYPEMAX]int
 
 	classmap map[string]*Object // top, user, person -> schema object
 }
 
 func (os *Objects) Init(ios *Objects) {
+	os.index = make(map[Attribute]map[interface{}]*Object)
+	// os.lookupcounter = make([]uint64)
 	if ios != nil {
 		os.Base = ios.Base
 		os.Domain = ios.Domain
 		os.DomainNetbios = ios.DomainNetbios
 		os.idcounter = ios.idcounter
+		// for attribute, _ := range ios.index {
+		// 	os.index[attribute] = make(map[interface{}]*Object)
+		// }
 	}
-	os.objectmap = make(map[*Object]struct{})
-	os.dnmap = make(map[string]*Object)
-	os.sidmap = make(map[SID]*Object)
-	os.guidmap = make(map[uuid.UUID]*Object)
+}
 
-	os.classmap = make(map[string]*Object)
+func (os *Objects) AddIndex(attribute Attribute) {
+	// create index
+	os.index[attribute] = make(map[interface{}]*Object)
+	// add all existing stuff to index
+	for _, o := range os.asarray {
+		value := o.OneAttr(attribute)
+		if value != nil {
+			// If it's a string, lowercase it before adding to index, we do the same on lookups
+			if vs, ok := value.(AttributeValueString); ok {
+				value = AttributeValueString(strings.ToLower(string(vs)))
+			}
+			os.index[attribute][value.Raw()] = o
+		}
+	}
 }
 
 func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 	var result Objects
 	result.Init(os)
 
-	for _, object := range os.dnmap {
+	for _, object := range os.asarray {
 		if evaluate(object) {
 			result.Add(object)
 		}
@@ -58,45 +72,28 @@ func (os *Objects) Add(o *Object) {
 		o.ID = os.idcounter
 	}
 
+	// Do chunked extensions for speed
+	if len(os.asarray) == cap(os.asarray) {
+		newarray := make([]*Object, len(os.asarray), len(os.asarray)+256)
+		copy(newarray, os.asarray)
+		os.asarray = newarray
+	}
+	// Add this to the iterator array
 	os.asarray = append(os.asarray, o)
-	os.objectmap[o] = struct{}{}
-	os.dnmap[strings.ToLower(o.DN())] = o
 
-	if sidval := o.OneAttr(ObjectSid); sidval != nil {
-		if sid, ok := sidval.Raw().(SID); ok {
-			existing, dupe := os.sidmap[sid]
-			if dupe {
-				log.Warn().Msgf("Duplicate SID when trying to add %v, already exists as %v, skipping import", o.DN(), existing.DN())
-			} else {
-				// log.Print("Adding", sid)
-				os.sidmap[sid] = o
+	for attribute, _ := range os.index {
+		value := o.OneAttr(attribute)
+		if value != nil {
+			// If it's a string, lowercase it before adding to index, we do the same on lookups
+			if vs, ok := value.(AttributeValueString); ok {
+				value = AttributeValueString(strings.ToLower(string(vs)))
 			}
-		}
-	}
-
-	if sidval := o.OneAttr(SIDHistory); sidval != nil {
-		if sid, ok := sidval.Raw().(SID); ok {
-			existing, dupe := os.sidmap[sid]
+			existing, dupe := os.index[attribute][value.Raw()]
 			if dupe {
-				log.Warn().Msgf("Duplicate SID when trying to add SIDhistory %v, already exists as %v, skipping import", o.DN(), existing.DN())
+				log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.DN(), existing.DN())
 			} else {
-				log.Debug().Msgf("Object %v with SIDHistory added", o.DN())
-				os.sidmap[sid] = o
+				os.index[attribute][value.Raw()] = o
 			}
-		}
-	}
-
-	if guidval := o.OneAttr(ObjectGUID); guidval != nil {
-		if guid, ok := guidval.Raw().(uuid.UUID); ok {
-			os.guidmap[guid] = o
-		}
-	}
-
-	// Attributes etc
-	if len(o.Attr(SchemaIDGUID)) > 0 {
-		ldn := o.OneAttrString(LDAPDisplayName)
-		if ldn != "" {
-			os.classmap[strings.ToLower(ldn)] = o
 		}
 	}
 
@@ -112,14 +109,21 @@ func (os Objects) AsArray() []*Object {
 	return os.asarray
 }
 
-func (os *Objects) Contains(o *Object) (found bool) {
-	_, found = os.objectmap[o]
-	return
-}
+func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, found bool) {
+	index, found := os.index[attribute]
+	if !found {
+		os.AddIndex(attribute)
+		index, _ = os.index[attribute]
+	}
 
-func (os *Objects) Find(dn string) (o *Object, found bool) {
-	o, found = os.dnmap[strings.ToLower(dn)]
-	return
+	// If it's a string, lowercase it before adding to index, we do the same on lookups
+	if vs, ok := value.(AttributeValueString); ok {
+		value = AttributeValueString(strings.ToLower(string(vs)))
+	}
+
+	// use index
+	result, found := index[value.Raw()]
+	return result, found
 }
 
 func (os *Objects) Parent(o *Object) (*Object, bool) {
@@ -139,7 +143,7 @@ func (os *Objects) Parent(o *Object) (*Object, bool) {
 		dn = dn[firstcomma+1:]
 		break
 	}
-	return os.Find(dn)
+	return os.Find(DistinguishedName, AttributeValueString(dn))
 }
 
 func (os *Objects) Subordinates(o *Object) *Objects {
@@ -159,46 +163,24 @@ func (os *Objects) Subordinates(o *Object) *Objects {
 	})
 }
 
-func (os *Objects) FindSID(s SID) (o *Object, found bool) {
-	o, found = os.sidmap[s]
-	return
-}
-
-func (os *Objects) FindOne(a Attribute, value string) (*Object, error) {
-	fo := os.Filter(func(o *Object) bool {
-		return o.HasAttrValue(a, value)
-	})
-	foa := fo.AsArray()
-	if len(foa) != 1 {
-		return nil, errors.New("None or multiple objects found")
-	}
-	return foa[0], nil
-}
-
 func (os *Objects) FindOrAddSID(s SID) *Object {
-	o, found := os.FindSID(s)
+	o, found := os.Find(ObjectSid, AttributeValueSID(s))
 	if found {
 		return o
 	}
 	u, _ := uuid.NewV4()
-	o = &Object{
-		DistinguishedName: "CN=" + s.String() + ",CN=synthetic",
-		Attributes: map[Attribute]AttributeValues{
-			Name:       {AttributeValueString(s.String())},
-			ObjectGUID: {AttributeValueGUID(u)},
-			ObjectSid:  {AttributeValueSID(s)},
-		},
-		CanPwn:    make(PwnConnections),
-		PwnableBy: make(PwnConnections),
-	}
-	log.Info().Msgf("Adding unknown SID %v as %v", s, o.DistinguishedName)
+	o = NewObject()
+	o.SetAttr(DistinguishedName, AttributeValueString("CN="+s.String()+",CN=synthetic"))
+	o.SetAttr(Name, AttributeValueString(s.String()))
+	o.SetAttr(ObjectGUID, AttributeValueGUID(u))
+	o.SetAttr(ObjectSid, AttributeValueSID(s))
+	log.Info().Msgf("Adding unknown SID %v as %v", s, o.DN())
 	os.Add(o)
 	return o
 }
 
 func (os *Objects) FindGUID(g uuid.UUID) (o *Object, found bool) {
-	o, found = os.guidmap[g]
-	return
+	return os.Find(ObjectGUID, AttributeValueGUID(g))
 }
 
 func (os *Objects) FindClass(class string) (o *Object, found bool) {

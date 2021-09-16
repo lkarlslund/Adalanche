@@ -23,10 +23,10 @@ func (r *RawObject) init() {
 	r.Attributes = make(map[string][]string)
 }
 
-func (r *RawObject) ToObject(importall bool) Object {
-	var result Object
-	result.init()
-	result.DistinguishedName = stringdedup.S(r.DistinguishedName) // This is possibly repeated in member attributes, so dedup it
+func (r *RawObject) ToObject(importall bool) *Object {
+	result := NewObject(
+		DistinguishedName, AttributeValueString(stringdedup.S(r.DistinguishedName)),
+	) // This is possibly repeated in member attributes, so dedup it
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
 			continue
@@ -37,7 +37,7 @@ func (r *RawObject) ToObject(importall bool) Object {
 			continue
 		}
 
-		avs := make(AttributeValues, len(values))
+		avs := make(AttributeValueSlice, len(values))
 		var skipped int
 
 		for valindex, value := range values {
@@ -77,7 +77,7 @@ func (r *RawObject) ToObject(importall bool) Object {
 				attributevalue = AttributeValueSID(value)
 			case NTSecurityDescriptor:
 				if err := result.cacheSecurityDescriptor([]byte(value)); err != nil {
-					log.Error().Msgf("Problem parsing security descriptor for %v: %v", result.DistinguishedName, err)
+					log.Error().Msgf("Problem parsing security descriptor for %v: %v", result.DN(), err)
 				}
 				fallthrough
 			default:
@@ -107,7 +107,7 @@ func (r *RawObject) ToObject(importall bool) Object {
 				skipped++
 			}
 		}
-		result.Attributes[attribute] = avs[:len(values)-skipped]
+		result.SetAttr(attribute, avs[:len(values)-skipped]...)
 	}
 	return result
 }

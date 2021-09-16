@@ -127,7 +127,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 						continue // Link is disabled
 					}
 
-					gpo, found := AllObjects.Find(linkedgpodn)
+					gpo, found := AllObjects.Find(DistinguishedName, AttributeValueString(linkedgpodn))
 					if !found {
 						log.Error().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
 					} else {
@@ -260,7 +260,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 		Method: PwnDeleteChildrenTarget,
 		ObjectAnalyzer: func(o *Object) {
 			// If parent has DELETE CHILD, I can be deleted by some SID
-			if parent, found := AllObjects.Find(o.ParentDN()); found {
+			if parent, found := AllObjects.Find(DistinguishedName, AttributeValueString(o.ParentDN())); found {
 				sd, err := parent.SecurityDescriptor()
 				if err != nil {
 					return
@@ -282,7 +282,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 					// just to make sure we dont loop eternally by being stupid somehow
 					return
 				}
-				if parentobject, found := AllObjects.Find(pdn); found {
+				if parentobject, found := AllObjects.Find(DistinguishedName, AttributeValueString(pdn)); found {
 					parentobject.Pwns(o, PwnInheritsSecurity, 100)
 				}
 			}
@@ -464,9 +464,9 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if o.Type() != ObjectTypeUser {
 				return
 			}
-			if len(o.Attr(ServicePrincipalName)) > 0 {
-				o.SetAttr(MetaHasSPN, "1")
-				AuthenticatedUsers, found := AllObjects.Find("CN=Authenticated Users,CN=WellKnown Security Principals,CN=Configuration," + AllObjects.Base)
+			if o.Attr(ServicePrincipalName).Len() > 0 {
+				o.SetAttr(MetaHasSPN, AttributeValueInt(1))
+				AuthenticatedUsers, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Authenticated Users,CN=WellKnown Security Principals,CN=Configuration,"+AllObjects.Base))
 				if !found {
 					log.Error().Msgf("Could not locate Authenticated Users")
 					return
@@ -489,7 +489,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if uac&0x400000 == 0 {
 				return
 			}
-			if len(o.Attr(ServicePrincipalName)) > 0 {
+			if o.Attr(ServicePrincipalName).Len() > 0 {
 				AttackerObject.Pwns(o, PwnHasSPNNoPreauth, 50)
 			}
 		},
@@ -682,9 +682,9 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnHasMSA,
 		ObjectAnalyzer: func(o *Object) {
-			msas := o.Attr(MSDSHostServiceAccount)
+			msas := o.Attr(MSDSHostServiceAccount).Slice()
 			for _, dn := range msas {
-				if targetmsa, found := AllObjects.Find(dn.String()); found {
+				if targetmsa, found := AllObjects.Find(DistinguishedName, dn); found {
 					o.Pwns(targetmsa, PwnHasMSA, 100)
 				}
 			}
@@ -712,7 +712,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnSIDHistoryEquality,
 		ObjectAnalyzer: func(o *Object) {
-			sids := o.Attr(SIDHistory)
+			sids := o.Attr(SIDHistory).Slice()
 			for _, sidval := range sids {
 				if sid, ok := sidval.Raw().(SID); ok {
 					target := AllObjects.FindOrAddSID(sid)
@@ -885,10 +885,11 @@ var PwnAnalyzers = []PwnAnalyzer{
 					break
 				}
 				// Create new synthetic object
-				sob := NewObject()
-				sob.SetAttr(ObjectCategory, "Script")
-				sob.DistinguishedName = fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name))
-				sob.SetAttr(Name, "Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " "))
+				sob := NewObject(
+					ObjectCategory, AttributeValueString("Script"),
+					DistinguishedName, AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name).String())),
+					Name, AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+				)
 				AllObjects.Add(sob)
 				sob.Pwns(o, PwnMachineScript, 100)
 				scriptnum++
@@ -902,10 +903,11 @@ var PwnAnalyzers = []PwnAnalyzer{
 					break
 				}
 				// Create new synthetic object
-				sob := NewObject()
-				sob.DistinguishedName = fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name))
-				sob.SetAttr(ObjectCategory, "Script")
-				sob.SetAttr(Name, "Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " "))
+				sob := NewObject(
+					DistinguishedName, AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, o.OneAttr(Name))),
+					ObjectCategory, AttributeValueString("Script"),
+					Name, AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+				)
 				AllObjects.Add(sob)
 				sob.Pwns(o, PwnMachineScript, 100)
 				scriptnum++
@@ -1028,6 +1030,11 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
 	canexpand := make(map[*Object]int)
 
+	if excludeobjects == nil {
+		excludeobjects = &Objects{}
+		excludeobjects.Init(nil)
+	}
+
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := strings.HasPrefix(mode, "normal")
 	// Backlinks = include all links, don't limit per round
@@ -1100,7 +1107,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 					continue
 				}
 
-				if excludeobjects != nil && excludeobjects.Contains(pwntarget) {
+				if _, found := excludeobjects.Find(DistinguishedName, AttributeValueString(pwntarget.DN())); found {
 					// skip excluded objects
 					// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
 					continue
@@ -1171,7 +1178,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 	i = 0
 	for object := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
-		if includeobjects.Contains(object) {
+		if _, found := includeobjects.Find(DistinguishedName, AttributeValueString(object.DN())); found {
 			pg.Nodes[i].Target = true
 		}
 		if expandnum, found := canexpand[object]; found {

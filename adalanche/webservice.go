@@ -87,7 +87,7 @@ func webservice(bind string) http.Server {
 		var found bool
 		switch strings.ToLower(vars["locateby"]) {
 		case "dn", "distinguishedname":
-			o, found = AllObjects.Find(vars["id"])
+			o, found = AllObjects.Find(DistinguishedName, AttributeValueString(vars["id"]))
 		case "sid":
 			sid, err := SIDFromString(vars["id"])
 			if err != nil {
@@ -95,7 +95,7 @@ func webservice(bind string) http.Server {
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = AllObjects.FindSID(sid)
+			o, found = AllObjects.Find(ObjectSid, AttributeValueSID(sid))
 		case "guid":
 			u, err := uuid.FromString(vars["id"])
 			if err != nil {
@@ -103,7 +103,7 @@ func webservice(bind string) http.Server {
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = AllObjects.FindGUID(u)
+			o, found = AllObjects.Find(ObjectGUID, AttributeValueGUID(u))
 		}
 		if !found {
 			w.WriteHeader(404) // bad request
