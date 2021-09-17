@@ -91,7 +91,7 @@ func EncodeAttributeData(attribute Attribute, values []string) AttributeValueSli
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectCategory:
-			attributevalue = AttributeValueRenderedObjectClass(value)
+			attributevalue = AttributeValueString(value)
 		case ObjectSid:
 			attributevalue = AttributeValueSID(value)
 			fallthrough

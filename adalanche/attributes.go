@@ -99,7 +99,6 @@ var (
 	MetaWindows                 = NewAttribute("_windows")
 	MetaWorkstation             = NewAttribute("_workstation")
 	MetaServer                  = NewAttribute("_server")
-	MetaType                    = NewAttribute("_type")
 	MetaLAPSInstalled           = NewAttribute("_haslaps")
 	// The rest is skipped
 	_ = NewAttribute("member")

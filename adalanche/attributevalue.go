@@ -2,7 +2,6 @@ package main
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -81,25 +80,6 @@ func (as AttributeValueTime) String() string {
 
 func (as AttributeValueTime) Raw() interface{} {
 	return time.Time(as)
-}
-
-type AttributeValueRenderedObjectClass AttributeValueString
-
-func (avro AttributeValueRenderedObjectClass) String() string {
-	return string(avro)
-}
-
-func (avro AttributeValueRenderedObjectClass) Raw() interface{} {
-	return string(avro)
-}
-
-func (avro AttributeValueRenderedObjectClass) Render() string {
-	value := avro.String()
-	firstcomma := strings.Index(value, ",")
-	if firstcomma > 3 {
-		return value[3:firstcomma]
-	}
-	return value
 }
 
 type AttributeValueSID SID

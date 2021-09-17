@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -225,7 +226,7 @@ func importCollectorFile(path string, objs *Objects) error {
 		if sd, err := parseACL(service.ImageExecutableDACL); err == nil {
 			serviceimageobject := NewObject(
 				DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()),
-				DisplayName, AttributeValueString(service.ImageExecutable),
+				DisplayName, AttributeValueString(filepath.Base(service.ImageExecutable)),
 				ObjectClass, AttributeValueString("Executable"),
 			)
 			AllObjects.Add(serviceimageobject)

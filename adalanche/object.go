@@ -33,6 +33,8 @@ const (
 	ObjectTypeGroupPolicyContainer
 	ObjectTypeCertificateTemplate
 	ObjectTypeTrust
+	ObjectTypeService
+	ObjectTypeExecutable
 	OBJECTTYPEMAX = iota - 1
 )
 
@@ -163,6 +165,10 @@ func (o Object) Type() ObjectType {
 			o.objecttype = ObjectTypeAttributeSchema
 		case "PKI-Certificate-Template":
 			o.objecttype = ObjectTypeCertificateTemplate
+		case "Service":
+			o.objecttype = ObjectTypeService
+		case "Executable":
+			o.objecttype = ObjectTypeExecutable
 		default:
 			o.objecttype = ObjectTypeOther
 		}
@@ -218,24 +224,49 @@ func (o Object) AttrString(attr Attribute) []string {
 }
 
 func (o Object) AttrRendered(attr Attribute) []string {
-	if attr != ObjectCategory || o.ObjectTypeGUID() == UnknownGUID {
+	switch attr {
+	case ObjectCategory:
+		ocguid := o.ObjectTypeGUID()
+		if ocguid != UnknownGUID {
+			if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectTypeGUID())); found {
+				// fmt.Println(schemaobject)
+				return []string{schemaobject.OneAttrString(Name)}
+			}
+		}
+
+		cat := o.OneAttrString(ObjectCategory)
+		if cat != "" {
+
+			splitted := strings.Split(cat, ",")
+			if len(splitted) > 1 {
+				// This is a DN pointing to a category - otherwise it's just something we made up! :)
+				return []string{splitted[0][3:]}
+			}
+			return []string{cat}
+		}
+
+		return []string{"Unknown"}
+	default:
 		return o.Attr(attr).StringSlice()
 	}
-	if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectTypeGUID())); found {
-		// fmt.Println(schemaobject)
-		return []string{schemaobject.OneAttrString(LDAPDisplayName)}
-	}
-	return []string{"Unknown"}
 }
 
-func (o Object) Attr(attr Attribute) AttributeValues {
+func (o *Object) OneAttrRendered(attr Attribute) string {
+	r := o.AttrRendered(attr)
+	if len(r) == 0 {
+		return ""
+	}
+	return r[0]
+}
+
+func (o *Object) Attr(attr Attribute) AttributeValues {
 	if attrs, found := o.Attributes[attr]; found {
 		return attrs
 	}
 	return AttributeValueSlice{}
 }
 
-func (o Object) OneAttrString(attr Attribute) string {
+func (o *Object) OneAttrString(attr Attribute) string {
 	a := o.Attr(attr)
 	if a.Len() == 1 {
 		return a.Slice()[0].String()

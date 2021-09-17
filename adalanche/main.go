@@ -35,7 +35,8 @@ import (
 var embeddedassets embed.FS
 
 var (
-	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
+	lapsdetect uint64
+	qjson      = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 var (
@@ -535,7 +536,41 @@ func main() {
 		}
 	}
 
-	// ShowAttributePopularity()
+	// Import collector JSON files
+	if *collectorpath != "" {
+		if st, err := os.Stat(*collectorpath); err == nil && st.IsDir() {
+			log.Info().Msgf("Scanning for collector files from %v ...", *collectorpath)
+			var jsonfiles []string
+			filepath.Walk(*collectorpath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
+					jsonfiles = append(jsonfiles, path)
+				}
+				return nil
+			})
+
+			importcollectorbar := progressbar.NewOptions(len(jsonfiles),
+				progressbar.OptionSetDescription("Importing externally collected machine data ..."),
+				progressbar.OptionShowCount(),
+				progressbar.OptionShowIts(),
+				progressbar.OptionSetItsString("JSON files"),
+				progressbar.OptionOnCompletion(func() { fmt.Println() }),
+				progressbar.OptionThrottle(time.Second*1),
+			)
+			for _, path := range jsonfiles {
+				err = importCollectorFile(path, &AllObjects)
+				if err != nil {
+					log.Warn().Msgf("Problem processing collector file %v: %v", path, err)
+				}
+				importcollectorbar.Add(1)
+			}
+			importcollectorbar.Finish()
+		} else {
+			log.Warn().Msgf("Not importing collector files, path %v not accessible", *collectorpath)
+		}
+	}
 
 	// Generate member of chains
 	processbar := progressbar.NewOptions(int(len(AllObjects.AsArray())),
@@ -571,7 +606,6 @@ func main() {
 		// 	object.memberof = append(object.memberof, everyone, authenticatedusers)
 		// }
 
-		object.SetAttr(MetaType, AttributeValueString(object.Type().String()))
 		if lastlogon, ok := object.AttrTimestamp(LastLogonTimestamp); ok {
 			object.SetAttr(MetaLastLoginAge, AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 		}
@@ -704,10 +738,10 @@ func main() {
 							}
 							for index, acl := range sd.DACL.Entries {
 								if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, objectGUID) {
+									lapsdetect++
 									AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnReadLAPSPassword, 100)
 								}
 							}
-							return
 						},
 					})
 				}
@@ -741,42 +775,6 @@ func main() {
 		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded))
 	}
 
-	// Import collector JSON files
-	if *collectorpath != "" {
-		if st, err := os.Stat(*collectorpath); err == nil && st.IsDir() {
-			log.Info().Msgf("Scanning for collector files from %v ...", *collectorpath)
-			var jsonfiles []string
-			filepath.Walk(*collectorpath, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
-					jsonfiles = append(jsonfiles, path)
-				}
-				return nil
-			})
-
-			importcollectorbar := progressbar.NewOptions(len(jsonfiles),
-				progressbar.OptionSetDescription("Importing externally collected machine data ..."),
-				progressbar.OptionShowCount(),
-				progressbar.OptionShowIts(),
-				progressbar.OptionSetItsString("JSON files"),
-				progressbar.OptionOnCompletion(func() { fmt.Println() }),
-				progressbar.OptionThrottle(time.Second*1),
-			)
-			for _, path := range jsonfiles {
-				err = importCollectorFile(path, &AllObjects)
-				if err != nil {
-					log.Warn().Msgf("Problem processing collector file %v: %v", path, err)
-				}
-				importcollectorbar.Add(1)
-			}
-			importcollectorbar.Finish()
-		} else {
-			log.Warn().Msgf("Not importing collector files, path %v not accessible", *collectorpath)
-		}
-	}
-
 	// Generate member of chains
 	pwnbar := progressbar.NewOptions(int(len(AllObjects.AsArray())),
 		progressbar.OptionSetDescription("Analyzing who can pwn who ..."),
@@ -807,6 +805,8 @@ func main() {
 		pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", PwnMethod(pwn).String(), count))
 	}
 	log.Info().Msg(strings.Join(pwnarray, ", "))
+
+	log.Info().Msgf("LAPS detect: %v", lapsdetect)
 
 	switch command {
 	case "exportacls":

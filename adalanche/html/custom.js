@@ -177,8 +177,6 @@ $(function() {
 
     var fcoselayout = {
         name: 'fcose',
-        animate: true,
-
         // 'draft', 'default' or 'proof' 
         // - "draft" only applies spectral layout 
         // - "default" improves the quality with incremental layout (fast cooling rate)
@@ -186,11 +184,11 @@ $(function() {
         quality: "proof",
         // Use random node positions at beginning of layout
         // if this is set to false, then quality option must be "proof"
-        randomize: true,
+        randomize: false,
         // Whether or not to animate the layout
-        animate: true,
+        animate: false,
         // Duration of animation in ms, if enabled
-        animationDuration: 1000,
+        animationDuration: 5000,
         // Easing of animation, if enabled
         animationEasing: undefined,
         // Fit the viewport to the repositioned nodes
@@ -198,7 +196,7 @@ $(function() {
         // Padding around layout
         padding: 30,
         // Whether to include labels in node dimensions. Valid in "proof" quality
-        nodeDimensionsIncludeLabels: false,
+        nodeDimensionsIncludeLabels: true,
         // Whether or not simple nodes (non-compound nodes) are of uniform dimensions
         uniformNodeDimensions: false,
         // Whether to pack disconnected components - valid only if randomize: true
@@ -212,7 +210,7 @@ $(function() {
         sampleSize: 25,
         // Separation amount between nodes
         // nodeSeparation: 125,
-        nodeSeparation: 75,
+        nodeSeparation: 90,
         // Power iteration tolerance
         piTol: 0.0000001,
 
@@ -352,7 +350,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="Group"]',
+                    selector: 'node[objectCategory="Group"]',
                     style: {
                         shape: "cut-rectangle",
                         "background-image": "icons/people-fill.svg",
@@ -360,7 +358,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="User"][!_accountdisabled]',
+                    selector: 'node[objectCategory="Person"][!_accountdisabled]',
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/person-fill.svg",
@@ -368,7 +366,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="User"][?_accountdisabled]',
+                    selector: 'node[objectCategory="Person"][?_accountdisabled]',
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/person-x-fill.svg",
@@ -376,7 +374,15 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="GroupPolicyContainer"]',
+                    selector: 'node[objectCategory="Service"]',
+                    style: {
+                        shape: "circle",
+                        "background-image": "icons/service.svg",
+                        "background-color": "lightgreen"
+                    }
+                },
+                {
+                    selector: 'node[objectCategory="Group-Policy-Container"]',
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/gpo.svg",
@@ -384,7 +390,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="CertificateTemplate"]',
+                    selector: 'node[objectCategory="PKI-Certificate-Template"]',
                     style: {
                         shape: "rectangle",
                         "background-image": "icons/certificate.svg",
@@ -392,7 +398,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="Computer"][?_workstation]',
+                    selector: 'node[objectCategory="Computer"][?_workstation]',
                     style: {
                         shape: "hexagon",
                         "background-image": "icons/tv-fill.svg",
@@ -400,7 +406,7 @@ $(function() {
                     }
                 },
                 {
-                    selector: 'node[_type="Computer"][?_server]',
+                    selector: 'node[objectCategory="Computer"][?_server]',
                     style: {
                         shape: "hexagon",
                         "background-image": "icons/server.svg",
@@ -620,7 +626,7 @@ $(function() {
                         onClickFunction: function(event) { // The function to be executed on click
                             // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
                             expanddata = $("#queryform, #optionsform").serializeArray()
-                            expanddata.push({ name: "expanddn", value: event.target.attr("distinguishedname") })
+                            expanddata.push({ name: "expanddn", value: event.target.attr("distinguishedName") })
 
                             $.ajax({
                                 type: "POST",
@@ -653,8 +659,18 @@ $(function() {
                         tooltipText: 'Does reverse search on this node (clears graph)',
                         selector: 'node',
                         onClickFunction: function(event) {
-                            $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedname") + ")")
+                            if (event.target.attr("distinguishedName")) {
+                                $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedName") + ")")
+                            } else if (event.target.attr("objectSid")) {
+                                $("#querytext").val("(objectSid=" + event.target.attr("objectSid") + ")")
+                            } else if (event.target.attr("objectGuid")) {
+                                $("#querytext").val("(objectGuid=" + event.target.attr("objectGuid") + ")")
+                            } else {
+
+                                return
+                            }
                             $("#querymode").val('inverted');
+
                             $("#queryform").submit();
                         }
                     },
@@ -664,7 +680,10 @@ $(function() {
                         tooltipText: 'Does normal search for this node (clears graph)',
                         selector: 'node',
                         onClickFunction: function(event) {
-                            $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedname") + ")")
+
+                            $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedName") + ")")
+
+
                             $("#querymode").val('normal');
                             $("#queryform").submit();
                         }

@@ -92,17 +92,28 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 				"id":                       fmt.Sprintf("n%v", object.ID),
 				"label":                    object.Label(),
 				DistinguishedName.String(): object.DN(),
-				Name.String():              object.OneAttr(Name),
-				DisplayName.String():       object.OneAttr(DisplayName),
-				Description.String():       object.OneAttr(Description),
+				Name.String():              object.OneAttrRendered(Name),
+				DisplayName.String():       object.OneAttrRendered(DisplayName),
+				Description.String():       object.OneAttrRendered(Description),
 				ObjectSid.String():         object.SID().String(),
-				SAMAccountName.String():    object.OneAttr(SAMAccountName),
+				SAMAccountName.String():    object.OneAttrRendered(SAMAccountName),
+				ObjectCategory.String():    object.OneAttrRendered(ObjectCategory),
 			}}
 
+		// If we added empty junk, remove it again
+		for attr, value := range newnode.Data {
+			if value == "" || (attr == "objectSid" && value == "NULL SID") {
+				delete(newnode.Data, attr)
+			}
+		}
+
+		// Add more data
 		for attr, values := range object.Attributes {
 			if (attr.IsMeta() && !strings.HasPrefix(attr.String(), "_gpofile/")) || alldetails {
 				if values.Len() == 1 {
-					newnode.Data[attr.String()] = values.Slice()[0].String()
+					if values.Slice()[0].String() != "" {
+						newnode.Data[attr.String()] = values.Slice()[0].String()
+					}
 				} else {
 					newnode.Data[attr.String()] = values.StringSlice()
 				}
