@@ -117,9 +117,9 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - custom extensible match: length - matches on length of attribute values (name:length:>20 gives you objects with long names)
 - custom extensible match: since - parses the attribute as a timestamp and your value as a duration - pwdLastSet:since:<-6Y5M4D3h2m1s (pawLastSet is less than the time 6 years, 5 months, 4 days, 3 hours, 2 minutes and 1 second ago - or just pass an integer that represents seconds directly)
 - synthetic attribute: _limit (_limit=10) returns true on the first 10 hits, false on the rest giving you a max output of 10 items
-- synthetic attribute: _random100 (_random100<10) allows you to return a random percentage of results (&(objectclass=Person)(_random100<1)) gives you 1% of users
-- synthetic attribute: _canpwn - allows you to select objects based on what they can pwn *directly* (&(objectclass=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
-- synthetic attribute: _pwnable - allows you to select objects based on how they can be pwned *directly* (&(objectclass=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
+- synthetic attribute: _random100 (_random100<10) allows you to return a random percentage of results (&(objectCategory=Person)(_random100<1)) gives you 1% of users
+- synthetic attribute: _canpwn - allows you to select objects based on what they can pwn *directly* (&(objectCategory=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
+- synthetic attribute: _pwnable - allows you to select objects based on how they can be pwned *directly* (&(objectCategory=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
 
 ## Collector module
 For Windows systems that are members of your Active Directory domain you can collect more information from the local machines by running the collector executable. It's a 32-bit Windows executable, but works transperently on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
