@@ -270,6 +270,8 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 	return false // No allow match
 }
 
+var objectSecurityGUIDcache = make(map[uuid.UUID]uuid.UUID)
+
 // Is the ACE something that allows or denies this type of GUID?
 func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g uuid.UUID) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
@@ -289,12 +291,21 @@ func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g u
 		typematch := a.ObjectType == g
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
-			if s, found := AllSchemaAttributes[g]; found {
-				if u, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
-					if a.ObjectType == u {
-						typematch = true
+			cachedset, found := objectSecurityGUIDcache[g]
+			if !found {
+				// Not in cache, let's populate it
+				if s, found := AllSchemaAttributes[g]; found {
+					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
+						cachedset = set
+						if cachedset == NullGUID {
+							cachedset = UnknownGUID // Just to be sure
+						}
+						objectSecurityGUIDcache[g] = cachedset
 					}
 				}
+			}
+			if a.ObjectType == cachedset {
+				typematch = true
 			}
 		}
 		if !typematch {
