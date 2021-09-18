@@ -45,11 +45,11 @@ func (os *Objects) AddIndex(attribute Attribute) {
 		value := o.OneAttr(attribute)
 		if value != nil {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			// if vs, ok := value.(AttributeValueString); ok {
-			// 	os.index[attribute][strings.ToLower(string(vs))] = o
-			// } else {
-			os.index[attribute][value.Raw()] = o
-			// }
+			if vs, ok := value.(AttributeValueString); ok {
+				os.index[attribute][strings.ToLower(string(vs))] = o
+			} else {
+				os.index[attribute][value.Raw()] = o
+			}
 		}
 	}
 }
@@ -86,9 +86,9 @@ func (os *Objects) Add(obs ...*Object) {
 			value := o.OneAttr(attribute)
 			if value != nil {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
-				// if vs, ok := value.(AttributeValueString); ok {
-				// 	value = AttributeValueString(strings.ToLower(string(vs)))
-				// }
+				if vs, ok := value.(AttributeValueString); ok {
+					value = AttributeValueString(strings.ToLower(string(vs)))
+				}
 				existing, dupe := os.index[attribute][value.Raw()]
 				if dupe {
 					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.DN(), existing.DN())
@@ -121,11 +121,11 @@ func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, f
 	var result *Object
 
 	// If it's a string, lowercase it before adding to index, we do the same on lookups
-	// if vs, ok := value.(AttributeValueString); ok {
-	// 	result, found = index[strings.ToLower(string(vs))]
-	// } else {
-	result, found = index[value.Raw()]
-	// }
+	if vs, ok := value.(AttributeValueString); ok {
+		result, found = index[strings.ToLower(string(vs))]
+	} else {
+		result, found = index[value.Raw()]
+	}
 
 	return result, found
 }
