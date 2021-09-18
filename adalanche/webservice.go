@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -30,7 +29,7 @@ func (f FSPrefix) Open(filename string) (fs.File, error) {
 	return f.FS.Open(path.Join(f.Prefix, filename))
 }
 
-func webservice(bind string) http.Server {
+func webservice(bind string, quit chan bool) http.Server {
 	router := mux.NewRouter()
 	srv := http.Server{
 		Addr:    bind,
@@ -720,8 +719,7 @@ func webservice(bind string) http.Server {
 	})
 	// Shutdown
 	router.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
-		ctx, _ := context.WithTimeout(nil, time.Second*15)
-		srv.Shutdown(ctx)
+		quit <- true
 	})
 	// Serve embedded static files, or from html folder if it exists
 	var assets fs.FS

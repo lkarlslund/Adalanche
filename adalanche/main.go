@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
@@ -101,10 +102,14 @@ func main() {
 	dumpquery := flag.String("dumpquery", "(objectClass=*)", "LDAP query for dump, defaults to everything")
 	analyzequery := flag.String("analyzequery", "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))", "LDAP query to locate targets for analysis")
 	importall := flag.Bool("importall", false, "Load all attributes from dump (expands search options, but at the cost of memory")
+
 	exportinverted := flag.Bool("exportinverted", false, "Invert analysis, discover how much damage targets can do")
 	exporttype := flag.String("exporttype", "cytoscapejs", "Graph type to export (cytoscapejs, graphviz)")
 	attributesparam := flag.String("attributes", "", "Comma seperated list of attributes to get, blank means everything")
+
 	debuglogging := flag.Bool("debug", false, "Enable debug logging")
+	cpuprofile := flag.Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
+
 	nosacl := flag.Bool("nosacl", true, "Request data with NO SACL flag, allows normal users to dump ntSecurityDescriptor field")
 	pagesize := flag.Int("pagesize", 1000, "Chunk requests into pages of this count of objects")
 	bind := flag.String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
@@ -116,6 +121,16 @@ func main() {
 	collectorpath := flag.String("collectorpath", "collectordata", "Path to where collector JSON files are located")
 
 	flag.Parse()
+
+	if *cpuprofile {
+		pproffile := filepath.Join(*datapath, "adalanche-cpuprofile-"+time.Now().Format("06010215040506")+".pprof")
+		f, err := os.Create(pproffile)
+		if err != nil {
+			log.Fatal().Msgf("Could not set up CPU profiling in file %v: %v", pproffile, err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	if !*debuglogging {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -857,13 +872,11 @@ func main() {
 	case "analyze", "dump-analyze":
 		quit := make(chan bool)
 
-		srv := webservice(*bind)
+		srv := webservice(*bind, quit)
 
 		go func() {
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatal().Msgf("Problem launching webservice listener: %s", err)
-			} else {
-				quit <- true
 			}
 		}()
 
