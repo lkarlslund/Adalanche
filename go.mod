@@ -18,7 +18,6 @@ require (
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166 // indirect
 	github.com/crewjam/rfc5424 v0.1.0 // indirect
 	github.com/elastic/beats v7.6.2+incompatible // indirect
-	github.com/frankban/quicktest v1.13.1 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-asn1-ber/asn1-ber v1.5.3
@@ -36,7 +35,6 @@ require (
 	github.com/google/cabbie v1.0.2 // indirect
 	github.com/google/glazier v0.0.0-20210908203504-5bdb495dae08 // indirect
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 // indirect
-	github.com/google/renameio v0.1.0 // indirect - DONT CHANGE FROM v0.1.0
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665 // indirect
@@ -59,7 +57,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
-	github.com/pierrec/lz4 v2.6.1+incompatible
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/zerolog v1.25.0
 	github.com/schollz/progressbar/v3 v3.8.2
@@ -67,10 +64,8 @@ require (
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/tinylib/msgp v1.1.6
 	github.com/ugorji/go/codec v1.2.6 // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/net v0.0.0-20210908191846-a5e095526f91 // indirect
 	golang.org/x/sys v0.0.0-20210910150752-751e447fb3d0
-	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
@@ -81,11 +76,14 @@ require (
 )
 
 require (
-	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+	github.com/mailru/easyjson v0.7.7
+	github.com/pierrec/lz4/v4 v4.1.8
 	github.com/pkg/errors v0.9.1
+	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 )
 
 require (
-	github.com/klauspost/pgzip v1.2.5 // indirect
-	github.com/pierrec/lz4/v4 v4.1.8 // indirect
+	github.com/google/renameio v0.1.0 // indirect; indirect - DONT CHANGE FROM v0.1.0
+	github.com/josharian/intern v1.0.0 // indirect
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 )

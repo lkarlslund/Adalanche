@@ -1,5 +1,7 @@
 package collector
 
+//go:generate easyjson -all structs.go
+
 import (
 	"time"
 

@@ -1,15 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/collector"
+	"github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -20,12 +20,15 @@ var (
 
 func importCollectorFile(path string, objs *Objects) error {
 	// Import it
-	raw, err := ioutil.ReadFile(path)
+	raw, err := os.Open(path)
 	if err != nil {
 		return errors.Wrap(err, "Problem reading collector file")
 	}
+	defer raw.Close()
+
 	var cinfo collector.Info
-	err = json.Unmarshal(raw, &cinfo)
+	err = easyjson.UnmarshalFromReader(raw, &cinfo)
+
 	if err != nil {
 		return errors.Wrap(err, "Problem unmarshalling data from JSON file")
 	}
