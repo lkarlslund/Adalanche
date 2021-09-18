@@ -237,7 +237,7 @@ func importCollectorFile(path string, objs *Objects) error {
 			serviceimageobject.Pwns(serviceobject, PwnExecuted, 100)
 
 			for _, entry := range sd.Entries {
-				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
+				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 /*&& entry.SID.Component(2) == 21*/ {
 					// AD object
 					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&FILE_WRITE_DATA != FILE_WRITE_DATA {

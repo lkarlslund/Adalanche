@@ -48,9 +48,9 @@ type Object struct {
 	// reach     int // AD ControlPower Measurement
 	// value     int // This objects value
 
-	objecttype       ObjectType
-	objectclassguids []uuid.UUID
-	objecttypeguid   uuid.UUID
+	objecttype         ObjectType
+	objectclassguids   []uuid.UUID
+	objectcategoryguid uuid.UUID
 
 	sidcached bool
 	sid       SID
@@ -137,42 +137,43 @@ func (o Object) Type() ObjectType {
 
 	category := o.OneAttrString(ObjectCategory)
 	if len(category) > 4 {
-		splitted := strings.Split(category, ",")
-		if len(splitted) > 1 {
-			// This is a DN pointing to a category - otherwise it's just something we made up! :)
-			category = splitted[0][3:]
+		equalpos := strings.Index(category, "=")
+		commapos := strings.Index(category, ",")
+		if equalpos == -1 || commapos == -1 || equalpos >= commapos {
+			// Just keep it as-is
+		} else {
+			category = category[equalpos+1 : commapos]
 		}
-		switch category {
-		case "Person":
-			o.objecttype = ObjectTypeUser
-		case "Group":
-			o.objecttype = ObjectTypeGroup
-		case "Foreign-Security-Principal":
-			o.objecttype = ObjectTypeForeignSecurityPrincipal
-		case "ms-DS-Group-Managed-Service-Account":
-			o.objecttype = ObjectTypeManagedServiceAccount
-		case "Organizational-Unit":
-			o.objecttype = ObjectTypeOrganizationalUnit
-		case "Container":
-			o.objecttype = ObjectTypeContainer
-		case "Computer":
-			o.objecttype = ObjectTypeComputer
-		case "Group-Policy-Container":
-			o.objecttype = ObjectTypeGroupPolicyContainer
-		case "Domain Trust":
-			o.objecttype = ObjectTypeTrust
-		case "Attribute-Schema":
-			o.objecttype = ObjectTypeAttributeSchema
-		case "PKI-Certificate-Template":
-			o.objecttype = ObjectTypeCertificateTemplate
-		case "Service":
-			o.objecttype = ObjectTypeService
-		case "Executable":
-			o.objecttype = ObjectTypeExecutable
-		default:
-			o.objecttype = ObjectTypeOther
-		}
-	} else {
+	}
+
+	switch category {
+	case "Person":
+		o.objecttype = ObjectTypeUser
+	case "Group":
+		o.objecttype = ObjectTypeGroup
+	case "Foreign-Security-Principal":
+		o.objecttype = ObjectTypeForeignSecurityPrincipal
+	case "ms-DS-Group-Managed-Service-Account":
+		o.objecttype = ObjectTypeManagedServiceAccount
+	case "Organizational-Unit":
+		o.objecttype = ObjectTypeOrganizationalUnit
+	case "Container":
+		o.objecttype = ObjectTypeContainer
+	case "Computer":
+		o.objecttype = ObjectTypeComputer
+	case "Group-Policy-Container":
+		o.objecttype = ObjectTypeGroupPolicyContainer
+	case "Domain Trust":
+		o.objecttype = ObjectTypeTrust
+	case "Attribute-Schema":
+		o.objecttype = ObjectTypeAttributeSchema
+	case "PKI-Certificate-Template":
+		o.objecttype = ObjectTypeCertificateTemplate
+	case "Service":
+		o.objecttype = ObjectTypeService
+	case "Executable":
+		o.objecttype = ObjectTypeExecutable
+	default:
 		o.objecttype = ObjectTypeOther
 	}
 	return o.objecttype
@@ -180,13 +181,15 @@ func (o Object) Type() ObjectType {
 
 func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 	if len(o.objectclassguids) == 0 {
-		for _, class := range o.AttrString(ObjectClass) {
-			if oto, found := AllObjects.FindClass(class); found {
+		objectclasses := o.Attr(ObjectClass).Slice()
+		o.objectclassguids = make([]uuid.UUID, len(objectclasses))
+		for i, class := range objectclasses {
+			if oto, found := AllObjects.Find(LDAPDisplayName, class); found {
 				if og, ok := oto.OneAttrRaw(SchemaIDGUID).(uuid.UUID); !ok {
 					log.Debug().Msgf("%v", oto)
 					log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v", class)
 				} else {
-					o.objectclassguids = append(o.objectclassguids, og)
+					o.objectclassguids[i] = og
 				}
 			}
 		}
@@ -194,29 +197,29 @@ func (o *Object) ObjectClassGUIDs() []uuid.UUID {
 	return o.objectclassguids
 }
 
-func (o *Object) ObjectTypeGUID() uuid.UUID {
-	if o.objecttypeguid == NullGUID {
+func (o *Object) ObjectCategoryGUID() uuid.UUID {
+	if o.objectcategoryguid == NullGUID {
 		typedn := o.OneAttr(ObjectCategory)
 		if typedn == nil {
 			// log.Warn().Msgf("Sorry, could not resolve object category %v for object %v, perhaps you didn't get a dump of the schema?", typedn, o.DN())
 			// return NullGUID
-			o.objecttypeguid = UnknownGUID
-			return o.objecttypeguid
+			o.objectcategoryguid = UnknownGUID
+			return o.objectcategoryguid
 		}
 		// the next uncasting from AttributeValue and back to AttributeValueString is because it's wrapped in a render class otherwise
-		if oto, found := AllObjects.Find(DistinguishedName, AttributeValueString(typedn.String())); found {
+		if oto, found := AllObjects.Find(DistinguishedName, typedn); found {
 			if classguid, ok := oto.OneAttrRaw(SchemaIDGUID).(uuid.UUID); ok {
-				o.objecttypeguid = classguid
+				o.objectcategoryguid = classguid
 			} else {
 				log.Debug().Msgf("%v", oto)
 				log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
 			}
 		} else {
 			// log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
-			o.objecttypeguid = UnknownGUID
+			o.objectcategoryguid = UnknownGUID
 		}
 	}
-	return o.objecttypeguid
+	return o.objectcategoryguid
 }
 
 func (o Object) AttrString(attr Attribute) []string {
@@ -226,9 +229,9 @@ func (o Object) AttrString(attr Attribute) []string {
 func (o Object) AttrRendered(attr Attribute) []string {
 	switch attr {
 	case ObjectCategory:
-		ocguid := o.ObjectTypeGUID()
+		ocguid := o.ObjectCategoryGUID()
 		if ocguid != UnknownGUID {
-			if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectTypeGUID())); found {
+			if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectCategoryGUID())); found {
 				// fmt.Println(schemaobject)
 				return []string{schemaobject.OneAttrString(Name)}
 			}
@@ -268,6 +271,9 @@ func (o *Object) Attr(attr Attribute) AttributeValues {
 
 func (o *Object) OneAttrString(attr Attribute) string {
 	a := o.Attr(attr)
+	if ao, ok := a.(AttributeValueOne); ok {
+		return ao.String()
+	}
 	if a.Len() == 1 {
 		return a.Slice()[0].String()
 	}

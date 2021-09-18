@@ -20,7 +20,7 @@ type Objects struct {
 
 	typecount [OBJECTTYPEMAX]int
 
-	classmap map[string]*Object // top, user, person -> schema object
+	// classmap map[string]*Object // top, user, person -> schema object
 }
 
 func (os *Objects) Init(ios *Objects) {
@@ -45,10 +45,11 @@ func (os *Objects) AddIndex(attribute Attribute) {
 		value := o.OneAttr(attribute)
 		if value != nil {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			if vs, ok := value.(AttributeValueString); ok {
-				value = AttributeValueString(strings.ToLower(string(vs)))
-			}
+			// if vs, ok := value.(AttributeValueString); ok {
+			// 	os.index[attribute][strings.ToLower(string(vs))] = o
+			// } else {
 			os.index[attribute][value.Raw()] = o
+			// }
 		}
 	}
 }
@@ -85,9 +86,9 @@ func (os *Objects) Add(obs ...*Object) {
 			value := o.OneAttr(attribute)
 			if value != nil {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
-				if vs, ok := value.(AttributeValueString); ok {
-					value = AttributeValueString(strings.ToLower(string(vs)))
-				}
+				// if vs, ok := value.(AttributeValueString); ok {
+				// 	value = AttributeValueString(strings.ToLower(string(vs)))
+				// }
 				existing, dupe := os.index[attribute][value.Raw()]
 				if dupe {
 					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.DN(), existing.DN())
@@ -117,13 +118,15 @@ func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, f
 		index = os.index[attribute]
 	}
 
-	// If it's a string, lowercase it before adding to index, we do the same on lookups
-	if vs, ok := value.(AttributeValueString); ok {
-		value = AttributeValueString(strings.ToLower(string(vs)))
-	}
+	var result *Object
 
-	// use index
-	result, found := index[value.Raw()]
+	// If it's a string, lowercase it before adding to index, we do the same on lookups
+	// if vs, ok := value.(AttributeValueString); ok {
+	// 	result, found = index[strings.ToLower(string(vs))]
+	// } else {
+	result, found = index[value.Raw()]
+	// }
+
 	return result, found
 }
 
@@ -182,9 +185,4 @@ func (os *Objects) FindOrAddSID(s SID) *Object {
 
 func (os *Objects) FindGUID(g uuid.UUID) (o *Object, found bool) {
 	return os.Find(ObjectGUID, AttributeValueGUID(g))
-}
-
-func (os *Objects) FindClass(class string) (o *Object, found bool) {
-	o, found = os.classmap[strings.ToLower(class)]
-	return
 }

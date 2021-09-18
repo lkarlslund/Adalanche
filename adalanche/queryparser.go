@@ -328,7 +328,7 @@ valueloop:
 		if casesensitive {
 			return s, hasStringMatch{attribute, value}, nil
 		}
-		return s, hasInsensitiveStringMatch{attribute, strings.ToLower(value)}, nil
+		return s, hasInsensitiveStringMatch{attribute, value}, nil
 	}
 
 	// the other comparators require numeric value
@@ -534,7 +534,7 @@ type hasInsensitiveStringMatch struct {
 
 func (a hasInsensitiveStringMatch) Evaluate(o *Object) bool {
 	for _, value := range o.AttrRendered(a.a) {
-		if a.m == strings.ToLower(value) {
+		if strings.EqualFold(a.m, value) {
 			return true
 		}
 	}

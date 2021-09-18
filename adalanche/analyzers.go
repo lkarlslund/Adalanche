@@ -271,7 +271,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, parent, RIGHT_DS_DELETE_CHILD, o.ObjectTypeGUID()) {
+					if sd.DACL.AllowObjectClass(index, parent, RIGHT_DS_DELETE_CHILD, o.ObjectCategoryGUID()) {
 						AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnDeleteChildrenTarget, 100)
 					}
 				}
@@ -471,6 +471,8 @@ var PwnAnalyzers = []PwnAnalyzer{
 			}
 			if o.Attr(ServicePrincipalName).Len() > 0 {
 				o.SetAttr(MetaHasSPN, AttributeValueInt(1))
+
+				// FIXME - LOOK FOR SID!?!?
 				AuthenticatedUsers, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Authenticated Users,CN=WellKnown Security Principals,CN=Configuration,"+AllObjects.Base))
 				if !found {
 					log.Error().Msgf("Could not locate Authenticated Users")
