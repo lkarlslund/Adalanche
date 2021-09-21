@@ -20,8 +20,6 @@ type PwnAnalyzer struct {
 type PwnMethodBitmap uint64
 type Probability uint8
 
-type Probabilities []Probability
-
 type PwnInfo struct {
 	Target      *Object
 	Method      PwnMethod
@@ -64,10 +62,10 @@ func (pc PwnConnections) Objects() ObjectSlice {
 
 func (pc PwnConnections) Set(o *Object, method PwnMethod, probability Probability) {
 	p := pc[o]
-	p.Set(method, probability)
-	pc[o] = p
+	pc[o] = p.Set(method)
 }
 
+/*
 func (pmc *PwnMethodsAndProbabilities) Set(method PwnMethod, probability Probability) {
 	pmc.PwnMethodBitmap = pmc.PwnMethodBitmap.Set(method)
 	if probability != 100 {
@@ -108,7 +106,7 @@ func (pmc *PwnMethodsAndProbabilities) GetProbability(method PwnMethod) Probabil
 
 func (pmc PwnMethodsAndProbabilities) GetMethodBitmap() PwnMethodBitmap {
 	return pmc.PwnMethodBitmap
-}
+}*/
 
 const (
 	_ PwnMethod = iota
@@ -183,13 +181,15 @@ func init() {
 	}
 }
 
+/*
 type PwnMethodsAndProbabilities struct {
 	PwnMethodBitmap                 // Indicates if we have this method registered
 	probabilitymap  PwnMethodBitmap // Indicates if we have a probability set or should just return 100
 	probabilities   Probabilities
 }
+*/
 
-type PwnConnections map[*Object]PwnMethodsAndProbabilities
+type PwnConnections map[*Object]PwnMethodBitmap //sAndProbabilities
 
 func (m PwnMethodBitmap) IsSet(method PwnMethod) bool {
 	return (m & (1 << method)) != 0 // Uuuuh, nasty and unreadable

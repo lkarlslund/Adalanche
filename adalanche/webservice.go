@@ -145,11 +145,11 @@ func webservice(bind string, quit chan bool) http.Server {
 		}
 
 		for target, pwnmethod := range o.CanPwn {
-			od.CanPwn[target.DN()] = pwnmethod.GetMethodBitmap().StringSlice()
+			od.CanPwn[target.DN()] = pwnmethod.StringSlice()
 		}
 
 		for target, pwnmethod := range o.PwnableBy {
-			od.PwnableBy[target.DN()] = pwnmethod.GetMethodBitmap().StringSlice()
+			od.PwnableBy[target.DN()] = pwnmethod.StringSlice()
 		}
 		e := qjson.NewEncoder(w)
 		e.SetIndent("", "  ")
@@ -449,13 +449,6 @@ func webservice(bind string, quit chan bool) http.Server {
 		}
 		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, 1)
 
-		idmap := make(map[*Object]int)
-		var id int
-		for _, node := range pg.Nodes {
-			idmap[node.Object] = id
-			id++
-		}
-
 		// Make browser download this
 		filename := AllObjects.Domain + "-analysis-" + time.Now().Format(time.RFC3339)
 
@@ -501,7 +494,7 @@ func webservice(bind string, quit chan bool) http.Server {
     target %v
 	label "%v"
   ]
-`, idmap[pwn.Source], idmap[pwn.Target], methods.JoinedString())
+`, pwn.Source.ID, pwn.Target.ID, methods.JoinedString())
 			}
 
 			w.Write([]byte("]\n"))
@@ -532,9 +525,9 @@ func webservice(bind string, quit chan bool) http.Server {
 
 			for _, pwn := range pg.Connections {
 				graph.Edges = append(graph.Edges, XGMMLEdge{
-					Source: idmap[pwn.Source],
-					Target: idmap[pwn.Target],
-					Label:  pwn.GetMethodBitmap().JoinedString(),
+					Source: pwn.Source.ID,
+					Target: pwn.Target.ID,
+					Label:  pwn.JoinedString(),
 				})
 			}
 			fmt.Fprint(w, xml.Header)

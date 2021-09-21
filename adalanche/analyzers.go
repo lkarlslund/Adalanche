@@ -45,23 +45,24 @@ var (
 	NullGUID    = uuid.UUID{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
-	OwnerSID, _        = SIDFromString("S-1-3-4")
-	SystemSID, _       = SIDFromString("S-1-5-18")
-	CreatorOwnerSID, _ = SIDFromString("S-1-3-0")
-	SelfSID, _         = SIDFromString("S-1-5-10")
+	OwnerSID, _              = SIDFromString("S-1-3-4")
+	SystemSID, _             = SIDFromString("S-1-5-18")
+	CreatorOwnerSID, _       = SIDFromString("S-1-3-0")
+	SelfSID, _               = SIDFromString("S-1-5-10")
+	AuthenticatedUsersSID, _ = SIDFromString("S-1-5-11")
 
-	AccountOperatorsSID, _          = SIDFromString("S-1-5-32-548")
-	DAdministratorSID, _            = SIDFromString("S-1-5-21domain-500")
-	DAdministratorsSID, _           = SIDFromString("S-1-5-32-544")
-	BackupOperatorsSID, _           = SIDFromString("S-1-5-32-551")
-	DomainAdminsSID, _              = SIDFromString("S-1-5-21domain-512")
-	DomainControllersSID, _         = SIDFromString("S-1-5-21domain-516")
-	EnterpriseAdminsSID, _          = SIDFromString("S-1-5-21root domain-519")
-	KrbtgtSID, _                    = SIDFromString("S-1-5-21domain-502")
-	PrintOperatorsSID, _            = SIDFromString("S-1-5-32-550")
-	ReadOnlyDomainControllersSID, _ = SIDFromString("S-1-5-21domain-521")
-	SchemaAdminsSID, _              = SIDFromString("S-1-5-21root domain-518")
-	ServerOperatorsSID, _           = SIDFromString("S-1-5-32-549")
+	AccountOperatorsSID, _ = SIDFromString("S-1-5-32-548")
+	DAdministratorSID, _   = SIDFromString("S-1-5-21domain-500")
+	DAdministratorsSID, _  = SIDFromString("S-1-5-32-544")
+	BackupOperatorsSID, _  = SIDFromString("S-1-5-32-551")
+	// DomainAdminsSID, _              = SIDFromString("S-1-5-21domain-512")
+	// DomainControllersSID, _         = SIDFromString("S-1-5-21domain-516")
+	// EnterpriseAdminsSID, _          = SIDFromString("S-1-5-21root domain-519")
+	// KrbtgtSID, _                    = SIDFromString("S-1-5-21domain-502")
+	PrintOperatorsSID, _ = SIDFromString("S-1-5-32-550")
+	// ReadOnlyDomainControllersSID, _ = SIDFromString("S-1-5-21domain-521")
+	// SchemaAdminsSID, _              = SIDFromString("S-1-5-21root domain-518")
+	ServerOperatorsSID, _ = SIDFromString("S-1-5-32-549")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -472,8 +473,7 @@ var PwnAnalyzers = []PwnAnalyzer{
 			if o.Attr(ServicePrincipalName).Len() > 0 {
 				o.SetAttr(MetaHasSPN, AttributeValueInt(1))
 
-				// FIXME - LOOK FOR SID!?!?
-				AuthenticatedUsers, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Authenticated Users,CN=WellKnown Security Principals,CN=Configuration,"+AllObjects.Base))
+				AuthenticatedUsers, found := AllObjects.Find(ObjectSid, AttributeValueSID(AuthenticatedUsersSID))
 				if !found {
 					log.Error().Msgf("Could not locate Authenticated Users")
 					return
@@ -1060,12 +1060,44 @@ type PwnPair struct {
 
 type PwnConnection struct {
 	Source, Target *Object
-	PwnMethodsAndProbabilities
+	PwnMethodBitmap
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int, minprobability Probability) (pg PwnGraph) {
-	connectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
-	implicatedobjectsmap := make(map[*Object]int)                  // Object -> Processed in round n
+func CalculateProbability(source, target *Object, method PwnMethod) Probability {
+	switch method {
+	case PwnACLContainsDeny:
+		return 0
+	case PwnLocalRDPRights:
+		return 30
+	case PwnLocalDCOMRights:
+		return 50
+	case PwnLocalSMSAdmins:
+		return 50 // ??
+	case PwnLocalSessionLastDay:
+		return 80
+	case PwnLocalSessionLastWeek:
+		return 55
+	case PwnLocalSessionLastMonth:
+		return 30
+	case PwnWriteAttributeSecurityGUID:
+		// This might not work, but you could possibly add an attribute into a weaker attribute set this way
+		return 25
+	case PwnWriteSPN, PwnWriteValidatedSPN:
+		return 30
+	case PwnHasSPNNoPreauth, PwnHasSPN:
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&UAC_ACCOUNTDISABLE != 0 {
+			// Account is disabled
+			return 0
+		}
+		return 50
+	}
+	// default
+	return 100
+}
+
+func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int, minprobability Probability) (pg PwnGraph) {
+	connectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
+	implicatedobjectsmap := make(map[*Object]int)       // Object -> Processed in round n
 	canexpand := make(map[*Object]int)
 
 	if excludeobjects == nil {
@@ -1096,7 +1128,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 			}
 			somethingprocessed = true
 
-			newconnectionsmap := make(map[PwnPair]PwnMethodsAndProbabilities) // Pwn Connection between objects
+			newconnectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
 
 			var pwnlist PwnConnections
 			if forward {
@@ -1111,18 +1143,22 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 				pwninfo := pwnlist[pwntarget]
 
 				// If this is not a chosen method, skip it
-				detectedmethods := pwninfo.Intersect(methods)
-				if detectedmethods.Count() == 0 || detectedmethods.IsSet(PwnACLContainsDeny) {
+				detectedmethods := pwninfo.Intersect(lookformethods)
+
+				methodcount := detectedmethods.Count()
+				if methodcount == 0 || (methodcount == 1 && detectedmethods.IsSet(PwnACLContainsDeny)) {
 					// Nothing useful or just a deny ACL, skip it
 					continue
 				}
 
-				var maxprobability Probability
 				if minprobability > 0 {
+					var maxprobability Probability
 					for i := PwnMethod(0); i < MaxPwnMethod; i++ {
-						probability := pwninfo.GetProbability(i)
-						if probability > maxprobability {
-							maxprobability = probability
+						if detectedmethods.IsSet(i) {
+							probability := CalculateProbability(object, pwntarget, i)
+							if probability > maxprobability {
+								maxprobability = probability
+							}
 						}
 					}
 					if maxprobability < Probability(minprobability) {
@@ -1151,17 +1187,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 					continue
 				}
 
-				var filteredmethods PwnMethodsAndProbabilities
-				if detectedmethods == pwninfo.PwnMethodBitmap {
-					filteredmethods = pwninfo
-				} else {
-					for _, method := range detectedmethods.Methods() {
-						filteredmethods.Set(method, pwninfo.GetProbability(method)) // Sloooow
-					}
-
-				}
-
-				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = filteredmethods
+				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
 			}
 
 			if maxoutgoingconnections == 0 || len(newconnectionsmap) < maxoutgoingconnections {
@@ -1174,18 +1200,28 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 				// Add pwn target to graph for processing
 			} else {
 				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", maxoutgoingconnections, object.Label(), len(newconnectionsmap))
-				var addedanyway int
-				for pwnpair, detectedmethods := range newconnectionsmap {
+				var groupcount int
+				for pwnpair := range newconnectionsmap {
 					// We assume the number of groups are limited and add them anyway
 					if pwnpair.Target.Type() == ObjectTypeGroup {
-						connectionsmap[pwnpair] = detectedmethods
-						if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
-							newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
-						}
-						addedanyway++
+						groupcount++
 					}
 				}
-				canexpand[object] = len(newconnectionsmap) - addedanyway
+				if groupcount < maxoutgoingconnections {
+					// Add the groups, but not the rest
+					var addedanyway int
+					for pwnpair, detectedmethods := range newconnectionsmap {
+						// We assume the number of groups are limited and add them anyway
+						if pwnpair.Target.Type() == ObjectTypeGroup {
+							connectionsmap[pwnpair] = detectedmethods
+							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
+								newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
+							}
+							addedanyway++
+						}
+					}
+					canexpand[object] = len(newconnectionsmap) - addedanyway
+				}
 			}
 			implicatedobjectsmap[object] = processinground // We're done processing this
 		}
@@ -1201,9 +1237,9 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, methods PwnMethodBi
 	i := 0
 	for connection, methods := range connectionsmap {
 		nc := PwnConnection{
-			Source:                     connection.Source,
-			Target:                     connection.Target,
-			PwnMethodsAndProbabilities: methods,
+			Source:          connection.Source,
+			Target:          connection.Target,
+			PwnMethodBitmap: methods,
 		}
 		if forward {
 			nc.Source, nc.Target = nc.Target, nc.Source // swap 'em to get arrows pointing correctly

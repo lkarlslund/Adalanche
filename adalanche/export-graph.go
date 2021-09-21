@@ -24,7 +24,7 @@ func ExportGraphViz(pg PwnGraph, filename string) error {
 	}
 	fmt.Fprintln(df, "")
 	for _, connection := range pg.Connections {
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.GetMethodBitmap().JoinedString())
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.JoinedString())
 	}
 	fmt.Fprintln(df, "}")
 
@@ -143,7 +143,7 @@ func GenerateCytoscapeJS(pg PwnGraph, alldetails bool) (CytoGraph, error) {
 		}
 		var maxprob Probability
 		for _, method := range connection.Methods() {
-			prob := connection.GetProbability(method)
+			prob := CalculateProbability(connection.Source, connection.Target, method)
 			edge.Data["method_"+method.String()] = prob
 			if prob > maxprob {
 				maxprob = prob

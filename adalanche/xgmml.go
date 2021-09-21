@@ -44,8 +44,8 @@ type XGMMLNode struct {
 
 type XGMMLEdge struct {
 	XMLName    xml.Name `xml:"edge"`
-	Source     int      `xml:"source,attr"`
-	Target     int      `xml:"target,attr"`
+	Source     uint64   `xml:"source,attr"`
+	Target     uint64   `xml:"target,attr"`
 	Label      string   `xml:"label,attr"`
 	Attributes []XGMMLAttribute
 }

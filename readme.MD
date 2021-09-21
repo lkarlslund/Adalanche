@@ -187,7 +187,7 @@ This will give you insight into who uses what systems, service accounts that are
 | HasAutoAdminLogonCredentials | The object is set to auto login using the entitys credentials which is stored in plain text in the registry for any user to read |
 | ScheduledTaskOnUNCPath | The object contains a scheduled task that sits on a UNC path. If you can control the UNC path you can control what gets executed |
 | MachineScript | Same as above, just as either a startup or shutdown script. Detected via GPOs |
-| WriteAltSecurityIdentities | The entity is allowed to write to the Alt-Security-Identities attribute, so you can put your own certificate there and then authenticate as that user with this certificate |
+| WriteAltSecurityIdentities | The entity is allowed to write to the Alt-Security-Identities attribute, so you can put your own certificate there and then authenticate as that user (via PKinit or similar) with this certificate |
 | WriteProfilePath | The entity can write to the user profile path of the user |
 | WriteScriptPath | The entity can write to the script path of the user, giving them instant remote execution when the user logs on |
 | CertificateEnroll | The entity is allowed to enroll into this certificate template. That does not mean it's published on a CA server where you're alloed to do enrollment though |
