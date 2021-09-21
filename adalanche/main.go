@@ -283,7 +283,7 @@ func main() {
 		boutfile := lz4.NewWriter(outfile)
 		lz4options := []lz4.Option{
 			lz4.BlockChecksumOption(true),
-			lz4.BlockSizeOption(lz4.BlockSize(512 * 1024)),
+			// lz4.BlockSizeOption(lz4.BlockSize(512 * 1024)),
 			lz4.ChecksumOption(true),
 			lz4.CompressionLevelOption(lz4.Level9),
 			lz4.ConcurrencyOption(-1),
