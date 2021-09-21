@@ -775,19 +775,20 @@ func main() {
 		Domain: *domain,
 	}
 
-	// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
-
-	// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-
-	var excluded string
-	if ds, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+ad.RootDn())); found {
-		excluded = ds.OneAttrString(DsHeuristics)
-	}
-
 	// Let's see if we can find the AdminSDHolder container
 	if adminsdholder, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=AdminSDHolder,CN=System,"+ad.RootDn())); found {
-		// We found it - so we know it can theoretically "pwn" any object with AdminCount > 0
-		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded))
+		// We found it - so we know it can theoretically "pwn" some objects, lets see if some are excluded though
+		excluded_mask := 0
+		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
+		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
+		if ds, found := AllObjects.Find(DistinguishedName, AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+ad.RootDn())); found {
+			excluded := ds.OneAttrString(DsHeuristics)
+			if len(excluded) >= 16 {
+				excluded_mask = strings.Index("0123456789ABCDEF", string(excluded[15]))
+			}
+		}
+
+		PwnAnalyzers = append(PwnAnalyzers, MakeAdminSDHolderPwnanalyzerFunc(adminsdholder, excluded_mask))
 	}
 
 	// Generate member of chains

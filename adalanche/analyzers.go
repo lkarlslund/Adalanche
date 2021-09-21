@@ -976,26 +976,59 @@ var PwnAnalyzers = []PwnAnalyzer{
 	},
 }
 
-func MakeAdminSDHolderPwnanalyzerFunc(adminsdholder *Object, excluded string) PwnAnalyzer {
+func MakeAdminSDHolderPwnanalyzerFunc(adminsdholder *Object, excluded int) PwnAnalyzer {
 	return PwnAnalyzer{
 		Method: PwnAdminSDHolderOverwriteACL,
 		ObjectAnalyzer: func(o *Object) {
-			return // FIXME
 
 			// Check if object is a user account
-			// if o.Type() == ObjectTypeGroup {
-			// Let's see if this is a protected group
-			// if o.SID() == AccountOperators
-			// }
-
-			if o.Type() != ObjectTypeUser {
+			if o.Type() != ObjectTypeGroup {
 				return
 			}
-			// Check if object is member of one of the protected groups
-			// mo := o.Attr(MemberOf)
 
-			//if ac, ok := o.AttrInt(AdminCount); ok && ac > 0 {
-			// This object has an AdminCount with a value more than zero, so it kinda can be pwned by the AdminSDHolder container
+			grpsid := o.SID()
+			if grpsid.IsNull() {
+				return
+			}
+
+			switch grpsid.RID() {
+			case DOMAIN_USER_RID_ADMIN:
+			case DOMAIN_USER_RID_KRBTGT:
+			case DOMAIN_GROUP_RID_ADMINS:
+			case DOMAIN_GROUP_RID_CONTROLLERS:
+			case DOMAIN_GROUP_RID_SCHEMA_ADMINS:
+			case DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
+			case DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
+			case DOMAIN_ALIAS_RID_ADMINS:
+			case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
+				if excluded&1 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_SYSTEM_OPS:
+				if excluded&2 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_PRINT_OPS:
+				if excluded&4 != 0 {
+					return
+				}
+
+			case DOMAIN_ALIAS_RID_BACKUP_OPS:
+				if excluded&8 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_REPLICATOR:
+			default:
+				// Not a protected group
+				return
+			}
+
+			// Only domain groups
+			if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
+				log.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(DistinguishedName), o.SID().String())
+				return
+			}
+
 			adminsdholder.Pwns(o, PwnAdminSDHolderOverwriteACL, 100)
 		},
 	}
