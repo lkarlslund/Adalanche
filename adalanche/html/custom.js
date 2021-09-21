@@ -31,9 +31,7 @@ function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
         }
     }
     if (mode) {
-        normal = (mode == "Normal")
-        $("#querymode_normal").prop('checked', normal);
-        $("#querymode_reverse").prop('checked', !normal);
+        set_querymode(mode)
     }
     if (maxoutgoing) {
         $('#maxoutgoing').val(maxoutgoing);
@@ -43,19 +41,15 @@ function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
     }
 }
 
-function edgeprobability(ele) {
-    maxprobability = -1
-    for (i in ele.data()) {
-        if (i.startsWith("method_")) {
-            probability = ele.data(i)
-            if (probability > maxprobability) {
-                maxprobability = probability
-            }
-        }
-    }
-    return maxprobability
+function set_querymode(mode) {
+    $("#querymode_normal").prop('checked', mode == "normal");
+    $("#querymode_reverse").prop('checked', mode == "reverse");
+    $("#querymode_sourcetarget").prop('checked', mode == "sourcetarget");
 }
 
+function edgeprobability(ele) {
+    return 101 - ele.data("_maxprob")
+}
 
 var cy
 var nodemenu
@@ -103,7 +97,7 @@ $(function() {
         linkDistance: 40, // sets the distance accessor to the specified number or function
         linkStrength: function strength(link) {
             // return 1 / Math.min(count(link.source), count(link.target));
-            return 1 / link.methods.length;
+            return 1 / link._maxprob;
         }, // sets the strength accessor to the specified number or function
         linkIterations: 1, // sets the number of iterations per application to the specified number
         manyBodyStrength: -600, // sets the strength accessor to the specified number or function
@@ -210,7 +204,7 @@ $(function() {
         sampleSize: 25,
         // Separation amount between nodes
         // nodeSeparation: 125,
-        nodeSeparation: 90,
+        nodeSeparation: 125,
         // Power iteration tolerance
         piTol: 0.0000001,
 
@@ -669,7 +663,7 @@ $(function() {
 
                                 return
                             }
-                            $("#querymode").val('inverted');
+                            set_querymode('inverted');
 
                             $("#queryform").submit();
                         }
@@ -763,7 +757,7 @@ $(function() {
             weight: function(ele) {
                 maxprobability = edgeprobability(ele)
                 if (maxprobability != -1) {
-                    return maxprobability - 100 // higher probability equals lower priority number
+                    return 101 - maxprobability // higher probability equals lower priority number
                 }
 
                 if (ele.target().data("accountdisabled") && !(ele.target().data("pwn_writedacl") || ele.target().data("pwn_writeall") || ele.target().data("pwn_writepropertyall") || ele.target().data("pwn_takeownership") || ele.target().data("pwn_owns"))) {
@@ -929,7 +923,7 @@ $(function() {
             // Refresh styling after dynamic load
             $("#querymode").val("normal");
             // Run initial query
-            $("#queryform").submit();
+            // $("#queryform").submit();
         }
     });
 

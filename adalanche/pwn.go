@@ -203,6 +203,22 @@ func (m PwnMethodBitmap) Count() int {
 	return bits.OnesCount64(uint64(m))
 }
 
+func (m PwnMethodBitmap) MaxProbabiltity(source, target *Object) Probability {
+	var max Probability
+	for i := PwnMethod(0); i <= MaxPwnMethod; i++ {
+		if m.IsSet(i) {
+			prob := CalculateProbability(source, target, PwnMethod(i))
+			if prob == 100 {
+				return prob
+			}
+			if prob > max {
+				max = prob
+			}
+		}
+	}
+	return max
+}
+
 func (m PwnMethodBitmap) JoinedString() string {
 	var result string
 	for i := PwnMethod(1); i <= MaxPwnMethod; i++ {

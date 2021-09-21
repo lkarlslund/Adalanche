@@ -276,7 +276,16 @@ func webservice(bind string, quit chan bool) http.Server {
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, Probability(minprobability))
+
+		var pg PwnGraph
+		if mode == "sourcetarget" {
+			if len(includeobjects.AsArray()) == 0 || excludeobjects == nil || len(excludeobjects.AsArray()) == 0 {
+				fmt.Fprintf(w, "You must use two queries (source and target), seperated by commas. Each must return at least one object.")
+			}
+			pg = AnalyzePaths(includeobjects.AsArray()[0], excludeobjects.AsArray()[0], &AllObjects, methods, Probability(minprobability), 1)
+		} else {
+			pg = AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, Probability(minprobability))
+		}
 
 		var targets, users, computers, groups, others int
 		for _, node := range pg.Nodes {
@@ -298,7 +307,7 @@ func webservice(bind string, quit chan bool) http.Server {
 
 		if len(pg.Nodes) > 1000 && !force {
 			w.WriteHeader(413) // too big payload response
-			if strings.HasPrefix(mode, "inverted") {
+			if strings.HasPrefix(mode, "inverted") || strings.HasPrefix(mode, "sourcetarget") {
 				fmt.Fprintf(w, "Too much data, %v targets can pwn %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>", targets, users, groups, computers, others, len(pg.Connections), "/export-graph?format=xgmml&"+r.URL.RawQuery)
 			} else {
 				fmt.Fprintf(w, "Too much data, %v targets can be pwned by %v users, %v groups, %v computers and %v others via %v links. Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>.", targets, users, groups, computers, others, len(pg.Connections), "/export-graph?format=xgmml&"+r.URL.RawQuery)

@@ -63,6 +63,8 @@ github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 h1:Wi5Tgn8K+jDcBY
 github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56/go.mod h1:8BhOLuqtSuT5NZtZMwfvEibi09RO3u79uqfHZzfDTR4=
 github.com/aws/aws-sdk-go v1.29.11/go.mod h1:1KvfttTE3SPKMpo8g2c6jL3ZKfXtFvKscTgahTma5Xg=
 github.com/bet365/jingo v0.10.0/go.mod h1:YVo0ML7j7ob+mvgmOXoZHcGu99n2HJQXw2VqkTteF3I=
+github.com/bgadrian/data-structures v0.0.0-20171217125123-a6f5517ea9d5 h1:yjY5aaTha8b+dK5n7R3cC6FllxeVp33Tl6gn/VKE7io=
+github.com/bgadrian/data-structures v0.0.0-20171217125123-a6f5517ea9d5/go.mod h1:1Zq8HZwcdvnakaMf5nJMBqcAK8Z7yRbCSKjPdRIvOAI=
 github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e/go.mod h1:errmMKH8tTB49UR2A8C8DPYkyudelsYJwJFaZHQ6ik8=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
 github.com/buger/jsonparser v1.1.1/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=

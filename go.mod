@@ -83,6 +83,7 @@ require (
 )
 
 require (
+	github.com/bgadrian/data-structures v0.0.0-20171217125123-a6f5517ea9d5 // indirect
 	github.com/google/renameio v0.1.0 // indirect; indirect - DONT CHANGE FROM v0.1.0
 	github.com/josharian/intern v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
