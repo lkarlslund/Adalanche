@@ -465,6 +465,13 @@ func main() {
 				chunk := make([]*Object, 0, 64)
 				for addme := range objectstoadd {
 					o := addme.ToObject(*importall)
+
+					// Here's a quirky workaround that will bite me later
+					// Legacy well known objects in ForeignSecurityPrincipals gives us trouble with duplicate SIDs - skip them
+					if strings.Count(o.OneAttrString(ObjectSid), "-") == 3 && strings.Contains(o.OneAttrString(DistinguishedName), "CN=ForeignSecurityPrincipals") {
+						continue
+					}
+
 					chunk = append(chunk, o)
 					if cap(chunk) == len(chunk) {
 						// Send chunk to objects
