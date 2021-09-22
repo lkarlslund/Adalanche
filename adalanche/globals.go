@@ -44,7 +44,10 @@ func init() {
 		ObjectGUID, AttributeValueGUID(randguid),
 	)
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: colorable.NewColorableStdout()})
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        colorable.NewColorableStdout(),
+		TimeFormat: "15:04:05.06",
+	})
 	AllObjects.Init(nil)
 	AllObjects.Add(AttackerObject)
 	// AllObjects.Add(HackersWonObject)
