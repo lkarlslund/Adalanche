@@ -16,7 +16,8 @@ type Objects struct {
 
 	asarray []*Object
 
-	index map[Attribute]map[interface{}]*Object
+	idindex map[uint64]*Object
+	index   map[Attribute]map[interface{}]*Object
 
 	typecount [OBJECTTYPEMAX]int
 
@@ -25,6 +26,7 @@ type Objects struct {
 
 func (os *Objects) Init(ios *Objects) {
 	os.index = make(map[Attribute]map[interface{}]*Object)
+	os.idindex = make(map[uint64]*Object)
 	// os.lookupcounter = make([]uint64)
 	if ios != nil {
 		os.Base = ios.Base
@@ -82,6 +84,8 @@ func (os *Objects) Add(obs ...*Object) {
 		// Add this to the iterator array
 		os.asarray = append(os.asarray, o)
 
+		os.idindex[o.ID] = o
+
 		for attribute := range os.index {
 			value := o.OneAttr(attribute)
 			if value != nil {
@@ -109,6 +113,11 @@ func (os Objects) Statistics() [OBJECTTYPEMAX]int {
 
 func (os Objects) AsArray() []*Object {
 	return os.asarray
+}
+
+func (os *Objects) FindByID(id uint64) (o *Object, found bool) {
+	o, found = os.idindex[id]
+	return
 }
 
 func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, found bool) {

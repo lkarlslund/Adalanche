@@ -827,9 +827,7 @@ func main() {
 		}
 		pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", PwnMethod(pwn).String(), count))
 	}
-	log.Info().Msg(strings.Join(pwnarray, ", "))
-
-	log.Info().Msgf("LAPS detect: %v", lapsdetect)
+	log.Debug().Msg(strings.Join(pwnarray, ", "))
 
 	switch command {
 	case "exportacls":
@@ -857,11 +855,11 @@ func main() {
 			return q.Evaluate(o)
 		})
 
-		mode := "normal"
-		if *exportinverted {
-			mode = "inverted"
-		}
-		resultgraph := AnalyzeObjects(includeobjects, nil, AllPwnMethods, mode, 99, 0, 1)
+		opts := NewAnalyzeObjectsOptions()
+		opts.IncludeObjects = includeobjects
+		opts.Reverse = *exportinverted
+
+		resultgraph := AnalyzeObjects(opts)
 
 		switch *exporttype {
 		case "graphviz":

@@ -181,6 +181,9 @@ func webservice(bind string, quit chan bool) http.Server {
 		if mode == "" {
 			mode = "normal"
 		}
+		reverse := (mode != "normal")
+
+		prune, _ := ParseBool(vars["prune"])
 
 		query := vars["query"]
 		if query == "" {
@@ -284,7 +287,16 @@ func webservice(bind string, quit chan bool) http.Server {
 			}
 			pg = AnalyzePaths(includeobjects.AsArray()[0], excludeobjects.AsArray()[0], &AllObjects, methods, Probability(minprobability), 1)
 		} else {
-			pg = AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, Probability(minprobability))
+			opts := NewAnalyzeObjectsOptions()
+			opts.IncludeObjects = includeobjects
+			opts.ExcludeObjects = excludeobjects
+			opts.Methods = methods
+			opts.Reverse = reverse
+			opts.MaxDepth = maxdepth
+			opts.MaxOutgoingConnections = maxoutgoing
+			opts.MinProbability = Probability(minprobability)
+			opts.PruneIslands = prune
+			pg = AnalyzeObjects(opts)
 		}
 
 		var targets, users, computers, groups, others int
@@ -381,6 +393,7 @@ func webservice(bind string, quit chan bool) http.Server {
 		if mode == "" {
 			mode = "normal"
 		}
+		reverse := (mode != "normal")
 
 		query := uq.Get("query")
 		if query == "" {
@@ -456,7 +469,17 @@ func webservice(bind string, quit chan bool) http.Server {
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
-		pg := AnalyzeObjects(includeobjects, excludeobjects, methods, mode, maxdepth, maxoutgoing, 1)
+
+		opts := NewAnalyzeObjectsOptions()
+		opts.IncludeObjects = includeobjects
+		opts.ExcludeObjects = excludeobjects
+		opts.Methods = methods
+		opts.Reverse = reverse
+		opts.MaxDepth = maxdepth
+		opts.MaxOutgoingConnections = maxoutgoing
+		opts.MinProbability = opts.MinProbability
+
+		pg := AnalyzeObjects(opts)
 
 		// Make browser download this
 		filename := AllObjects.Domain + "-analysis-" + time.Now().Format(time.RFC3339)

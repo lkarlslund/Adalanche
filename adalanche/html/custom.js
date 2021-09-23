@@ -10,7 +10,7 @@ function makePopper(ele) {
     });
 }
 
-function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
+function setquery(query, depth, methods, mode, maxoutgoing, minprobability, prune) {
     if (query) {
         $('#querytext').val(query);
     }
@@ -20,11 +20,15 @@ function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
     if (methods) {
         // Clear all
         $('#pwnfilter > div > label .active').button("toggle");
-        if (methods == "default") {
+        marr = methods.split(" ")
+        if (marr.indexOf("default") > -1) {
             $('#pwnfilter > div > label > input [default]').button("toggle");
-        } else {
-            marr = methods.split(" ")
-            for (i in marr) {
+        }
+        for (i in marr) {
+            if (marr[i].startsWith("!")) {
+                // finds the input checkbox, we need to toggle the label
+                $('#' + marr[i].substring(1)) + " .active".parent().button("toggle");
+            } else {
                 // finds the input checkbox, we need to toggle the label
                 $('#' + marr[i]).parent().button("toggle");
             }
@@ -39,6 +43,9 @@ function setquery(query, depth, methods, mode, maxoutgoing, minprobability) {
     if (minprobability) {
         $('#minprobability').val(minprobability);
     }
+    if (prune) {
+        $('#prune').val(prune);
+    }
 }
 
 function set_querymode(mode) {
@@ -48,7 +55,10 @@ function set_querymode(mode) {
 }
 
 function edgeprobability(ele) {
-    return 101 - ele.data("_maxprob")
+    if (ele.data("_maxprob")) {
+        return (ele.data("_maxprob"))
+    }
+    return -1
 }
 
 var cy
@@ -875,7 +885,15 @@ $(function() {
 
     if ($("#querytext").val() == "") {
         console.log("Setting default query ...")
-        setquery($("#defaultquery").attr("query"), $("#defaultquery").attr("depth"), $("#defaultquery").attr("methods"), $("#defaultquery").attr("mode"));
+        setquery(
+            $("#defaultquery").attr("query"),
+            $("#defaultquery").attr("depth"),
+            $("#defaultquery").attr("methods"),
+            $("#defaultquery").attr("mode"),
+            $("#defaultquery").attr("maxoutgoing"),
+            $("#defaultquery").attr("minprobability"),
+            $("#defaultquery").attr("prune"),
+        );
     }
 
     var changetimer;
@@ -905,7 +923,15 @@ $(function() {
     // Predefined queries dropdown button
     $("#predefinedqueries").on("click", "a", function(event) {
         console.log("You clicked the drop downs", event.target)
-        setquery(event.target.getAttribute("query"), event.target.getAttribute("depth"), event.target.getAttribute("methods"), event.target.getAttribute("mode"), event.target.getAttribute("maxoutgoing"), event.target.getAttribute("minprobability"));
+        setquery(
+            event.target.getAttribute("query"),
+            event.target.getAttribute("depth"),
+            event.target.getAttribute("methods"),
+            event.target.getAttribute("mode"),
+            event.target.getAttribute("maxoutgoing"),
+            event.target.getAttribute("minprobability"),
+            event.target.getAttribute("prune"),
+        );
     })
 
     $.ajax({

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/rs/zerolog/log"
 )
 
@@ -58,29 +56,62 @@ func CalculateProbability(source, target *Object, method PwnMethod) Probability 
 	return 100
 }
 
-func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnMethodBitmap, mode string, maxdepth, maxoutgoingconnections int, minprobability Probability) (pg PwnGraph) {
+func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
+	return AnalyzeObjectsOptions{
+		Methods:                AllPwnMethods,
+		Reverse:                false,
+		MaxDepth:               99,
+		MaxOutgoingConnections: -1,
+		MinProbability:         0,
+		PruneIslands:           false,
+	}
+}
+
+type AnalyzeObjectsOptions struct {
+	IncludeObjects         *Objects
+	ExcludeObjects         *Objects
+	Methods                PwnMethodBitmap
+	NextMethods            PwnMethodBitmap
+	LastMethods            PwnMethodBitmap
+	Reverse                bool
+	MaxDepth               int
+	MaxOutgoingConnections int
+	MinProbability         Probability
+	PruneIslands           bool
+}
+
+func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
+	if opts.NextMethods.Count() == 0 {
+		opts.NextMethods = opts.Methods
+	}
+	if opts.LastMethods.Count() == 0 {
+		opts.LastMethods = opts.NextMethods
+	}
+
 	connectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]int)       // Object -> Processed in round n
 	canexpand := make(map[*Object]int)
 
-	if excludeobjects == nil {
-		excludeobjects = &Objects{}
-		excludeobjects.Init(nil)
-	}
-
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
-	forward := strings.HasPrefix(mode, "normal")
+	forward := !opts.Reverse
+
 	// Backlinks = include all links, don't limit per round
-	backlinks := strings.HasSuffix(mode, "backlinks")
+	backlinks := false // strings.HasSuffix(mode, "backlinks")
 
 	// Convert to our working map
-	for _, object := range includeobjects.AsArray() {
+	for _, object := range opts.IncludeObjects.AsArray() {
 		implicatedobjectsmap[object] = 0
 	}
 
 	somethingprocessed := true
 	processinground := 1
-	for somethingprocessed && maxdepth >= processinground {
+
+	detectmethods := opts.Methods
+	for somethingprocessed && opts.MaxDepth >= processinground {
+		if processinground == 2 {
+			detectmethods = opts.NextMethods
+		}
+
 		somethingprocessed = false
 		log.Debug().Msgf("Processing round %v with %v total objects", processinground, len(implicatedobjectsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
@@ -106,7 +137,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 				pwninfo := pwnlist[pwntarget]
 
 				// If this is not a chosen method, skip it
-				detectedmethods := pwninfo.Intersect(lookformethods)
+				detectedmethods := pwninfo.Intersect(detectmethods)
 
 				methodcount := detectedmethods.Count()
 				if methodcount == 0 || (methodcount == 1 && detectedmethods.IsSet(PwnACLContainsDeny)) {
@@ -114,7 +145,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 					continue
 				}
 
-				if minprobability > 0 {
+				if opts.MinProbability > 0 {
 					var maxprobability Probability
 					for i := PwnMethod(0); i < MaxPwnMethod; i++ {
 						if detectedmethods.IsSet(i) {
@@ -124,7 +155,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 							}
 						}
 					}
-					if maxprobability < Probability(minprobability) {
+					if maxprobability < Probability(opts.MinProbability) {
 						// Too unlikeliy, so we skip it
 						continue
 					}
@@ -144,16 +175,18 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 					continue
 				}
 
-				if _, found := excludeobjects.Find(DistinguishedName, AttributeValueString(pwntarget.DN())); found {
-					// skip excluded objects
-					// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
-					continue
+				if opts.ExcludeObjects != nil {
+					if _, found := opts.ExcludeObjects.Find(DistinguishedName, AttributeValueString(pwntarget.DN())); found {
+						// skip excluded objects
+						// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
+						continue
+					}
 				}
 
 				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
 			}
 
-			if maxoutgoingconnections == 0 || len(newconnectionsmap) < maxoutgoingconnections {
+			if opts.MaxOutgoingConnections == 0 || len(newconnectionsmap) < opts.MaxOutgoingConnections {
 				for pwnpair, detectedmethods := range newconnectionsmap {
 					connectionsmap[pwnpair] = detectedmethods
 					if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
@@ -162,7 +195,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 				}
 				// Add pwn target to graph for processing
 			} else {
-				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", maxoutgoingconnections, object.Label(), len(newconnectionsmap))
+				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", opts.MaxOutgoingConnections, object.Label(), len(newconnectionsmap))
 				var groupcount int
 				for pwnpair := range newconnectionsmap {
 					// We assume the number of groups are limited and add them anyway
@@ -170,7 +203,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 						groupcount++
 					}
 				}
-				if groupcount < maxoutgoingconnections {
+				if groupcount < opts.MaxOutgoingConnections {
 					// Add the groups, but not the rest
 					var addedanyway int
 					for pwnpair, detectedmethods := range newconnectionsmap {
@@ -195,6 +228,54 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 		processinground++
 	}
 
+	// Remove outer end nodes that are invalid
+	var weremovedsomething bool
+	if opts.NextMethods != opts.LastMethods {
+		for {
+			var removed int
+
+			// This map contains all the nodes that point to someone else. If you're in this map you're not an outer node
+			pointsatsomeone := make(map[*Object]struct{})
+			for pair, _ := range connectionsmap {
+				pointsatsomeone[pair.Source] = struct{}{}
+			}
+
+			for pair, detectedmethods := range connectionsmap {
+				if _, found := pointsatsomeone[pair.Target]; !found {
+					// Outer node
+					if opts.LastMethods.Intersect(detectedmethods).Count() == 0 {
+						// No matches on LastMethods
+						delete(connectionsmap, pair)
+						removed++
+					}
+				}
+			}
+
+			if removed == 0 {
+				break
+			}
+
+			weremovedsomething = true
+		}
+	}
+
+	// PruneIslands
+	if opts.PruneIslands || weremovedsomething {
+		// Find island nodes
+		pointedto := make(map[*Object]struct{})
+		for pair, _ := range connectionsmap {
+			pointedto[pair.Source] = struct{}{}
+			pointedto[pair.Target] = struct{}{}
+		}
+		for node, _ := range implicatedobjectsmap {
+			if _, found := pointedto[node]; !found {
+				if _, found := opts.IncludeObjects.FindByID(node.ID); opts.PruneIslands || !found {
+					delete(implicatedobjectsmap, node)
+				}
+			}
+		}
+	}
+
 	// Convert map to slice
 	pg.Connections = make([]PwnConnection, len(connectionsmap))
 	i := 0
@@ -215,7 +296,7 @@ func AnalyzeObjects(includeobjects, excludeobjects *Objects, lookformethods PwnM
 	i = 0
 	for object := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
-		if _, found := includeobjects.Find(DistinguishedName, AttributeValueString(object.DN())); found {
+		if _, found := opts.IncludeObjects.FindByID(object.ID); found {
 			pg.Nodes[i].Target = true
 		}
 		if expandnum, found := canexpand[object]; found {
