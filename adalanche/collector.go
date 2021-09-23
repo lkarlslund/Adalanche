@@ -201,16 +201,10 @@ func importCollectorFile(path string, objs *Objects) error {
 			}
 		}
 
-		if ownersid, err := SIDFromString(service.ImageExecutableOwner); err == nil {
-			if owner, found := AllObjects.Find(ObjectSid, AttributeValueSID(ownersid)); found {
-				owner.Pwns(serviceobject, PwnOwns, 100)
-			}
-		}
-
 		// Change service executable via registry
 		if sd, err := parseACL(service.RegistryDACL); err == nil {
 			for _, entry := range sd.Entries {
-				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
+				if entry.Type&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
 					// AD object
 					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&KEY_SET_VALUE != KEY_SET_VALUE {
@@ -226,18 +220,24 @@ func importCollectorFile(path string, objs *Objects) error {
 		}
 
 		// Change service executable contents
-		if sd, err := parseACL(service.ImageExecutableDACL); err == nil {
-			serviceimageobject := NewObject(
-				DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()),
-				DisplayName, AttributeValueString(filepath.Base(service.ImageExecutable)),
-				ObjectClass, AttributeValueString("Executable"),
-			)
-			AllObjects.Add(serviceimageobject)
+		serviceimageobject := NewObject(
+			DistinguishedName, AttributeValueString("cn="+service.ImageExecutable+","+serviceobject.DN()),
+			DisplayName, AttributeValueString(filepath.Base(service.ImageExecutable)),
+			ObjectClass, AttributeValueString("Executable"),
+		)
+		AllObjects.Add(serviceimageobject)
+		serviceimageobject.Pwns(serviceobject, PwnExecuted, 100)
 
-			serviceimageobject.Pwns(serviceobject, PwnExecuted, 100)
+		if ownersid, err := SIDFromString(service.ImageExecutableOwner); err == nil {
+			if owner, found := AllObjects.Find(ObjectSid, AttributeValueSID(ownersid)); found {
+				owner.Pwns(serviceobject, PwnOwns, 100)
+			}
+		}
+
+		if sd, err := parseACL(service.ImageExecutableDACL); err == nil {
 
 			for _, entry := range sd.Entries {
-				if entry.Flags&ACETYPE_ACCESS_ALLOWED != 0 /*&& entry.SID.Component(2) == 21*/ {
+				if entry.Type&ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
 					// AD object
 					if o, found := AllObjects.Find(ObjectSid, AttributeValueSID(entry.SID)); found {
 						if entry.Mask&FILE_WRITE_DATA != FILE_WRITE_DATA {
