@@ -9,6 +9,87 @@ type nodedistance struct {
 	distance uint32
 }
 
+type heapqueue struct {
+	items []nodedistance
+}
+
+// Enqueue inserts a node in a heap
+func (hq *heapqueue) Push(o *Object, distance uint32) {
+	hq.items = append(hq.items, nodedistance{o, distance})
+	hq.minHeapify()
+}
+
+func (hq *heapqueue) minHeapify() {
+	idx := len(hq.items) - 1
+	element := hq.items[idx]
+	for idx > 0 {
+		parentIdx := int(math.Floor(float64((idx - 1) / 2)))
+		parent := hq.items[parentIdx]
+		if element.distance >= parent.distance {
+			break
+		}
+		hq.items[parentIdx] = element
+		hq.items[idx] = parent
+		idx = parentIdx
+	}
+}
+
+func (hq *heapqueue) Empty() bool {
+	if len(hq.items) == 0 || hq.items[0].Object == nil {
+		return true
+	}
+	return false
+}
+
+// Dequeue will remove a node from heap
+func (hq *heapqueue) Pop() nodedistance {
+	if hq.Empty() {
+		// empty
+		return nodedistance{}
+	}
+
+	min := hq.items[0]
+	end := hq.items[len(hq.items)-1]
+	hq.items = hq.items[0 : len(hq.items)-1]
+	if len(hq.items) > 0 {
+		hq.items[0] = end
+		hq.bubbleDown()
+	}
+	return min
+}
+
+func (hq *heapqueue) bubbleDown() {
+	idx := 0
+	length := len(hq.items)
+	element := hq.items[0]
+	for {
+		leftChildIdx := (2 * idx) + 1
+		rightChildIdx := (2 * idx) + 2
+		var leftChild, rightChild nodedistance
+		var swap int
+
+		if leftChildIdx < length {
+			leftChild = hq.items[leftChildIdx]
+			if leftChild.distance < element.distance {
+				swap = leftChildIdx
+			}
+		}
+		if rightChildIdx < length {
+			rightChild = hq.items[rightChildIdx]
+			if (rightChild.distance < element.distance && swap == 0) || (rightChild.distance < leftChild.distance && swap != 0) {
+				swap = rightChildIdx
+			}
+		}
+
+		if swap == 0 {
+			break
+		}
+		hq.items[idx] = hq.items[swap]
+		hq.items[swap] = element
+		idx = swap
+	}
+}
+
 type queue struct {
 	items []nodedistance
 }
@@ -67,7 +148,8 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 	dist := make(map[*Object]uint32)
 	prev := make(map[*Object]*Object)
 
-	q := queue{}
+	q := heapqueue{}
+	// q := queue{}
 
 	dist[start] = 0
 
