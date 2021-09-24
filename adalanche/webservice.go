@@ -209,6 +209,7 @@ func webservice(bind string, quit chan bool) http.Server {
 
 		alldetails, _ := ParseBool(vars["alldetails"])
 		force, _ := ParseBool(vars["force"])
+		backlinks, _ := ParseBool(vars["backlinks"])
 
 		var includeobjects *Objects
 		var excludeobjects *Objects
@@ -296,7 +297,19 @@ func webservice(bind string, quit chan bool) http.Server {
 			opts.MaxOutgoingConnections = maxoutgoing
 			opts.MinProbability = Probability(minprobability)
 			opts.PruneIslands = prune
+			opts.Backlinks = backlinks
 			pg = AnalyzeObjects(opts)
+		}
+
+		clusters := pg.SCC()
+		for i, cluster := range clusters {
+			if len(cluster) == 1 {
+				continue
+			}
+			log.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
+			for _, member := range cluster {
+				log.Debug().Msgf("%v", member.DN())
+			}
 		}
 
 		var targets, users, computers, groups, others int

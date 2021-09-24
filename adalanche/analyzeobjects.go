@@ -4,26 +4,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type GraphObject struct {
-	*Object
-	Target    bool
-	CanExpand int
-}
-
-type PwnGraph struct {
-	Nodes       []GraphObject
-	Connections []PwnConnection // Connection to Methods map
-}
-
-type PwnPair struct {
-	Source, Target *Object
-}
-
-type PwnConnection struct {
-	Source, Target *Object
-	PwnMethodBitmap
-}
-
 func CalculateProbability(source, target *Object, method PwnMethod) Probability {
 	switch method {
 	case PwnACLContainsDeny:
@@ -74,6 +54,7 @@ type AnalyzeObjectsOptions struct {
 	NextMethods            PwnMethodBitmap
 	LastMethods            PwnMethodBitmap
 	Reverse                bool
+	Backlinks              bool
 	MaxDepth               int
 	MaxOutgoingConnections int
 	MinProbability         Probability
@@ -95,32 +76,26 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := !opts.Reverse
 
-	// Backlinks = include all links, don't limit per round
-	backlinks := false // strings.HasSuffix(mode, "backlinks")
-
 	// Convert to our working map
 	for _, object := range opts.IncludeObjects.AsArray() {
 		implicatedobjectsmap[object] = 0
 	}
 
-	somethingprocessed := true
 	processinground := 1
 
 	detectmethods := opts.Methods
-	for somethingprocessed && opts.MaxDepth >= processinground {
+	for opts.MaxDepth >= processinground {
 		if processinground == 2 {
 			detectmethods = opts.NextMethods
 		}
 
-		somethingprocessed = false
-		log.Debug().Msgf("Processing round %v with %v total objects", processinground, len(implicatedobjectsmap))
+		log.Debug().Msgf("Processing round %v with %v total objects and %v connections", processinground, len(implicatedobjectsmap), len(connectionsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
 
 		for object, processed := range implicatedobjectsmap {
 			if processed != 0 {
 				continue
 			}
-			somethingprocessed = true
 
 			newconnectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
 
@@ -166,9 +141,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				// If pwner is already processed, we don't care what it can pwn someone more far away from targets
 				// If pwner is our attacker, we always want to know what it can do
 				targetprocessinground, found := implicatedobjectsmap[pwntarget]
-				if pwntarget != AttackerObject &&
-					!backlinks &&
+				if !opts.Backlinks &&
 					found &&
+					pwntarget != AttackerObject &&
 					targetprocessinground != 0 &&
 					targetprocessinground < processinground {
 					// skip it
@@ -222,6 +197,10 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 			implicatedobjectsmap[object] = processinground // We're done processing this
 		}
 		log.Debug().Msgf("Processing round %v yielded %v new objects", processinground, len(newimplicatedobjects))
+		if len(newimplicatedobjects) == 0 {
+			// Nothing more to do
+			break
+		}
 		for newentry := range newimplicatedobjects {
 			implicatedobjectsmap[newentry] = 0
 		}
