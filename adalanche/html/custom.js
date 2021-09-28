@@ -949,7 +949,7 @@ $(function() {
             // Refresh styling after dynamic load
             $("#querymode").val("normal");
             // Run initial query
-            // $("#queryform").submit();
+            $("#queryform").submit();
         }
     });
 
