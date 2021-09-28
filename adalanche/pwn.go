@@ -138,9 +138,10 @@ const (
 	PwnWriteAttributeSecurityGUID
 	PwnSIDHistoryEquality
 	PwnAllExtendedRights
-	PwnDCReplicationGetChanges
-	PwnDCReplicationSyncronize
+	PwnDSReplicationSyncronize
+	PwnDSReplicationGetChanges
 	PwnDSReplicationGetChangesAll
+	PwnDSReplicationGetChangesInFilteredSet
 	PwnReadLAPSPassword
 	PwnMemberOfGroup
 	PwnHasSPN
