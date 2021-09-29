@@ -12,10 +12,11 @@ import (
 
 // Interesting permissions on AD
 var (
-	ResetPwd                   = uuid.UUID{0x00, 0x29, 0x95, 0x70, 0x24, 0x6d, 0x11, 0xd0, 0xa7, 0x68, 0x00, 0xaa, 0x00, 0x6e, 0x05, 0x29}
-	DSReplicationGetChanges    = uuid.UUID{0x11, 0x31, 0xf6, 0xaa, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
-	DSReplicationGetChangesAll = uuid.UUID{0x11, 0x31, 0xf6, 0xad, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
-	DSReplicationSyncronize    = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	ResetPwd                                = uuid.UUID{0x00, 0x29, 0x95, 0x70, 0x24, 0x6d, 0x11, 0xd0, 0xa7, 0x68, 0x00, 0xaa, 0x00, 0x6e, 0x05, 0x29}
+	DSReplicationGetChanges                 = uuid.UUID{0x11, 0x31, 0xf6, 0xaa, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationGetChangesAll              = uuid.UUID{0x11, 0x31, 0xf6, 0xad, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationSyncronize                 = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationGetChangesInFilteredSet, _ = uuid.FromString("{89e95b76-444d-4c62-991a-0facbeda640c}")
 
 	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	AttributeSetGroupMembership, _                  = uuid.FromString("{BC0AC240-79A9-11D0-9020-00C04FC2D4CF}")
@@ -924,35 +925,35 @@ var PwnAnalyzers = []PwnAnalyzer{
 
 	// LAPS password moved to pre-processing, as the attributes have different GUIDs from AD to AD (sigh)
 	{
-		Method: PwnDCReplicationGetChanges,
+		Method: PwnDSReplicationSyncronize, // FIXME
 		ObjectAnalyzer: func(o *Object) {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
+			if o.Type() != ObjectTypeDomainDNS {
 				return
 			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
-					po := AllObjects.FindOrAddSID(acl.SID)
-					info := dcsyncobjects[po]
-					info.changes = true
-					dcsyncobjects[po] = info
-				}
-			}
-		},
-	},
-	{
-		Method: PwnDCReplicationSyncronize, // FIXME
-		ObjectAnalyzer: func(o *Object) {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
-					po := AllObjects.FindOrAddSID(acl.SID)
-					info := dcsyncobjects[po]
-					info.sync = true
-					dcsyncobjects[po] = info
+					AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnDSReplicationSyncronize, 100)
+				}
+			}
+		},
+	},
+	{
+		Method: PwnDSReplicationGetChanges,
+		ObjectAnalyzer: func(o *Object) {
+			if o.Type() != ObjectTypeDomainDNS {
+				return
+			}
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return
+			}
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
+					AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnDSReplicationGetChanges, 100)
 				}
 			}
 		},
@@ -960,16 +961,33 @@ var PwnAnalyzers = []PwnAnalyzer{
 	{
 		Method: PwnDSReplicationGetChangesAll, // FIXME
 		ObjectAnalyzer: func(o *Object) {
+			if o.Type() != ObjectTypeDomainDNS {
+				return
+			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
-					po := AllObjects.FindOrAddSID(acl.SID)
-					info := dcsyncobjects[po]
-					info.all = true
-					dcsyncobjects[po] = info
+					AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnDSReplicationGetChangesAll, 100)
+				}
+			}
+		},
+	},
+	{
+		Method: PwnDSReplicationGetChangesInFilteredSet,
+		ObjectAnalyzer: func(o *Object) {
+			if o.Type() != ObjectTypeDomainDNS {
+				return
+			}
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return
+			}
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.AllowObjectClass(index, o, RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
+					AllObjects.FindOrAddSID(acl.SID).Pwns(o, PwnDSReplicationGetChangesInFilteredSet, 100)
 				}
 			}
 		},

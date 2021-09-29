@@ -25,6 +25,7 @@ const (
 	ObjectTypeAttributeSchema
 	ObjectTypeGroup
 	ObjectTypeForeignSecurityPrincipal
+	ObjectTypeDomainDNS
 	ObjectTypeUser
 	ObjectTypeComputer
 	ObjectTypeManagedServiceAccount
@@ -147,6 +148,8 @@ func (o Object) Type() ObjectType {
 	}
 
 	switch category {
+	case "Domain-DNS":
+		o.objecttype = ObjectTypeDomainDNS
 	case "Person":
 		o.objecttype = ObjectTypeUser
 	case "Group":
