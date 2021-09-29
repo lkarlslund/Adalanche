@@ -24,6 +24,8 @@ import (
 	"github.com/Showmax/go-fqdn"
 	"github.com/gofrs/uuid"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/adalanche/modules/collector"
+	"github.com/mailru/easyjson"
 	"github.com/pierrec/lz4/v4"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -581,13 +583,48 @@ func main() {
 				progressbar.OptionOnCompletion(func() { fmt.Println() }),
 				progressbar.OptionThrottle(time.Second*1),
 			)
-			for _, path := range jsonfiles {
-				err = importCollectorFile(path, &AllObjects)
-				if err != nil {
-					log.Warn().Msgf("Problem processing collector file %v: %v", path, err)
-				}
-				importcollectorbar.Add(1)
+
+			infostoadd := make(chan collector.Info, 32)
+			var infoaddmutex sync.Mutex
+			var done sync.WaitGroup
+			for i := 0; i < runtime.NumCPU(); i++ {
+				done.Add(1)
+				go func() {
+					for cinfo := range infostoadd {
+						infoaddmutex.Lock()
+						err := importCollectoInfo(cinfo, &AllObjects)
+						if err != nil {
+							log.Warn().Msgf("Problem importing collector info: %v", err)
+							continue
+						}
+						importcollectorbar.Add(1)
+						infoaddmutex.Unlock()
+					}
+					done.Done()
+				}()
 			}
+
+			for _, path := range jsonfiles {
+				// Decode it
+				raw, err := os.Open(path)
+				if err != nil {
+					log.Warn().Msgf("Problem reading collector file %v: %v", path, err)
+					continue
+				}
+				defer raw.Close()
+
+				var cinfo collector.Info
+				err = easyjson.UnmarshalFromReader(raw, &cinfo)
+
+				if err != nil {
+					log.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
+					continue
+				}
+
+				infostoadd <- cinfo
+			}
+			close(infostoadd)
+			done.Wait()
 			importcollectorbar.Finish()
 		} else {
 			log.Warn().Msgf("Not importing collector files, path %v not accessible", *collectorpath)

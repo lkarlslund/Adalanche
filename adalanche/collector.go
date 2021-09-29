@@ -3,14 +3,11 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/collector"
-	"github.com/mailru/easyjson"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
@@ -18,20 +15,7 @@ var (
 	LocalMachineSID = A("LocalMachineSID")
 )
 
-func importCollectorFile(path string, objs *Objects) error {
-	// Import it
-	raw, err := os.Open(path)
-	if err != nil {
-		return errors.Wrap(err, "Problem reading collector file")
-	}
-	defer raw.Close()
-
-	var cinfo collector.Info
-	err = easyjson.UnmarshalFromReader(raw, &cinfo)
-
-	if err != nil {
-		return errors.Wrap(err, "Problem unmarshalling data from JSON file")
-	}
+func importCollectoInfo(cinfo collector.Info, objs *Objects) error {
 
 	//			if !strings.EqualFold(objs.Domain, cinfo.Machine.Domain) {
 	//				return nil // Machine is domain joined, but not to this domain!? Ignore for now
