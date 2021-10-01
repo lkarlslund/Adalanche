@@ -9,17 +9,19 @@ import (
 )
 
 type Info struct {
-	Collected time.Time
+	Collector string
 	BuildDate string
 	Commit    string
+	Collected time.Time
 
 	Machine         Machine `json:",omitempty"`
 	Hardware        shared.Hardware
 	OperatingSystem shared.OperatingSystem
 	Memory          shared.Memory
 
-	Availability    Availability
-	LoginPopularity LoginPopularity
+	InternetConnectivity string
+	Availability         Availability
+	LoginPopularity      LoginPopularity
 
 	Users    Users             `json:",omitempty"`
 	Groups   Groups            `json:",omitempty"`

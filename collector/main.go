@@ -116,7 +116,16 @@ func main() {
 				cache, _, err := appcache_key.GetBinaryValue(`AppCompatCache`)
 				if err == nil {
 					// Export data
-					machineinfo.AppCache = append(machineinfo.AppCache, cache)
+					var skipit bool
+					for _, existingcache := range machineinfo.AppCache {
+						if bytes.Compare(existingcache, cache) == 0 {
+							skipit = true
+							break
+						}
+					}
+					if !skipit {
+						machineinfo.AppCache = append(machineinfo.AppCache, cache)
+					}
 				}
 			}
 		}
@@ -536,17 +545,19 @@ func main() {
 	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
 	info := collector.Info{
-		Collected: time.Now(),
+		Collector: "adalanche-collector",
 		BuildDate: builddate,
 		Commit:    commit,
+		Collected: time.Now(),
 
 		Machine:         machineinfo,
 		Hardware:        hwinfo,
 		OperatingSystem: osinfo,
 		Memory:          meminfo,
 
-		Availability:    availabilityinfo,
-		LoginPopularity: logininfo,
+		InternetConnectivity: TestInternet(),
+		Availability:         availabilityinfo,
+		LoginPopularity:      logininfo,
 
 		Users:    usersinfo,
 		Groups:   groupsinfo,
@@ -560,6 +571,7 @@ func main() {
 	flag.Parse()
 
 	if *outputpath == "" {
+		log.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
 		*outputpath = "."
 	}
 

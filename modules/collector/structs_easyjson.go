@@ -1241,14 +1241,16 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesCollector7(in *jle
 			continue
 		}
 		switch key {
-		case "Collected":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Collected).UnmarshalJSON(data))
-			}
+		case "Collector":
+			out.Collector = string(in.String())
 		case "BuildDate":
 			out.BuildDate = string(in.String())
 		case "Commit":
 			out.Commit = string(in.String())
+		case "Collected":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Collected).UnmarshalJSON(data))
+			}
 		case "Machine":
 			(out.Machine).UnmarshalEasyJSON(in)
 		case "Hardware":
@@ -1257,6 +1259,8 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesCollector7(in *jle
 			easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared1(in, &out.OperatingSystem)
 		case "Memory":
 			easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared2(in, &out.Memory)
+		case "InternetConnectivity":
+			out.InternetConnectivity = string(in.String())
 		case "Availability":
 			(out.Availability).UnmarshalEasyJSON(in)
 		case "LoginPopularity":
@@ -1391,9 +1395,9 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesCollector7(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"Collected\":"
+		const prefix string = ",\"Collector\":"
 		out.RawString(prefix[1:])
-		out.Raw((in.Collected).MarshalJSON())
+		out.String(string(in.Collector))
 	}
 	{
 		const prefix string = ",\"BuildDate\":"
@@ -1404,6 +1408,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesCollector7(out *jw
 		const prefix string = ",\"Commit\":"
 		out.RawString(prefix)
 		out.String(string(in.Commit))
+	}
+	{
+		const prefix string = ",\"Collected\":"
+		out.RawString(prefix)
+		out.Raw((in.Collected).MarshalJSON())
 	}
 	if true {
 		const prefix string = ",\"Machine\":"
@@ -1424,6 +1433,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesCollector7(out *jw
 		const prefix string = ",\"Memory\":"
 		out.RawString(prefix)
 		easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared2(out, in.Memory)
+	}
+	{
+		const prefix string = ",\"InternetConnectivity\":"
+		out.RawString(prefix)
+		out.String(string(in.InternetConnectivity))
 	}
 	{
 		const prefix string = ",\"Availability\":"
