@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,6 +64,27 @@ func main() {
 		ComputerDomainSID:  hostdomainsid,
 		Architecture:       os.Getenv(`PROCESSOR_ARCHITECTURE`),
 		NumberOfProcessors: numcpus,
+	}
+
+	var interfaceinfo []collector.NetworkInterfaceInfo
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Warn().Msgf("Problem getting network adapter information: %v", err)
+	} else {
+		for _, iface := range interfaces {
+			addrs, _ := iface.Addrs()
+			var addrstrings []string
+			for _, addr := range addrs {
+				addrstrings = append(addrstrings, addr.String())
+			}
+			interfaceinfo = append(interfaceinfo, collector.NetworkInterfaceInfo{
+				Name:       iface.Name,
+				MACAddress: iface.HardwareAddr.String(),
+				Flags:      iface.Flags,
+				Addresses:  addrstrings,
+			})
+		}
 	}
 
 	currentversion_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
@@ -549,21 +571,21 @@ func main() {
 		BuildDate: builddate,
 		Commit:    commit,
 		Collected: time.Now(),
-
-		Machine:         machineinfo,
-		Hardware:        hwinfo,
+		Machine:   machineinfo,
+		Hardware:  hwinfo,
+		Network: collector.NetworkInformation{
+			InternetConnectivity: TestInternet(),
+			NetworkInterfaces:    interfaceinfo,
+		},
 		OperatingSystem: osinfo,
 		Memory:          meminfo,
-
-		InternetConnectivity: TestInternet(),
-		Availability:         availabilityinfo,
-		LoginPopularity:      logininfo,
-
-		Users:    usersinfo,
-		Groups:   groupsinfo,
-		Shares:   sharesinfo,
-		Services: servicesinfo,
-		Software: softwareinfo,
+		Availability:    availabilityinfo,
+		LoginPopularity: logininfo,
+		Users:           usersinfo,
+		Groups:          groupsinfo,
+		Shares:          sharesinfo,
+		Services:        servicesinfo,
+		Software:        softwareinfo,
 	}
 
 	outputpath := flag.String("outputpath", "", "Dump output JSON file in this folder")
@@ -579,7 +601,12 @@ func main() {
 	if info.Machine.IsDomainJoined {
 		targetname = info.Machine.Name + "$" + info.Machine.Domain + ".json"
 	}
-	output, _ := json.MarshalIndent(info, "", "  ")
+	output, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		log.Error().Msgf("Problem marshalling JSON: %v", err)
+		os.Exit(1)
+	}
+
 	outputfile := filepath.Join(*outputpath, targetname)
 	err = ioutil.WriteFile(outputfile, output, 0600)
 	if err != nil {

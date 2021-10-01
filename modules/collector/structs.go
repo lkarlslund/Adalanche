@@ -3,6 +3,7 @@ package collector
 //go:generate easyjson -all structs.go
 
 import (
+	"net"
 	"time"
 
 	"github.com/lkarlslund/go-win64api/shared"
@@ -16,12 +17,12 @@ type Info struct {
 
 	Machine         Machine `json:",omitempty"`
 	Hardware        shared.Hardware
+	Network         NetworkInformation
 	OperatingSystem shared.OperatingSystem
 	Memory          shared.Memory
 
-	InternetConnectivity string
-	Availability         Availability
-	LoginPopularity      LoginPopularity
+	Availability    Availability
+	LoginPopularity LoginPopularity
 
 	Users    Users             `json:",omitempty"`
 	Groups   Groups            `json:",omitempty"`
@@ -138,4 +139,15 @@ type Group struct {
 type Member struct {
 	Name string
 	SID  string
+}
+type NetworkInformation struct {
+	InternetConnectivity string
+	NetworkInterfaces    []NetworkInterfaceInfo
+}
+type NetworkInterfaceInfo struct {
+	// Hardware   net.Interface
+	Name       string
+	MACAddress string
+	Flags      net.Flags
+	Addresses  []string
 }
