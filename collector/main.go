@@ -553,10 +553,10 @@ func main() {
 		}
 		members, _ := winapi.LocalGroupGetMembers(group.Name)
 		for _, member := range members {
-			membersid, _ := winio.LookupSidByName(member.DomainAndName)
+			// membersid, _ := winio.LookupSidByName(member.DomainAndName)
 			grp.Members = append(grp.Members, collector.Member{
 				Name: member.DomainAndName,
-				SID:  membersid,
+				SID:  member.SID,
 			})
 		}
 		groupsinfo = append(groupsinfo, grp)

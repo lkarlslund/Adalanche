@@ -45,7 +45,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/lkarlslund/go-win64api v0.0.0-20210901131734-3c6bba943601
+	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
 	github.com/lkarlslund/stringdedup v0.2.1
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
