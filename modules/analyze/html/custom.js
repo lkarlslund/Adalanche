@@ -67,7 +67,7 @@ function newwindow(id, title, contents) {
     if (mywindow == undefined) {
         itsnew = true
         mywindow = $(`<div class="window position-absolute shadow p-5 bg-dark border pointer-events-auto" id="window_`+id+`">` +
-        `<table><td id="title" class="w-full"></td><td class="no-wrap"><button id="rollup" class="btn btn-secondary btn-sm">_</button> <button id="close" class="btn btn-secondary btn-sm">X</button></td></tr>`+
+        `<table><td id="title" class="w-full"></td><td class="no-wrap"><button id="rollup" class="btn btn-primary btn-sm">_</button> <button id="close" class="btn btn-primary btn-sm">X</button></td></tr>`+
         `<tr><td colspan=2 id="contents" class="overflow-auto"></td></tr></table>` +
         `</div>`);
         

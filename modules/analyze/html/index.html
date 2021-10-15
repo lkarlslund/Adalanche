@@ -5,13 +5,14 @@
  <title>adalanche - Active Directory ACL Visualizer</title>
  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
 
- <link rel="stylesheet" href="adalanche.css" />
-
+ 
  <link rel="stylesheet" href="external/halfmoon-variables.min.css" />
  <link rel="stylesheet" href="external/spinkit.css" />
  <link rel="stylesheet" href="external/cytoscape-context-menus.css" />
  <link rel="stylesheet" href="external/jquery-ui.min.css" />
  <link rel="stylesheet" href="external/tippy.css" />
+ <!-- we put everything custom here, so we can override earlier variables -->
+ <link rel="stylesheet" href="adalanche.css" />
 
  <script src="external/jquery-3.6.0.min.js"></script>
  <script src="external/jquery-ui.min.js"></script>
@@ -66,12 +67,12 @@
             </summary>
             <div class="collapse-content">
               <div class="row justify-content-between">
-                <label class="col" for="querymode_group">Search direction</label>
-                <div class="col btn-group btn-group-sm" id="querymode_group" role="group" aria-label="Mode">
-                  <input type="radio" class="btn-check" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
-                  <label class="btn btn-outline-light" for="querymode_normal">Normal</label>
-                  <input type="radio" class="btn-check" name="mode" id="querymode_reverse" value="inverted" autocomplete="off" />
-                  <label class="btn btn-outline-light" for="querymode_reverse">Reverse</label>
+                <label class="col" for="querymode_group">Direction</label>
+                <div class="col btn-group btn-group-sm checkbox-button" id="querymode_group" role="group" aria-label="Mode">
+                  <input type="radio" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
+                  <label class="btn btn-sm" for="querymode_normal">Normal</label>
+                  <input type="radio" name="mode" id="querymode_reverse" value="inverted" autocomplete="off" />
+                  <label class="btn btn-sm" for="querymode_reverse">Reverse</label>
                 </div>
               </div>
 
@@ -208,7 +209,7 @@
           <div id="queryerror"></div>
           <div id="querybuttons" class="mt-2">
             <div id="queriesdropdown" class="dropdown dropup with-arrow">
-              <button id="queriesbutton" data-toggle="dropdown" class="btn btn-secondary btn-sm" type="button" aria-haspopup="true" aria-expanded="false">
+              <button id="queriesbutton" data-toggle="dropdown" class="btn btn-primary btn-sm" type="button" aria-haspopup="true" aria-expanded="false">
               Sample Queries <i class="fa fa-angle-down ml-5" aria-hidden="true"></i>
               </button>
               <div id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh" aria-labelledby="queriesbutton">
@@ -234,7 +235,7 @@
                 <a class="dropdown-item" href="#" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal" depth=1>Accounts with no Kerberos preauth requirement</a>
               </div>
             </div>
-            <button id="analyzebutton" type="button" class="btn btn-light btn-sm float-right" onclick="analyze();">Analyze</button>
+            <button id="analyzebutton" type="button" class="btn btn-sm float-right" onclick="analyze();">Analyze</button>
           </div>
         </form>
       </div>
