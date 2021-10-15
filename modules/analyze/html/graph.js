@@ -531,11 +531,12 @@ function nodelabel(ele) {
         case "normal":
             label = ele.data("label");
             return label
-        case "none":
+        case "off":
             return "";
         case "random":
             return "fixme scrambler here";
     }
+    return "error";
 }
 
 function renderedge(ele) {
