@@ -1,0 +1,1163 @@
+package analyze
+
+import (
+	"encoding/binary"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"github.com/rs/zerolog/log"
+	"github.com/schollz/progressbar/v3"
+)
+
+// Interesting permissions on AD
+var (
+	ResetPwd                                = uuid.UUID{0x00, 0x29, 0x95, 0x70, 0x24, 0x6d, 0x11, 0xd0, 0xa7, 0x68, 0x00, 0xaa, 0x00, 0x6e, 0x05, 0x29}
+	DSReplicationGetChanges                 = uuid.UUID{0x11, 0x31, 0xf6, 0xaa, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationGetChangesAll              = uuid.UUID{0x11, 0x31, 0xf6, 0xad, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationSyncronize                 = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
+	DSReplicationGetChangesInFilteredSet, _ = uuid.FromString("{89e95b76-444d-4c62-991a-0facbeda640c}")
+
+	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	AttributeSetGroupMembership, _                  = uuid.FromString("{BC0AC240-79A9-11D0-9020-00C04FC2D4CF}")
+	AttributeSIDHistory                             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	AttributeAllowedToActOnBehalfOfOtherIdentity, _ = uuid.FromString("{3F78C3E5-F79A-46BD-A0B8-9D18116DDC79}")
+	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
+	AttributeGPLink, _                              = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
+	AttributeMSDSKeyCredentialLink, _               = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
+	AttributeSecurityGUIDGUID, _                    = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
+	AttributeAltSecurityIdentitiesGUID, _           = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
+	AttributeProfilePathGUID, _                     = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
+	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
+
+	ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
+
+	ValidateWriteSelfMembership, _ = uuid.FromString("bf9679c0-0de6-11d0-a285-00aa003049e2")
+	ValidateWriteSPN, _            = uuid.FromString("f3a64788-5306-11d1-a9c5-0000f80367c1")
+
+	ObjectGuidUser               = uuid.UUID{0xbf, 0x96, 0x7a, 0xba, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidComputer           = uuid.UUID{0xbf, 0x96, 0x7a, 0x86, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidGroup              = uuid.UUID{0xbf, 0x96, 0x7a, 0x9c, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidDomain             = uuid.UUID{0x19, 0x19, 0x5a, 0x5a, 0x6d, 0xa0, 0x11, 0xd0, 0xaf, 0xd3, 0x00, 0xc0, 0x4f, 0xd9, 0x30, 0xc9}
+	ObjectGuidGPO                = uuid.UUID{0xf3, 0x0e, 0x3b, 0xc2, 0x9f, 0xf0, 0x11, 0xd1, 0xb6, 0x03, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	ObjectGuidOU                 = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
+
+	// DAdministratorSID, _   = windowssecurity.SIDFromString("S-1-5-21domain-500")
+	DAdministratorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-544")
+	BackupOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-551")
+	// DomainAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21domain-512")
+	// DomainControllersSID, _         = windowssecurity.SIDFromString("S-1-5-21domain-516")
+	// EnterpriseAdminsSID, _          = windowssecurity.SIDFromString("S-1-5-21root domain-519")
+	// KrbtgtSID, _                    = windowssecurity.SIDFromString("S-1-5-21domain-502")
+	PrintOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-550")
+	// ReadOnlyDomainControllersSID, _ = windowssecurity.SIDFromString("S-1-5-21domain-521")
+	// SchemaAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21root domain-518")
+	ServerOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-549")
+)
+
+var warnedgpos = make(map[string]struct{})
+
+func init() {
+	engine.AddAnalyzers(
+
+		// It's a Unicorn, dang ...
+		// engine.PwnAnalyzer{
+		// 	Method: activedirectory.PwnNullDACL,
+		// 	ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+		// 		var results []*engine.Object
+		// 		sd, err := o.SecurityDescriptor()
+		// 		if err != nil {
+		// 			return
+		// 		}
+		// 		if sd.Control&engine.CONTROLFLAG_DACL_PRESENT != 0 || len(sd.DACL.Entries) == 0 {
+		// 			results = append(results, ao.FindOrAddSID(acl.SID))
+		// 		}
+
+		// 		return results
+		// 	},
+		// },
+
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnComputerAffectedByGPO,
+			Description: "Computers affected by a GPO",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for computers, you can't really pwn users this way
+				if o.Type() != engine.ObjectTypeComputer {
+					return
+				}
+				// Find all perent containers with GP links
+				var hasparent bool
+				p := o
+				for {
+					gpoptions := p.OneAttrString(engine.GPOptions)
+					if gpoptions == "1" {
+						// inheritance is blocked, so don't move upwards
+						break
+					}
+
+					p, hasparent = ao.Parent(p)
+					if !hasparent {
+						break
+					}
+
+					gplinks := strings.Trim(p.OneAttrString(engine.GPLink), " ")
+					if len(gplinks) == 0 {
+						continue
+					}
+					// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
+					if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
+						log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+						continue
+					}
+					links := strings.Split(gplinks[1:len(gplinks)-1], "][")
+					for _, link := range links {
+						linkinfo := strings.Split(link, ";")
+						if len(linkinfo) != 2 {
+							log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+							continue
+						}
+						linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
+						linktype := linkinfo[1]
+						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+						if linktype == "1" || linktype == "3" {
+							continue // Link is disabled
+						}
+
+						gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
+						if !found {
+							if _, warned := warnedgpos[linkedgpodn]; !warned {
+								warnedgpos[linkedgpodn] = struct{}{}
+								log.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+							}
+						} else {
+							gpo.Pwns(o, activedirectory.PwnComputerAffectedByGPO)
+						}
+					}
+				}
+			},
+		},
+
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnGPOMachineConfigPartOfGPO,
+			Description: "Machine configurations that are part of a GPO",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
+					return
+				}
+				// Only for computers, you can't really pwn users this way
+				p, hasparent := ao.Parent(o)
+				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
+					if strings.Contains(p.DN(), "Policies") {
+						log.Debug().Msgf("%v+", p)
+					}
+					return
+				}
+				p.Pwns(o, activedirectory.PwnGPOMachineConfigPartOfGPO)
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnGPOUserConfigPartOfGPO,
+			Description: "User configurations that are part of a GPO",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "User" {
+					return
+				}
+				// Only for users, you can't really pwn users this way
+				p, hasparent := ao.Parent(o)
+				if o.Type() != engine.ObjectTypeContainer || !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
+					return
+				}
+				p.Pwns(o, activedirectory.PwnGPOUserConfigPartOfGPO)
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnCreateUser,
+			Description: "Permissions that lets someone to create a user object in a container",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for containers and org units
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidUser, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateUser)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnCreateGroup,
+			Description: "Permissions that lets someone to create a group object in a container",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for containers and org units
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidGroup, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateGroup)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnCreateComputer,
+			Description: "Permissions that lets someone to create a computer object in a container",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for containers and org units
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidComputer, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateComputer)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnCreateAnyObject,
+			Description: "Permissions that lets someone to create any kind of object in a container",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for containers and org units
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateAnyObject)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnDeleteObject,
+			Description: "Permissions that lets someone to delete any kind of object in a container",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for containers and org units
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DELETE, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDeleteObject)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnDeleteChildrenTarget,
+			Description: "Permissions that lets someone to delete any kind of object in a container (via the DS_DELETE_CHILD permission)",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// If parent has DELETE CHILD, I can be deleted by some SID
+				if parent, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(o.ParentDN())); found {
+					sd, err := parent.SecurityDescriptor()
+					if err != nil {
+						return
+					}
+					for index, acl := range sd.DACL.Entries {
+						if sd.DACL.AllowObjectClass(index, parent, engine.RIGHT_DS_DELETE_CHILD, o.ObjectCategoryGUID(ao), ao) {
+							ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDeleteChildrenTarget)
+						}
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnInheritsSecurity,
+			Description: "Indicator that object inherits security from the container it is within",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
+					pdn := o.ParentDN()
+					if pdn == o.DN() {
+						// just to make sure we dont loop eternally by being stupid somehow
+						return
+					}
+					if parentobject, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(pdn)); found {
+						parentobject.Pwns(o, activedirectory.PwnInheritsSecurity)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnMemberOfGroup,
+			Description: "Members of groups",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for groups
+				if o.Type() != engine.ObjectTypeGroup && o.Type() != engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+				// It's a group
+				for _, member := range o.Members(false) {
+					member.Pwns(o, activedirectory.PwnMemberOfGroup)
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnACLContainsDeny,
+			Description: "Indicator for possible false positives, as the ACL contains DENY entries",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for _, acl := range sd.DACL.Entries {
+					if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnACLContainsDeny) // Not a probability of success, this is just an indicator
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnOwns,
+			Description: "Indicator that someone owns an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				// https://www.alsid.com/crb_article/kerberos-delegation/
+				// --- Citation bloc --- This is generally true, but an exception exists: positioning a Deny for the OWNER RIGHTS SID (S-1-3-4) in an object’s ACE removes the owner’s implicit control of this object’s DACL. ---------------------
+				aclhasdeny := false
+				for _, ace := range sd.DACL.Entries {
+					if ace.Type == engine.ACETYPE_ACCESS_DENIED && ace.SID == windowssecurity.OwnerSID {
+						aclhasdeny = true
+					}
+				}
+				if !sd.Owner.IsNull() && !aclhasdeny {
+					ao.FindOrAddSID(sd.Owner).Pwns(o, activedirectory.PwnOwns)
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnGenericAll,
+			Description: "Indicator that someone has full permissions on an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnGenericAll)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteAll,
+			Description: "Indicator that someone can write to all attributes and do all validated writes on an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAll)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWritePropertyAll,
+			Description: "Indicator that someone can write to all attributes of an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWritePropertyAll)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteExtendedAll,
+			Description: "Indicator that someone do all validated writes on an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteExtendedAll)
+					}
+				}
+			},
+		},
+		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnTakeOwnership,
+			Description: "Indicator that someone is allowed to take ownership of an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnTakeOwnership)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteDACL,
+			Description: "Indicator that someone can change permissions on an object",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteDACL)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method:      activedirectory.PwnWriteAttributeSecurityGUID,
+			Description: `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`,
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sd, err := o.SecurityDescriptor()
+				if o.Type() != engine.ObjectTypeAttributeSchema {
+					return
+				}
+				// FIXME - check for SYSTEM ATTRIBUTES - these can NEVER be changed
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnResetPassword,
+			Description: "Indicator that a group or user can reset the password of an account",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only computers and users
+				if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeManagedServiceAccount {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnResetPassword)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnHasSPN,
+			Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only computers and users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				if o.Attr(engine.ServicePrincipalName).Len() > 0 {
+					o.SetAttr(engine.MetaHasSPN, engine.AttributeValueInt(1))
+
+					AuthenticatedUsers, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
+					if !found {
+						log.Error().Msgf("Could not locate Authenticated Users")
+						return
+					}
+					AuthenticatedUsers.Pwns(o, activedirectory.PwnHasSPN)
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteSPN, // Same GUID as Validated writes, just a different permission (?)
+			Description: "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only computers and users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteSPN)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteValidatedSPN,
+			Description: "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only computers and users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteValidatedSPN)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method:      activedirectory.PwnWriteAllowedToAct,
+			Description: `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`,
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only computers
+				if o.Type() != engine.ObjectTypeComputer {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAllowedToAct) // Success rate?
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnAddMember,
+			Description: "Permission to add a member to a group",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for groups
+				if o.Type() != engine.ObjectTypeGroup {
+					return
+				}
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMember)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnAddMemberGroupAttr,
+			Description: "Permission to add a member to a group (via attribute set)",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for groups
+				if o.Type() != engine.ObjectTypeGroup {
+					return
+				}
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMemberGroupAttr)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnAddSelfMember,
+			Description: "Permission to add yourself to a group",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for groups
+				if o.Type() != engine.ObjectTypeGroup {
+					return
+				}
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMember)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnReadMSAPassword,
+			Description: "Allows someone to read a password of a managed service account",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				msasds := o.AttrString(engine.MSDSGroupMSAMembership)
+				for _, msasd := range msasds {
+					sd, err := engine.ParseSecurityDescriptor([]byte(msasd))
+					if err == nil {
+						for _, acl := range sd.DACL.Entries {
+							if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
+								ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadMSAPassword)
+							}
+						}
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method:      activedirectory.PwnWriteAltSecurityIdentities,
+			Description: "Allows an attacker to define a certificate that can be used to authenticate as the user",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAltSecurityIdentities)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method:      activedirectory.PwnWriteProfilePath,
+			Description: "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteProfilePath)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method:      activedirectory.PwnWriteScriptPath,
+			Description: "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteScriptPath)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnHasMSA,
+			Description: "Indicates that the object has a service account in use",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				msas := o.Attr(engine.MSDSHostServiceAccount).Slice()
+				for _, dn := range msas {
+					if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
+						o.Pwns(targetmsa, activedirectory.PwnHasMSA)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnWriteKeyCredentialLink,
+			Description: "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only for groups
+				if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
+					return
+				}
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteKeyCredentialLink)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnSIDHistoryEquality,
+			Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				sids := o.Attr(engine.SIDHistory).Slice()
+				for _, sidval := range sids {
+					if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
+						target := ao.FindOrAddSID(sid)
+						o.Pwns(target, activedirectory.PwnSIDHistoryEquality)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnAllExtendedRights,
+			Description: "Indicates that you have all extended rights",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAllExtendedRights)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnCertificateEnroll,
+			Description: "Permission to enroll into a certificate template",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() != engine.ObjectTypeCertificateTemplate {
+					return
+				}
+				// It's a group
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCertificateEnroll)
+					}
+				}
+			},
+		},
+
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnDSReplicationSyncronize, // FIXME
+			Description: "Permissions on DomainDNS objects leading to DCsync attacks",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() != engine.ObjectTypeDomainDNS {
+					return
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					var changes, changesall bool
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
+					}
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
+						changes = true
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
+					}
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
+						changesall = true
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
+					}
+					if changes && changesall {
+						// DCsync attack WOT WOT
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDCsync)
+					}
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
+					}
+				}
+			},
+		},
+	)
+
+	engine.AddPreprocessor(func(ao *engine.Objects) {
+		// Find all the AdminSDHolder containers
+		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
+			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
+		}).AsArray() {
+			rootdn := adminsdholder.OneAttrString(engine.DistinguishedName)[27:]
+
+			// We found it - so we know it can theoretically "pwn" some objects, lets see if some are excluded though
+			excluded_mask := 0
+			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
+			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
+			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+rootdn)); found {
+				excluded := ds.OneAttrString(engine.DsHeuristics)
+				if len(excluded) >= 16 {
+					excluded_mask = strings.Index("0123456789ABCDEF", string(excluded[15]))
+				}
+			}
+			engine.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
+		}
+	}, "configuration of AdminSDHolder analyzer")
+
+	engine.AddPreprocessor(func(ao *engine.Objects) {
+		// Add our known SIDs if they're missing
+		for sid, name := range windowssecurity.KnownSIDs {
+			binsid, err := windowssecurity.SIDFromString(sid)
+			if err != nil {
+				log.Fatal().Msgf("Problem parsing SID %v", sid)
+			}
+			if _, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(binsid)); !found {
+				dn := "CN=" + name + ",CN=microsoft-builtin"
+				log.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
+				ao.Add(engine.NewObject(
+					engine.DistinguishedName, engine.AttributeValueString(dn),
+					engine.Name, engine.AttributeValueString(name),
+					engine.ObjectSid, engine.AttributeValueSID(binsid),
+					engine.ObjectClass, engine.AttributeValueString("person"), engine.AttributeValueString("user"), engine.AttributeValueString("top"),
+					engine.ObjectCategory, engine.AttributeValueString("Group"),
+				))
+			}
+		}
+	}, "missing well-known SIDs")
+
+	engine.AddPreprocessor(func(ao *engine.Objects) {
+		// Generate member of chains
+		processbar := progressbar.NewOptions(int(len(ao.AsArray())),
+			progressbar.OptionSetDescription("Processing objects..."),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowIts(),
+			progressbar.OptionSetItsString("objects"),
+			progressbar.OptionOnCompletion(func() { fmt.Println() }),
+			progressbar.OptionThrottle(time.Second*1),
+		)
+
+		everyonesid, _ := windowssecurity.SIDFromString("S-1-1-0")
+		everyone, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(everyonesid))
+		if !ok {
+			log.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
+		}
+
+		authenticateduserssid, _ := windowssecurity.SIDFromString("S-1-5-11")
+		authenticatedusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(authenticateduserssid))
+		if !ok {
+			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
+		}
+
+		for _, object := range ao.AsArray() {
+
+			processbar.Add(1)
+
+			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
+			objectclasses := object.Attr(engine.ObjectClass).Slice()
+			if len(objectclasses) > 0 {
+				var guids []engine.AttributeValue
+				for _, class := range objectclasses {
+					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
+						if _, ok := oto.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); !ok {
+							log.Debug().Msgf("%v", oto)
+							log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
+						} else {
+							guids = append(guids, oto.OneAttr(engine.SchemaIDGUID))
+						}
+					}
+				}
+				if len(guids) > 0 {
+					object.Set(engine.ObjectClassGUIDs, engine.AttributeValueSlice(guids))
+				}
+			}
+
+			var objectcategoryguid engine.AttributeValues
+			objectcategoryguid = engine.AttributeValueOne{AttributeValue: engine.AttributeValueGUID(engine.UnknownGUID)}
+			typedn := object.OneAttr(engine.ObjectCategory)
+
+			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
+			if typedn != nil && strings.Contains(typedn.String(), ",") {
+				if oto, found := ao.Find(engine.DistinguishedName, typedn); found {
+					if _, ok := oto.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
+						objectcategoryguid = oto.Attr(engine.SchemaIDGUID)
+					} else {
+						log.Debug().Msgf("%v", oto)
+						log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
+					}
+				} else {
+					log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+				}
+			}
+			object.Set(engine.ObjectCategoryGUID, objectcategoryguid)
+
+			if rid, ok := object.AttrInt(engine.PrimaryGroupID); ok {
+				sid := object.SID()
+				if len(sid) > 8 {
+					sidbytes := []byte(sid)
+					binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
+					primarygroup := ao.FindOrAddSID(windowssecurity.SID(sidbytes))
+					primarygroup.AddMember(object)
+				}
+			}
+
+			for _, memberof := range object.Attr(engine.MemberOf).Slice() {
+				group, found := ao.Find(engine.DistinguishedName, memberof)
+				if !found {
+					group = engine.NewObject(
+						engine.DistinguishedName, memberof,
+						engine.ObjectCategory, engine.AttributeValueString("Group"),
+						engine.ObjectClass, engine.AttributeValueString("top"), engine.AttributeValueString("group"),
+						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
+						engine.Description, engine.AttributeValueString("Synthetic group"),
+					)
+					log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group", object.DN(), memberof)
+					ao.Add(group)
+				}
+				group.AddMember(object)
+			}
+
+			// Crude special handling for Everyone and Authenticated Users
+			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount {
+				everyone.AddMember(object)
+				authenticatedusers.AddMember(object)
+			}
+
+			if lastlogon, ok := object.AttrTimestamp(engine.LastLogonTimestamp); ok {
+				object.SetAttr(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+			}
+			if passwordlastset, ok := object.AttrTimestamp(engine.PwdLastSet); ok {
+				object.SetAttr(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+			}
+			if strings.Contains(strings.ToLower(object.OneAttrString(engine.OperatingSystem)), "linux") {
+				object.SetAttr(engine.MetaLinux, engine.AttributeValueInt(1))
+			}
+			if strings.Contains(strings.ToLower(object.OneAttrString(engine.OperatingSystem)), "windows") {
+				object.SetAttr(engine.MetaWindows, engine.AttributeValueInt(1))
+			}
+			if object.Attr(engine.MSmcsAdmPwdExpirationTime).Len() > 0 {
+				object.SetAttr(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
+			}
+			if uac, ok := object.AttrInt(engine.UserAccountControl); ok {
+				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
+					object.SetAttr(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
+					object.SetAttr(engine.MetaConstrainedDelegation, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_NOT_DELEGATED != 0 {
+					log.Debug().Msgf("%v has can't be used as delegation", object.DN())
+				}
+				if uac&engine.UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
+					object.SetAttr(engine.MetaWorkstation, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
+					object.SetAttr(engine.MetaServer, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
+					object.SetAttr(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_PASSWD_CANT_CHANGE != 0 {
+					object.SetAttr(engine.MetaPasswordCantChange, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0 {
+					object.SetAttr(engine.MetaPasswordNoExpire, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
+					object.SetAttr(engine.MetaPasswordNotRequired, engine.AttributeValueInt(1))
+				}
+			}
+
+			if object.Type() == engine.ObjectTypeTrust {
+				// http://www.frickelsoft.net/blog/?p=211
+				var direction string
+				dir, _ := object.AttrInt(engine.TrustDirection)
+				switch dir {
+				case 0:
+					direction = "disabled"
+				case 1:
+					direction = "incoming"
+				case 2:
+					direction = "outgoing"
+				case 3:
+					direction = "bidirectional"
+				}
+
+				attr, _ := object.AttrInt(engine.TrustAttributes)
+				log.Debug().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(engine.TrustPartner))
+				if dir&2 != 0 && attr&4 != 0 {
+					log.Debug().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(engine.TrustPartner))
+				}
+			}
+
+			// if object.HasAttrValue(engine.ObjectClass, "controlAccessRight") {
+			// 	if u, ok := object.OneAttrRaw(engine.RightsGUID).(uuid.UUID); ok {
+			// 		engine.AllRights[u] = object
+			// 	}
+			// } else
+			if object.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
+				if objectGUID, ok := object.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
+
+					// engine.AllSchemaAttributes[objectGUID] = object
+					switch object.OneAttrString(engine.Name) {
+					case "ms-Mcs-AdmPwd":
+						log.Info().Msg("Detected LAPS schema extension, adding extra analyzer")
+						engine.AddAnalyzers(engine.PwnAnalyzer{
+							// Method: activedirectory.PwnReadLAPSPassword,
+							Description: "Reading local admin passwords via LAPS",
+							ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+								// Only for computers
+								if o.Type() != engine.ObjectTypeComputer {
+									return
+								}
+								// ... that has LAPS installed
+								if o.Attr(engine.MSmcsAdmPwdExpirationTime).Len() == 0 {
+									return
+								}
+								// Analyze ACL
+								sd, err := o.SecurityDescriptor()
+								if err != nil {
+									return
+								}
+								for index, acl := range sd.DACL.Entries {
+									if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
+										ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadLAPSPassword)
+									}
+								}
+							},
+						})
+					}
+				}
+			} /* else if object.HasAttrValue(engine.ObjectClass, "classSchema") {
+				if u, ok := object.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
+					// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
+					engine.AllSchemaClasses[u] = object
+				}
+			}*/
+		}
+		processbar.Finish()
+	}, "Active Directory objects and metadata")
+
+	engine.AddPostprocessor(func(ao *engine.Objects) {
+		for _, object := range ao.AsArray() {
+			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
+				for _, member := range object.Members(true) {
+					member.SetAttr(engine.MetaProtectedUser, engine.AttributeValueInt(1))
+				}
+			}
+		}
+	}, "Protected users meta attribute")
+
+	engine.AddPostprocessor(func(ao *engine.Objects) {
+		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
+		if !found {
+			log.Fatal().Msg("Could not find Creator Owner Well Known SID !?!? I perish at the thought")
+		}
+
+		for target, methods := range creatorowner.CanPwn {
+			// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
+			if sd, err := target.SecurityDescriptor(); err == nil {
+				if sd.Owner != windowssecurity.BlankSID {
+					if realo, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
+						// Link real target
+						realo.CanPwn[target] = methods
+						target.PwnableBy[realo] = methods
+						// Unlink creatorowner
+						delete(creatorowner.CanPwn, target)
+						delete(target.PwnableBy, creatorowner)
+					}
+				}
+			}
+		}
+	}, "CreatorOwnerSID resolution fixup")
+
+}
+
+func MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder *engine.Object, excluded int, rootdn string) engine.PwnAnalyzer {
+	return engine.PwnAnalyzer{
+		// Method: activedirectory.PwnAdminSDHolderOverwriteACL,
+		Description: "AdminSDHolder rights propagation indicator",
+		ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+
+			// Check if object is a user account
+			if o.Type() != engine.ObjectTypeGroup {
+				return
+			}
+
+			grpsid := o.SID()
+			if grpsid.IsNull() {
+				return
+			}
+
+			// Only this "local" AD (for multi domain analysis)
+			if !strings.HasSuffix(o.OneAttrString(engine.DistinguishedName), rootdn) {
+				return
+			}
+
+			switch grpsid.RID() {
+			case DOMAIN_USER_RID_ADMIN:
+			case DOMAIN_USER_RID_KRBTGT:
+			case DOMAIN_GROUP_RID_ADMINS:
+			case DOMAIN_GROUP_RID_CONTROLLERS:
+			case DOMAIN_GROUP_RID_SCHEMA_ADMINS:
+			case DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
+			case DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
+			case DOMAIN_ALIAS_RID_ADMINS:
+			case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
+				if excluded&1 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_SYSTEM_OPS:
+				if excluded&2 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_PRINT_OPS:
+				if excluded&4 != 0 {
+					return
+				}
+
+			case DOMAIN_ALIAS_RID_BACKUP_OPS:
+				if excluded&8 != 0 {
+					return
+				}
+			case DOMAIN_ALIAS_RID_REPLICATOR:
+			default:
+				// Not a protected group
+				return
+			}
+
+			// Only domain groups
+			if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
+				log.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
+				return
+			}
+
+			adminsdholder.Pwns(o, activedirectory.PwnAdminSDHolderOverwriteACL)
+		},
+	}
+}

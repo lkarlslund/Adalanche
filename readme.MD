@@ -15,24 +15,63 @@ You should ensure you have permission before you run this :-) Though the softwar
 - Download the binary artifacts from the "actions" tab for any recent commit
 - Download latest release from Releases (actually not preferred, as all releases seem to get outdated a few days later with new commits)
 
+#### First run - full auto
+If you're running adalanche on a Windows domain joined machine should just work without any parameters, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
 
-The tool tries to autodetect as much as it can, so running it on a Windows domain joined machine should just work without any parameters:
-<code>adalanche.exe</code>
+For more advanced use (recommended) first collect, with proper options. All your data files (are belong to us), and will end up in the data subfolder (or use <code>--datapath dir</code> to use an alternative folder).
 
-If no command is given, the tool will run in a dump-analyze mode (dump, then analyze). See program options for other possibilities.
+See program options for other possibilities (help or command --help).
 
-If you're on a non-domain joined Windows machine or another OS, you'll need at least the -domain parameter as well.
+## Collecting data
 
-LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "-ignorecert" switch, or change protocol to LDAP with <code>adalanche -authmode NoTLS -port 389</code>
+### Active Directory
+The primary source of data is from Active Directory, and is intiated with this command:
 
-Create cache file for contoso.local:
-<code>adalanche -domain contoso.local -username joe -password Hunter42 dump</code>
+<code>adalanche collect activedirectory [--options ...]</code>
 
-Analyze cache file for contoso.local and launch browser:
-<code>adalanche -domain contoso.local analyze</code>
+If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
+
+LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "--ignorecert" switch, or change protocol to LDAP with <code>--tlsmode NoTLS --port 389</code> options.
+
+Example to create data files file for contoso.local:
+
+<code>adalanche collect activedirectory --domain contoso.local --username joe --password Hunter42</code>
+
+There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
+
+### Local Machine (Windows)
+For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines by running the collector module. There is a stand alone version released as a 32-bit Windows executable, and this works transparently also on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). 
+
+The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
+
+<code>adalanche-collector --outputpath \\some\share\where\youcanwrite\butnotread</code>
+
+You can run the local machine collector from the adalance binary too, but this is only included in the 64-bit Windows build:
+
+<code>adalanche collect localmachine [--options ...]</code>
+
+Please remember to secure your collection repository UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
+
+The files will automatically be imported into adalanche when you run it, if they're part of your datapath (in a subfolder or just copied in - whatever works for you)
+
+This will give you insight into who uses what systems, service accounts that are domain users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
+
+#### Analysis
+This is dead simple - everything you've collected should be in the data directory, either in the main folder or in subfolders. Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
+
+Highly advanced command line to analyze and launch your browser:
+
+<code>adalanche analyze</code>
+
+There are options here as well - try <code>adalanche analyze --help</code>
 
 ### User Interface
 When launched, you get to see who can pwn "Domain Admins" and "Enterprise Admins". Query targets are marked with RED. If you get a lot of objects on this one, congratz, you're running a pwnshop.
+
+*PLEASE NOTE THAT:*
+- SCREENSHOTS ARE OUTDATED AT THE MOMENT
+- SOME UI ELEMENTS HAVE MOVED
+- THERE ARE MORE ADVANCED ANALYSIS FEATURES NOT YET DESCRIBED HERE
 
 The below examples loaded from the included domain beyond.local, which is a synthetic domain, that has been heavy handedly been messed up using [BadBlood](https://github.com/davidprowe/BadBlood). You can try the same analysis with:
 <code>adalanche -domain beyond.local analyze</code>
@@ -59,11 +98,15 @@ When you press the "LDAP Query" tab on the bottom portion of the page, and you g
 
 You enter a query for things you want to search for. Optionally you can also add a secondary exclude query, seperating the include and expclude quereries with a comma. Things matching in the exclude query will never get added to the results.
 
-- "Quieries" button is just for inspiration, with some predefined queries to get you going. 
-- "Safe"/"Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab). 
+The "Queries" button offers some predefined queries to get you going. 
+
+Analyze button gets the show on the road, and runs the query.
+
+#### Options
+
+- "Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab, I don't recommend more than 2500 objects but you can try your luck - be patient). 
 - "Max Depth" can limit results by not going further from a target than this depth.
 
-Analyze:
 - Normal searches for other objects that can pwn the selection in your LDAP query (i.e. who can reach these objects)
 - Reverse searches for objects that you LDAP query targets can pwn (i.e. what can these objects reach)
 
@@ -93,9 +136,11 @@ So try it out on your own data - see what your user can pwn by searching for (&(
 Remember, you might get too many results. Limit the selection of targets with (&(attribute=something)(_limit=10)) to just get 10 random targets (see LDAP queries below)
 
 ### Operational theory
-*adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache file for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (almost no one does this).
+*adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
 
-The analysis phase is done on a cache file, so you do not have to be connected to the systems when doing analysis. This way you can explore different scenarios, and ask questions not easily answered otherwise.
+If you collect GPOs I recommend using a Domain Admin, as GPOs are often restricted to apply only to certain computers, and regular users can't read the files. This will limit the results that could have been gathered from GPOs.
+
+The analysis phase is done on all cache file, so you do not have to be connected to the systems when doing analysis. This way you can explore different scenarios, and ask questions not easily answered otherwise.
 
 ### Analysis / Visualization
 The tool works like an interactive map in your browser, and defaults to a ldap search query that shows you how to become "Domain Admin" or "Enterprise Admin" (i.e. member of said group or takeover of an account which is either a direct or indirect member of these groups.
@@ -121,20 +166,8 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - synthetic attribute: _canpwn - allows you to select objects based on what they can pwn *directly* (&(objectCategory=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
 - synthetic attribute: _pwnable - allows you to select objects based on how they can be pwned *directly* (&(objectCategory=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
 
-## Collector module
-For Windows systems that are members of your Active Directory domain you can collect more information from the local machines by running the collector executable. It's a 32-bit Windows executable, but works transperently on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
-
-<code>adalanche-collector.exe -outputpath \\some\share\where\youcanwrite\butnotread</code>
-
-Please remember to secure your UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
-
-You can then import all these files when doing analysis:
-
-<code>adalanche.exe analyze -collectorpath \\your\data\folder</code>
-
-This will give you insight into who uses what systems, service accounts that are domaun users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
-
 ## Detectors and what they mean
+
 | Detector | Explanation |
 | -------- | ----------- |
 | CreateUser | Permission in ACL allows entity to create user objects in the container |
@@ -165,9 +198,10 @@ This will give you insight into who uses what systems, service accounts that are
 | WriteAttributeSecurityGUID | The entity can write to the AttributeSecurityGUID. I'm not sure if this will work, but it has the potential to allows you to add an important attribute to a less important attribute set |
 | SIDHistoryEquality | The objects SID-History attribute points to this entity, making them equal from a permission point of view |
 | AllExtendedRights | The entity has all extended rights on the object |
-| DCReplicationGetChanges | |
-| DCReplicationSyncronize | |
-| DSReplicationGetChangesAll | |
+| DCReplicationGetChanges | You can sync non-confidential data from the DCs |
+| DCReplicationSyncronize | You can trigger a sync between DCs |
+| DSReplicationGetChangesAll | You can sync confidential data from the DCs (hashes!). Requires DCReplicationGetChanges! |
+| DCsync | If both Changes and ChangesAll is set, you can DCsync - so this flag is an AND or the two others |
 | ReadLAPSPassword | The entity is allowed to read the plaintext LAPS password in the mS-MCS-AdmPwd attribute |
 | MemberOfGroup | The entity is a member of this group |
 | HasSPN | The entity has a SPN, and can be kerberoasted by any authenticated user |
@@ -196,9 +230,31 @@ This will give you insight into who uses what systems, service accounts that are
 - A large AD with 500.000 objects results in a file approximately 250MB in size
 - adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
 - There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome!
+- There is an unsolved challenge with services that require multiple ACLs to pass (for instance Cert servers only lets members of "Users that can enroll" group use enrollment, while the Certificate Template lets "Domain Users" enroll - this looks like "Domain Users" can enroll to adalanche). The same problem arises with fileshares, so this analysis is not done yet.
+
+# Frequently Asked Questions
+
+## How does this compare to BloodHound?
+
+Since people keep asking (stop!), here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and not while doing adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
+
+| Feature | adalanche | BloodHound |
+| ------- | --------- | ---------- |
+| OS compatibility | Win/OSX/Linux | Win/Linux (OSX?) |
+| Prerequisites | None | Linux (optional but really not), Java, Python, Perl, Neo4J, Powershell (optional) |
+| Initial setup | None | Way too long for my taste |
+| GUI | Browser based | Electron based app |
+| Data Limitations | RAM bound | None |
+| Queries | LDAP syntax + options | Neo4J Cypher |
+| Flexibility | Fair | Everything Neo4J Offers |
+| Predefined queries | Yes | Yes |
+| Helping the world since | 2020 | 2016 |
+| Detected as malware | No* | Yes (false positive!) |
+
+*so far
 
 # Shoutouts
-To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow lol) where I dug up technical stuff
+To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow FTW) where I dug up technical stuff
 
 If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at [PayloadsAllTheThings Active Directory section](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md)
 

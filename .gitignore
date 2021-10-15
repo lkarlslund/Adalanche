@@ -1,7 +1,6 @@
 ﻿.vscode
-# Locally held data, except for the demo data
-data/*
-!data/beyond.local.objects.lz4.msgp
 # Locally built executables
 __debug_bin*
 adalanche-*
+*.json
+data
