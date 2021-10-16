@@ -11,11 +11,13 @@
  <link rel="stylesheet" href="external/cytoscape-context-menus.css" />
  <link rel="stylesheet" href="external/jquery-ui.min.css" />
  <link rel="stylesheet" href="external/tippy.css" />
+ <link rel="stylesheet" href="external/jstree/themes/default-dark/style.min.css" />
  <!-- we put everything custom here, so we can override earlier variables -->
  <link rel="stylesheet" href="adalanche.css" />
 
  <script src="external/jquery-3.6.0.min.js"></script>
  <script src="external/jquery-ui.min.js"></script>
+ <script src="external/jstree/jstree.min.js"></script>
 
  <script src="external/cytoscape.min.js"></script>
  <script src="external/cytoscape-context-menus.js"></script>
@@ -38,13 +40,14 @@
 </head>
 
 <body class="dark-mode z-0">
-  <div id="windows" class="fullscreen z-50 pointer-events-none">
+  <div id="windows">
     <div class="sticky-alerts"></div>
   </div>
 
   <div id="cy" class="fullscreen z-10"></div>
   
   <div id="overlay" class="fullscreen z-40 pointer-events-none">
+    <button id="explore" class="btn btn-primary pointer-events-auto">Explore</button>
     <!-- <div id="infobar" class="float-left">
       <div id="infowrap" class="fw-250 h-full pointer-events-auto">
         <div id="infocontent" class="fw-250 bg-dark h-full overflow-y-auto">
@@ -79,13 +82,13 @@
               <div class="input-group">
                 <div class="custom-switch">
                   <input id="force" type="checkbox" name="force" autocomplete="off" preference="graph.too.much.data.force" defaultpref=false>
-                  <label class="col" for="force">Override too much data warning</label>
+                  <label class="col" for="force">Force too much data</label>
                 </div>
 
                 <div class="input-group-prepend">
                   <span class="input-group-text">Analysis depth</span>
                 </div>
-                <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99" class="form-control">
+                <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99" class="form-control text-right">
                 <!-- <div class="input-group-append">
                   <span class="input-group-text">degrees</span>
                 </div> -->
@@ -95,7 +98,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">Max outgoing</span>
                 </div>
-                <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="1000" class="form-control">
+                <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="1000" class="form-control text-right">
                 <!-- <div class="input-group-append">
                   <span class="input-group-text">connections</span>
                 </div> -->
@@ -103,9 +106,9 @@
 
               <div class="input-group">
                 <div class="input-group-prepend">
-                  <span class="input-group-text">Minimum probability</span>
+                  <span class="input-group-text">Min probability</span>
                 </div>
-                <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0" class="form-control">
+                <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0" class="form-control text-right">
                 <div class="input-group-append">
                   <span class="input-group-text">%</span>
                 </div>
@@ -113,7 +116,6 @@
 
             </div>
           </details>
-
           <details class="collapse-panel">
             <summary class="collapse-header">
       Analysis methods
@@ -124,8 +126,6 @@
                 </div>
               </div>
             </details>
-
-
           <details class="collapse-panel">
             <summary class="collapse-header">
       Analysis object types
@@ -134,17 +134,15 @@
                 <div id="objecttypefilter">
       Loading ...
                 </div>
-              </div>
-            </details>
-
-            <!-- end of data submitted on analysis -->
-          </form>
+              </form>
+            </div>
+          </details>
+<!-- end of data submitted on analysis -->
           <details class="collapse-panel">
             <summary class="collapse-header">
       Graph style
             </summary>
             <div class="collapse-content">
-              <div class="accordion-body">
                 <label for="graphlayout">Choose layout</label>
                 <select class="form-control" id="graphlayout" preference="graphlayout" defaultpref="fcose">
                   <option value="fcose">FCOSE</option>
@@ -161,11 +159,8 @@
                   <option value="off">Off</option>
                   <!-- <option value="random">Random</option> -->
                 </select>
-
-              </div>
             </div>
           </details>
-
           <details class="collapse-panel">
             <summary class="collapse-header">
             General options
@@ -174,7 +169,7 @@
               <div class="input-group">
                 <div class="custom-switch">
                   <input id="hideoptionsonanalysis" type="checkbox" name="hideoptionsonanalysis" autocomplete="off" preference="hideoptionsonanalysis" defaultpref=true>
-                  <label class="col" for="hideoptionsonanalysis">Hide options panel on analysis</label>
+                  <label class="col" for="hideoptionsonanalysis">Hide options on analysis</label>
                 </div>
                 <div class="custom-switch">
                   <input id="hidequeryonanalysis" type="checkbox" name="hidequeryonanalysis" autocomplete="off" preference="hidequeryonanalysis" defaultpref=true>

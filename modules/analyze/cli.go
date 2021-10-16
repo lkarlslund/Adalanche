@@ -50,7 +50,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 	log.Info().Msg(strings.Join(statarray, ", "))
 
 	// Do preprocessing
-	prebar := progressbar.NewOptions(int(len(objs.AsArray())),
+	prebar := progressbar.NewOptions(int(len(objs.Slice())),
 		progressbar.OptionSetDescription("Preprocessing  ..."),
 		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
@@ -64,7 +64,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 	prebar.Finish()
 
 	// Analyze Pwn relationships
-	pwnbar := progressbar.NewOptions(int(len(objs.AsArray())),
+	pwnbar := progressbar.NewOptions(int(len(objs.Slice())),
 		progressbar.OptionSetDescription("Analyzing pwns ..."),
 		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
@@ -83,7 +83,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 	pwnbar.Finish()
 
 	// Do post-processing
-	postbar := progressbar.NewOptions(int(len(objs.AsArray())),
+	postbar := progressbar.NewOptions(int(len(objs.Slice())),
 		progressbar.OptionSetDescription("Postprocessing ..."),
 		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
@@ -122,7 +122,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 				log.Fatal().Msgf("Error opening output file: %v", err)
 			}
 
-			for _, object := range objs.AsArray() {
+			for _, object := range objs.Slice() {
 				switch object.Type() {
 				case engine.ObjectTypeAttributeSchema:
 					// gv.AddNode("schema", object.IDString(), map[string]string{"label": object.OneAttrString(LDAPDisplayName)})
@@ -179,7 +179,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 				log.Fatal().Msgf("Error opening output file: %v", err)
 			}
 
-			for _, object := range objs.AsArray() {
+			for _, object := range objs.Slice() {
 				fmt.Fprintf(output, "Object:\n%v\n\n-----------------------------\n", object)
 			}
 			output.Close()

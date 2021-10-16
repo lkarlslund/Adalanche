@@ -9,6 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var idcounter uint32 // Unique ID +1 to assign to Object added to this collection if it's zero
+
 type typestatistics [OBJECTTYPEMAX]int
 
 type Objects struct {
@@ -18,11 +20,9 @@ type Objects struct {
 
 	DefaultSource AttributeValue // All objects added gets tagged with this as MetaDataSource if object does not have it
 
-	idcounter int // Unique ID +1 to assign to Object added to this collection if it's zero
-
 	asarray []*Object
 
-	idindex map[int]*Object
+	idindex map[uint32]*Object
 	index   map[Attribute]map[interface{}]*Object
 
 	typecount typestatistics
@@ -31,13 +31,9 @@ type Objects struct {
 	threadsafemutex sync.RWMutex
 }
 
-func (os *Objects) Init(ios *Objects) {
+func (os *Objects) Init() {
 	os.index = make(map[Attribute]map[interface{}]*Object)
-	os.idindex = make(map[int]*Object)
-	// os.lookupcounter = make([]uint64)
-	if ios != nil {
-		os.idcounter = ios.idcounter
-	}
+	os.idindex = make(map[uint32]*Object)
 }
 
 func (os *Objects) SetDefaultSource(source AttributeValue) {
@@ -133,7 +129,7 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 
 func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 	var result Objects
-	result.Init(os)
+	result.Init()
 
 	os.rlock()
 	objects := os.asarray
@@ -186,11 +182,6 @@ addloop:
 			}
 		}
 
-		if o.ID == 0 {
-			os.idcounter++
-			o.ID = os.idcounter
-		}
-
 		// Do chunked extensions for speed
 		if len(os.asarray) == cap(os.asarray) {
 			newarray := make([]*Object, len(os.asarray), len(os.asarray)+1024)
@@ -200,7 +191,7 @@ addloop:
 
 		os.asarray = append(os.asarray, o)
 
-		os.idindex[o.ID] = o
+		os.idindex[o.ID()] = o
 
 		os.updateIndex(o, true)
 
@@ -209,34 +200,42 @@ addloop:
 	}
 }
 
+// First object added is the root object
+func (os Objects) Root() *Object {
+	if len(os.asarray) == 0 {
+		return nil
+	}
+	return os.asarray[0]
+}
+
 func (os Objects) Statistics() typestatistics {
 	os.rlock()
 	defer os.runlock()
 	return os.typecount
 }
 
-func (os Objects) AsArray() []*Object {
+func (os Objects) Slice() []*Object {
 	os.rlock()
 	defer os.runlock()
 	return os.asarray
 }
 
-func (os *Objects) FindByID(id int) (o *Object, found bool) {
+func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
 	os.rlock()
 	o, found = os.idindex[id]
 	os.runlock()
 	return
 }
 
-func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (o *Object) {
+func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (o *Object, found bool) {
 	os.lock()
 	defer os.unlock()
 	if o, found := os.find(attribute, value); found {
-		return o
+		return o, true
 	}
 	no := NewObject(append(flexinit, attribute, value)...)
 	os.addmerge(nil, no)
-	return no
+	return no, false
 }
 
 func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, found bool) {

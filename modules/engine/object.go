@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/gofrs/uuid"
@@ -15,6 +15,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"github.com/lkarlslund/stringdedup"
 	"github.com/rs/zerolog/log"
 )
 
@@ -22,7 +23,7 @@ import (
 
 var threadsafeobject int
 
-const threadbuckets = 256
+const threadbuckets = 1024
 
 var threadsafeobjectmutexes [threadbuckets]sync.RWMutex
 
@@ -66,12 +67,16 @@ const (
 )
 
 type Object struct {
-	ID int // Unique ID in Objects collection
+	id uint32 // Unique ID in Objects collection
 
 	AttributeValueMap
 
 	PwnableBy PwnConnections
 	CanPwn    PwnConnections
+
+	parent   *Object
+	children []*Object
+
 	// reach     int // AD ControlPower Measurement
 	// value     int // This objects value
 
@@ -104,11 +109,15 @@ func NewObject(flexinit ...interface{}) *Object {
 	return &result
 }
 
-func (o *Object) lockbucket() int {
-	if o.ID == 0 {
-		return int(uint(uintptr(unsafe.Pointer(o))/1024)) % threadbuckets
+func (o *Object) ID() uint32 {
+	if o.id == 0 {
+		panic("no ID set on object, where did it come from?")
 	}
-	return o.ID % threadbuckets
+	return o.id
+}
+
+func (o *Object) lockbucket() int {
+	return int(o.ID()) % threadbuckets
 }
 
 func (o *Object) lock() {
@@ -218,6 +227,21 @@ func (o *Object) Absorb(source *Object) {
 		}
 	}
 
+	for _, child := range source.children {
+		target.Adopt(child)
+	}
+
+	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
+	if target.sdcache == nil && source.sdcache != nil {
+		target.sdcache = source.sdcache
+	}
+
+	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
+	if target.parent == nil && source.parent != nil {
+		source.parent.RemoveChild(source)
+		target.ChildOf(source.parent)
+	}
+
 	target.objecttype = 0 // Recalculate this
 }
 
@@ -226,7 +250,7 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 }
 
 func (o *Object) IDString() string {
-	return strconv.Itoa(o.ID)
+	return strconv.FormatUint(uint64(o.ID()), 10)
 }
 
 func (o *Object) DN() string {
@@ -260,7 +284,7 @@ func (o *Object) Type() ObjectType {
 	}
 
 	category := o.OneAttrString(ObjectCategory)
-	if len(category) > 4 {
+	if category != "" {
 		equalpos := strings.Index(category, "=")
 		commapos := strings.Index(category, ",")
 		if equalpos == -1 || commapos == -1 || equalpos >= commapos {
@@ -268,6 +292,8 @@ func (o *Object) Type() ObjectType {
 		} else {
 			category = category[equalpos+1 : commapos]
 		}
+	} else {
+		category = o.OneAttrString(ObjectCategorySimple)
 	}
 
 	switch category {
@@ -523,12 +549,18 @@ func (o *Object) Set(flexinit ...interface{}) {
 			data = append(data, v)
 		case AttributeValueSlice:
 			data = append(data, v.Slice()...)
+		case NoValues:
+			// Ignore it
 		default:
 			panic("Invalid type in object declaration")
 		}
 	}
-	if attribute != 0 && len(data) > 0 {
-		o.set(attribute, data)
+	if attribute != 0 {
+		if len(data) > 0 {
+			o.set(attribute, data)
+		} else {
+			o.set(attribute, NoValues{})
+		}
 	}
 }
 
@@ -542,7 +574,15 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		return // We dont store the raw version, just the decoded one, KTHX
 	}
 
-	o.AttributeValueMap.Set(a, values)
+	// Deduplication of strings
+	valueslice := values.Slice()
+	for i, value := range valueslice {
+		if avs, ok := value.(AttributeValueString); ok {
+			valueslice[i] = AttributeValueString(stringdedup.S(string(avs)))
+		}
+	}
+
+	o.AttributeValueMap.Set(a, AttributeValueSlice(valueslice))
 
 	// Statistics
 	for _, value := range values.StringSlice() {
@@ -560,26 +600,8 @@ func (o *Object) Meta() map[string]string {
 	return result
 }
 
-/*func (o *Object) Save(filename string) error {
-	data, err := json.Marshal(o)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(filename, data, 0600)
-	return err
-}
-
-func (o *Object) Load(filename string) error {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	o.init() // clear data
-	err = json.Unmarshal(data, o)
-	return err
-}*/
-
 func (o *Object) init() {
+	o.id = atomic.AddUint32(&idcounter, 1)
 	if o.AttributeValueMap == nil {
 		o.AttributeValueMap = make(AttributeValueMap)
 	}
@@ -652,38 +674,6 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	return err
 }
 
-/*func (o *Object) Value() int {
-	// We cache this, as it's heavy to calculate (0 = not calulated, -1 = cached zero value, otherwise the power factor)
-	if o.value != 0 {
-		if o.value == -1 {
-			return 0
-		}
-		return o.value
-	}
-	var value int
-
-	// My own value
-	if o.HasAttrValue(ObjectClass, "computer") && o.OneAttr(PrimaryGroupID) == "516" {
-		// Domain Controller
-		value += 100
-	} else if o.HasAttrValue(ObjectClass, "computer") {
-		value += 1
-	} else if o.HasAttrValue(ObjectClass, "user") {
-		value += 1
-	}
-
-	for target := range o.CanPwn {
-		value += target.Value()
-	}
-
-	if value == 0 {
-		o.value = -1
-	} else {
-		o.value = value
-	}
-	return value
-}*/
-
 func (o *Object) SID() windowssecurity.SID {
 	if !o.sidcached {
 		o.sidcached = true
@@ -743,3 +733,56 @@ func (o *Object) Dedup() {
 	}
 }
 */
+
+func (o *Object) ChildOf(parent *Object) {
+	o.lock()
+	if o.parent != nil {
+		log.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		// panic("objects can only have one parent")
+	}
+	o.parent = parent
+	o.unlock()
+	parent.lock()
+	parent.children = append(parent.children, o)
+	parent.unlock()
+}
+
+func (o *Object) Adopt(child *Object) {
+	o.lock()
+	o.children = append(o.children, child)
+	o.unlock()
+
+	child.lock()
+	if child.parent != nil {
+		child.parent.RemoveChild(child)
+	}
+	child.parent = o
+	child.unlock()
+}
+
+func (o *Object) RemoveChild(child *Object) {
+	for i, curchild := range o.children {
+		if curchild == child {
+			if i < len(o.children)+1 {
+				// Not the last one, move things
+				copy(o.children[i:], o.children[i+1:])
+			}
+			// Remove last item
+			o.children = o.children[:len(o.children)-1]
+			return
+		}
+	}
+	panic("tried to remove a child not related to parent")
+}
+
+func (o *Object) Parent() *Object {
+	o.rlock()
+	defer o.runlock()
+	return o.parent
+}
+
+func (o *Object) Children() []*Object {
+	o.rlock()
+	defer o.runlock()
+	return o.children
+}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/version"
@@ -92,34 +91,28 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 		newnode := CytoFlatElement{
 			Group: "nodes",
 			Data: map[string]interface{}{
-				"id":                              fmt.Sprintf("n%v", object.ID),
-				"label":                           object.Label(),
-				engine.DistinguishedName.String(): object.DN(),
-				engine.Name.String():              object.OneAttrRendered(engine.Name),
-				engine.DisplayName.String():       object.OneAttrRendered(engine.DisplayName),
-				engine.Description.String():       object.OneAttrRendered(engine.Description),
-				engine.ObjectSid.String():         object.SID().String(),
-				engine.SAMAccountName.String():    object.OneAttrRendered(engine.SAMAccountName),
-				engine.ObjectCategory.String():    object.OneAttrRendered(engine.ObjectCategory),
+				"id":    fmt.Sprintf("n%v", object.ID()),
+				"label": object.Label(),
+				// engine.DistinguishedName.String(): object.DN(),
+				// engine.Name.String():              object.OneAttrRendered(engine.Name),
+				// engine.DisplayName.String():       object.OneAttrRendered(engine.DisplayName),
+				// engine.Description.String():       object.OneAttrRendered(engine.Description),
+				// engine.ObjectSid.String():         object.SID().String(),
+				// engine.SAMAccountName.String():    object.OneAttrRendered(engine.SAMAccountName),
+				"type": object.Type().String(),
 			}}
+
+		if uac, ok := object.OneAttrRaw(engine.UserAccountControl).(uint64); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
+			newnode.Data["_disabled"] = true
+		}
+
+		// 	_workstation
+		// _server
 
 		// If we added empty junk, remove it again
 		for attr, value := range newnode.Data {
 			if value == "" || (attr == "objectSid" && value == "NULL SID") {
 				delete(newnode.Data, attr)
-			}
-		}
-
-		// Add more data
-		for attr, values := range object.AttributeValueMap {
-			if (attr.IsMeta() && !strings.HasPrefix(attr.String(), "_gpofile/")) || alldetails {
-				if values.Len() == 1 {
-					if values.Slice()[0].String() != "" {
-						newnode.Data[attr.String()] = values.Slice()[0].String()
-					}
-				} else {
-					newnode.Data[attr.String()] = values.StringSlice()
-				}
 			}
 		}
 
@@ -139,9 +132,9 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 		edge := CytoFlatElement{
 			Group: "edges",
 			Data: CytoData{
-				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID, connection.Target.ID),
-				"source": fmt.Sprintf("n%v", connection.Source.ID),
-				"target": fmt.Sprintf("n%v", connection.Target.ID),
+				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID(), connection.Target.ID()),
+				"source": fmt.Sprintf("n%v", connection.Source.ID()),
+				"target": fmt.Sprintf("n%v", connection.Target.ID()),
 			},
 		}
 		var maxprob engine.Probability

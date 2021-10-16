@@ -14,7 +14,7 @@ func AddAnalyzers(pa ...PwnAnalyzer) {
 }
 
 func Analyze(ao *Objects, cb ProgressCallbackFunc) {
-	objectslice := ao.AsArray()
+	objectslice := ao.Slice()
 	max := len(objectslice) * len(pwnAnalyzers)
 	div := max / 1000
 	cb(0, max)

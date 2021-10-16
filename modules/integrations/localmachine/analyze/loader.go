@@ -9,6 +9,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/mailru/easyjson"
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
@@ -80,6 +81,36 @@ func (ld *CollectorLoader) Close() error {
 	close(ld.infostoadd)
 	ld.done.Wait()
 	ld.ao.SetThreadsafe(false)
+
+	for _, o := range ld.ao.Slice() {
+		if o.HasAttr(engine.ObjectSid) {
+
+			// We can do this with confidence as everything comes from this loader
+			sidwithoutrid := o.OneAttrRaw(engine.ObjectSid).(windowssecurity.SID).StripRID()
+
+			switch o.Type() {
+			case engine.ObjectTypeComputer:
+				// We don't link that - it's either absorbed into the real computer object, or it's orphaned
+			case engine.ObjectTypeUser:
+				// It's a User we added, find the computer
+				if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+					o.ChildOf(computer) // FIXME -> Users
+				}
+			case engine.ObjectTypeGroup:
+				// It's a Group we added
+				if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+					o.ChildOf(computer) // FIXME -> Groups
+				}
+			default:
+				if o.HasAttr(engine.ObjectSid) {
+					if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+						o.ChildOf(computer) // We don't know what it is
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

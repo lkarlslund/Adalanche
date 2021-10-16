@@ -339,15 +339,19 @@ func (a ACE) String(ao *Objects) string {
 		// if o, found := AllRights[a.InheritedObjectType]; found {
 		// 	result += fmt.Sprintf(" inherited RIGHT %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
 		// } else
-		if o, found := ao.Find(SchemaIDGUID, AttributeValueGUID(a.InheritedObjectType)); found {
-			result += fmt.Sprintf(" inherited CLASS %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
-			// }
-			//  else if o, found := AllSchemaAttributes[a.InheritedObjectType]; found {
-			// 	result += fmt.Sprintf(" inherited ATTRIBUTE %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
-			// } else if o, found := AllObjects.FindGUID(a.InheritedObjectType); found {
-			// 	result += fmt.Sprintf(" inherited OBJECT %v (%v)", o.OneAttr(Description), a.InheritedObjectType)
+		if ao != nil {
+			if o, found := ao.Find(SchemaIDGUID, AttributeValueGUID(a.InheritedObjectType)); found {
+				result += fmt.Sprintf(" inherited CLASS %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
+				// }
+				//  else if o, found := AllSchemaAttributes[a.InheritedObjectType]; found {
+				// 	result += fmt.Sprintf(" inherited ATTRIBUTE %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
+				// } else if o, found := AllObjects.FindGUID(a.InheritedObjectType); found {
+				// 	result += fmt.Sprintf(" inherited OBJECT %v (%v)", o.OneAttr(Description), a.InheritedObjectType)
+			} else {
+				result += " inherited " + a.InheritedObjectType.String() + " (not found)"
+			}
 		} else {
-			result += " inherited " + a.InheritedObjectType.String() + " (not found)"
+			result += " inherited " + a.InheritedObjectType.String()
 		}
 	}
 

@@ -18,6 +18,7 @@ var (
 	DistinguishedName          = NewAttribute("distinguishedName")
 	ObjectClass                = NewAttribute("objectClass")
 	ObjectCategory             = NewAttribute("objectCategory")
+	ObjectCategorySimple       = NewAttribute("objectCategorySimple")
 	StructuralObjectClass      = NewAttribute("structuralObjectClass")
 	NTSecurityDescriptor       = NewAttribute("nTSecurityDescriptor")
 	SAMAccountType             = NewAttribute("sAMAccountType")

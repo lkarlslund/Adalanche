@@ -3,6 +3,7 @@ package analyze
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +59,8 @@ var (
 	// ReadOnlyDomainControllersSID, _ = windowssecurity.SIDFromString("S-1-5-21domain-521")
 	// SchemaAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21root domain-518")
 	ServerOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-549")
+
+	GPLinkCache = engine.NewAttribute("gpLinkCache")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -93,50 +96,87 @@ func init() {
 				// Find all perent containers with GP links
 				var hasparent bool
 				p := o
+
+				// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/5c7ecdad-469f-4b30-94b3-450b7fff868f
+				allowEnforcedGPOsOnly := false
 				for {
-					gpoptions := p.OneAttrString(engine.GPOptions)
-					if gpoptions == "1" {
-						// inheritance is blocked, so don't move upwards
-						break
+					newparent := p.Parent()
+					var foundparent bool
+					if newparent != nil && newparent.DN() != "" && strings.HasSuffix(p.DN(), newparent.DN()) {
+						p = newparent
+						foundparent = true
+					}
+					if !foundparent {
+						// Fall back to old slow method of looking at DNs
+						p, hasparent = ao.Parent(p)
+						if !hasparent {
+							break
+						}
 					}
 
-					p, hasparent = ao.Parent(p)
-					if !hasparent {
-						break
+					var gpcachelinks engine.AttributeValues
+					var found bool
+					if gpcachelinks, found = p.Find(GPLinkCache); !found {
+						// the hard way
+						gpcachelinks = engine.NoValues{} // We assume there is nothing
+
+						gplinks := strings.Trim(p.OneAttrString(engine.GPLink), " ")
+						if len(gplinks) != 0 {
+							// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
+							if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
+								log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+							} else {
+								links := strings.Split(gplinks[1:len(gplinks)-1], "][")
+
+								var collecteddata engine.AttributeValueSlice
+								for _, link := range links {
+									linkinfo := strings.Split(link, ";")
+									if len(linkinfo) != 2 {
+										log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+										continue
+									}
+									linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
+
+									gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
+									if !found {
+										if _, warned := warnedgpos[linkedgpodn]; !warned {
+											warnedgpos[linkedgpodn] = struct{}{}
+											log.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+										}
+									} else {
+										linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
+										collecteddata = append(collecteddata, engine.AttributeValueObject{gpo}, engine.AttributeValueInt(linktype))
+									}
+								}
+								gpcachelinks = collecteddata
+							}
+						}
+						p.Set(GPLinkCache, gpcachelinks)
+					} else {
+						log.Debug().Msg("Its working")
 					}
 
-					gplinks := strings.Trim(p.OneAttrString(engine.GPLink), " ")
-					if len(gplinks) == 0 {
-						continue
-					}
-					// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
-					if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
-						log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
-						continue
-					}
-					links := strings.Split(gplinks[1:len(gplinks)-1], "][")
-					for _, link := range links {
-						linkinfo := strings.Split(link, ";")
-						if len(linkinfo) != 2 {
-							log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+					// cached or generated - pairwise pointer to gpo object and int
+					gplinkslice := gpcachelinks.Slice()
+					for i := 0; i < gpcachelinks.Len(); i += 2 {
+						gpo := gplinkslice[i].Raw().(*engine.Object)
+						gpLinkOptions := gplinkslice[i+1].Raw().(int64)
+						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+						if gpLinkOptions&0x01 != 0 {
+							// GPO link is disabled
 							continue
 						}
-						linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
-						linktype := linkinfo[1]
-						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
-						if linktype == "1" || linktype == "3" {
-							continue // Link is disabled
+						if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
+							// Enforcement required, but this is not an enforced GPO
+							continue
 						}
+						gpo.Pwns(o, activedirectory.PwnComputerAffectedByGPO)
+					}
 
-						gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
-						if !found {
-							if _, warned := warnedgpos[linkedgpodn]; !warned {
-								warnedgpos[linkedgpodn] = struct{}{}
-								log.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
-							}
-						} else {
-							gpo.Pwns(o, activedirectory.PwnComputerAffectedByGPO)
-						}
+					gpoptions := p.OneAttrString(engine.GPOptions)
+					if gpoptions == "1" {
+						// inheritance is blocked, so let's not forget that when moving up
+						allowEnforcedGPOsOnly = true
 					}
 				}
 			},
@@ -813,7 +853,7 @@ func init() {
 		// Find all the AdminSDHolder containers
 		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
-		}).AsArray() {
+		}).Slice() {
 			rootdn := adminsdholder.OneAttrString(engine.DistinguishedName)[27:]
 
 			// We found it - so we know it can theoretically "pwn" some objects, lets see if some are excluded though
@@ -845,7 +885,7 @@ func init() {
 					engine.Name, engine.AttributeValueString(name),
 					engine.ObjectSid, engine.AttributeValueSID(binsid),
 					engine.ObjectClass, engine.AttributeValueString("person"), engine.AttributeValueString("user"), engine.AttributeValueString("top"),
-					engine.ObjectCategory, engine.AttributeValueString("Group"),
+					engine.ObjectCategorySimple, engine.AttributeValueString("Group"),
 				))
 			}
 		}
@@ -853,7 +893,7 @@ func init() {
 
 	engine.AddPreprocessor(func(ao *engine.Objects) {
 		// Generate member of chains
-		processbar := progressbar.NewOptions(int(len(ao.AsArray())),
+		processbar := progressbar.NewOptions(int(len(ao.Slice())),
 			progressbar.OptionSetDescription("Processing objects..."),
 			progressbar.OptionShowCount(),
 			progressbar.OptionShowIts(),
@@ -874,7 +914,7 @@ func init() {
 			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		for _, object := range ao.AsArray() {
+		for _, object := range ao.Slice() {
 
 			processbar.Add(1)
 
@@ -931,7 +971,7 @@ func init() {
 				if !found {
 					group = engine.NewObject(
 						engine.DistinguishedName, memberof,
-						engine.ObjectCategory, engine.AttributeValueString("Group"),
+						engine.ObjectCategorySimple, engine.AttributeValueString("Group"),
 						engine.ObjectClass, engine.AttributeValueString("top"), engine.AttributeValueString("group"),
 						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
 						engine.Description, engine.AttributeValueString("Synthetic group"),
@@ -1064,7 +1104,7 @@ func init() {
 	}, "Active Directory objects and metadata")
 
 	engine.AddPostprocessor(func(ao *engine.Objects) {
-		for _, object := range ao.AsArray() {
+		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
 				for _, member := range object.Members(true) {
 					member.SetAttr(engine.MetaProtectedUser, engine.AttributeValueInt(1))

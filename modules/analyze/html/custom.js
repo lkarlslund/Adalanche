@@ -66,11 +66,14 @@ function newwindow(id, title, contents) {
     // add the new one
     if (mywindow == undefined) {
         itsnew = true
-        mywindow = $(`<div class="window position-absolute shadow p-5 bg-dark border pointer-events-auto" id="window_`+id+`">` +
-        `<table><td id="title" class="w-full"></td><td class="no-wrap"><button id="rollup" class="btn btn-primary btn-sm">_</button> <button id="close" class="btn btn-primary btn-sm">X</button></td></tr>`+
-        `<tr><td colspan=2 id="contents" class="overflow-auto"></td></tr></table>` +
-        `</div>`);
-        
+        // mywindow = $(`<div class="window position-absolute shadow p-5 bg-dark border pointer-events-auto" id="window_`+id+`">` +
+        // `<table><td id="title" class="w-full"></td><td class="no-wrap"><button id="rollup" class="btn btn-primary btn-sm">_</button> <button id="close" class="btn btn-primary btn-sm">X</button></td></tr>`+
+        // `<tr><td colspan=2 id="contents" class="overflow-auto"></td></tr></table>` +
+        // `</div>`);
+        mywindow = $(`<div class="window position-absolute shadow p-5 bg-dark border pointer-events-auto" id="window_` + id + `">` +
+            `<div id="wrapper"><div><span id="title" class="w-full"></span><span class="no-wrap"><button id="rollup" class="btn btn-primary btn-sm">_</button> <button id="close" class="btn btn-primary btn-sm">X</button></span></div>` +
+            `<div id="contents"></div></div></div>`);
+
         // roll up
         $("#rollup", mywindow).click(function (event) {
             $("#contents", $(this).parents(".window")).slideToggle("slow", "swing")
@@ -81,7 +84,22 @@ function newwindow(id, title, contents) {
             $(this).parents(".window").remove()
         })
 
-        mywindow.draggable().resizable();
+        mywindow.mousedown(function(){
+            if (!$(this).hasClass("window-front")) {
+                $("#windows div").removeClass("window-front")
+                $(this).addClass("window-front")
+            }
+        })
+
+        mywindow.draggable().resizable({
+            containment: "#windows",
+            // animate: true,
+            // helper: "ui-resizable-helper",
+            // maxHeight: 50,
+            // maxWidth: 350,
+            // minHeight: 150,
+            // minWidth: 200,
+        });
     }
 
     $("#title", mywindow).html(title)
@@ -158,6 +176,33 @@ $(function () {
 
     $("#optionspop").on("click", function () {
         $("#optionswrap").animate({ width: 'toggle' }, 400);
+    })
+
+    $("#explore").on("click", function () {
+        newwindow("explore", "Explore objects", "<div id='exploretree' class='jstree-default-dark'></div>")
+        $("#exploretree").jstree({
+            'core': {
+                'multiple' : false,
+                'data': {
+                    'url': '/tree',
+                    'dataType': 'json',
+                    'data':function(node) {
+                        return { 'id': node.id };
+                    }
+                }
+            },
+            "types": {
+                "default": {
+                    "icon": "glyphicon glyphicon-flash"
+                },
+                "demo": {
+                    "icon": "glyphicon glyphicon-ok"
+                }
+            },
+            "state": {"key": "adalanche_explore"},
+            "plugins": ["sort", "types", "state", "wholerow"],
+        });
+
     })
 
     // Predefined queries dropdown button

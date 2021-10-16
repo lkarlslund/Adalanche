@@ -19,7 +19,7 @@ var (
 )
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
-	gpoobject := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
+	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
 
 	// Pwns(gpoobject)
 
@@ -30,7 +30,8 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				return err
 			}
 			for _, acl := range dacl.Entries {
-				log.Debug().Msgf("ACL: %v", acl.String(ao))
+				// log.Debug().Msgf("ACL: %v", acl.String(ao))
+				_ = acl
 			}
 		}
 
@@ -95,12 +96,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				}
 				// Create new synthetic object
 				sob := engine.NewObject(
-					engine.ObjectCategory, engine.AttributeValueString("Script"),
+					engine.ObjectCategorySimple, engine.AttributeValueString("Script"),
 					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
 					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				sob.Pwns(gpoobject, activedirectory.PwnMachineScript)
+				sob.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
 
@@ -114,11 +116,12 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				// Create new synthetic object
 				sob := engine.NewObject(
 					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.ObjectCategory, engine.AttributeValueString("Script"),
+					engine.ObjectCategorySimple, engine.AttributeValueString("Script"),
 					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				sob.Pwns(gpoobject, activedirectory.PwnMachineScript)
+				sob.ChildOf(gpoobject)
 				scriptnum++
 			}
 		}

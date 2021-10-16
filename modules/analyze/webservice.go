@@ -123,7 +123,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = objs.FindByID(id)
+			o, found = objs.FindByID(uint32(id))
 		case "dn", "distinguishedname":
 			o, found = objs.Find(engine.DistinguishedName, engine.AttributeValueString(vars["id"]))
 		case "sid":
@@ -344,14 +344,14 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 
 		var pg engine.PwnGraph
 		if mode == "sourcetarget" {
-			if len(includeobjects.AsArray()) == 0 || excludeobjects == nil || len(excludeobjects.AsArray()) == 0 {
+			if len(includeobjects.Slice()) == 0 || excludeobjects == nil || len(excludeobjects.Slice()) == 0 {
 				fmt.Fprintf(w, "You must use two queries (source and target), seperated by commas. Each must return at least one object.")
 			}
 
 			// We dont support this yet, so merge all of them
 			combinedmethods := methods_f.Merge(methods_m).Merge(methods_l)
 
-			pg = engine.AnalyzePaths(includeobjects.AsArray()[0], excludeobjects.AsArray()[0], objs, combinedmethods, engine.Probability(minprobability), 1)
+			pg = engine.AnalyzePaths(includeobjects.Slice()[0], excludeobjects.Slice()[0], objs, combinedmethods, engine.Probability(minprobability), 1)
 		} else {
 			opts := engine.NewAnalyzeObjectsOptions()
 			opts.IncludeObjects = includeobjects
@@ -616,10 +616,10 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 		case "xgmml":
 			graph := NewXGMMLGraph()
 
-			for id, node := range pg.Nodes {
+			for _, node := range pg.Nodes {
 				object := node.Object
 				xmlnode := XGMMLNode{
-					Id:    id,
+					Id:    object.ID(),
 					Label: object.Label(),
 				}
 
@@ -641,8 +641,8 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 
 			for _, pwn := range pg.Connections {
 				graph.Edges = append(graph.Edges, XGMMLEdge{
-					Source: pwn.Source.ID,
-					Target: pwn.Target.ID,
+					Source: pwn.Source.ID(),
+					Target: pwn.Target.ID(),
 					Label:  pwn.JoinedString(),
 				})
 			}
@@ -677,9 +677,9 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			return includequery.Evaluate(o)
 		})
 
-		dns := make([]string, len(objects.AsArray()))
+		dns := make([]string, len(objects.Slice()))
 
-		for i, o := range objects.AsArray() {
+		for i, o := range objects.Slice() {
 			dns[i] = o.DN()
 		}
 
@@ -715,7 +715,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			return includequery.Evaluate(o)
 		})
 
-		err = encoder.Encode(objects.AsArray())
+		err = encoder.Encode(objects.Slice())
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -742,7 +742,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			HasLAPS       bool      `json:"haslaps,omitempty"`
 		}
 		var result []info
-		for _, object := range objs.AsArray() {
+		for _, object := range objs.Slice() {
 			if object.Type() == engine.ObjectTypeUser &&
 				object.OneAttrString(engine.MetaWorkstation) != "1" &&
 				object.OneAttrString(engine.MetaServer) != "1" &&
@@ -802,6 +802,57 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 		w.Write(data)
 	})
 
+	router.Path("/tree").Queries("id", "{id}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		idstr := vars["id"]
+		encoder := qjson.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+
+		var children []*engine.Object
+		if idstr == "#" {
+			children = objs.Root().Children()
+		} else {
+			id, err := strconv.Atoi(idstr)
+			if err != nil {
+				w.WriteHeader(400) // bad request
+				w.Write([]byte(err.Error()))
+				return
+			}
+
+			if parent, found := objs.FindByID(uint32(id)); found {
+				children = parent.Children()
+			} else {
+				w.WriteHeader(404) // not found
+				w.Write([]byte("object not found"))
+				return
+			}
+		}
+
+		type treeData struct {
+			ID       uint32 `json:"id"`
+			Label    string `json:"text"`
+			Type     string `json:"type,omitempty"`
+			Children bool   `json:"children,omitempty"`
+		}
+
+		var results []treeData
+		for _, object := range children {
+			results = append(results, treeData{
+				ID:       object.ID(),
+				Label:    object.Label(),
+				Type:     object.Type().String(),
+				Children: len(object.Children()) > 0,
+			})
+		}
+
+		err := encoder.Encode(results)
+		if err != nil {
+			w.WriteHeader(400) // bad request
+			w.Write([]byte(err.Error()))
+			return
+		}
+	})
+
 	router.HandleFunc("/statistics", func(w http.ResponseWriter, r *http.Request) {
 		var result struct {
 			Adalanche  map[string]string `json:"adalanche"`
@@ -813,6 +864,10 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 
 		result.Statistics = make(map[string]int)
 
+		// for object := range objs.Slice() {
+
+		// }
+
 		for objecttype, count := range objs.Statistics() {
 			if objecttype == 0 {
 				continue // skip the dummy one
@@ -821,10 +876,10 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 		}
 
 		var pwnlinks int
-		for _, object := range objs.AsArray() {
+		for _, object := range objs.Slice() {
 			pwnlinks += len(object.CanPwn)
 		}
-		result.Statistics["Total"] = len(objs.AsArray())
+		result.Statistics["Total"] = len(objs.Slice())
 		result.Statistics["PwnConnections"] = pwnlinks
 
 		data, _ := json.MarshalIndent(result, "", "  ")

@@ -97,7 +97,7 @@ func IsASCII(s string) bool {
 
 func Default(values ...string) string {
 	for _, value := range values {
-		if len(value) > 0 {
+		if len(value) != 0 {
 			return value
 		}
 	}

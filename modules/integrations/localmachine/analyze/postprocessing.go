@@ -7,7 +7,7 @@ import (
 
 func init() {
 	engine.AddPostprocessor(func(ao *engine.Objects) {
-		for _, o := range ao.AsArray() {
+		for _, o := range ao.Slice() {
 			if o.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString(myloader.Name())) {
 				if o.HasAttr(engine.ObjectSid) {
 					if len(o.CanPwn) == 0 {

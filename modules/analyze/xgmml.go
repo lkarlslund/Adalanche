@@ -36,7 +36,7 @@ type XGMMLGraph struct {
 
 type XGMMLNode struct {
 	XMLName    xml.Name `xml:"node"`
-	Id         int      `xml:"id,attr"`
+	Id         uint32   `xml:"id,attr"`
 	Label      string   `xml:"label,attr"`
 	Weight     int      `xml:"weight,attr,omitempty"`
 	Attributes []XGMMLAttribute
@@ -44,8 +44,8 @@ type XGMMLNode struct {
 
 type XGMMLEdge struct {
 	XMLName    xml.Name `xml:"edge"`
-	Source     int      `xml:"source,attr"`
-	Target     int      `xml:"target,attr"`
+	Source     uint32   `xml:"source,attr"`
+	Target     uint32   `xml:"target,attr"`
 	Label      string   `xml:"label,attr"`
 	Attributes []XGMMLAttribute
 }

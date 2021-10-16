@@ -242,8 +242,8 @@ valueloop:
 				}
 			}
 			return s, pwnquery{attributename == "_canpwn", method, target}, nil
-		default:
-			return "", nil, fmt.Errorf("Unknown synthetic attribute %v", attributename)
+			// default:
+			// 	return "", nil, fmt.Errorf("Unknown synthetic attribute %v", attributename)
 		}
 	}
 

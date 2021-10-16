@@ -246,7 +246,7 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Group"]',
+    selector: 'node[type="Group"]',
     style: {
         shape: "cut-rectangle",
         "background-image": "icons/people-fill.svg",
@@ -254,28 +254,28 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Person"][!_accountdisabled]',
+    selector: 'node[type="User"][!_disabled]',
     style: {
         "background-image": "icons/person-fill.svg",
         "background-color": "green"
     }
 },
 {
-    selector: 'node[objectCategory="Person"][?_accountdisabled]',
+    selector: 'node[type="User"][?_disabled]',
     style: {
         "background-image": "icons/no_accounts_black_48dp.svg",
         "background-color": "darkgreen"
     }
 },
 {
-    selector: 'node[objectCategory="ms-DS-Group-Managed-Service-Account"]',
+    selector: 'node[type="ManagedServiceAccount"]',
     style: {
         "background-image": "icons/manage_accounts_black_24dp.svg",
         "background-color": "lightgreen"
     }
 },
 {
-    selector: 'node[objectCategory="Service"]',
+    selector: 'node[type="Service"]',
     style: {
         shape: "diamond",
         "background-image": "icons/service.svg",
@@ -283,7 +283,7 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Group-Policy-Container"]',
+    selector: 'node[type="GroupPolicyContainer"]',
     style: {
         shape: "rectangle",
         "background-image": "icons/gpo.svg",
@@ -291,7 +291,7 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Organizational-Unit"]',
+    selector: 'node[type="OrganizationalUnit"]',
     style: {
         shape: "rectangle",
         "background-image": "icons/source_black_24dp.svg",
@@ -299,7 +299,7 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Container"]',
+    selector: 'node[type="Container"]',
     style: {
         shape: "rectangle",
         "background-image": "icons/folder_black_24dp.svg",
@@ -307,7 +307,7 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="PKI-Certificate-Template"]',
+    selector: 'node[type="CertificateTemplate"]',
     style: {
         shape: "rectangle",
         "background-image": "icons/certificate.svg",
@@ -315,21 +315,21 @@ var cytostyle = [{
     }
 },
 {
-    selector: 'node[objectCategory="Computer"][?_workstation]',
+    selector: 'node[type="Computer"]', // [? _workstation]
     style: {
         shape: "round-octagon",
         "background-image": "icons/tv-fill.svg",
         "background-color": "lightgreen"
     }
 },
-{
-    selector: 'node[objectCategory="Computer"][?_server]',
-    style: {
-        shape: "hexagon",
-        "background-image": "icons/server.svg",
-        "background-color": "lightgreen"
-    }
-},
+// {
+//     selector: 'node[type="Computer"][?_server]',
+//     style: {
+//         shape: "hexagon",
+//         "background-image": "icons/server.svg",
+//         "background-color": "lightgreen"
+//     }
+// },
 {
     selector: "node[?_canexpand]",
     style: {

@@ -12,6 +12,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/pierrec/lz4/v4"
+	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -144,5 +145,50 @@ func (ld *ADLoader) Load(path string, pb *progressbar.ProgressBar) error {
 func (ld *ADLoader) Close() error {
 	close(ld.objectstoconvert)
 	ld.done.Wait()
+
+	// Ensure everyone has a family
+	for _, o := range ld.ao.Slice() {
+		if o == ld.ao.Root() {
+			continue
+		}
+
+		dn := o.DN()
+
+		var parentdn string
+		for {
+			comma := strings.Index(dn, ",")
+			if comma <= 0 {
+				// No comma no cry
+				break
+			}
+			if dn[comma-1] == '\\' {
+				// Escaped comma, remove it and try again
+				dn = dn[comma+1:]
+				continue
+			}
+			parentdn = dn[comma+1:]
+			break
+		}
+
+		if parentdn == "" {
+			log.Warn().Msgf("AD object without DN: %v", o.Label())
+		} else {
+			if o.Parent() == nil { // Maybe the loader set it - if not try a fixup
+				if parent, found := ld.ao.Find(engine.DistinguishedName, engine.AttributeValueString(parentdn)); found {
+					o.ChildOf(parent)
+				} else {
+
+					if o.Type() == engine.ObjectTypeDomainDNS && strings.EqualFold("dc=", dn[:3]) {
+						// Top of some AD we think, hook to top of browsable tree
+						o.ChildOf(ld.ao.Root())
+						continue
+					}
+
+					log.Debug().Msgf("AD object %v has no parent :-(", o.DN())
+				}
+			}
+		}
+	}
+
 	return nil
 }

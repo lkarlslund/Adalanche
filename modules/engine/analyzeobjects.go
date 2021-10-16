@@ -75,7 +75,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	forward := !opts.Reverse
 
 	// Convert to our working map
-	for _, object := range opts.IncludeObjects.AsArray() {
+	for _, object := range opts.IncludeObjects.Slice() {
 		implicatedobjectsmap[object] = 0
 	}
 
@@ -286,7 +286,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		}
 		for node, _ := range implicatedobjectsmap {
 			if _, found := pointedto[node]; !found {
-				if _, found := opts.IncludeObjects.FindByID(node.ID); opts.PruneIslands || !found {
+				if _, found := opts.IncludeObjects.FindByID(node.ID()); opts.PruneIslands || !found {
 					delete(implicatedobjectsmap, node)
 				}
 			}
@@ -313,7 +313,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	i = 0
 	for object := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
-		if _, found := opts.IncludeObjects.FindByID(object.ID); found {
+		if _, found := opts.IncludeObjects.FindByID(object.ID()); found {
 			pg.Nodes[i].Target = true
 		}
 		if expandnum, found := canexpand[object]; found {

@@ -110,6 +110,18 @@ type AttributeValue interface {
 	Raw() interface{}
 }
 
+type AttributeValueObject struct {
+	*Object
+}
+
+func (avo AttributeValueObject) String() string {
+	return (*Object)(avo.Object).Label() + " (object)"
+}
+
+func (avo AttributeValueObject) Raw() interface{} {
+	return (*Object)(avo.Object)
+}
+
 type AttributeValueString string
 
 func (as AttributeValueString) String() string {

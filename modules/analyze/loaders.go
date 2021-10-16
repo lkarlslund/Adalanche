@@ -47,8 +47,11 @@ func RunLoaders(path string) (*engine.Objects, error) {
 	aos := make([]*engine.Objects, len(loaders))
 	for i, loader := range loaders {
 		aos[i] = &engine.Objects{}
-		aos[i].Init(nil)
+		aos[i].Init()
 		aos[i].SetDefaultSource(engine.AttributeValueString(loader.Name()))
+
+		// Add the root node
+		aos[i].Add(engine.NewObject(engine.Name, engine.AttributeValueString(loader.Name())))
 
 		log.Debug().Msgf("Initializing loader %v", loader.Name())
 		err := loader.Init(aos[i])
@@ -110,7 +113,7 @@ func RunLoaders(path string) (*engine.Objects, error) {
 		if err != nil {
 			return nil, err
 		}
-		loaderproduced := len(aos[i].AsArray())
+		loaderproduced := len(aos[i].Slice())
 		totalobjects += loaderproduced
 		if loaderproduced > biggestcount {
 			biggestcount = loaderproduced
@@ -127,35 +130,62 @@ func RunLoaders(path string) (*engine.Objects, error) {
 	// mergeinto.Init(nil)
 
 	// _ = biggest
-	mergeinto := aos[biggest]
 
-	// Let's ensure we can find everything
-	mergeinto.Reindex()
+	globalobjects := &engine.Objects{}
+	globalobjects.Init()
+
+	globalroot := engine.NewObject(engine.Name, engine.AttributeValueString("adalanche root node"))
+	globalobjects.Add(globalroot)
+
+	orphancontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Orphans"))
+	orphancontainer.ChildOf(globalroot)
+	globalobjects.Add(orphancontainer)
+
+	globalroot.Adopt(aos[biggest].Root())
+	for _, object := range aos[biggest].Slice() {
+		globalobjects.Add(object)
+	}
 
 	for i, loader := range loaders {
 		if i == biggest {
 			continue
 		}
-		mergeobjects := aos[i].AsArray()
-		log.Info().Msgf("Merging %v objects from %v into the object metaverse", len(mergeobjects), loader.Name())
-		for _, object := range mergeobjects {
-			object.ID = 0
-		}
-		mergeinto.AddMerge([]engine.Attribute{engine.ObjectSid, engine.GPCFileSysPath}, mergeobjects...)
+		mergeobjects := aos[i]
+
+		globalroot.Adopt(mergeobjects.Root())
+
+		log.Info().Msgf("Merging %v objects from %v into the object metaverse", len(mergeobjects.Slice()), loader.Name())
+		globalobjects.AddMerge([]engine.Attribute{engine.ObjectSid, engine.GPCFileSysPath}, mergeobjects.Slice()...)
 	}
 
-	aftermergetotalobjects := len(mergeinto.AsArray())
+	aftermergetotalobjects := len(globalobjects.Slice())
 	log.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
 
 	var orphans int
-	for _, object := range mergeinto.AsArray() {
-		if len(object.CanPwn) == 0 && len(object.PwnableBy) == 0 {
+	processed := make(map[uint32]struct{})
+	var processobject func(o *engine.Object)
+	processobject = func(o *engine.Object) {
+		if _, done := processed[o.ID()]; !done {
+			if _, found := globalobjects.FindByID(o.ID()); !found {
+				log.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
+				globalobjects.Add(o)
+			}
+			processed[o.ID()] = struct{}{}
+			for _, child := range o.Children() {
+				processobject(child)
+			}
+		}
+	}
+	for _, object := range globalobjects.Slice() {
+		if object.Parent() == nil {
+			object.ChildOf(orphancontainer)
 			orphans++
 		}
+		processobject(object)
 	}
 	if orphans > 0 {
 		log.Warn().Msgf("Detected %v orphan objects in final results", orphans)
 	}
 
-	return mergeinto, nil
+	return globalobjects, nil
 }
