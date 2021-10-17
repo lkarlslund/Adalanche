@@ -132,6 +132,19 @@ func (as AttributeValueString) Raw() interface{} {
 	return string(as)
 }
 
+type AttributeValueBool bool
+
+func (ab AttributeValueBool) String() string {
+	if bool(ab) {
+		return "true"
+	}
+	return "false"
+}
+
+func (ab AttributeValueBool) Raw() interface{} {
+	return bool(ab)
+}
+
 type AttributeValueInt int64
 
 func (as AttributeValueInt) String() string {
