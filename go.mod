@@ -92,4 +92,10 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-require github.com/open2b/scriggo v0.52.2 // indirect
+require (
+	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/open2b/scriggo v0.52.2 // indirect
+	github.com/shirou/gopsutil/v3 v3.21.9 // indirect
+	github.com/tklauser/go-sysconf v0.3.9 // indirect
+	github.com/tklauser/numcpus v0.3.0 // indirect
+)

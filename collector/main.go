@@ -16,6 +16,7 @@ import (
 var (
 	wrapcollector = &cobra.Command{}
 	datapath      = wrapcollector.Flags().String("outputpath", "", "Dump output JSON file in this folder")
+	debuglogging  = wrapcollector.Flags().Bool("debug", false, "Debug logging")
 )
 
 func init() {
@@ -23,6 +24,13 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
+	if !*debuglogging {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		log.Info().Msg("Debug logging enabled")
+	}
+
 	return collect.Collect(*datapath)
 }
 

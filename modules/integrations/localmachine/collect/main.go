@@ -50,6 +50,15 @@ func Execute(cmd *cobra.Command, args []string) error {
 }
 
 func Collect(outputpath string) error {
+	err := os.MkdirAll(outputpath, 0600)
+	if err != nil {
+		return fmt.Errorf("Problem accessing output folder: %v", err)
+	}
+
+	if !is64Bit && os64Bit {
+		log.Debug().Msgf("Running as 32-bit on 64-bit system")
+	}
+
 	// MACHINE
 	hostname, _ := os.Hostname()
 	hostsid, _ := winio.LookupSidByName(hostname)
@@ -151,7 +160,7 @@ func Collect(outputpath string) error {
 					// Export data
 					var skipit bool
 					for _, existingcache := range machineinfo.AppCache {
-						if bytes.Compare(existingcache, cache) == 0 {
+						if bytes.Equal(existingcache, cache) {
 							skipit = true
 							break
 						}
@@ -475,9 +484,11 @@ func Collect(outputpath string) error {
 					var imagepathowner string
 					var imageexecutable string
 					var imagepathdacl []byte
+
 					if imagepath != "" {
 						// Windows service executable names is a hot effin mess
 						if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
+							// Avoid mapping on 32-bit on 64-bit SYSWOW
 							imagepath = `%SystemRoot%\` + imagepath
 						} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
 							imagepath = `%SystemRoot%\` + imagepath[12:]
@@ -497,8 +508,9 @@ func Collect(outputpath string) error {
 							// Unquoted
 							trypath := imagepath
 							for {
-								statpath, _ := registry.ExpandString(trypath)
-								if _, err := os.Stat(statpath); err == nil {
+								statpath := resolvepath(trypath)
+								log.Debug().Msgf("Trying %v -> %v", trypath, statpath)
+								if _, err = os.Stat(statpath); err == nil {
 									executable = trypath
 									break
 								}
@@ -512,7 +524,8 @@ func Collect(outputpath string) error {
 								}
 							}
 						}
-						executable, _ = registry.ExpandString(executable)
+						log.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
+						executable = resolvepath(executable)
 						imageexecutable = executable
 						if executable != "" {
 							ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
@@ -523,7 +536,7 @@ func Collect(outputpath string) error {
 								log.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
 							}
 						} else {
-							log.Warn().Msgf("Could not find executable %v", imagepath)
+							log.Warn().Msgf("Could not resolve executable %v", imagepath)
 						}
 					}
 
