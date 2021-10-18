@@ -849,7 +849,7 @@ func init() {
 		},
 	)
 
-	engine.AddPreprocessor(func(ao *engine.Objects) {
+	engine.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
 		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
@@ -868,9 +868,11 @@ func init() {
 			}
 			engine.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
 		}
-	}, "configuration of AdminSDHolder analyzer")
+	},
+		"configuration of AdminSDHolder analyzer",
+		0)
 
-	engine.AddPreprocessor(func(ao *engine.Objects) {
+	engine.AddProcessor(func(ao *engine.Objects) {
 		// Add our known SIDs if they're missing
 		for sid, name := range windowssecurity.KnownSIDs {
 			binsid, err := windowssecurity.SIDFromString(sid)
@@ -889,9 +891,12 @@ func init() {
 				))
 			}
 		}
-	}, "missing well-known SIDs")
+	},
+		"missing well-known SIDs",
+		0,
+	)
 
-	engine.AddPreprocessor(func(ao *engine.Objects) {
+	engine.AddProcessor(func(ao *engine.Objects) {
 		// Generate member of chains
 		processbar := progressbar.NewOptions(int(len(ao.Slice())),
 			progressbar.OptionSetDescription("Processing objects..."),
@@ -1101,9 +1106,11 @@ func init() {
 			}*/
 		}
 		processbar.Finish()
-	}, "Active Directory objects and metadata")
+	},
+		"Active Directory objects and metadata",
+		0)
 
-	engine.AddPostprocessor(func(ao *engine.Objects) {
+	engine.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
 				for _, member := range object.Members(true) {
@@ -1111,9 +1118,12 @@ func init() {
 				}
 			}
 		}
-	}, "Protected users meta attribute")
+	},
+		"Protected users meta attribute",
+		0,
+	)
 
-	engine.AddPostprocessor(func(ao *engine.Objects) {
+	engine.AddProcessor(func(ao *engine.Objects) {
 		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
 		if !found {
 			log.Fatal().Msg("Could not find Creator Owner Well Known SID !?!? I perish at the thought")
@@ -1134,7 +1144,9 @@ func init() {
 				}
 			}
 		}
-	}, "CreatorOwnerSID resolution fixup")
+	}, "CreatorOwnerSID resolution fixup",
+		99,
+	)
 
 }
 

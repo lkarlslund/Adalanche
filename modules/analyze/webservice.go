@@ -608,7 +608,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
     target %v
 	label "%v"
   ]
-`, pwn.Source.ID, pwn.Target.ID, methods.JoinedString())
+`, pwn.Source.ID(), pwn.Target.ID(), methods.JoinedString())
 			}
 
 			w.Write([]byte("]\n"))

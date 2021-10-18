@@ -35,7 +35,7 @@ func init() {
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := cmd.InheritedFlags().Lookup("datapath").Value.String()
 
-	objs, err := RunLoaders(datapath)
+	objs, err := engine.Run(datapath)
 	if err != nil {
 		return err
 	}
@@ -57,10 +57,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		progressbar.OptionThrottle(time.Second*1),
 	)
 
-	engine.Preprocess(objs, func(cur, max int) {
+	engine.Process(objs, func(cur, max int) {
 		prebar.ChangeMax(max)
 		prebar.Set(cur)
-	})
+	}, 0, 49)
 	prebar.Finish()
 
 	// Analyze Pwn relationships
@@ -89,10 +89,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
 		progressbar.OptionThrottle(time.Second*1),
 	)
-	engine.Postprocess(objs, func(cur, max int) {
+	engine.Process(objs, func(cur, max int) {
 		postbar.ChangeMax(max)
 		postbar.Set(cur)
-	})
+	}, 50, 9999999)
 	postbar.Finish()
 
 	// Show debug counters

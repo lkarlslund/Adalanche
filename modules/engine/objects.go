@@ -20,6 +20,8 @@ type Objects struct {
 
 	DefaultSource AttributeValue // All objects added gets tagged with this as MetaDataSource if object does not have it
 
+	root *Object
+
 	asarray []*Object
 
 	idindex map[uint32]*Object
@@ -91,6 +93,10 @@ func (os *Objects) addIndex(attribute Attribute) {
 			}
 		}
 	}
+}
+
+func (os *Objects) SetRoot(ro *Object) {
+	os.root = ro
 }
 
 // Force reindex after changing data in Objects
@@ -202,10 +208,7 @@ addloop:
 
 // First object added is the root object
 func (os Objects) Root() *Object {
-	if len(os.asarray) == 0 {
-		return nil
-	}
-	return os.asarray[0]
+	return os.root
 }
 
 func (os Objects) Statistics() typestatistics {

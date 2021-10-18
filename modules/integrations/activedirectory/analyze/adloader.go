@@ -26,7 +26,7 @@ var (
 )
 
 func init() {
-	analyze.RegisterLoader(&myloader)
+	engine.AddLoader(&myloader)
 }
 
 type ADLoader struct {
@@ -88,7 +88,7 @@ func (ld *ADLoader) Init(ao *engine.Objects) error {
 
 func (ld *ADLoader) Load(path string, pb *progressbar.ProgressBar) error {
 	if !strings.HasSuffix(path, ".objects.msgp.lz4") {
-		return analyze.UninterestedError
+		return engine.UninterestedError
 	}
 
 	// 	if ld.ao.Base == "" { // Shoot me, this is horrible

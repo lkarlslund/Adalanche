@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -21,7 +20,7 @@ var (
 )
 
 func init() {
-	analyze.RegisterLoader(&myloader)
+	engine.RegisterLoader(&myloader)
 }
 
 type CollectorLoader struct {
@@ -116,7 +115,7 @@ func (ld *CollectorLoader) Close() error {
 
 func (ld *CollectorLoader) Load(path string, pb *progressbar.ProgressBar) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
-		return analyze.UninterestedError
+		return engine.UninterestedError
 	}
 
 	ld.infostoadd <- path

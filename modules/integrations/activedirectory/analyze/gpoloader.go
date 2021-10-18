@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/rs/zerolog/log"
@@ -21,7 +20,7 @@ var (
 )
 
 func init() {
-	analyze.RegisterLoader(&gpoloader)
+	engine.RegisterLoader(&gpoloader)
 }
 
 type GPOLoader struct {
@@ -75,7 +74,7 @@ func (ld *GPOLoader) Init(ao *engine.Objects) error {
 
 func (ld *GPOLoader) Load(path string, pb *progressbar.ProgressBar) error {
 	if !strings.HasSuffix(path, ".gpodata.json") {
-		return analyze.UninterestedError
+		return engine.UninterestedError
 	}
 
 	ld.gpofiletoprocess <- path

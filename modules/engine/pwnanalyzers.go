@@ -58,45 +58,31 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc) {
 
 type ProgressCallbackFunc func(progress int, totalprogress int)
 
-type PreProcessorFunc func(ao *Objects)
+type ProcessorFunc func(ao *Objects)
+
+type ProcessPriority int
 
 type ppfInfo struct {
 	description string
-	ppf         PreProcessorFunc
-	post        bool
+	pf          ProcessorFunc
+	priority    ProcessPriority
 }
 
-var preProcessors []ppfInfo
+var registeredProcessors []ppfInfo
 
-func AddPreprocessor(ppf PreProcessorFunc, description string) {
-	preProcessors = append(preProcessors, ppfInfo{
+func AddProcessor(pf ProcessorFunc, description string, priority ProcessPriority) {
+	registeredProcessors = append(registeredProcessors, ppfInfo{
 		description: description,
-		ppf:         ppf,
+		pf:          pf,
+		priority:    priority,
 	})
 }
 
-func AddPostprocessor(ppf PreProcessorFunc, description string) {
-	preProcessors = append(preProcessors, ppfInfo{
-		description: description,
-		ppf:         ppf,
-		post:        true,
-	})
-}
-
-func Preprocess(ao *Objects, cb ProgressCallbackFunc) {
-	for _, ppf := range preProcessors {
-		if !ppf.post {
-			log.Info().Msgf("Preprocessing %v ...", ppf.description)
-			ppf.ppf(ao)
-		}
-	}
-}
-
-func Postprocess(ao *Objects, cb ProgressCallbackFunc) {
-	for _, ppf := range preProcessors {
-		if ppf.post {
-			log.Info().Msgf("Postprocessing %v ...", ppf.description)
-			ppf.ppf(ao)
+func Process(ao *Objects, cb ProgressCallbackFunc, from, to ProcessPriority) {
+	for _, processor := range registeredProcessors {
+		if processor.priority <= from && processor.priority >= to {
+			log.Info().Msgf("Preprocessing %v ...", processor.description)
+			processor.pf(ao)
 		}
 	}
 }
