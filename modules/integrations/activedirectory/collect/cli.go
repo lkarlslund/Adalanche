@@ -316,6 +316,12 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 					offset := len(gppath)
 					filepath.WalkDir(gppath, func(curpath string, d fs.DirEntry, err error) error {
+						if !d.IsDir() &&
+							(strings.HasSuffix(strings.ToLower(curpath), ".adm") || strings.HasSuffix(strings.ToLower(curpath), ".admx")) {
+							// Skip .adm(x) files that slipped in here
+							return nil
+						}
+
 						var fileinfo activedirectory.GPOfileinfo
 						fileinfo.IsDir = d.IsDir()
 						fileinfo.RelativePath = curpath[offset:]
