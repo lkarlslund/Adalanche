@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 )
+
+const PostProcessing LoaderID = -1
+
+type LoaderID int
 
 type Loader interface {
 	Name() string
@@ -20,7 +22,7 @@ type Loader interface {
 	// Load will be offered a file, and can either return UnininterestedError, nil or any error it
 	// wishes. UninterestedError will pass the file to the next loader, Nil means it accepted and processed the file,
 	// and any other error will stop processing the file and display an error
-	Load(path string, pb *progressbar.ProgressBar) error
+	Load(path string, cb ProgressCallbackFunc) error
 
 	// Close signals that no more files are coming
 	Close() error
@@ -32,12 +34,13 @@ var (
 	loaders []Loader
 )
 
-func AddLoader(loader Loader) {
+func AddLoader(loader Loader) LoaderID {
 	loaders = append(loaders, loader)
+	return LoaderID(len(loaders) - 1)
 }
 
 // Load runs all registered loaders
-func Load(path string) ([]*Objects, error) {
+func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 	if st, err := os.Stat(path); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("%v is no a directory", path)
 	}
@@ -51,7 +54,9 @@ func Load(path string) ([]*Objects, error) {
 		aos[i].SetDefaultSource(AttributeValueString(loader.Name()))
 
 		// Add the root node
-		aos[i].Add(NewObject(Name, AttributeValueString(loader.Name())))
+		rootnode := NewObject(Name, AttributeValueString(loader.Name()))
+		// aos[i].Add(rootnode)
+		aos[i].SetRoot(rootnode)
 
 		log.Debug().Msgf("Initializing loader %v", loader.Name())
 		err := loader.Init(aos[i])
@@ -73,21 +78,14 @@ func Load(path string) ([]*Objects, error) {
 	})
 	log.Debug().Msgf("Will process %v files", len(files))
 
-	pb := progressbar.NewOptions(len(files),
-		progressbar.OptionSetDescription("Loading data"),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetItsString("tidbits"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	cb(0, len(files))
 
 	var skipped int
 	for _, file := range files {
 		var fileerr error
 	loaderloop:
 		for _, loader := range loaders {
-			fileerr = loader.Load(file, pb)
+			fileerr = loader.Load(file, cb)
 			switch fileerr {
 			case nil:
 				break loaderloop
@@ -101,9 +99,9 @@ func Load(path string) ([]*Objects, error) {
 		if fileerr != nil {
 			skipped++
 		}
-		pb.Add(1) // Either loaded or skipped
+		cb(-1, 0) // Either loaded or skipped
 	}
-	pb.Finish()
+	// pb.Finish()
 
 	var globalerr error
 	var totalobjects int

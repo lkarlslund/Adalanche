@@ -2,20 +2,15 @@ package engine
 
 import "github.com/rs/zerolog/log"
 
-func ProcessAndMerge(aos []*Objects) (*Objects, error) {
+func Merge(aos []*Objects) (*Objects, error) {
 	var biggest, biggestcount, totalobjects int
-	for i, loader := range loaders {
-		err := loader.Close()
-		if err != nil {
-			return nil, err
-		}
-		loaderproduced := len(aos[i].Slice())
+	for i, caos := range aos {
+		loaderproduced := len(caos.Slice())
 		totalobjects += loaderproduced
 		if loaderproduced > biggestcount {
 			biggestcount = loaderproduced
 			biggest = i
 		}
-		log.Info().Msgf("Loader %v produced %v objects", loader.Name(), loaderproduced)
 	}
 
 	globalobjects := aos[biggest]
@@ -23,8 +18,9 @@ func ProcessAndMerge(aos []*Objects) (*Objects, error) {
 
 	globalroot := NewObject(
 		Name, AttributeValueString("adalanche root node"),
-		ObjectCategorySimple, "Root",
+		ObjectCategorySimple, AttributeValueString("Root"),
 	)
+	globalobjects.Add(globalroot)
 	globalobjects.SetRoot(globalroot)
 
 	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
@@ -36,16 +32,17 @@ func ProcessAndMerge(aos []*Objects) (*Objects, error) {
 		globalobjects.Add(object)
 	}
 
-	for i, loader := range loaders {
+	for i, mergeobjects := range aos {
 		if i == biggest {
 			continue
 		}
-		mergeobjects := aos[i]
 
-		globalroot.Adopt(mergeobjects.Root())
+		if mergeroot := mergeobjects.Root(); mergeroot != nil {
+			globalroot.Adopt(mergeroot)
+		}
 
-		log.Info().Msgf("Merging %v objects from %v into the object metaverse", len(mergeobjects.Slice()), loader.Name())
-		globalobjects.AddMerge([]Attribute{ObjectSid, GPCFileSysPath}, mergeobjects.Slice()...)
+		log.Info().Msgf("Merging %v objects into the object metaverse", len(mergeobjects.Slice()))
+		globalobjects.AddMerge([]Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName}, mergeobjects.Slice()...)
 	}
 
 	aftermergetotalobjects := len(globalobjects.Slice())
@@ -78,5 +75,4 @@ func ProcessAndMerge(aos []*Objects) (*Objects, error) {
 	}
 
 	return globalobjects, nil
-
 }

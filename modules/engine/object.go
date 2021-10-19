@@ -270,14 +270,6 @@ func (o *Object) Label() string {
 	)
 }
 
-func (o *Object) ParentDN() string {
-	firstcomma := strings.Index(o.DN(), ",")
-	if firstcomma >= 0 {
-		return o.DN()[firstcomma+1:]
-	}
-	return ""
-}
-
 func (o *Object) Type() ObjectType {
 	if o.objecttype > 0 {
 		return o.objecttype

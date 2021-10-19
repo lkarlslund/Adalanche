@@ -1,7 +1,6 @@
 package analyze
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"path/filepath"
@@ -52,7 +51,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 	if computerobject != nil && existing {
 		// It's a duplicate domain member SID :-(
-		return errors.New("Duplicate machine found, not loading it")
+		return fmt.Errorf("duplicate machine info for domain account SID %v found, not loading it. machine names %v and %v", cinfo.Machine.ComputerDomainSID, cinfo.Machine.Name, computerobject.Label())
 	}
 
 	if computerobject == nil {
@@ -72,18 +71,20 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	// See if the machine has a unique SID
 	localsid, err := windowssecurity.SIDFromString(cinfo.Machine.LocalSID)
 	if err != nil {
-		log.Warn().Msgf("Collected machine information doesn't contain valid local machine SID (%v): %v", cinfo.Machine.LocalSID, err)
+		return fmt.Errorf("Collected machine information doesn't contain valid local machine SID (%v): %v", cinfo.Machine.LocalSID, err)
+	}
+	originalsid := localsid
+	for _, found := ao.Find(LocalMachineSID, engine.AttributeValueSID(localsid)); found; {
 		localsid, _ = windowssecurity.SIDFromString("S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10))
+		log.Debug().Msgf("Local machine SID collision, trying this random SID %v")
 	}
 	computerobject.SetAttr(LocalMachineSID, engine.AttributeValueSID(localsid))
 
-	// if dupe, found := objs.Find(LocalMachineSID, engine.AttributeValueSID(localsid)); found {
-	// 	localsid, _ = windowssecurity.SIDFromString("S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10))
-	// 	log.Warn().Msgf("Not registering machine %v with real local SID %v, as it already exists as %v, using generated SID %v instead", cinfo.Machine.Name, cinfo.Machine.LocalSID, dupe.OneAttr(engine.SAMAccountName), localsid)
-	// }
+	ao.ReindexObject(computerobject) // We changed stuff after adding it
 
 	// Add local accounts as synthetic objects
 	userscontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Users"))
+	ao.Add(userscontainer)
 	userscontainer.ChildOf(computerobject)
 	for _, user := range cinfo.Users {
 		uac := 512
@@ -96,7 +97,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if user.NoChangePassword {
 			uac += 0x10000
 		}
-		if usid, err := windowssecurity.SIDFromString(user.SID); err == nil {
+		usid, err := windowssecurity.SIDFromString(user.SID)
+		if err == nil {
+			if localsid != originalsid && usid.StripRID() == originalsid {
+				// Replace SID
+				usid = localsid.AddComponent(usid.RID())
+			}
 			user, found := ao.FindOrAdd(
 				engine.ObjectSid, engine.AttributeValueSID(usid),
 				engine.ObjectCategorySimple, engine.AttributeValueString("Person"),
@@ -113,17 +119,24 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			if !found {
 				user.ChildOf(userscontainer)
 			} else {
-				log.Debug().Msgf("Duplicate local user %v", user.String(ao))
+				log.Debug().Msgf("Duplicate local user %v with SID %v", user.Label(), usid.String())
 			}
+		} else {
+			log.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
 		}
 	}
 
 	// Iterate over Groups
 	groupscontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Groups"))
+	ao.Add(groupscontainer)
 	groupscontainer.ChildOf(computerobject)
 	for _, group := range cinfo.Groups {
 
 		groupsid, err := windowssecurity.SIDFromString(group.SID)
+		if localsid != originalsid && groupsid.StripRID() == originalsid {
+			// Replace SID
+			groupsid = localsid.AddComponent(groupsid.RID())
+		}
 
 		if err != nil && group.Name != "SMS Admins" {
 			log.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
@@ -148,6 +161,11 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 			if membersid.Component(2) != 21 {
 				continue // Not a local or domain SID, skip it
+			}
+
+			if localsid != originalsid && membersid.StripRID() == originalsid {
+				// Replace SID
+				membersid = localsid.AddComponent(membersid.RID())
 			}
 
 			var memberobject *engine.Object
@@ -198,6 +216,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a local or domain SID, skip it
 		}
+
+		if localsid != originalsid && usersid.StripRID() == originalsid {
+			// Replace SID
+			usersid = localsid.AddComponent(usersid.RID())
+		}
+
 		user, _ := ao.FindOrAdd(
 			engine.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
@@ -214,6 +238,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
+
+		if localsid != originalsid && usersid.StripRID() == originalsid {
+			// Replace SID
+			usersid = localsid.AddComponent(usersid.RID())
+		}
+
 		user, _ := ao.FindOrAdd(
 			engine.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
@@ -230,6 +260,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
+
+		if localsid != originalsid && usersid.StripRID() == originalsid {
+			// Replace SID
+			usersid = localsid.AddComponent(usersid.RID())
+		}
+
 		user, _ := ao.FindOrAdd(
 			engine.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
@@ -246,6 +282,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		user, _ := ao.FindOrAdd(
 			engine.NetbiosDomain, engine.AttributeValueString(cinfo.Machine.DefaultDomain),
 			engine.SAMAccountName, engine.AttributeValueString(cinfo.Machine.DefaultUsername),
+			engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.DefaultDomain+"\\"+cinfo.Machine.DefaultUsername),
 			engine.ObjectCategorySimple, engine.AttributeValueString("Person"),
 		)
 		computerobject.Pwns(user, PwnHasAutoAdminLogonCredentials)
@@ -253,6 +290,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 	// SERVICES
 	servicescontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Services"))
+	ao.Add(servicescontainer)
 	servicescontainer.ChildOf(computerobject)
 
 	for _, service := range cinfo.Services {
@@ -265,6 +303,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		computerobject.Pwns(serviceobject, PwnHosts)
 
 		if serviceaccountSID, err := windowssecurity.SIDFromString(service.AccountSID); err == nil && serviceaccountSID.Component(2) == 21 {
+
+			if localsid != originalsid && serviceaccountSID.StripRID() == originalsid {
+				// Replace SID
+				serviceaccountSID = localsid.AddComponent(serviceaccountSID.RID())
+			}
+
 			nameparts := strings.Split(service.Account, "\\")
 			if len(nameparts) == 2 && nameparts[0] != cinfo.Machine.Domain { // FIXME - NETBIOS NAMES ARE KILLIG US
 				svcaccount, _ := ao.FindOrAdd(
@@ -281,9 +325,16 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		// Change service executable via registry
 		if sd, err := engine.ParseACL(service.RegistryDACL); err == nil {
 			for _, entry := range sd.Entries {
-				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
+				entrysid := entry.SID
+				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entrysid.Component(2) == 21 {
+
+					if localsid != originalsid && entrysid.StripRID() == originalsid {
+						// Replace SID
+						entrysid = localsid.AddComponent(entrysid.RID())
+					}
+
 					o, _ := ao.FindOrAdd(
-						engine.ObjectSid, engine.AttributeValueSID(entry.SID),
+						engine.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
 
 					if entry.Mask&engine.KEY_SET_VALUE != engine.KEY_SET_VALUE {
@@ -308,6 +359,11 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		serviceimageobject.ChildOf(serviceobject)
 
 		if ownersid, err := windowssecurity.SIDFromString(service.ImageExecutableOwner); err == nil {
+			if localsid != originalsid && ownersid.StripRID() == originalsid {
+				// Replace SID
+				ownersid = localsid.AddComponent(ownersid.RID())
+			}
+
 			owner, _ := ao.FindOrAdd(
 				engine.ObjectSid, engine.AttributeValueSID(ownersid),
 			)
@@ -316,9 +372,15 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
 			for _, entry := range sd.Entries {
-				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entry.SID.Component(2) == 21 {
+				entrysid := entry.SID
+				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entrysid.Component(2) == 21 {
+					if localsid != originalsid && entrysid.StripRID() == originalsid {
+						// Replace SID
+						entrysid = localsid.AddComponent(entrysid.RID())
+					}
+
 					o, _ := ao.FindOrAdd(
-						engine.ObjectSid, engine.AttributeValueSID(entry.SID),
+						engine.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
 					if entry.Mask&engine.FILE_WRITE_DATA != engine.FILE_WRITE_DATA {
 						o.Pwns(serviceimageobject, PwnFileWrite)

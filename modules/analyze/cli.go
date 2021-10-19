@@ -5,13 +5,10 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
-	"strings"
-	"time"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -39,71 +36,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	var statarray []string
-	for stat, count := range objs.Statistics() {
-		if stat == 0 {
-			continue
-		}
-		statarray = append(statarray, fmt.Sprintf("%v: %v", engine.ObjectType(stat).String(), count))
-	}
-	log.Info().Msg(strings.Join(statarray, ", "))
-
-	// Do preprocessing
-	prebar := progressbar.NewOptions(int(len(objs.Slice())),
-		progressbar.OptionSetDescription("Preprocessing  ..."),
-		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
-
-	engine.Process(objs, func(cur, max int) {
-		prebar.ChangeMax(max)
-		prebar.Set(cur)
-	}, 0, 49)
-	prebar.Finish()
-
-	// Analyze Pwn relationships
-	pwnbar := progressbar.NewOptions(int(len(objs.Slice())),
-		progressbar.OptionSetDescription("Analyzing pwns ..."),
-		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
-	engine.Analyze(objs, func(cur, max int) {
-		if max >= 0 {
-			pwnbar.ChangeMax(max)
-		}
-		if cur > 0 {
-			pwnbar.Set(cur)
-		} else {
-			pwnbar.Add(-cur)
-		}
-	})
-	pwnbar.Finish()
-
-	// Do post-processing
-	postbar := progressbar.NewOptions(int(len(objs.Slice())),
-		progressbar.OptionSetDescription("Postprocessing ..."),
-		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
-	engine.Process(objs, func(cur, max int) {
-		postbar.ChangeMax(max)
-		postbar.Set(cur)
-	}, 50, 9999999)
-	postbar.Finish()
-
-	// Show debug counters
-	var pwnarray []string
-	for pwn, count := range engine.PwnPopularity {
-		if count == 0 {
-			continue
-		}
-		pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", engine.PwnMethod(pwn).String(), count))
-	}
-	log.Debug().Msg(strings.Join(pwnarray, ", "))
 
 	/*
 		switch command {

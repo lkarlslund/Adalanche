@@ -13,7 +13,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/pierrec/lz4/v4"
 	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -22,12 +21,8 @@ var (
 
 	adsource = engine.AttributeValueString("Active Directory loader")
 
-	myloader ADLoader
+	Loader = engine.AddLoader(&ADLoader{})
 )
-
-func init() {
-	engine.AddLoader(&myloader)
-}
 
 type ADLoader struct {
 	importall bool
@@ -86,7 +81,7 @@ func (ld *ADLoader) Init(ao *engine.Objects) error {
 	return nil
 }
 
-func (ld *ADLoader) Load(path string, pb *progressbar.ProgressBar) error {
+func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, ".objects.msgp.lz4") {
 		return engine.UninterestedError
 	}
@@ -116,7 +111,7 @@ func (ld *ADLoader) Load(path string, pb *progressbar.ProgressBar) error {
 	divestimator := int64(1024) // 1kb ~ one object to load
 
 	// We're approximating object count, by adding some stuff to max and then reporting on that
-	pb.ChangeMax64(pb.GetMax64() + cachestat.Size()/divestimator)
+	cb(0, int(-cachestat.Size()/divestimator))
 
 	// Load all the stuff
 	var lastpos int64
@@ -126,7 +121,7 @@ func (ld *ADLoader) Load(path string, pb *progressbar.ProgressBar) error {
 		iteration++
 		if iteration%1000 == 0 {
 			pos, _ := cachefile.Seek(0, io.SeekCurrent)
-			pb.Add64((pos - lastpos) / divestimator) // Rounding errors, FIXME
+			cb(int(-(pos-lastpos)/divestimator), 0) // Rounding errors, FIXME
 			lastpos = pos
 		}
 

@@ -6,18 +6,24 @@ import (
 )
 
 func init() {
-	engine.AddPostprocessor(func(ao *engine.Objects) {
+	engine.PostProcessing.AddProcessor(func(ao *engine.Objects) {
+		var warns int
 		for _, o := range ao.Slice() {
 			if o.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString(myloader.Name())) {
 				if o.HasAttr(engine.ObjectSid) {
-					if len(o.CanPwn) == 0 {
-						log.Warn().Msgf("Object from JSON files can't reach anything: %v", o.Label())
+					if len(o.CanPwn) == 0 && len(o.PwnableBy) == 0 {
+						log.Debug().Msgf("Object has no graph connections: %v", o.Label())
 					}
-					// if o.Attr(engine.MetaDataSource).Len() < 2 {
-					// 	log.Warn().Msgf("Unjoined object %v", o.Label())
-					// }
+					warns++
+					if warns > 500 {
+						log.Debug().Msg("Stopping warnings about graph connections, too much output")
+						break
+					}
 				}
 			}
 		}
-	}, "Detecting broken links")
+	},
+		"Detecting broken links",
+		99,
+	)
 }

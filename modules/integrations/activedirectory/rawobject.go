@@ -65,7 +65,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
-		case engine.AttributeSecurityGUID, engine.SchemaIDGUID:
+		case engine.AttributeSecurityGUID, engine.SchemaIDGUID, engine.MSDSConsistencyGUID:
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				guid = util.SwapUUIDEndianess(guid)

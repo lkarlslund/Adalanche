@@ -10,18 +10,13 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 )
 
 var (
 	gposource = engine.AttributeValueString("Active Directory GPO loader")
 
-	gpoloader GPOLoader
+	gpoloaderid = engine.AddLoader(&GPOLoader{})
 )
-
-func init() {
-	engine.RegisterLoader(&gpoloader)
-}
 
 type GPOLoader struct {
 	ao *engine.Objects
@@ -72,7 +67,7 @@ func (ld *GPOLoader) Init(ao *engine.Objects) error {
 	return nil
 }
 
-func (ld *GPOLoader) Load(path string, pb *progressbar.ProgressBar) error {
+func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, ".gpodata.json") {
 		return engine.UninterestedError
 	}

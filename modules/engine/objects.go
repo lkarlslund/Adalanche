@@ -113,6 +113,12 @@ func (os *Objects) Reindex() {
 	}
 }
 
+func (os *Objects) ReindexObject(o *Object) {
+	os.lock()
+	os.updateIndex(o, true)
+	os.unlock()
+}
+
 func (os *Objects) updateIndex(o *Object, warn bool) {
 	for attribute := range os.index {
 		value := o.OneAttr(attribute)
@@ -266,7 +272,7 @@ func (os *Objects) find(attribute Attribute, value AttributeValue) (o *Object, f
 	return result, found
 }
 
-func (os *Objects) Parent(o *Object) (*Object, bool) {
+func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
 	var dn = o.DN()
 	for {
 		firstcomma := strings.Index(dn, ",")
@@ -283,6 +289,13 @@ func (os *Objects) Parent(o *Object) (*Object, bool) {
 		dn = dn[firstcomma+1:]
 		break
 	}
+
+	// Use object chaining if possible
+	directparent := o.Parent()
+	if directparent != nil && directparent.OneAttrString(DistinguishedName) == dn {
+		return directparent, true
+	}
+
 	return os.Find(DistinguishedName, AttributeValueString(dn))
 }
 
@@ -313,7 +326,7 @@ func (os *Objects) FindOrAddSID(s windowssecurity.SID) *Object {
 	o = NewObject(
 		ObjectSid, AttributeValueSID(s),
 	)
-	log.Debug().Msgf("Auto-adding unknown SID %v", s)
+	log.Trace().Msgf("Auto-adding unknown SID %v", s)
 	os.addmerge(nil, o)
 	return o
 }

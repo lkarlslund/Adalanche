@@ -7,19 +7,21 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var pwnAnalyzers []PwnAnalyzer
+var (
+	pwnAnalyzers = map[LoaderID][]PwnAnalyzer{}
+)
 
-func AddAnalyzers(pa ...PwnAnalyzer) {
-	pwnAnalyzers = append(pwnAnalyzers, pa...)
+func (l LoaderID) AddAnalyzers(pa ...PwnAnalyzer) {
+	pwnAnalyzers[l] = append(pwnAnalyzers[l], pa...)
 }
 
-func Analyze(ao *Objects, cb ProgressCallbackFunc) {
+func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
 	objectslice := ao.Slice()
 	max := len(objectslice) * len(pwnAnalyzers)
 	div := max / 1000
 	cb(0, max)
 
-	timings := make([]time.Time, len(pwnAnalyzers))
+	timings := make([]time.Time, len(pwnAnalyzers[l]))
 
 	SetThreadsafe(true)
 	ao.SetThreadsafe(true)
@@ -27,7 +29,7 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc) {
 	starttime := time.Now()
 	var wait sync.WaitGroup
 
-	for i, an := range pwnAnalyzers {
+	for i, an := range pwnAnalyzers[l] {
 		wait.Add(1)
 		go func(li int, lan PwnAnalyzer) {
 			cur := 0
@@ -50,8 +52,8 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc) {
 	SetThreadsafe(false)
 	ao.SetThreadsafe(false)
 
-	for i, _ := range pwnAnalyzers {
-		log.Info().Msgf("Elapsed %vms for analysis %v", timings[i].Sub(starttime).Milliseconds(), pwnAnalyzers[i].Description)
+	for i, _ := range pwnAnalyzers[l] {
+		log.Info().Msgf("Elapsed %vms for analysis %v", timings[i].Sub(starttime).Milliseconds(), pwnAnalyzers[l][i].Description)
 	}
 	log.Info().Msgf("Total elapsed %vms for analysis", endtime.Sub(starttime).Milliseconds())
 }
@@ -66,23 +68,26 @@ type ppfInfo struct {
 	description string
 	pf          ProcessorFunc
 	priority    ProcessPriority
+	loader      LoaderID
 }
 
 var registeredProcessors []ppfInfo
 
-func AddProcessor(pf ProcessorFunc, description string, priority ProcessPriority) {
+func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority ProcessPriority) {
 	registeredProcessors = append(registeredProcessors, ppfInfo{
+		loader:      l,
 		description: description,
 		pf:          pf,
 		priority:    priority,
 	})
 }
 
-func Process(ao *Objects, cb ProgressCallbackFunc, from, to ProcessPriority) {
+func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID) error {
 	for _, processor := range registeredProcessors {
-		if processor.priority <= from && processor.priority >= to {
+		if processor.loader == l {
 			log.Info().Msgf("Preprocessing %v ...", processor.description)
 			processor.pf(ao)
 		}
 	}
+	return nil // FIXME
 }

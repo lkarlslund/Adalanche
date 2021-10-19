@@ -133,6 +133,9 @@ func ParseACL(data []byte) (ACL, error) {
 		var err error
 		var ace ACE
 		ace, acledata, err = ParseACLentry(acledata)
+		if ace.Type == ACETYPE_ACCESS_DENIED || ace.Type == ACETYPE_ACCESS_DENIED_OBJECT {
+			acl.containsdeny = true
+		}
 		if err != nil {
 			return acl, err
 		}
@@ -190,20 +193,22 @@ func ParseACLentry(data []byte) (ACE, []byte, error) {
 
 func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uuid.UUID, ao *Objects) bool {
 	if a.Entries[index].checkObjectClass(true, o, mask, g, ao) {
-		// See if a prior one denies it
-		for i := 0; i < index; i++ {
-			// Check SID first, this is very fast, then do detailed check later
-			if a.Entries[index].SID == a.Entries[i].SID && a.Entries[i].checkObjectClass(false, o, mask, g, ao) {
-				if a.Entries[i].ObjectType != NullGUID {
-					if g == NullGUID {
-						// We tested for all properties / extended rights, but the DENY blocks some of these
-						// log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
-						return false
-					}
-					if a.Entries[i].ObjectType == g {
-						// The DENY is specific to attributes / extended rights etc. so it only blocks if the requested is the same
-						// log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
-						return false
+		if a.containsdeny {
+			// See if a prior one denies it
+			for i := 0; i < index; i++ {
+				// Check SID first, this is very fast, then do detailed check later
+				if a.Entries[index].SID == a.Entries[i].SID && a.Entries[i].checkObjectClass(false, o, mask, g, ao) {
+					if a.Entries[i].ObjectType != NullGUID {
+						if g == NullGUID {
+							// We tested for all properties / extended rights, but the DENY blocks some of these
+							// log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
+							return false
+						}
+						if a.Entries[i].ObjectType == g {
+							// The DENY is specific to attributes / extended rights etc. so it only blocks if the requested is the same
+							// log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
+							return false
+						}
 					}
 				}
 			}
@@ -432,7 +437,8 @@ type SecurityDescriptor struct {
 }
 
 type ACL struct {
-	Revision byte
+	Revision     byte
+	containsdeny bool
 	// Type     uint16
 	// Flags    uint16
 	Entries []ACE

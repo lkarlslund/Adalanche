@@ -79,6 +79,7 @@ var (
 	TrustPartner               = NewAttribute("trustPartner")
 	DsHeuristics               = NewAttribute("dsHeuristics")
 	AttributeSecurityGUID      = NewAttribute("attributeSecurityGUID")
+	MSDSConsistencyGUID        = NewAttribute("mS-DS-ConsistencyGuid")
 	RightsGUID                 = NewAttribute("rightsGUID")
 	GPLink                     = NewAttribute("gPLink")
 	GPOptions                  = NewAttribute("gPOptions")

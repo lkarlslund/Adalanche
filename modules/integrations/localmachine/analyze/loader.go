@@ -11,24 +11,23 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/mailru/easyjson"
 	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 )
 
 var (
-	myloader    CollectorLoader
-	dscollector = engine.AttributeValueString(myloader.Name())
+	myloader CollectorLoader
+	// dscollector = engine.AttributeValueString(myloader.Name())
 )
 
 func init() {
-	engine.RegisterLoader(&myloader)
+	engine.AddLoader(&myloader)
 }
 
 type CollectorLoader struct {
 	ao *engine.Objects
 
-	infostoadd   chan string // filename
-	infoaddmutex sync.Mutex
-	done         sync.WaitGroup
+	infostoadd chan string // filename
+	// infoaddmutex sync.Mutex
+	done sync.WaitGroup
 }
 
 func (ld *CollectorLoader) Name() string {
@@ -113,7 +112,7 @@ func (ld *CollectorLoader) Close() error {
 	return nil
 }
 
-func (ld *CollectorLoader) Load(path string, pb *progressbar.ProgressBar) error {
+func (ld *CollectorLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
 		return engine.UninterestedError
 	}

@@ -66,7 +66,7 @@ var (
 var warnedgpos = make(map[string]struct{})
 
 func init() {
-	engine.AddAnalyzers(
+	Loader.AddAnalyzers(
 
 		// It's a Unicorn, dang ...
 		// engine.PwnAnalyzer{
@@ -108,7 +108,7 @@ func init() {
 					}
 					if !foundparent {
 						// Fall back to old slow method of looking at DNs
-						p, hasparent = ao.Parent(p)
+						p, hasparent = ao.DistinguishedParent(p)
 						if !hasparent {
 							break
 						}
@@ -152,8 +152,6 @@ func init() {
 							}
 						}
 						p.Set(GPLinkCache, gpcachelinks)
-					} else {
-						log.Debug().Msg("Its working")
 					}
 
 					// cached or generated - pairwise pointer to gpo object and int
@@ -190,7 +188,7 @@ func init() {
 					return
 				}
 				// Only for computers, you can't really pwn users this way
-				p, hasparent := ao.Parent(o)
+				p, hasparent := ao.DistinguishedParent(o)
 				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
 					if strings.Contains(p.DN(), "Policies") {
 						log.Debug().Msgf("%v+", p)
@@ -208,7 +206,7 @@ func init() {
 					return
 				}
 				// Only for users, you can't really pwn users this way
-				p, hasparent := ao.Parent(o)
+				p, hasparent := ao.DistinguishedParent(o)
 				if o.Type() != engine.ObjectTypeContainer || !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
 					return
 				}
@@ -312,7 +310,7 @@ func init() {
 			Description: "Permissions that lets someone to delete any kind of object in a container (via the DS_DELETE_CHILD permission)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// If parent has DELETE CHILD, I can be deleted by some SID
-				if parent, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(o.ParentDN())); found {
+				if parent, found := ao.DistinguishedParent(o); found {
 					sd, err := parent.SecurityDescriptor()
 					if err != nil {
 						return
@@ -330,12 +328,7 @@ func init() {
 			Description: "Indicator that object inherits security from the container it is within",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
-					pdn := o.ParentDN()
-					if pdn == o.DN() {
-						// just to make sure we dont loop eternally by being stupid somehow
-						return
-					}
-					if parentobject, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(pdn)); found {
+					if parentobject, found := ao.DistinguishedParent(o); found {
 						parentobject.Pwns(o, activedirectory.PwnInheritsSecurity)
 					}
 				}
@@ -849,7 +842,7 @@ func init() {
 		},
 	)
 
-	engine.AddProcessor(func(ao *engine.Objects) {
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
 		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
@@ -866,13 +859,13 @@ func init() {
 					excluded_mask = strings.Index("0123456789ABCDEF", string(excluded[15]))
 				}
 			}
-			engine.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
+			Loader.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
 		}
 	},
 		"configuration of AdminSDHolder analyzer",
 		0)
 
-	engine.AddProcessor(func(ao *engine.Objects) {
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Add our known SIDs if they're missing
 		for sid, name := range windowssecurity.KnownSIDs {
 			binsid, err := windowssecurity.SIDFromString(sid)
@@ -896,7 +889,7 @@ func init() {
 		0,
 	)
 
-	engine.AddProcessor(func(ao *engine.Objects) {
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Generate member of chains
 		processbar := progressbar.NewOptions(int(len(ao.Slice())),
 			progressbar.OptionSetDescription("Processing objects..."),
@@ -1072,7 +1065,7 @@ func init() {
 					switch object.OneAttrString(engine.Name) {
 					case "ms-Mcs-AdmPwd":
 						log.Info().Msg("Detected LAPS schema extension, adding extra analyzer")
-						engine.AddAnalyzers(engine.PwnAnalyzer{
+						Loader.AddAnalyzers(engine.PwnAnalyzer{
 							// Method: activedirectory.PwnReadLAPSPassword,
 							Description: "Reading local admin passwords via LAPS",
 							ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -1110,7 +1103,7 @@ func init() {
 		"Active Directory objects and metadata",
 		0)
 
-	engine.AddProcessor(func(ao *engine.Objects) {
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
 				for _, member := range object.Members(true) {
@@ -1123,7 +1116,7 @@ func init() {
 		0,
 	)
 
-	engine.AddProcessor(func(ao *engine.Objects) {
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
 		if !found {
 			log.Fatal().Msg("Could not find Creator Owner Well Known SID !?!? I perish at the thought")
