@@ -12,25 +12,27 @@ func Merge(aos []*Objects) (*Objects, error) {
 			biggest = i
 		}
 	}
+	log.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
 
 	globalobjects := aos[biggest]
+
+	log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
+
 	globalobjects.Reindex()
 
-	globalroot := NewObject(
-		Name, AttributeValueString("adalanche root node"),
-		ObjectCategorySimple, AttributeValueString("Root"),
-	)
-	globalobjects.Add(globalroot)
-	globalobjects.SetRoot(globalroot)
+	globalroot := globalobjects.Root()
+	if globalroot == nil {
+		globalroot = NewObject(
+			Name, AttributeValueString("adalanche root node"),
+			ObjectCategorySimple, AttributeValueString("Root"),
+		)
+		globalobjects.Add(globalroot)
+		globalobjects.SetRoot(globalroot)
+	}
 
 	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
-
-	globalroot.Adopt(aos[biggest].Root())
-	for _, object := range aos[biggest].Slice() {
-		globalobjects.Add(object)
-	}
 
 	for i, mergeobjects := range aos {
 		if i == biggest {
