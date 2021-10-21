@@ -101,6 +101,8 @@ type Connection struct {
 	Target *Object
 }
 
+var IgnoreBlanks = "_IGNOREBLANKS_"
+
 func NewObject(flexinit ...interface{}) *Object {
 	var result Object
 	result.init()
@@ -262,6 +264,7 @@ func (o *Object) Label() string {
 		o.OneAttrString(LDAPDisplayName),
 		o.OneAttrString(DisplayName),
 		o.OneAttrString(Name),
+		o.OneAttrString(DownLevelLogonName),
 		o.OneAttrString(SAMAccountName),
 		o.OneAttrString(Description),
 		o.OneAttrString(DistinguishedName),
@@ -409,7 +412,6 @@ func (o *Object) OneAttrString(attr Attribute) string {
 		return a.Slice()[0].String()
 	}
 	log.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
-	log.Info().Msg(o.String(nil))
 	return ""
 }
 
@@ -524,39 +526,63 @@ func (o *Object) SetAttr(a Attribute, values ...AttributeValue) {
 }
 
 func (o *Object) Set(flexinit ...interface{}) {
+	var ignoreblanks bool
+
 	o.lock()
 	defer o.unlock()
 
 	var attribute Attribute
-	var data AttributeValueSlice
+	data := make(AttributeValueSlice, 0, 1)
 	for _, i := range flexinit {
+		if i == IgnoreBlanks {
+			ignoreblanks = true
+			continue
+		}
 		switch v := i.(type) {
 		case Attribute:
-			if attribute != 0 && len(data) > 0 {
+			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
 				o.set(attribute, data)
 			}
-			data = AttributeValueSlice{}
+			data = make(AttributeValueSlice, 0, 1)
 			attribute = v
 		case AttributeValue:
+			if v == nil {
+				panic("This is impossble")
+			}
+			if v.String() == "" && ignoreblanks {
+				continue
+			}
 			data = append(data, v)
 		case AttributeValueSlice:
-			data = append(data, v.Slice()...)
+			for _, value := range v.Slice() {
+				if value == nil {
+					panic("Inserting NIL is not supported")
+				}
+				if ignoreblanks && value.String() == "" {
+					continue
+				}
+				data = append(data, value)
+			}
 		case NoValues:
 			// Ignore it
 		default:
 			panic("Invalid type in object declaration")
 		}
 	}
-	if attribute != 0 {
-		if len(data) > 0 {
-			o.set(attribute, data)
-		} else {
-			o.set(attribute, NoValues{})
-		}
+	if attribute != 0 && (!ignoreblanks || len(data) > 0) {
+		o.set(attribute, data)
 	}
 }
 
 func (o *Object) set(a Attribute, values AttributeValues) {
+	if a == DownLevelLogonName {
+		if values.Len() != 1 {
+			panic("Only one!")
+		}
+		if strings.HasSuffix(values.StringSlice()[0], "\\") {
+			panic("DownLevelLogon ends with \\")
+		}
+	}
 	if a == NTSecurityDescriptor {
 		for _, sd := range values.Slice() {
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {

@@ -111,7 +111,6 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 				engine.UserAccountControl, engine.AttributeValueInt(uac),
 				engine.PwdLastSet, engine.AttributeValueTime(user.PasswordLastSet),
 				engine.LastLogon, engine.AttributeValueTime(user.LastLogon),
-				// engine.SAMAccountName, engine.AttributeValueString(user.Name), // Clashes with AD, and needs a redesign when handling multiple domains FIXME
 				engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Name+"\\"+user.Name),
 				engine.BadPwdCount, engine.AttributeValueInt(user.BadPasswordCount),
 				engine.LogonCount, engine.AttributeValueInt(user.NumberOfLogins),
@@ -161,6 +160,16 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 			if membersid.Component(2) != 21 {
 				continue // Not a local or domain SID, skip it
+			}
+
+			if membersid.Components() != 7 {
+				log.Warn().Msgf("Malformed SID from collector: %v", membersid.String())
+				continue
+			}
+
+			if strings.HasSuffix(member.Name, "\\") {
+				log.Warn().Msgf("Malformed name from collector: %v", member.Name)
+				continue
 			}
 
 			if localsid != originalsid && membersid.StripRID() == originalsid {

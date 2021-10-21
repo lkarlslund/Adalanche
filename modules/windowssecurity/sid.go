@@ -115,6 +115,10 @@ func (sid *SID) UnmarshalJSON(data []byte) error {
 	return err
 }
 
+func (sid SID) Components() int {
+	return len(sid) / 4
+}
+
 func (sid SID) Component(n int) uint64 {
 	switch n {
 	case 0:

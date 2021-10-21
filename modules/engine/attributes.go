@@ -95,6 +95,7 @@ var (
 
 	MetaDataSource = NewAttribute("_datasource")
 
+	IPAddress          = NewAttribute("IPAddress")
 	DownLevelLogonName = NewAttribute("DownLevelLogonName")
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 

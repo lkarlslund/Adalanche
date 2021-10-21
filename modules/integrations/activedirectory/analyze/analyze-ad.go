@@ -3,6 +3,7 @@ package analyze
 import (
 	"encoding/binary"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -842,6 +843,77 @@ func init() {
 		},
 	)
 
+	type domaininfo struct {
+		suffix string
+		name   string
+	}
+	var domains []domaininfo
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Ensure everyone has a family
+		for _, o := range ao.Slice() {
+
+			if o.Type() == engine.ObjectTypeDomainDNS {
+				// Store domain -> netbios name in array for later
+				dn := o.DN()
+				if len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
+					domains = append(domains, domaininfo{
+						suffix: dn,
+						name:   strings.ToUpper(o.OneAttrString(engine.Name)),
+					})
+				}
+			}
+
+			if o.Parent() != nil {
+				continue
+			}
+
+			if o == ao.Root() {
+				continue
+			}
+
+			if parent, found := ao.DistinguishedParent(o); found {
+				o.ChildOf(parent)
+			} else {
+				dn := o.DN()
+				if o.Type() == engine.ObjectTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
+					// Top of some AD we think, hook to top of browsable tree
+					o.ChildOf(ao.Root())
+					continue
+				}
+				log.Debug().Msgf("AD object %v has no parent :-(", o.DN())
+			}
+		}
+	},
+		"applying parent/child relationships",
+		0)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Sort the domains so we match on longest first
+		sort.Slice(domains, func(i, j int) bool {
+			// Less is More - so we sort in reverse order
+			return len(domains[i].suffix) > len(domains[j].suffix)
+		})
+
+		// Apply DownLevelLogonName to relevant objects
+		for _, o := range ao.Slice() {
+			samaccountname := o.OneAttrString(engine.SAMAccountName)
+			if samaccountname == "" {
+				continue
+			}
+			dn := o.DN()
+			for _, domaininfo := range domains {
+				if strings.HasSuffix(dn, domaininfo.suffix) {
+					o.SetAttr(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+samaccountname))
+					ao.ReindexObject(o)
+					break
+				}
+			}
+		}
+	},
+		"applying DownLevelLoginName attribute",
+		0)
+
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
 		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
@@ -915,6 +987,10 @@ func init() {
 		for _, object := range ao.Slice() {
 
 			processbar.Add(1)
+
+			if object.Type() == engine.ObjectTypeDomainDNS {
+
+			}
 
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
 			objectclasses := object.Attr(engine.ObjectClass).Slice()

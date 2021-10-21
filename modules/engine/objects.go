@@ -186,6 +186,9 @@ addloop:
 				}
 				if mergetarget, found := os.Find(mergeattr, lookfor); found {
 					// Let's merge
+					if o.HasAttrValue(MetaDataSource, AttributeValueString("VMWare Collector")) {
+						log.Debug().Msg(o.String(os))
+					}
 					mergetarget.Absorb(o)
 
 					os.updateIndex(mergetarget, false)

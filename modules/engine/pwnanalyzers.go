@@ -19,6 +19,10 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
 	objectslice := ao.Slice()
 	max := len(objectslice) * len(pwnAnalyzers)
 	div := max / 1000
+	if div == 0 {
+		// Division by Zero, no thanks
+		div = 1
+	}
 	cb(0, max)
 
 	timings := make([]time.Time, len(pwnAnalyzers[l]))
