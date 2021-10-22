@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gobwas/glob"
+	"github.com/gobwas/glob/util/runes"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/util"
 	timespan "github.com/lkarlslund/time-timespan"
@@ -83,11 +84,16 @@ func ParseQueryStrict(s string, ao *engine.Objects) (Query, error) {
 }
 
 func ParseQuery(s string, ao *engine.Objects) (string, Query, error) {
+	qs, q, err := parseRuneQuery([]rune(s), ao)
+	return string(qs), q, err
+}
+
+func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 	if len(s) < 5 {
-		return "", nil, errors.New("Query string too short")
+		return nil, nil, errors.New("Query string too short")
 	}
-	if !strings.HasPrefix(s, "(") || !strings.HasSuffix(s, ")") {
-		return "", nil, errors.New("Query must start with ( and end with )")
+	if !runes.HasPrefix(s, []rune("(")) || !runes.HasSuffix(s, []rune(")")) {
+		return nil, nil, errors.New("Query must start with ( and end with )")
 	}
 	// Strip (
 	s = s[1:]
@@ -96,33 +102,33 @@ func ParseQuery(s string, ao *engine.Objects) (string, Query, error) {
 	var err error
 	switch s[0] {
 	case '(': // double wrapped query?
-		s, query, err = ParseQuery(s, ao)
+		s, query, err = parseRuneQuery(s, ao)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 		if len(s) == 0 {
-			return "", nil, errors.New("Missing closing ) in query")
+			return nil, nil, errors.New("Missing closing ) in query")
 		}
 		// Strip )
 		return s[1:], query, nil
 	case '&':
-		s, subqueries, err = parsemultiplequeries(s[1:], ao)
+		s, subqueries, err = parseMultipleRuneQueries(s[1:], ao)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 		// Strip )
 		return s[1:], andquery{subqueries}, nil
 	case '|':
-		s, subqueries, err = parsemultiplequeries(s[1:], ao)
+		s, subqueries, err = parseMultipleRuneQueries(s[1:], ao)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 		// Strip )
 		return s[1:], orquery{subqueries}, nil
 	case '!':
-		s, query, err = ParseQuery(s[1:], ao)
+		s, query, err = parseRuneQuery(s[1:], ao)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 		return s[1:], notquery{query}, err
 	}
@@ -135,7 +141,7 @@ func ParseQuery(s string, ao *engine.Objects) (string, Query, error) {
 attributeloop:
 	for {
 		if len(s) == 0 {
-			return "", nil, errors.New("Incompete query attribute name detected")
+			return nil, nil, errors.New("Incompete query attribute name detected")
 		}
 		switch s[0] {
 		case '\\': // Escaping
@@ -143,15 +149,15 @@ attributeloop:
 			s = s[2:] // yum yum
 		case ':':
 			// Modifier
-			nextcolon := strings.Index(s[1:], ":")
+			nextcolon := runes.Index(s[1:], []rune(":"))
 			if nextcolon == -1 {
-				return "", nil, errors.New("Incompete query string detected (only one colon modifier)")
+				return nil, nil, errors.New("Incompete query string detected (only one colon modifier)")
 			}
-			modifier = s[1 : nextcolon+1]
+			modifier = string(s[1 : nextcolon+1])
 			s = s[nextcolon+2:]
 			break attributeloop
 		case ')':
-			return "", nil, errors.New("Unexpected closing parantesis")
+			return nil, nil, errors.New("Unexpected closing parantesis")
 		case '~', '=', '<', '>':
 			break attributeloop
 		default:
@@ -164,7 +170,7 @@ attributeloop:
 	comparatorstring := string(s[0])
 	if s[0] == '~' {
 		if s[1] != '=' {
-			return "", nil, errors.New("Tilde operator MUST be followed by EQUALS")
+			return nil, nil, errors.New("Tilde operator MUST be followed by EQUALS")
 		}
 		// Microsoft LDAP does not distinguish between ~= and =, so we don't care either
 		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/0bb88bda-ed8d-4af7-9f7b-813291772990
@@ -194,7 +200,7 @@ attributeloop:
 valueloop:
 	for {
 		if len(s) == 0 {
-			return "", nil, errors.New("Incomplete query value detected")
+			return nil, nil, errors.New("Incomplete query value detected")
 		}
 		switch s[0] {
 		case '\\': // Escaping
@@ -218,12 +224,12 @@ valueloop:
 		switch attributename {
 		case "_limit":
 			if numok != nil {
-				return "", nil, errors.New("Could not convert value to integer for limit limiter")
+				return nil, nil, errors.New("Could not convert value to integer for limit limiter")
 			}
 			return s, &limit{valuenum}, nil
 		case "_random100":
 			if numok != nil {
-				return "", nil, errors.New("Could not convert value to integer for random100 limiter")
+				return nil, nil, errors.New("Could not convert value to integer for random100 limiter")
 			}
 			return s, &random100{comparator, valuenum}, nil
 		case "_pwnable", "_canpwn":
@@ -238,7 +244,7 @@ valueloop:
 			if pwnmethod != "" && pwnmethod != "*" {
 				method = engine.P(pwnmethod)
 				if method == engine.NonExistingPwnMethod {
-					return "", nil, fmt.Errorf("Could not convert value %v to pwn method", pwnmethod)
+					return nil, nil, fmt.Errorf("Could not convert value %v to pwn method", pwnmethod)
 				}
 			}
 			return s, pwnquery{attributename == "_canpwn", method, target}, nil
@@ -249,7 +255,7 @@ valueloop:
 
 	attribute := engine.A(attributename)
 	if attribute == 0 {
-		return "", nil, fmt.Errorf("Unknown attribute %v", attributename)
+		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
 	}
 
 	var casesensitive bool
@@ -262,12 +268,12 @@ valueloop:
 		casesensitive = true
 	case "count":
 		if numok != nil {
-			return "", nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
 		return s, countModifier{QueryAttribute(attribute), comparator, valuenum}, nil
 	case "len", "length":
 		if numok != nil {
-			return "", nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
 		return s, lengthModifier{QueryAttribute(attribute), comparator, valuenum}, nil
 	case "since":
@@ -276,26 +282,26 @@ valueloop:
 			d, err := timespan.ParseTimespan(value)
 			timeinseconds := time.Time(timespan.Time(time.Now()).Add(d)).Unix()
 			if err != nil {
-				return "", nil, errors.New("Could not parse value as a duration (5h2m)")
+				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
 			return s, sinceModifier{QueryAttribute(attribute), comparator, int64(timeinseconds)}, nil
 		}
 		return s, lengthModifier{QueryAttribute(attribute), comparator, valuenum}, nil
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
-			return "", nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
+			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
 		return s, andModifier{attribute, valuenum}, nil
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != CompareEquals {
-			return "", nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
+			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
 		return s, orModifier{attribute, valuenum}, nil
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
 		return s, recursiveDNmatcher{attribute, value, ao}, nil
 	default:
-		return "", nil, errors.New("Unknown modifier " + modifier)
+		return nil, nil, errors.New("Unknown modifier " + modifier)
 	}
 
 	// string comparison
@@ -311,7 +317,7 @@ valueloop:
 			}
 			r, err := regexp.Compile(pattern)
 			if err != nil {
-				return "", nil, err
+				return nil, nil, err
 			}
 			return s, hasRegexpMatch{QueryAttribute(attribute), r}, nil
 		}
@@ -323,7 +329,7 @@ valueloop:
 			}
 			g, err := glob.Compile(pattern)
 			if err != nil {
-				return "", nil, err
+				return nil, nil, err
 			}
 			if casesensitive {
 				return s, hasGlobMatch{QueryAttribute(attribute), g}, nil
@@ -338,25 +344,25 @@ valueloop:
 
 	// the other comparators require numeric value
 	if numok != nil {
-		return "", nil, errors.New("Could not convert value to integer for numeric comparison")
+		return nil, nil, errors.New("Could not convert value to integer for numeric comparison")
 	}
 
 	return s, numericComparator{attribute, comparator, valuenum}, nil
 }
 
-func parsemultiplequeries(s string, ao *engine.Objects) (string, []Query, error) {
+func parseMultipleRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, error) {
 	var result []Query
 	for len(s) > 0 && s[0] == '(' {
 		var query Query
 		var err error
-		s, query, err = ParseQuery(s, ao)
+		s, query, err = parseRuneQuery(s, ao)
 		if err != nil {
 			return s, nil, err
 		}
 		result = append(result, query)
 	}
 	if len(s) == 0 || s[0] != ')' {
-		return "", nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", s)
+		return nil, nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", s)
 	}
 	return s, result, nil
 }

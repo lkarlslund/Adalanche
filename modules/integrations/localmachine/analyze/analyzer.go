@@ -71,7 +71,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	// See if the machine has a unique SID
 	localsid, err := windowssecurity.SIDFromString(cinfo.Machine.LocalSID)
 	if err != nil {
-		return fmt.Errorf("Collected machine information doesn't contain valid local machine SID (%v): %v", cinfo.Machine.LocalSID, err)
+		return fmt.Errorf("Collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
 	originalsid := localsid
 	for _, found := ao.Find(LocalMachineSID, engine.AttributeValueSID(localsid)); found; {
@@ -163,13 +163,13 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			}
 
 			if membersid.Components() != 7 {
-				log.Warn().Msgf("Malformed SID from collector: %v", membersid.String())
+				log.Warn().Msgf("Malformed SID from collector: %v, skipping member entry entirely", membersid.String())
 				continue
 			}
 
 			if strings.HasSuffix(member.Name, "\\") {
-				log.Warn().Msgf("Malformed name from collector: %v", member.Name)
-				continue
+				log.Warn().Msgf("Malformed name from localmachine JSON %v: %v, only using SID", cinfo.Machine.Name, member.Name)
+				member.Name = ""
 			}
 
 			if localsid != originalsid && membersid.StripRID() == originalsid {
@@ -183,24 +183,28 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			case group.Name == "SMS Admins":
 				memberobject, found = ao.FindOrAdd(
 					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalSMSAdmins)
 			case groupsid == windowssecurity.SIDAdministrators:
 				memberobject, found = ao.FindOrAdd(
 					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalAdminRights)
 			case groupsid == windowssecurity.SIDDCOMUsers:
 				memberobject, found = ao.FindOrAdd(
 					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalDCOMRights)
 			case groupsid == windowssecurity.SIDRemoteDesktopUsers:
 				memberobject, found = ao.FindOrAdd(
 					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalRDPRights)

@@ -2,41 +2,41 @@
 <html>
 
 <head>
- <title>adalanche - Active Directory ACL Visualizer</title>
- <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
+  <title>adalanche - Active Directory ACL Visualizer</title>
+  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
 
- 
- <link rel="stylesheet" href="external/halfmoon-variables.min.css" />
- <link rel="stylesheet" href="external/spinkit.css" />
- <link rel="stylesheet" href="external/cytoscape-context-menus.css" />
- <link rel="stylesheet" href="external/jquery-ui.min.css" />
- <link rel="stylesheet" href="external/tippy.css" />
- <link rel="stylesheet" href="external/jstree/themes/default-dark/style.min.css" />
- <!-- we put everything custom here, so we can override earlier variables -->
- <link rel="stylesheet" href="adalanche.css" />
 
- <script src="external/jquery-3.6.0.min.js"></script>
- <script src="external/jquery-ui.min.js"></script>
- <script src="external/jstree/jstree.min.js"></script>
+  <link rel="stylesheet" href="external/halfmoon-variables.min.css" />
+  <link rel="stylesheet" href="external/spinkit.css" />
+  <link rel="stylesheet" href="external/cytoscape-context-menus.css" />
+  <link rel="stylesheet" href="external/jquery-ui.min.css" />
+  <link rel="stylesheet" href="external/tippy.css" />
+  <link rel="stylesheet" href="external/jstree/themes/default-dark/style.min.css" />
+  <!-- we put everything custom here, so we can override earlier variables -->
+  <link rel="stylesheet" href="adalanche.css" />
 
- <script src="external/cytoscape.min.js"></script>
- <script src="external/cytoscape-context-menus.js"></script>
- <script src="external/dagre.min.js"></script>
- <script src="external/cytoscape-dagre.js"></script>
+  <script src="external/jquery-3.6.0.min.js"></script>
+  <script src="external/jquery-ui.min.js"></script>
+  <script src="external/jstree/jstree.min.js"></script>
 
- <script src="external/d3-dispatch.v3.js"></script>
- <script src="external/d3-quadtree.v3.js"></script>
- <script src="external/d3-timer.v3.js"></script>
- <script src="external/d3-force.v3.js"></script>
- <script src="external/cytoscape-d3-force.js"></script>
+  <script src="external/cytoscape.min.js"></script>
+  <script src="external/cytoscape-context-menus.js"></script>
+  <script src="external/dagre.min.js"></script>
+  <script src="external/cytoscape-dagre.js"></script>
 
- <script src="external/layout-base.js"></script>
- <script src="external/cose-base.js"></script>
- <script src="external/cytoscape-fcose.js"></script>
- 
- <script src="preferences.js"></script>
- <script src="graph.js"></script>
- <script src="custom.js"></script>
+  <script src="external/d3-dispatch.v3.js"></script>
+  <script src="external/d3-quadtree.v3.js"></script>
+  <script src="external/d3-timer.v3.js"></script>
+  <script src="external/d3-force.v3.js"></script>
+  <script src="external/cytoscape-d3-force.js"></script>
+
+  <script src="external/layout-base.js"></script>
+  <script src="external/cose-base.js"></script>
+  <script src="external/cytoscape-fcose.js"></script>
+
+  <script src="preferences.js"></script>
+  <script src="graph.js"></script>
+  <script src="custom.js"></script>
 </head>
 
 <body class="dark-mode z-0">
@@ -45,7 +45,7 @@
   </div>
 
   <div id="cy" class="fullscreen z-10"></div>
-  
+
   <div id="overlay" class="fullscreen z-40 pointer-events-none">
     <button id="explore" class="btn btn-primary pointer-events-auto">Explore</button>
     <!-- <div id="infobar" class="float-left">
@@ -62,179 +62,228 @@
       </div>
       <div id="optionswrap" class="fw-250 accordion pointer-events-auto">
         <div id="optionscontent" class="fw-250 collapse-group bg-dark h-full overflow-y-auto">
-        <form id="optionsform">
+          <form id="optionsform">
 
-          <details class="collapse-panel">
-            <summary class="collapse-header" id="headingTwo">
-              Analysis options
-            </summary>
-            <div class="collapse-content">
-              <div class="row justify-content-between">
-                <label class="col" for="querymode_group">Direction</label>
-                <div class="col btn-group btn-group-sm checkbox-button" id="querymode_group" role="group" aria-label="Mode">
-                  <input type="radio" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
-                  <label class="btn btn-sm" for="querymode_normal">Normal</label>
-                  <input type="radio" name="mode" id="querymode_reverse" value="inverted" autocomplete="off" />
-                  <label class="btn btn-sm" for="querymode_reverse">Reverse</label>
-                </div>
-              </div>
-
-              <div class="input-group">
-                <div class="custom-switch">
-                  <input id="force" type="checkbox" name="force" autocomplete="off" preference="graph.too.much.data.force" defaultpref=false>
-                  <label class="col" for="force">Force too much data</label>
+            <details class="collapse-panel">
+              <summary class="collapse-header" id="headingTwo">
+                Analysis options
+              </summary>
+              <div class="collapse-content">
+                <div class="row justify-content-between">
+                  <label class="col" for="querymode_group">Direction</label>
+                  <div class="col btn-group btn-group-sm checkbox-button" id="querymode_group" role="group"
+                    aria-label="Mode">
+                    <input type="radio" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
+                    <label class="btn btn-sm" for="querymode_normal">Normal</label>
+                    <input type="radio" name="mode" id="querymode_reverse" value="inverted" autocomplete="off" />
+                    <label class="btn btn-sm" for="querymode_reverse">Reverse</label>
+                  </div>
                 </div>
 
-                <div class="input-group-prepend">
-                  <span class="input-group-text">Analysis depth</span>
-                </div>
-                <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99" class="form-control text-right">
-                <!-- <div class="input-group-append">
+                <div class="input-group">
+                  <div class="custom-switch">
+                    <input id="force" type="checkbox" name="force" autocomplete="off"
+                      preference="analysis.too.much.data.force" defaultpref=false>
+                    <label class="col" for="force">Force too much data</label>
+                  </div>
+
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Analysis depth</span>
+                  </div>
+                  <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99"
+                    preference="analysis.max.depth" class="form-control text-right">
+                  <!-- <div class="input-group-append">
                   <span class="input-group-text">degrees</span>
                 </div> -->
-              </div>
-
-              <div class="input-group">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">Max outgoing</span>
                 </div>
-                <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="1000" class="form-control text-right">
-                <!-- <div class="input-group-append">
+
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Max outgoing</span>
+                  </div>
+                  <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="50"
+                    preference="analysis.max.ootgoing" class="form-control text-right">
+                  <!-- <div class="input-group-append">
                   <span class="input-group-text">connections</span>
                 </div> -->
-              </div>
-
-              <div class="input-group">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">Min probability</span>
                 </div>
-                <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0" class="form-control text-right">
-                <div class="input-group-append">
-                  <span class="input-group-text">%</span>
-                </div>
-              </div>
 
-            </div>
-          </details>
-          <details class="collapse-panel">
-            <summary class="collapse-header">
-      Analysis methods
-            </summary>
-            <div class="collapse-content">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Min probability</span>
+                  </div>
+                  <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0"
+                    preference="analysis.min.probability" class="form-control text-right">
+                  <div class="input-group-append">
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
+
+              </div>
+            </details>
+            <details class="collapse-panel">
+              <summary class="collapse-header">
+                Analysis methods
+              </summary>
+              <div class="collapse-content">
                 <div id="pwnfilter">
-      Loading ...
+                  Loading ...
                 </div>
               </div>
             </details>
-          <details class="collapse-panel">
-            <summary class="collapse-header">
-      Analysis object types
-            </summary>
-            <div class="collapse-content">
+            <details class="collapse-panel">
+              <summary class="collapse-header">
+                Analysis object types
+              </summary>
+              <div class="collapse-content">
                 <div id="objecttypefilter">
-      Loading ...
+                  Loading ...
                 </div>
-              </form>
-            </div>
-          </details>
-<!-- end of data submitted on analysis -->
-          <details class="collapse-panel">
-            <summary class="collapse-header">
-      Graph style
-            </summary>
-            <div class="collapse-content">
-                <label for="graphlayout">Choose layout</label>
-                <select class="form-control" id="graphlayout" preference="graphlayout" defaultpref="fcose">
-                  <option value="fcose">FCOSE</option>
-                  <option value="d3force">D3 Force</option>
-                  <option value="cose">COSE</option>
-                  <option value="dagre">DAGRE</option>
-                  <!-- <option value="cise">CISE</option> -->
-                  <option value="random">Random</option>
-                </select>
-
-                <label for="graphlabels">Graph labels</label>
-                <select class="form-control" id="graphlabels" preference="graphlabels" defaultpref="normal">
-                  <option value="normal">Normal</option>
-                  <option value="off">Off</option>
-                  <!-- <option value="random">Random</option> -->
-                </select>
-            </div>
-          </details>
-          <details class="collapse-panel">
-            <summary class="collapse-header">
-            General options
-            </summary>
-            <div class="collapse-content">
-              <div class="input-group">
-                <div class="custom-switch">
-                  <input id="hideoptionsonanalysis" type="checkbox" name="hideoptionsonanalysis" autocomplete="off" preference="hideoptionsonanalysis" defaultpref=true>
-                  <label class="col" for="hideoptionsonanalysis">Hide options on analysis</label>
-                </div>
-                <div class="custom-switch">
-                  <input id="hidequeryonanalysis" type="checkbox" name="hidequeryonanalysis" autocomplete="off" preference="hidequeryonanalysis" defaultpref=true>
-                  <label class="col" for="hidequeryonanalysis">Hide query panel on analysis</label>
-                </div>
-
-                <div class="custom-switch">
-                  <input id="runqueryonstartup" type="checkbox" name="runqueryonstartup" autocomplete="off" preference="run.query.on.startup" defaultpref=true>
-                  <label class="col" for="runqueryonstartup">Run query on startup</label>
-                </div>
-              </div>
-            </div>
-          </details>
+          </form>
         </div>
-      </div>
-    </div>
+        </details>
+        <!-- end of data submitted on analysis -->
+        <details class="collapse-panel">
+          <summary class="collapse-header">
+            Graph style
+          </summary>
+          <div class="collapse-content">
+            <label for="graphlayout">Choose layout</label>
+            <select class="form-control" id="graphlayout" preference="graph.layout" defaultpref="fcose">
+              <option value="fcose">FCOSE</option>
+              <option value="d3force">D3 Force</option>
+              <option value="cose">COSE</option>
+              <option value="dagre">DAGRE</option>
+              <!-- <option value="cise">CISE</option> -->
+              <option value="random">Random</option>
+            </select>
 
-    <!-- Absolute stuff -->
-    <div id="about" class="pointer-events-auto">
-    adalanche - <img src="icons/twitter.svg" height="16px"> <a
-    href="https://twitter.com/lkarlslund">@lkarlslund</a>
-    </div>
+            <label for="graphlabels">Graph labels</label>
+            <select class="form-control" id="graphlabels" preference="graph.labels" defaultpref="normal">
+              <option value="normal">Normal</option>
+              <option value="off">Off</option>
+              <!-- <option value="random">Random</option> -->
+            </select>
+          </div>
+        </details>
+        <details class="collapse-panel">
+          <summary class="collapse-header">
+            General options
+          </summary>
+          <div class="collapse-content">
+            <div class="input-group">
+              <div class="custom-switch">
+                <input id="hideoptionsonanalysis" type="checkbox" name="hideoptionsonanalysis" autocomplete="off"
+                  preference="ui.hide.options.on.analysis" defaultpref=true>
+                <label class="col" for="hideoptionsonanalysis">Hide options on analysis</label>
+              </div>
+              <div class="custom-switch">
+                <input id="hidequeryonanalysis" type="checkbox" name="hidequeryonanalysis" autocomplete="off"
+                  preference="ui.hide.query.on.analysis" defaultpref=true>
+                <label class="col" for="hidequeryonanalysis">Hide query panel on analysis</label>
+              </div>
 
-    <div id="status" class="border bg-dark p-5 shadow pointer-events-auto">
-    </div>
-
-    <div id="outerquery" class="card border mr-0 mb-0 mt-0 p-0 pointer-events-auto">
-      <div id="querypop" class="text-center pl-20 pr-20">LDAP Query</div>
-      <div id="querydiv" class="p-10">
-        <form id="queryform" class="m-0">
-          <textarea id="querytext" class="form-control w-300 mb-5" name="query" rows=4></textarea>
-          <div id="queryerror"></div>
-          <div id="querybuttons" class="mt-2">
-            <div id="queriesdropdown" class="dropdown dropup with-arrow">
-              <button id="queriesbutton" data-toggle="dropdown" class="btn btn-primary btn-sm" type="button" aria-haspopup="true" aria-expanded="false">
-              Sample Queries <i class="fa fa-angle-down ml-5" aria-hidden="true"></i>
-              </button>
-              <div id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh" aria-labelledby="queriesbutton">
-                <a id="defaultquery" class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))" mode="Normal" depth=99 methods="default">Who owns your AD?</a>
-                <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))" mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
-                <a class="dropdown-item" href="#" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11))" mode="Reverse" depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
-                <a class="dropdown-item" href="#" query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))" mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a DNS DLL on your DC?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))" mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))" mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups, but not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(objectCategory=Group-Policy-Container),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))" mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99 methods="default">Users not required to have a password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))" mode="Normal" depth=99 methods="default">Users that can't change password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))" mode="Normal" depth=99 methods="default">Users where password never expire</a>
-                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">Accounts that has a password older than 5 years</a>
-                <a class="dropdown-item" href="#" query="(&(objectClass=Person)(pwdLastSet=0)(|(logonCount=0)(!(logonCount=*)))(!(userAccountControl:and:=2)))" mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))" mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal" depth=1 methods="default">Users that are direct members of more than 10 groups</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal" depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(member:count:>100))" mode="Normal" depth=99 methods="default">Groups that have more than 100 direct members</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))" mode="Normal" depth=99>Domain Controllers</a>
-                <a class="dropdown-item" href="#" query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))" mode="Normal" depth=99>Servers or Workstations (100 random)</a>
-                <a class="dropdown-item" href="#" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal" depth=1>Accounts with no Kerberos preauth requirement</a>
+              <div class="custom-switch">
+                <input id="runqueryonstartup" type="checkbox" name="runqueryonstartup" autocomplete="off"
+                  preference="ui.run.query.on.startup" defaultpref=true>
+                <label class="col" for="runqueryonstartup">Run query on startup</label>
               </div>
             </div>
-            <button id="analyzebutton" type="button" class="btn btn-sm float-right" onclick="analyze();">Analyze</button>
           </div>
-        </form>
+        </details>
       </div>
     </div>
+  </div>
+
+  <!-- Absolute stuff -->
+  <div id="about" class="pointer-events-auto">
+    adalanche - <img src="icons/twitter.svg" height="16px"> <a href="https://twitter.com/lkarlslund">@lkarlslund</a>
+  </div>
+
+  <div id="status" class="border bg-dark p-5 shadow pointer-events-auto">
+  </div>
+
+  <div id="outerquery" class="card border mr-0 mb-0 mt-0 p-0 pointer-events-auto">
+    <div id="querypop" class="text-center pl-20 pr-20">LDAP Query</div>
+    <div id="querydiv" class="p-10">
+      <form id="queryform" class="m-0">
+        <textarea id="querytext" class="form-control w-300 mb-5" name="query" rows=4></textarea>
+        <div id="queryerror"></div>
+        <div id="querybuttons" class="mt-2">
+          <div id="queriesdropdown" class="dropdown dropup with-arrow">
+            <button id="queriesbutton" data-toggle="dropdown" class="btn btn-primary btn-sm" type="button"
+              aria-haspopup="true" aria-expanded="false">
+              Sample Queries <i class="fa fa-angle-down ml-5" aria-hidden="true"></i>
+            </button>
+            <div id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh"
+              aria-labelledby="queriesbutton">
+              <a id="defaultquery" class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))"
+                mode="Normal" depth=99 methods="default">Who owns your AD?</a>
+              <a class="dropdown-item" href="#"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
+                DNS DLL on your DC?</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
+                mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a
+                Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
+              <a class="dropdown-item" href="#" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11))" mode="Reverse"
+                depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
+              <a class="dropdown-item" href="#"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
+                DNS DLL on your DC?</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via
+                DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups,
+                but not via DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(objectCategory=Group-Policy-Container),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99
+                methods="default">Users not required to have a password</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))" mode="Normal" depth=99
+                methods="default">Users that can't change password</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))" mode="Normal"
+                depth=99 methods="default">Users where password never expire</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))"
+                mode="Reverse" depth=99 methods="default">Accounts that has a password older than 5 years</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectClass=Person)(pwdLastSet=0)(|(logonCount=0)(!(logonCount=*)))(!(userAccountControl:and:=2)))"
+                mode="Reverse" depth=99 methods="default">New accounts with initial password</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf=CN=Protected Users,*))"
+                mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(memberOf:count:>10))" mode="Normal"
+                depth=1 methods="default">Users that are direct members of more than 10 groups</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Person)(servicePrincipalName=*))" mode="Normal"
+                depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</a>
+              <a class="dropdown-item" href="#" query="(&(objectCategory=Group)(member:count:>100))" mode="Normal"
+                depth=99 methods="default">Groups that have more than 100 direct members</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))" mode="Normal"
+                depth=99>Domain Controllers</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))"
+                mode="Normal" depth=99>Servers or Workstations (100 random)</a>
+              <a class="dropdown-item" href="#"
+                query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal"
+                depth=1>Accounts with no Kerberos preauth requirement</a>
+            </div>
+          </div>
+          <button id="analyzebutton" type="button" class="btn btn-sm float-right" onclick="analyze();">Analyze</button>
+        </div>
+      </form>
+    </div>
+  </div>
   </div>
 </body>
 

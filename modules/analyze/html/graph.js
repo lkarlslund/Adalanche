@@ -574,9 +574,9 @@ function rendernode(ele) {
 function renderdetails(data) {
     result = "<table>"
     for (var attr in data.attributes) {
-        result += "<tr><td>"+ attr + "</td><td>" 
+        result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
-        for (var i in  attrvalues) {
+        for (var i in attrvalues) {
             result += attrvalues[i] + "</br>";
         }
         result += "</td></tr>"
@@ -681,20 +681,36 @@ function initgraph(data) {
                 content: 'What can this node pwn?',
                 tooltipText: 'Does reverse search on this node (clears graph)',
                 selector: 'node',
-                onClickFunction: function (event) {
-                    if (event.target.attr("distinguishedName")) {
-                        $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedName") + ")")
-                    } else if (event.target.attr("objectSid")) {
-                        $("#querytext").val("(engine.ObjectSid=" + event.target.attr("objectSid") + ")")
-                    } else if (event.target.attr("objectGuid")) {
-                        $("#querytext").val("(objectGuid=" + event.target.attr("objectGuid") + ")")
-                    } else {
+                onClickFunction: function (evt) {
+                    $.ajax({
+                        type: "GET",
+                        url: "details/id/" + evt.target.id().substring(1), // n123 format -> 123
+                        dataType: "json",
+                        success: function (data) {
+                            if (data.attributes["distinguishedName"]) {
+                                $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                            } else if (data.attributes["objectSid"]) {
+                                $("#querytext").val("(engine.ObjectSid=" + data.attributes["objectSid"] + ")")
+                            } else if (data.attributes["objectGuid"]) {
+                                $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                            } else {
+                                $("#querytext").val("(nodeId=" + evt.target.id().substring(1) + ")")
+                            }
+                            set_querymode('reverse');
 
-                        return
-                    }
-                    set_querymode('inverted');
-
-                    $("#queryform").submit();
+                            analyze();
+                        },
+                        error: function (xhr, status, error) {
+                            halfmoon.initStickyAlert({
+                                content: "There was a problem doing node lookup in the backend",
+                                title: "Node not found in backend",
+                                alertType: "alert-danger",
+                                fillType: "filled",
+                                hasDismissButton: true,
+                                timeShown: 5000
+                            });
+                        }
+                    })
                 }
             },
             {
@@ -702,17 +718,38 @@ function initgraph(data) {
                 content: 'Who can pwn this node?',
                 tooltipText: 'Does normal search for this node (clears graph)',
                 selector: 'node',
-                onClickFunction: function (event) {
+                onClickFunction: function (evt) {
+                    $.ajax({
+                        type: "GET",
+                        url: "details/id/" + evt.target.id().substring(1), // n123 format -> 123
+                        dataType: "json",
+                        success: function (data) {
+                            if (data.attributes["distinguishedName"]) {
+                                $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                            } else if (data.attributes["objectSid"]) {
+                                $("#querytext").val("(engine.ObjectSid=" + data.attributes["objectSid"] + ")")
+                            } else if (data.attributes["objectGuid"]) {
+                                $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                            } else {
+                                $("#querytext").val("(nodeId=" + evt.target.id().substring(1) + ")")
+                            }
+                            set_querymode('normal');
 
-                    $("#querytext").val("(distinguishedname=" + event.target.attr("distinguishedName") + ")")
-
-
-                    $("#querymode").val('normal');
-                    $("#queryform").submit();
-                }
+                            analyze();
+                        },
+                        error: function (xhr, status, error) {
+                            halfmoon.initStickyAlert({
+                                content: "There was a problem doing node lookup in the backend",
+                                title: "Node not found in backend",
+                                alertType: "alert-danger",
+                                fillType: "filled",
+                                hasDismissButton: true,
+                                timeShown: 5000
+                            });
+                        }
+                    })
+                },
             }
-
-
             ],
             // css classes that menu items will have
             menuItemClasses: [

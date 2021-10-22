@@ -61,7 +61,7 @@ function setquerymode(mode) {
 }
 
 function newwindow(id, title, contents) {
-    mywindow = $("#windows #window_" + id )[0]
+    mywindow = $("#windows #window_" + id)[0]
     itsnew = false
     // add the new one
     if (mywindow == undefined) {
@@ -78,13 +78,13 @@ function newwindow(id, title, contents) {
         $("#rollup", mywindow).click(function (event) {
             $("#contents", $(this).parents(".window")).slideToggle("slow", "swing")
         })
-        
+
         // closing
         $("#close", mywindow).click(function (event) {
             $(this).parents(".window").remove()
         })
 
-        mywindow.mousedown(function(){
+        mywindow.mousedown(function () {
             if (!$(this).hasClass("window-front")) {
                 $("#windows div").removeClass("window-front")
                 $(this).addClass("window-front")
@@ -124,6 +124,7 @@ function analyze(e) {
     $.ajax({
         type: "POST",
         url: "cytograph.json",
+        contentType: "charset=utf-8",
         data: JSON.stringify($("#queryform, #optionsform").serializeArray().reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
         dataType: "json",
         success: function (data) {
@@ -182,11 +183,11 @@ $(function () {
         newwindow("explore", "Explore objects", "<div id='exploretree' class='jstree-default-dark'></div>")
         $("#exploretree").jstree({
             'core': {
-                'multiple' : false,
+                'multiple': false,
                 'data': {
                     'url': '/tree',
                     'dataType': 'json',
-                    'data':function(node) {
+                    'data': function (node) {
                         return { 'id': node.id };
                     }
                 }
@@ -199,7 +200,7 @@ $(function () {
                     "icon": "glyphicon glyphicon-ok"
                 }
             },
-            "state": {"key": "adalanche_explore"},
+            "state": { "key": "adalanche_explore" },
             "plugins": ["sort", "types", "state", "wholerow"],
         });
 
@@ -221,7 +222,7 @@ $(function () {
         $("#queriesbutton").toggleClass("active")
         $("#queriesdropdown").toggleClass("show")
     })
-    
+
     // QUERY FORM
     // $("#querydiv").slideUp("fast")
     $("#querypop").on("click", function () {
@@ -279,7 +280,7 @@ $(function () {
     $("[preference]").change(function () {
         onchangepreference($(this))
     })
-    
+
     $("#graphlayout").change(function () {
         layout = $(this).val();
         if (cy) {
@@ -300,7 +301,7 @@ $(function () {
             buttons = `<table class="w-full">`;
             for (i in data.methods) {
                 method = data.methods[i]
-                
+
                 buttons += '<tr class="pb-5">';
 
                 buttons += `<td class="overflow-hidden font-size-12 align-middle">` + method.name; `</td>`;
@@ -357,10 +358,12 @@ $(function () {
             $("#defaultquery").attr("prune"),
         );
     }
-    
-    if (getpref("run.query.on.startup")) {
-        analyze();
-    }
+
+    $(document).on("prefereces.loaded", function (evt) {
+        if (getpref("run.query.on.startup")) {
+            analyze();
+        }
+    });
 
     // End of on document loaded function    
 });

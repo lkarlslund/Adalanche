@@ -10,13 +10,16 @@ function loadprefs() {
             prefs = data;
             // Apply all preferences
             $("[preference]").each(function () {
-                if ($(this).attr("type")=="checkbox") {
-                    $(this).prop("checked", getpref($(this).attr("preference"), $(this).attr("defaultpref"))==true)
-                } else {
-                    $(this).val(getpref($(this).attr("preference"), $(this).attr("defaultpref")))
+                val = getpref($(this).attr("preference"), $(this).attr("defaultpref"))
+                if (val != null) {
+                    if ($(this).attr("type") == "checkbox") {
+                        $(this).prop("checked", val)
+                    } else {
+                        $(this).val(val)
+                    }
                 }
             })
-            prefsloaded = 2;
+            $(document).trigger("preferences.loaded")
         },
     });
 }
@@ -40,10 +43,6 @@ function saveprefs() {
 }
 
 function getpref(key, defvalue) {
-    // for (prefsloaded != 2) {
-        
-    // }
-
     value = prefs[key];
     if (value != null) {
         return value
@@ -52,6 +51,6 @@ function getpref(key, defvalue) {
 }
 
 function setpref(key, value) {
-    prefs[key]=value;
+    prefs[key] = value;
     saveprefs();
 }
