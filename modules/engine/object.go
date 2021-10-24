@@ -636,7 +636,7 @@ func (o *Object) String(ao *Objects) string {
 		if attr == NTSecurityDescriptor {
 			continue
 		}
-		result += "  " + attributenums[attr] + ":\n"
+		result += "  " + attributenums[attr].name + ":\n"
 		for _, value := range values.Slice() {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {

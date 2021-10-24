@@ -9,7 +9,17 @@ import (
 )
 
 var attributenames = make(map[string]Attribute)
-var attributenums []string
+
+type attributeinfo struct {
+	name   string
+	multi  bool // expected to have multi value
+	unique bool // requires unique value to be inserted into objects
+	merge  bool // is usable to merge objects
+	tags   []string
+}
+
+var attributenums []attributeinfo
+
 var attributepopularity []int
 var attributesizes []int
 
@@ -93,9 +103,10 @@ var (
 	ObjectClassGUIDs   = NewAttribute("objectClassGUID")    // Used for caching the GUIDs, should belong in AD analyzer, but it's used in the SecurityDescritor mapping, so we're cheating a bit
 	ObjectCategoryGUID = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
 
-	MetaDataSource = NewAttribute("_datasource")
+	MetaDataSource = NewAttribute("_datasource").Multi()
 
 	IPAddress          = NewAttribute("IPAddress")
+	MACAddress         = NewAttribute("MACAddress").Multi()
 	DownLevelLogonName = NewAttribute("DownLevelLogonName")
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 
@@ -153,7 +164,7 @@ func NewAttribute(name string) Attribute {
 
 	newindex := Attribute(len(attributenames))
 	attributenames[lowername] = newindex
-	attributenums = append(attributenums, name)
+	attributenums = append(attributenums, attributeinfo{name: name})
 	attributepopularity = append(attributepopularity, 1)
 	attributesizes = append(attributesizes, 0)
 	attributemutex.Unlock()
@@ -162,7 +173,35 @@ func NewAttribute(name string) Attribute {
 }
 
 func (a Attribute) String() string {
-	return attributenums[a]
+	return attributenums[a].name
+}
+
+func (a Attribute) Multi() Attribute {
+	ai := attributenums[a]
+	ai.multi = true
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) Unique() Attribute {
+	ai := attributenums[a]
+	ai.unique = true
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) Merge() Attribute {
+	ai := attributenums[a]
+	ai.merge = true
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) Tag(t string) Attribute {
+	ai := attributenums[a]
+	ai.tags = append(ai.tags, t)
+	attributenums[a] = ai
+	return a
 }
 
 func LookupAttribute(name string) Attribute {

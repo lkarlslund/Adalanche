@@ -44,7 +44,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 
 		log.Info().Msgf("Merging %v objects into the object metaverse", len(mergeobjects.Slice()))
-		globalobjects.AddMerge([]Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, IPAddress}, mergeobjects.Slice()...)
+		globalobjects.AddMerge([]Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress}, mergeobjects.Slice()...)
 	}
 
 	aftermergetotalobjects := len(globalobjects.Slice())

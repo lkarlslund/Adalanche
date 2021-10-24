@@ -80,6 +80,16 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	}
 	computerobject.SetAttr(LocalMachineSID, engine.AttributeValueSID(localsid))
 
+	macaddrs := engine.AttributeValueSlice{}
+	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
+		if networkinterface.MACAddress != "" {
+			macaddrs = append(macaddrs, engine.AttributeValueString(strings.ReplaceAll(networkinterface.MACAddress, ":", "")))
+		}
+	}
+	if len(macaddrs) > 0 {
+		computerobject.SetAttr(engine.MACAddress, macaddrs...)
+	}
+
 	ao.ReindexObject(computerobject) // We changed stuff after adding it
 
 	// Add local accounts as synthetic objects

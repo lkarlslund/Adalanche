@@ -121,8 +121,11 @@ func (os *Objects) ReindexObject(o *Object) {
 
 func (os *Objects) updateIndex(o *Object, warn bool) {
 	for attribute := range os.index {
-		value := o.OneAttr(attribute)
-		if value != nil {
+		values := o.Attr(attribute)
+		if values.Len() > 1 && !attributenums[attribute].multi {
+			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival")
+		}
+		for _, value := range values.Slice() {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
 			if vs, ok := value.(AttributeValueString); ok {
 				value = AttributeValueString(strings.ToLower(string(vs)))
@@ -186,9 +189,8 @@ addloop:
 				}
 				if mergetarget, found := os.Find(mergeattr, lookfor); found {
 					// Let's merge
-					if o.HasAttrValue(MetaDataSource, AttributeValueString("VMWare Collector")) {
-						log.Debug().Msg(o.String(os))
-					}
+					log.Debug().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
+
 					mergetarget.Absorb(o)
 
 					os.updateIndex(mergetarget, false)
