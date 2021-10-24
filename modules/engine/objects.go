@@ -194,7 +194,7 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 				}
 				if mergetarget, found := os.Find(mergeattr, lookfor); found {
 					// Let's merge
-					log.Debug().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
+					log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 
 					mergetarget.Absorb(o)
 
