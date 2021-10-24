@@ -34,6 +34,11 @@ func Merge(aos []*Objects) (*Objects, error) {
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
 
+	needsmergeobjects := &Objects{}
+	needsmergeobjects.Init()
+
+	mergeon := []Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress} // FIXME
+
 	for i, mergeobjects := range aos {
 		if i == biggest {
 			continue
@@ -43,8 +48,39 @@ func Merge(aos []*Objects) (*Objects, error) {
 			globalroot.Adopt(mergeroot)
 		}
 
-		log.Info().Msgf("Merging %v objects into the object metaverse", len(mergeobjects.Slice()))
-		globalobjects.AddMerge([]Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress}, mergeobjects.Slice()...)
+		needsmergeobjects.AddMerge(mergeon, mergeobjects.Slice()...)
+	}
+
+	needsmerge := needsmergeobjects.Slice()
+	merged := make([]bool, len(needsmerge))
+
+	log.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
+
+	round := 1
+	for {
+		var mergecount int
+		for i, mergeobject := range needsmerge {
+			if !merged[i] {
+				if globalobjects.Merge(mergeon, mergeobject) {
+					merged[i] = true
+					mergecount++
+				}
+			}
+		}
+
+		log.Info().Msgf("Merged %v objects in round %v", mergecount, round)
+		if mergecount == 0 {
+			// nothing merged, just add the rest
+			break
+		}
+		round++
+	}
+
+	log.Info().Msgf("Adding the last unmerged objects ...")
+	for i, mergeobject := range needsmerge {
+		if !merged[i] {
+			globalobjects.Add(mergeobject)
+		}
 	}
 
 	aftermergetotalobjects := len(globalobjects.Slice())

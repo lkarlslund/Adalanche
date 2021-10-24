@@ -133,7 +133,7 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 			if warn {
 				existing, dupe := os.index[attribute][value.Raw()]
 				if dupe && existing != o {
-					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, skipping import", attribute.String(), value.String(), o.Label(), existing.Label())
+					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing.Label())
 					continue
 				}
 			}
@@ -170,20 +170,25 @@ func (os *Objects) Add(obs ...*Object) {
 }
 
 func (os *Objects) addmerge(attrtomerge []Attribute, obs ...*Object) {
-addloop:
 	for _, o := range obs {
-		// Add this to the iterator array
-		if !o.HasAttr(MetaDataSource) {
-			if os.DefaultSource != nil {
-				o.SetAttr(MetaDataSource, os.DefaultSource)
-			} else {
-				log.Warn().Msgf("Object %v, missing data source", o.Label())
-			}
+		if !os.merge(attrtomerge, o) {
+			os.add(o)
 		}
+	}
+}
 
-		if attrtomerge != nil && len(attrtomerge) > 0 {
-			for _, mergeattr := range attrtomerge {
-				lookfor := o.OneAttr(mergeattr)
+// Attemps to merge the object into the objects
+func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
+	os.lock()
+	result := os.merge(attrtomerge, o)
+	os.unlock()
+	return result
+}
+
+func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
+	if attrtomerge != nil && len(attrtomerge) > 0 {
+		for _, mergeattr := range attrtomerge {
+			for _, lookfor := range o.Attr(mergeattr).Slice() {
 				if lookfor == nil {
 					continue
 				}
@@ -194,27 +199,43 @@ addloop:
 					mergetarget.Absorb(o)
 
 					os.updateIndex(mergetarget, false)
-					continue addloop
+					return true
 				}
 			}
 		}
-
-		// Do chunked extensions for speed
-		if len(os.asarray) == cap(os.asarray) {
-			newarray := make([]*Object, len(os.asarray), len(os.asarray)+1024)
-			copy(newarray, os.asarray)
-			os.asarray = newarray
-		}
-
-		os.asarray = append(os.asarray, o)
-
-		os.idindex[o.ID()] = o
-
-		os.updateIndex(o, true)
-
-		// Statistics
-		os.typecount[o.Type()]++
 	}
+	return false
+}
+
+func (os *Objects) add(o *Object) {
+	// Add this to the iterator array
+	if !o.HasAttr(MetaDataSource) {
+		if os.DefaultSource != nil {
+			o.SetAttr(MetaDataSource, os.DefaultSource)
+		} else {
+			log.Warn().Msgf("Object %v, missing data source", o.Label())
+		}
+	}
+
+	// Do chunked extensions for speed
+	if len(os.asarray) == cap(os.asarray) {
+		newarray := make([]*Object, len(os.asarray), len(os.asarray)+1024)
+		copy(newarray, os.asarray)
+		os.asarray = newarray
+	}
+
+	if _, found := os.idindex[o.ID()]; found {
+		panic("Tried to add same object twice")
+	}
+
+	os.asarray = append(os.asarray, o)
+
+	os.idindex[o.ID()] = o
+
+	os.updateIndex(o, true)
+
+	// Statistics
+	os.typecount[o.Type()]++
 }
 
 // First object added is the root object

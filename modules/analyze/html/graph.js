@@ -690,11 +690,11 @@ function initgraph(data) {
                             if (data.attributes["distinguishedName"]) {
                                 $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
                             } else if (data.attributes["objectSid"]) {
-                                $("#querytext").val("(engine.ObjectSid=" + data.attributes["objectSid"] + ")")
+                                $("#querytext").val("(objectSid=" + data.attributes["objectSid"] + ")")
                             } else if (data.attributes["objectGuid"]) {
                                 $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
                             } else {
-                                $("#querytext").val("(nodeId=" + evt.target.id().substring(1) + ")")
+                                $("#querytext").val("(_id=" + evt.target.id().substring(1) + ")")
                             }
                             set_querymode('reverse');
 
@@ -727,11 +727,11 @@ function initgraph(data) {
                             if (data.attributes["distinguishedName"]) {
                                 $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
                             } else if (data.attributes["objectSid"]) {
-                                $("#querytext").val("(engine.ObjectSid=" + data.attributes["objectSid"] + ")")
+                                $("#querytext").val("(objectSid=" + data.attributes["objectSid"] + ")")
                             } else if (data.attributes["objectGuid"]) {
                                 $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
                             } else {
-                                $("#querytext").val("(nodeId=" + evt.target.id().substring(1) + ")")
+                                $("#querytext").val("(_id=" + evt.target.id().substring(1) + ")")
                             }
                             set_querymode('normal');
 

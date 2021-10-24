@@ -222,6 +222,11 @@ valueloop:
 	if attributename[0] == '_' {
 		// Magic attributes, uuuuuh ....
 		switch attributename {
+		case "_id":
+			if numok != nil {
+				return nil, nil, errors.New("Could not convert value to integer for id comparison")
+			}
+			return s, &id{comparator, valuenum}, nil
 		case "_limit":
 			if numok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for limit limiter")
@@ -496,6 +501,15 @@ func (nc numericComparator) Evaluate(o *engine.Object) bool {
 	// 	return false
 	// }
 	return nc.c.Compare(val, nc.value)
+}
+
+type id struct {
+	c     comparatortype
+	idval int64
+}
+
+func (i *id) Evaluate(o *engine.Object) bool {
+	return i.c.Compare(int64(o.ID()), i.idval)
 }
 
 type limit struct {
