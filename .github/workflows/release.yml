@@ -1,0 +1,32 @@
+name: Build and release
+
+on:
+  push:
+    tags: [ "r20*" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+
+    - name: Build
+      run: ./build.sh
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: Binaries
+        path: adalanche-*
+
+    - uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: false
+        files: |
+          adalanche-*

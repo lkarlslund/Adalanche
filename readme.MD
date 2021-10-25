@@ -4,16 +4,16 @@
 ## I Can Haz Domain Admin?
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
-### Run adalanche on your own infrastructure
-You should ensure you have permission before you run this :-) Though the software is harmless any only uses the LDAP service to read data *any user* can access, your infrastructure/SOC team might get real mad at you none the less.
+### Download:
+*Choose between these options:*
+- Download either the latest release or pre-release from [Releases](https://github.com/lkarlslund/adalanche/releases). Usually pre-releases are fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous. 
 
-#### Quick start, choose one of these:
 - Build your own:
   - Install go 1.17
-  - <code>go build</code> - you will have a binary for your OS
-  - <code>build</code> - you will have binaries for Windows, Linux and OSX
-- Download the binary artifacts from the "actions" tab for any recent commit
-- Download latest release from Releases (actually not preferred, as all releases seem to get outdated a few days later with new commits)
+  - <code>git clone https://github.com/lkarlslund/adalanche</code>
+  - <code>cd adalanche-master</code>
+  - Windows: <code>build.cmd</code>
+  - Linux/OSX: <code>./build.sh</code>
 
 #### First run - full auto
 If you're running adalanche on a Windows domain joined machine should just work without any parameters, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
