@@ -35,9 +35,9 @@ var (
 
 	server = Command.Flags().String("server", "", "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
 	port   = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
-	domain = Command.Flags().String("domain", "", "domain suffix to analyze (auto-detected if not supplied)")
-	user   = Command.Flags().String("username", "", "username to connect with ex. -username=\"someuser\"")
-	pass   = Command.Flags().String("password", "", "password to connect with ex. -password=\"testpass!\"")
+	domain = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
+	user   = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
+	pass   = Command.Flags().String("password", "", "password to connect with ex. --password hunter42")
 
 	tlsmodeString = Command.Flags().String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
@@ -119,7 +119,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Unknown TLS mode %v", tlsmode)
 	}
 
-	switch *authmodeString {
+	switch strings.ToLower(*authmodeString) {
 	case "unauth":
 		authmode = 0
 	case "simple":
@@ -167,7 +167,13 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				*pass = string(passwd)
 			}
 		}
-		username = *user + "@" + *domain
+
+		username = *user
+
+		if !strings.Contains(username, "@") && !strings.Contains(username, "\\") {
+			username = username + "@" + *domain
+			log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", username)
+		}
 	} else {
 		log.Info().Msg("Using integrated NTLM authentication")
 	}
