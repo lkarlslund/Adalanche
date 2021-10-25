@@ -564,9 +564,17 @@ func Collect(outputpath string) error {
 	}
 
 	// LOCAL USERS AND GROUPS
+	domainsid, _ := windowssecurity.SIDFromString(machineinfo.ComputerDomainSID)
+
 	var usersinfo localmachine.Users
 	users, _ := winapi.ListLocalUsers()
 	for _, user := range users {
+		usersid, _ := windowssecurity.SIDFromString(user.SID)
+		if machineinfo.IsDomainJoined && usersid.StripRID() == domainsid.StripRID() {
+			// This is a domain account, so we're running on a DC? skip it
+			continue
+		}
+
 		usersinfo = append(usersinfo, localmachine.User{
 			Name:                 user.Username,
 			SID:                  user.SID,

@@ -4,19 +4,21 @@
 ## I Can Haz Domain Admin?
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
-### Download:
-*Choose between these options:*
-- Download either the latest release or pre-release from [Releases](https://github.com/lkarlslund/adalanche/releases). Usually pre-releases are fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous. 
+### Download
+adalanche is an all-in-one binary - it collects information from Active Directory or from local Windows machines and can the analyze the collected data. If you're only doing AD analysis, just grab the binary for your preferred platform. Later you can deploy the dedicated collector .exe for your Windows member machines via a GPO or other orchestration and get even more insight.
 
-- Build your own:
+Download either the latest release or the build of the latest commit from [Releases](https://github.com/lkarlslund/adalanche/releases). Usually running with the latest commit is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
+
+### Build it yourself
+If you prefer full control, you can roll your own:
   - Install go 1.17
   - <code>git clone https://github.com/lkarlslund/adalanche</code>
   - <code>cd adalanche-master</code>
   - Windows: <code>build.cmd</code>
   - Linux/OSX: <code>./build.sh</code>
 
-#### First run - full auto
-If you're running adalanche on a Windows domain joined machine should just work without any parameters, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
+## First run - full auto
+If you're running adalanche on a Windows domain joined machine should just work *without any parameters*, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
 
 For more advanced use (recommended) first collect, with proper options. All your data files (are belong to us), and will end up in the data subfolder (or use <code>--datapath dir</code> to use an alternative folder).
 

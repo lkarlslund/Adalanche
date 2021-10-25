@@ -40,13 +40,12 @@ var (
 func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	var computerobject *engine.Object
 	var existing bool
-	if cinfo.Machine.ComputerDomainSID != "" {
-		csid, err := windowssecurity.SIDFromString(cinfo.Machine.ComputerDomainSID)
-		if err == nil {
-			computerobject, existing = ao.FindOrAdd(
-				engine.ObjectSid, engine.AttributeValueSID(csid),
-			)
-		}
+
+	domainsid, err := windowssecurity.SIDFromString(cinfo.Machine.ComputerDomainSID)
+	if cinfo.Machine.ComputerDomainSID != "" && err == nil {
+		computerobject, existing = ao.FindOrAdd(
+			engine.ObjectSid, engine.AttributeValueSID(domainsid),
+		)
 	}
 
 	if computerobject != nil && existing {
@@ -109,6 +108,11 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 		usid, err := windowssecurity.SIDFromString(user.SID)
 		if err == nil {
+			if domainsid.StripRID() == usid.StripRID() {
+				// Domain user from a DC, just drop it silently
+				continue
+			}
+
 			if localsid != originalsid && usid.StripRID() == originalsid {
 				// Replace SID
 				usid = localsid.AddComponent(usid.RID())
@@ -178,7 +182,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			}
 
 			if strings.HasSuffix(member.Name, "\\") {
-				log.Warn().Msgf("Malformed name from localmachine JSON %v: %v, only using SID", cinfo.Machine.Name, member.Name)
+				log.Debug().Msgf("Malformed name from localmachine JSON %v: %v, only using SID", cinfo.Machine.Name, member.Name)
 				member.Name = ""
 			}
 
