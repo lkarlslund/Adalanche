@@ -154,6 +154,10 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
 
+	if authmode == 5 && *pass != "" {
+		return errors.New("You supplied a password, but authmode is set to NTMLSSPI (integrated authentication). Please change authmode or do not supply a password")
+	}
+
 	if authmode != 5 {
 		if *user == "" {
 			return errors.New("Missing username - please use '--username' parameter")
