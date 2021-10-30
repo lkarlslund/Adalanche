@@ -1,97 +1,99 @@
 :root {
-    /* SpinKit */
-    --sk-size: 50px;
-    --sk-color: white;
-    /* Halfmoon */
-    --primary-color: var(--yellow-color);
-    --secondary-color: var(--indigo-color);
+  /* SpinKit */
+  --sk-size: 50px;
+  --sk-color: white;
+  /* Halfmoon */
+  --primary-color: var(--yellow-color);
+  --secondary-color: var(--indigo-color);
 }
 
 body {
-    overflow: hidden;
-    z-index: -2;
+  overflow: hidden;
+  z-index: -2;
 }
 
 .no-wrap {
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .fullscreen {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0px;
-    left: 0px;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0px;
+  left: 0px;
 }
 
 #windows {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    pointer-events: none;
-    z-index: 30;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  pointer-events: none;
+  z-index: 30;
 }
 
 .window {
-    pointer-events: auto;
+  pointer-events: auto;
 }
 
 .window-front {
-    z-index: 31;
+  z-index: 31;
 }
 
 .rotated-text-90 {
-    -ms-writing-mode: tb-rl;
-    -webkit-writing-mode: vertical-rl;
-    writing-mode: vertical-rl;
-    white-space: nowrap;
+  -ms-writing-mode: tb-rl;
+  -webkit-writing-mode: vertical-rl;
+  writing-mode: vertical-rl;
+  white-space: nowrap;
 }
 
 .rotated-text-270 {
-    -ms-writing-mode: tb-rl;
-    -webkit-writing-mode: vertical-rl;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    white-space: nowrap;
+  -ms-writing-mode: tb-rl;
+  -webkit-writing-mode: vertical-rl;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
 }
 
 .fw-250 {
-    max-width: 20em;
-    width: 20em;
-    display: inline-block;
+  max-width: 20em;
+  width: 20em;
+  display: inline-block;
 }
 
 #status {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 #outerquery {
-    position: absolute;
-    left: 50%;
-    bottom: 0px;
-    transform: translate(-50%, 0%);
+  position: absolute;
+  left: 50%;
+  bottom: 0px;
+  transform: translate(-50%, 0%);
 }
 
 #about {
-    position: absolute;
-    left: 50%;
-    top: 0px;
-    transform: translate(-50%, 0%);
+  position: absolute;
+  left: 50%;
+  top: 0px;
+  transform: translate(-50%, 0%);
 }
 
 #explore {
-    position: absolute;
-    left: 10px;
-    bottom: 10px;
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
 }
 
-.checkbox-button input[type=checkbox], .checkbox-button input[type=radio] {
-    display: none;
+.checkbox-button input[type='checkbox'],
+.checkbox-button input[type='radio'] {
+  display: none;
 }
 
-.checkbox-button input[type=checkbox]:checked+label.btn, .checkbox-button input[type=radio]:checked+label.btn {
-    background-color: var(--primary-color)
+.checkbox-button input[type='checkbox']:checked + label.btn,
+.checkbox-button input[type='radio']:checked + label.btn {
+  background-color: var(--primary-color);
 }

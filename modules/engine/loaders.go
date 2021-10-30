@@ -55,7 +55,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 
 		// Add the root node
 		rootnode := NewObject(Name, AttributeValueString(loader.Name()))
-		// aos[i].Add(rootnode)
+		aos[i].Add(rootnode)
 		aos[i].SetRoot(rootnode)
 
 		log.Debug().Msgf("Initializing loader %v", loader.Name())

@@ -20,6 +20,7 @@ func Run(path string) (*Objects, error) {
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
 		progressbar.OptionThrottle(time.Second*1),
 	)
+
 	objs, err := Load(path, func(cur, max int) {
 		loadbar.ChangeMax(max)
 		loadbar.Set(cur)

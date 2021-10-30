@@ -596,7 +596,6 @@ function initgraph(data) {
     cy = (window.cy = cytoscape({
         container: document.getElementById("cy"),
         wheelSensitivity: 0.2,
-
         style: cytostyle,
     }));
 

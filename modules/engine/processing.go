@@ -20,15 +20,16 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	globalobjects.Reindex()
 
-	globalroot := globalobjects.Root()
-	if globalroot == nil {
-		globalroot = NewObject(
-			Name, AttributeValueString("adalanche root node"),
-			ObjectCategorySimple, AttributeValueString("Root"),
-		)
-		globalobjects.Add(globalroot)
-		globalobjects.SetRoot(globalroot)
+	globalroot := NewObject(
+		Name, AttributeValueString("adalanche root node"),
+		ObjectCategorySimple, AttributeValueString("Root"),
+	)
+
+	if oldroot := globalobjects.Root(); oldroot != nil {
+		oldroot.ChildOf(globalroot)
 	}
+
+	globalobjects.SetRoot(globalroot)
 
 	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
 	orphancontainer.ChildOf(globalroot)
@@ -37,7 +38,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	needsmergeobjects := &Objects{}
 	needsmergeobjects.Init()
 
-	mergeon := []Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress} // FIXME
+	mergeon := []Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress, Hostname} // FIXME
 
 	for i, mergeobjects := range aos {
 		if i == biggest {
@@ -45,7 +46,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 
 		if mergeroot := mergeobjects.Root(); mergeroot != nil {
-			globalroot.Adopt(mergeroot)
+			mergeroot.ChildOf(globalroot)
 		}
 
 		needsmergeobjects.AddMerge(mergeon, mergeobjects.Slice()...)
