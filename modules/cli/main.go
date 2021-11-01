@@ -19,7 +19,7 @@ import (
 var (
 	Root = &cobra.Command{
 		Use:           "adalanche",
-		Short:         version.Programname + " " + version.Commit + " " + version.Builddate,
+		Short:         version.VersionStringShort(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -34,7 +34,7 @@ var (
 		Use:   "version",
 		Short: "Show adalanche version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Info().Msgf("%v %v %v", version.Programname, version.Builddate, version.Commit)
+			log.Info().Msg(version.VersionStringShort())
 			return nil
 		},
 	}
@@ -60,8 +60,7 @@ func Run() error {
 		TimeFormat: "15:04:05.06",
 	})
 
-	log.Info().Msgf("%v built %v commit %v", version.Programname, version.Builddate, version.Commit)
-	log.Info().Msg(version.Copyright + ", " + version.Disclaimer)
+	log.Info().Msg(version.VersionString())
 
 	if *embeddedprofiler {
 		go func() {
@@ -106,7 +105,7 @@ func Run() error {
 	}
 
 	if err == nil {
-		log.Info().Msgf("%v terminating successfully", version.Programname)
+		log.Info().Msgf("Terminating successfully")
 	}
 
 	return err

@@ -40,8 +40,7 @@ func main() {
 		TimeFormat: "15:04:05.06",
 	})
 
-	log.Info().Msgf("%v built %v commit %v", version.Programname, version.Builddate, version.Commit)
-	log.Info().Msg(version.Copyright + ", " + version.Disclaimer)
+	log.Info().Msg(version.VersionString())
 
 	wrapcollector.Execute()
 }

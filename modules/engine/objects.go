@@ -134,6 +134,8 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 				existing, dupe := os.index[attribute][value.Raw()]
 				if dupe && existing != o {
 					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing.Label())
+					// log.Debug().Msgf("NEW: %v", o.String(os))
+					// log.Debug().Msgf("EXISTING: %v", existing.String(os))
 					continue
 				}
 			}

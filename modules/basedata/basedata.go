@@ -8,6 +8,7 @@ import (
 
 type Common struct {
 	Collector string    `json:,omitempty`
+	Version   string    `json:,omitempty`
 	BuildDate string    `json:,omitempty`
 	Commit    string    `json:,omitempty`
 	Collected time.Time `json:,omitempty`
@@ -15,7 +16,8 @@ type Common struct {
 
 func GetCommonData() Common {
 	return Common{
-		Collector: version.Programname,
+		Collector: version.Program,
+		Version:   version.Version,
 		BuildDate: version.Builddate,
 		Commit:    version.Commit,
 		Collected: time.Now(),

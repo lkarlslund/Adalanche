@@ -61,7 +61,7 @@ type CytoFlatElement struct {
 func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
-		GeneratedBy:              version.Programname + " " + version.Commit + " " + version.Builddate,
+		GeneratedBy:              version.VersionStringShort(),
 		TargetCytoscapeJSVersion: "~3.0",
 		Data: CytoGraphData{
 			SharedName: "adalanche analysis data",
