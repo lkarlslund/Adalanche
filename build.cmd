@@ -2,14 +2,13 @@
 
 set BUILDDATE=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%
 
-for /F "usebackq delims=" %%a in (`git rev-parse --short HEAD`) do (
-     ENDLOCAL
-     set COMMIT=%%a
-)
+for /F "usebackq delims=" %%a in (`git rev-parse --short HEAD`) do set COMMIT=%%a
+for /F "usebackq delims=" %%a in (`git describe --tags --exclude latest`) do set VERSION=%%a
+for /F "usebackq delims=" %%a in (`git status --porcelain`) do set dirtyfiles="%%a"
 
-for /F "usebackq delims=" %%a in (`git describe --tags --exclude latest`) do (
-     ENDLOCAL
-     set VERSION=%%a
+if not [%dirtyfiles%] == [] (
+  ENDLOCAL
+  set VERSION=%VERSION%-local-changes
 )
 
 set LDFLAGS=-X github.com/lkarlslund/adalanche/modules/version.Program=adalanche -X github.com/lkarlslund/adalanche/modules/version.Builddate=%BUILDDATE% -X github.com/lkarlslund/adalanche/modules/version.Commit=%COMMIT% -X github.com/lkarlslund/adalanche/modules/version.Version=%VERSION%

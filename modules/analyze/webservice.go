@@ -859,14 +859,13 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			Statistics map[string]int    `json:"statistics"`
 		}
 		result.Adalanche = make(map[string]string)
+		result.Adalanche["shortversion"] = version.VersionStringShort()[len(version.Program)+1:]
+		result.Adalanche["program"] = version.Program
+		result.Adalanche["version"] = version.Version
 		result.Adalanche["commit"] = version.Commit
 		result.Adalanche["builddate"] = version.Builddate
 
 		result.Statistics = make(map[string]int)
-
-		// for object := range objs.Slice() {
-
-		// }
 
 		for objecttype, count := range objs.Statistics() {
 			if objecttype == 0 {

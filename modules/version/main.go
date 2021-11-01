@@ -1,5 +1,7 @@
 package version
 
+import "strings"
+
 var (
 	Program    = "adalanche"
 	Builddate  = ""
@@ -13,21 +15,18 @@ func VersionStringShort() string {
 	result := Program
 	if Version != "" {
 		result += " " + Version
+		if strings.Contains(Version, "-") {
+			result += " (non-release)"
+		}
 	}
-	if Commit != "" {
+	if Commit != "" && !strings.Contains(Version, Commit) {
 		result += " (commit " + Commit + ")"
 	}
 	return result
 }
 
 func VersionString() string {
-	result := Program
-	if Version != "" {
-		result += " " + Version
-	}
-	if Commit != "" {
-		result += " (commit " + Commit + ")"
-	}
+	result := VersionStringShort()
 
 	if Builddate != "" {
 		result += " built " + Builddate

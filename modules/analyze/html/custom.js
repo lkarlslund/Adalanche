@@ -359,24 +359,29 @@ $(function () {
         url: 'statistics',
         dataType: 'json',
         success: function (data) {
-            $('#status')
-                .html(
-                    "<div class='text-center'><h2>adalanche</h2><b>commit " +
-                    data.adalanche.commit +
-                    ' build ' +
-                    data.adalanche.builddate +
-                    '</b><p>' +
-                    data.statistics.Total +
-                    ' objects, ' +
-                    data.statistics.User +
-                    ' users, ' +
-                    data.statistics.Group +
-                    ' groups, ' +
-                    data.statistics.Computer +
-                    ' computers' +
-                    '</p></div>'
-                )
-                .show();
+            statustext = "<div class='text-center'><h2>" + data.adalanche.program + "</h2><b>" +
+                data.adalanche.shortversion +
+                '</b><p>' +
+                data.statistics.Total +
+                ' objects connected by '+data.statistics.PwnConnections+' links</p><p>';
+
+            first = true
+            for (datatype in data.statistics) {
+                if ((datatype == "PwnConnections") || (datatype == "Total")) {
+                    continue
+                }
+                if (!first) {
+                    statustext += ", "
+                }
+                count = data.statistics[datatype];
+                statustext += count + " " + datatype
+                first=false
+            }
+
+            statustext += '</p></div>';
+
+            $('#status').html(statustext).show().delay(15000).fadeOut(2000);
+            $('#programinfo').html(data.adalanche.program+" "+data.adalanche.shortversion);
         },
         error: function (xhr, status, error) {
             $('#status')

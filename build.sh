@@ -4,6 +4,10 @@ BUILDDATE=`date +%Y%m%d`
 COMMIT=`git rev-parse --short HEAD`
 VERSION=`git describe --tags --exclude latest`
 
+if [ -n "$(git status --porcelain)" ]; then
+  VERSION=$VERSION-local-changes
+fi
+
 EXIT_STATUS=0
 
 LDFLAGS="-X github.com/lkarlslund/adalanche/modules/version.Program=adalanche -X github.com/lkarlslund/adalanche/modules/version.Builddate=$BUILDDATE -X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
