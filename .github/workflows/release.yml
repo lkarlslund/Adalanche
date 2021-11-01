@@ -2,7 +2,7 @@ name: Build and release
 
 on:
   push:
-    tags: [ "r20*" ]
+    tags: [ "v*.*" ]
 
 jobs:
   build:
