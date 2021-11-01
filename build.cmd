@@ -7,7 +7,7 @@ for /F "usebackq delims=" %%a in (`git rev-parse --short HEAD`) do (
      set COMMIT=%%a
 )
 
-for /F "usebackq delims=" %%a in (`git describe --tags`) do (
+for /F "usebackq delims=" %%a in (`git describe --tags --exclude latest`) do (
      ENDLOCAL
      set GIT_VERSION=%%a
 )

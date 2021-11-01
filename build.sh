@@ -2,7 +2,7 @@
 
 BUILDDATE=`date +%Y%m%d`
 COMMIT=`git rev-parse --short HEAD`
-GIT_VERSION=`git describe --tags`
+GIT_VERSION=`git describe --tags --exclude latest`
 
 EXIT_STATUS=0
 
