@@ -533,11 +533,13 @@ function nodelabel(ele) {
             return label
         case "off":
             return "";
-        case "random":
-            return "fixme scrambler here";
+        case "anonymize":
+            return anonymizer.anonymize(ele.data("label"));
     }
     return "error";
 }
+
+var anonymizer = new DataAnonymizer();
 
 function renderedge(ele) {
     return rendernode(ele.source()) + rendermethods(ele) + rendernode(ele.target());
@@ -577,7 +579,11 @@ function renderdetails(data) {
         result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
         for (var i in attrvalues) {
-            result += attrvalues[i] + "</br>";
+            if ($("#graphlabels").val() == "anonymize") {
+                result += anonymizer.anonymize(attrvalues[i]) + "</br>";
+            } else {
+                result += attrvalues[i] + "</br>";
+            }
         }
         result += "</td></tr>"
     }
