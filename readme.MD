@@ -238,7 +238,7 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 
 ## How does this compare to BloodHound?
 
-Since people keep asking (stop!), here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and not while doing adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
+Since this is a frequent question, here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and not while doing adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
 
 | Feature | adalanche | BloodHound |
 | ------- | --------- | ---------- |
