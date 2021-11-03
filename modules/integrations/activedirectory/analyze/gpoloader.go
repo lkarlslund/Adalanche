@@ -19,11 +19,9 @@ var (
 )
 
 type GPOLoader struct {
-	ao *engine.Objects
-
+	done             sync.WaitGroup
+	ao               *engine.Objects
 	gpofiletoprocess chan string
-
-	done sync.WaitGroup
 }
 
 func (ld *GPOLoader) Name() string {
@@ -69,7 +67,7 @@ func (ld *GPOLoader) Init(ao *engine.Objects) error {
 
 func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, ".gpodata.json") {
-		return engine.UninterestedError
+		return engine.ErrUninterested
 	}
 
 	ld.gpofiletoprocess <- path

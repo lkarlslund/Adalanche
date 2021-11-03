@@ -12,17 +12,17 @@ type GPOdump struct {
 }
 
 type GPOinfo struct {
-	GUID  uuid.UUID     `json:,omitempty`
-	Path  string        `json:,omitempty`
-	Files []GPOfileinfo `json:,omitempty`
+	GUID  uuid.UUID     `json:",omitempty"`
+	Path  string        `json:",omitempty"`
+	Files []GPOfileinfo `json:",omitempty"`
 }
 
 type GPOfileinfo struct {
-	RelativePath string `json:,omitempty`
-	IsDir        bool   `json:,omitempty`
+	RelativePath string `json:",omitempty"`
+	IsDir        bool   `json:",omitempty"`
 
-	OwnerSID windowssecurity.SID `json:,omitempty`
-	DACL     []byte              `json:,omitempty`
+	OwnerSID windowssecurity.SID `json:",omitempty"`
+	DACL     []byte              `json:",omitempty"`
 
-	Contents []byte `json:,omitempty`
+	Contents []byte `json:",omitempty"`
 }

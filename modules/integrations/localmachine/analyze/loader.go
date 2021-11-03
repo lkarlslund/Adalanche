@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/mailru/easyjson"
@@ -23,11 +24,9 @@ func init() {
 }
 
 type CollectorLoader struct {
-	ao *engine.Objects
-
-	infostoadd chan string // filename
-	// infoaddmutex sync.Mutex
-	done sync.WaitGroup
+	done       sync.WaitGroup
+	ao         *engine.Objects
+	infostoadd chan string
 }
 
 func (ld *CollectorLoader) Name() string {
@@ -81,10 +80,10 @@ func (ld *CollectorLoader) Close() error {
 	ld.ao.SetThreadsafe(false)
 
 	for _, o := range ld.ao.Slice() {
-		if o.HasAttr(engine.ObjectSid) {
+		if o.HasAttr(activedirectory.ObjectSid) {
 
 			// We can do this with confidence as everything comes from this loader
-			sidwithoutrid := o.OneAttrRaw(engine.ObjectSid).(windowssecurity.SID).StripRID()
+			sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
 
 			switch o.Type() {
 			case engine.ObjectTypeComputer:
@@ -100,7 +99,7 @@ func (ld *CollectorLoader) Close() error {
 					o.ChildOf(computer) // FIXME -> Groups
 				}
 			default:
-				if o.HasAttr(engine.ObjectSid) {
+				if o.HasAttr(activedirectory.ObjectSid) {
 					if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 						o.ChildOf(computer) // We don't know what it is
 					}
@@ -114,7 +113,7 @@ func (ld *CollectorLoader) Close() error {
 
 func (ld *CollectorLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
-		return engine.UninterestedError
+		return engine.ErrUninterested
 	}
 
 	ld.infostoadd <- path

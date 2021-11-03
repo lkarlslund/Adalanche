@@ -24,17 +24,12 @@ var (
 )
 
 type ADLoader struct {
-	importall bool
-
-	ao *engine.Objects
-
+	importmutex      sync.Mutex
+	done             sync.WaitGroup
+	ao               *engine.Objects
 	objectstoconvert chan *activedirectory.RawObject
-
-	importmutex sync.Mutex
-
-	domains []domaininfo
-
-	done sync.WaitGroup
+	domains          []domaininfo
+	importall        bool
 }
 
 type domaininfo struct {
@@ -89,7 +84,7 @@ func (ld *ADLoader) Init(ao *engine.Objects) error {
 
 func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, ".objects.msgp.lz4") {
-		return engine.UninterestedError
+		return engine.ErrUninterested
 	}
 
 	// 	if ld.ao.Base == "" { // Shoot me, this is horrible

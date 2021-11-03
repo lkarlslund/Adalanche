@@ -9,8 +9,8 @@ import (
 
 // PwnAnalyzer takes an Object, examines it an outputs a list of Objects that can Pwn it
 type PwnAnalyzer struct {
-	Description    string
 	ObjectAnalyzer func(o *Object, ao *Objects)
+	Description    string
 }
 
 const PMBSIZE = 4

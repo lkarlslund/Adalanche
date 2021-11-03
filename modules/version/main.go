@@ -11,8 +11,12 @@ var (
 	Disclaimer = "This program comes with ABSOLUTELY NO WARRANTY"
 )
 
+func ProgramVersionShort() string {
+	return Program + " " + VersionStringShort()
+}
+
 func VersionStringShort() string {
-	result := Program
+	result := ""
 	if Version != "" {
 		result += " " + Version
 		if strings.Contains(Version, "-") {

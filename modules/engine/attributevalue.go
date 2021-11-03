@@ -32,7 +32,7 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 	case []byte:
 		nb, btype := braw.([]byte)
 		if btype {
-			return bytes.Compare(na, nb) == 0
+			return bytes.Equal(na, nb)
 		}
 	case windowssecurity.SID:
 		nb, btype := braw.(windowssecurity.SID)
@@ -46,8 +46,8 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 }
 
 type AttributeAndValues struct {
-	Attribute
 	AttributeValues
+	Attribute
 }
 
 // AttributeValues can contain one or more values

@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath")
+	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge()
 )
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {

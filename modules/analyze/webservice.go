@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/mux"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ldapquery"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/version"
@@ -125,7 +126,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			}
 			o, found = objs.FindByID(uint32(id))
 		case "dn", "distinguishedname":
-			o, found = objs.Find(engine.DistinguishedName, engine.AttributeValueString(vars["id"]))
+			o, found = objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(vars["id"]))
 		case "sid":
 			sid, err := windowssecurity.SIDFromString(vars["id"])
 			if err != nil {
@@ -133,7 +134,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = objs.Find(engine.ObjectSid, engine.AttributeValueSID(sid))
+			o, found = objs.Find(activedirectory.ObjectSid, engine.AttributeValueSID(sid))
 		case "guid":
 			u, err := uuid.FromString(vars["id"])
 			if err != nil {
@@ -141,7 +142,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = objs.Find(engine.ObjectGUID, engine.AttributeValueGUID(u))
+			o, found = objs.Find(activedirectory.ObjectGUID, engine.AttributeValueGUID(u))
 		}
 		if !found {
 			w.WriteHeader(404) // bad request
@@ -747,13 +748,13 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 				object.OneAttrString(engine.MetaWorkstation) != "1" &&
 				object.OneAttrString(engine.MetaServer) != "1" &&
 				object.OneAttrString(engine.MetaAccountDisabled) != "1" {
-				lastlogin, _ := object.AttrTimestamp(engine.LastLogon)
-				lastlogints, _ := object.AttrTimestamp(engine.LastLogonTimestamp)
-				last, _ := object.AttrTimestamp(engine.PwdLastSet)
+				lastlogin, _ := object.AttrTimestamp(activedirectory.LastLogon)
+				lastlogints, _ := object.AttrTimestamp(activedirectory.LastLogonTimestamp)
+				last, _ := object.AttrTimestamp(activedirectory.PwdLastSet)
 
-				expires, _ := object.AttrTimestamp(engine.AccountExpires)
-				created, _ := object.AttrTimestamp(engine.WhenCreated)
-				changed, _ := object.AttrTimestamp(engine.WhenChanged)
+				expires, _ := object.AttrTimestamp(activedirectory.AccountExpires)
+				created, _ := object.AttrTimestamp(activedirectory.WhenCreated)
+				changed, _ := object.AttrTimestamp(activedirectory.WhenChanged)
 
 				// log.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
 
@@ -829,9 +830,9 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 		}
 
 		type treeData struct {
-			ID       uint32 `json:"id"`
 			Label    string `json:"text"`
 			Type     string `json:"type,omitempty"`
+			ID       uint32 `json:"id"`
 			Children bool   `json:"children,omitempty"`
 		}
 
@@ -859,7 +860,7 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 			Statistics map[string]int    `json:"statistics"`
 		}
 		result.Adalanche = make(map[string]string)
-		result.Adalanche["shortversion"] = version.VersionStringShort()[len(version.Program)+1:]
+		result.Adalanche["shortversion"] = version.VersionStringShort()
 		result.Adalanche["program"] = version.Program
 		result.Adalanche["version"] = version.Version
 		result.Adalanche["commit"] = version.Commit

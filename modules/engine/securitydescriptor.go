@@ -107,22 +107,22 @@ ms-Mcs-AdmPwd reading
 func ParseACL(data []byte) (ACL, error) {
 	var acl ACL
 	if len(data) < 8 {
-		return acl, errors.New("Not enough data to be an ACL")
+		return acl, errors.New("not enough data to be an ACL")
 	}
 	acl.Revision = data[0]
 	if acl.Revision != 1 && acl.Revision != 2 && acl.Revision != 4 {
-		return acl, fmt.Errorf("Unsupported ACL revision %v", acl.Revision)
+		return acl, fmt.Errorf("unsupported ACL revision %v", acl.Revision)
 	}
 	if data[1] != 0 {
-		return acl, errors.New("Bad Sbz1")
+		return acl, errors.New("bad Sbz1")
 	}
 	aclsize := int(binary.LittleEndian.Uint16(data[2:4]))
 	if aclsize > len(data) {
-		return acl, errors.New("ACL size exceeds available data")
+		return acl, errors.New("the ACL size exceeds available data")
 	}
 	aclcount := int(binary.LittleEndian.Uint16(data[4:6]))
 	if data[6] != 0 {
-		return acl, errors.New("Bad Sbz2")
+		return acl, errors.New("bad Sbz2")
 	}
 
 	acledata := data[8:]
@@ -429,41 +429,39 @@ func (a ACE) String(ao *Objects) string {
 }
 
 type SecurityDescriptor struct {
-	Control SecurityDescriptorControlFlag
 	Owner   windowssecurity.SID
 	Group   windowssecurity.SID
 	SACL    ACL
 	DACL    ACL
+	Control SecurityDescriptorControlFlag
 }
 
 type ACL struct {
+	Entries      []ACE
 	Revision     byte
 	containsdeny bool
-	// Type     uint16
-	// Flags    uint16
-	Entries []ACE
 }
 
 type ACE struct {
-	Type                byte
-	ACEFlags            byte
-	Mask                ACLPermissionMask
 	SID                 windowssecurity.SID
+	Mask                ACLPermissionMask
 	Flags               uint32
-	ObjectType          uuid.UUID
 	InheritedObjectType uuid.UUID
+	ObjectType          uuid.UUID
+	ACEFlags            byte
+	Type                byte
 }
 
 func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	var result SecurityDescriptor
 	if len(data) < 20 {
-		return SecurityDescriptor{}, errors.New("Not enough data")
+		return SecurityDescriptor{}, errors.New("not enough data")
 	}
 	if data[0] != 1 {
-		return SecurityDescriptor{}, errors.New("Unknown Revision")
+		return SecurityDescriptor{}, errors.New("unknown Revision")
 	}
 	if data[1] != 0 {
-		return SecurityDescriptor{}, errors.New("Unknown Sbz1")
+		return SecurityDescriptor{}, errors.New("unknown Sbz1")
 	}
 	result.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
 	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])

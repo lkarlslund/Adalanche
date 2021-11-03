@@ -34,7 +34,7 @@ var (
 		Use:   "version",
 		Short: "Show adalanche version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Info().Msg(version.VersionStringShort())
+			log.Info().Msg(version.ProgramVersionShort())
 			return nil
 		},
 	}

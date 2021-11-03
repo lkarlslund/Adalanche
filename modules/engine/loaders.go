@@ -29,7 +29,7 @@ type Loader interface {
 }
 
 var (
-	UninterestedError = errors.New("Plugin is not interested in this file, try harder")
+	ErrUninterested = errors.New("plugin is not interested in this file, try harder")
 
 	loaders []Loader
 )
@@ -89,7 +89,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 			switch fileerr {
 			case nil:
 				break loaderloop
-			case UninterestedError:
+			case ErrUninterested:
 				// loop, and try next loader
 			default:
 				log.Error().Msgf("Error from loader %v: %v", loader.Name(), fileerr)

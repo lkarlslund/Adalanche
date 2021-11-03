@@ -12,6 +12,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/gobwas/glob/util/runes"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/util"
 	timespan "github.com/lkarlslund/time-timespan"
 	"github.com/rs/zerolog/log"
@@ -616,7 +617,7 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 			return true
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(engine.DistinguishedName, value); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, value); found {
 			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 		}
 	}

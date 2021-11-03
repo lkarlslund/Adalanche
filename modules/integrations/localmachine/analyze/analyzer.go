@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/rs/zerolog/log"
@@ -44,7 +45,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	domainsid, err := windowssecurity.SIDFromString(cinfo.Machine.ComputerDomainSID)
 	if cinfo.Machine.ComputerDomainSID != "" && err == nil {
 		computerobject, existing = ao.FindOrAdd(
-			engine.ObjectSid, engine.AttributeValueSID(domainsid),
+			activedirectory.ObjectSid, engine.AttributeValueSID(domainsid),
 		)
 	}
 
@@ -55,11 +56,11 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 	if computerobject == nil {
 		computerobject, _ = ao.FindOrAdd(
-			engine.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
+			activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 		)
 	} else {
 		computerobject.SetAttr(
-			engine.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
+			activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 		)
 	}
 
@@ -70,7 +71,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	// See if the machine has a unique SID
 	localsid, err := windowssecurity.SIDFromString(cinfo.Machine.LocalSID)
 	if err != nil {
-		return fmt.Errorf("Collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
+		return fmt.Errorf("collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
 	originalsid := localsid
 	for _, found := ao.Find(LocalMachineSID, engine.AttributeValueSID(localsid)); found; {
@@ -86,13 +87,13 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 	}
 	if len(macaddrs) > 0 {
-		computerobject.SetAttr(engine.MACAddress, macaddrs...)
+		computerobject.SetAttr(localmachine.MACAddress, macaddrs...)
 	}
 
 	ao.ReindexObject(computerobject) // We changed stuff after adding it
 
 	// Add local accounts as synthetic objects
-	userscontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Users"))
+	userscontainer := engine.NewObject(activedirectory.Name, engine.AttributeValueString("Users"))
 	ao.Add(userscontainer)
 	userscontainer.ChildOf(computerobject)
 	for _, user := range cinfo.Users {
@@ -118,16 +119,16 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 				usid = localsid.AddComponent(usid.RID())
 			}
 			user, found := ao.FindOrAdd(
-				engine.ObjectSid, engine.AttributeValueSID(usid),
-				engine.ObjectCategorySimple, engine.AttributeValueString("Person"),
-				engine.DisplayName, engine.AttributeValueString(user.FullName),
-				engine.Name, engine.AttributeValueString(user.Name),
-				engine.UserAccountControl, engine.AttributeValueInt(uac),
-				engine.PwdLastSet, engine.AttributeValueTime(user.PasswordLastSet),
-				engine.LastLogon, engine.AttributeValueTime(user.LastLogon),
+				activedirectory.ObjectSid, engine.AttributeValueSID(usid),
+				activedirectory.ObjectCategorySimple, engine.AttributeValueString("Person"),
+				activedirectory.DisplayName, engine.AttributeValueString(user.FullName),
+				activedirectory.Name, engine.AttributeValueString(user.Name),
+				activedirectory.UserAccountControl, engine.AttributeValueInt(uac),
+				activedirectory.PwdLastSet, engine.AttributeValueTime(user.PasswordLastSet),
+				activedirectory.LastLogon, engine.AttributeValueTime(user.LastLogon),
 				engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Name+"\\"+user.Name),
-				engine.BadPwdCount, engine.AttributeValueInt(user.BadPasswordCount),
-				engine.LogonCount, engine.AttributeValueInt(user.NumberOfLogins),
+				activedirectory.BadPwdCount, engine.AttributeValueInt(user.BadPasswordCount),
+				activedirectory.LogonCount, engine.AttributeValueInt(user.NumberOfLogins),
 			)
 			if !found {
 				user.ChildOf(userscontainer)
@@ -140,7 +141,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	}
 
 	// Iterate over Groups
-	groupscontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Groups"))
+	groupscontainer := engine.NewObject(activedirectory.Name, engine.AttributeValueString("Groups"))
 	ao.Add(groupscontainer)
 	groupscontainer.ChildOf(computerobject)
 	for _, group := range cinfo.Groups {
@@ -196,28 +197,28 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			switch {
 			case group.Name == "SMS Admins":
 				memberobject, found = ao.FindOrAdd(
-					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					activedirectory.ObjectSid, engine.AttributeValueSID(membersid),
 					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalSMSAdmins)
 			case groupsid == windowssecurity.SIDAdministrators:
 				memberobject, found = ao.FindOrAdd(
-					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					activedirectory.ObjectSid, engine.AttributeValueSID(membersid),
 					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalAdminRights)
 			case groupsid == windowssecurity.SIDDCOMUsers:
 				memberobject, found = ao.FindOrAdd(
-					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					activedirectory.ObjectSid, engine.AttributeValueSID(membersid),
 					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
 				memberobject.Pwns(computerobject, PwnLocalDCOMRights)
 			case groupsid == windowssecurity.SIDRemoteDesktopUsers:
 				memberobject, found = ao.FindOrAdd(
-					engine.ObjectSid, engine.AttributeValueSID(membersid),
+					activedirectory.ObjectSid, engine.AttributeValueSID(membersid),
 					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, engine.AttributeValueString(member.Name),
 				)
@@ -250,7 +251,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 
 		user, _ := ao.FindOrAdd(
-			engine.ObjectSid, engine.AttributeValueSID(usersid),
+			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
 		computerobject.Pwns(user, PwnLocalSessionLastDay)
@@ -272,7 +273,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 
 		user, _ := ao.FindOrAdd(
-			engine.ObjectSid, engine.AttributeValueSID(usersid),
+			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
 		computerobject.Pwns(user, PwnLocalSessionLastWeek)
@@ -294,7 +295,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 
 		user, _ := ao.FindOrAdd(
-			engine.ObjectSid, engine.AttributeValueSID(usersid),
+			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
 		computerobject.Pwns(user, PwnLocalSessionLastMonth)
@@ -308,22 +309,22 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		// NETBIOS name for domain check FIXME
 		user, _ := ao.FindOrAdd(
 			engine.NetbiosDomain, engine.AttributeValueString(cinfo.Machine.DefaultDomain),
-			engine.SAMAccountName, engine.AttributeValueString(cinfo.Machine.DefaultUsername),
+			activedirectory.SAMAccountName, engine.AttributeValueString(cinfo.Machine.DefaultUsername),
 			engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.DefaultDomain+"\\"+cinfo.Machine.DefaultUsername),
-			engine.ObjectCategorySimple, engine.AttributeValueString("Person"),
+			activedirectory.ObjectCategorySimple, engine.AttributeValueString("Person"),
 		)
 		computerobject.Pwns(user, PwnHasAutoAdminLogonCredentials)
 	}
 
 	// SERVICES
-	servicescontainer := engine.NewObject(engine.Name, engine.AttributeValueString("Services"))
+	servicescontainer := engine.NewObject(activedirectory.Name, engine.AttributeValueString("Services"))
 	ao.Add(servicescontainer)
 	servicescontainer.ChildOf(computerobject)
 
 	for _, service := range cinfo.Services {
 		serviceobject := engine.NewObject(
-			engine.DisplayName, engine.AttributeValueString(service.Name),
-			engine.ObjectCategorySimple, engine.AttributeValueString("Service"),
+			activedirectory.DisplayName, engine.AttributeValueString(service.Name),
+			activedirectory.ObjectCategorySimple, engine.AttributeValueString("Service"),
 		)
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
@@ -339,9 +340,9 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			nameparts := strings.Split(service.Account, "\\")
 			if len(nameparts) == 2 && nameparts[0] != cinfo.Machine.Domain { // FIXME - NETBIOS NAMES ARE KILLIG US
 				svcaccount, _ := ao.FindOrAdd(
-					engine.ObjectSid, engine.AttributeValueSID(serviceaccountSID),
-					engine.SAMAccountName, engine.AttributeValueString(nameparts[1]),
-					engine.ObjectCategorySimple, engine.AttributeValueString("Person"),
+					activedirectory.ObjectSid, engine.AttributeValueSID(serviceaccountSID),
+					activedirectory.SAMAccountName, engine.AttributeValueString(nameparts[1]),
+					activedirectory.ObjectCategorySimple, engine.AttributeValueString("Person"),
 				)
 
 				computerobject.Pwns(svcaccount, PwnHasServiceAccountCredentials)
@@ -361,7 +362,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 					}
 
 					o, _ := ao.FindOrAdd(
-						engine.ObjectSid, engine.AttributeValueSID(entrysid),
+						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
 
 					if entry.Mask&engine.KEY_SET_VALUE != engine.KEY_SET_VALUE {
@@ -378,8 +379,8 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 
 		// Change service executable contents
 		serviceimageobject := engine.NewObject(
-			engine.DisplayName, engine.AttributeValueString(filepath.Base(service.ImageExecutable)),
-			engine.ObjectClass, engine.AttributeValueString("Executable"),
+			activedirectory.DisplayName, engine.AttributeValueString(filepath.Base(service.ImageExecutable)),
+			activedirectory.ObjectClass, engine.AttributeValueString("Executable"),
 		)
 		ao.Add(serviceimageobject)
 		serviceimageobject.Pwns(serviceobject, PwnExecuted)
@@ -392,7 +393,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			}
 
 			owner, _ := ao.FindOrAdd(
-				engine.ObjectSid, engine.AttributeValueSID(ownersid),
+				activedirectory.ObjectSid, engine.AttributeValueSID(ownersid),
 			)
 			owner.Pwns(serviceobject, PwnFileOwner)
 		}
@@ -407,7 +408,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 					}
 
 					o, _ := ao.FindOrAdd(
-						engine.ObjectSid, engine.AttributeValueSID(entrysid),
+						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
 					if entry.Mask&engine.FILE_WRITE_DATA != engine.FILE_WRITE_DATA {
 						o.Pwns(serviceimageobject, PwnFileWrite)

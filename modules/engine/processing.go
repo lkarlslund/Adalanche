@@ -38,7 +38,12 @@ func Merge(aos []*Objects) (*Objects, error) {
 	needsmergeobjects := &Objects{}
 	needsmergeobjects.Init()
 
-	mergeon := []Attribute{ObjectSid, GPCFileSysPath, DownLevelLogonName, MACAddress, IPAddress, Hostname} // FIXME
+	var mergeon []Attribute
+	for i, ai := range attributenums {
+		if ai.merge {
+			mergeon = append(mergeon, Attribute(i))
+		}
+	}
 
 	for i, mergeobjects := range aos {
 		if i == biggest {

@@ -67,38 +67,27 @@ const (
 )
 
 type Object struct {
-	id uint32 // Unique ID in Objects collection
-
 	AttributeValueMap
-
 	PwnableBy PwnConnections
 	CanPwn    PwnConnections
-
-	parent   *Object
-	children []*Object
-
-	// reach     int // AD ControlPower Measurement
-	// value     int // This objects value
-
-	objecttype         ObjectType
-	objectclassguids   []uuid.UUID
-	objectcategoryguid uuid.UUID
-
-	sidcached bool
+	parent    *Object
+	sdcache   *SecurityDescriptor
 	sid       windowssecurity.SID
-
-	guidcached bool
-	guid       uuid.UUID
-
-	memberof []*Object
-	members  []*Object
-
-	sdcache *SecurityDescriptor
+	children  []*Object
+	members   []*Object
+	// objectclassguids   []uuid.UUID
+	memberof           []*Object
+	id                 uint32
+	guid               uuid.UUID
+	objectcategoryguid uuid.UUID
+	guidcached         bool
+	sidcached          bool
+	objecttype         ObjectType
 }
 
 type Connection struct {
-	Means  string
 	Target *Object
+	Means  string
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
@@ -334,14 +323,20 @@ func (o *Object) Type() ObjectType {
 	return o.objecttype
 }
 
-func (o *Object) ObjectClassGUIDs() []uuid.UUID {
-	if len(o.objectclassguids) == 0 {
-	}
-	return o.objectclassguids
-}
+// func (o *Object) ObjectClassGUIDs() []uuid.UUID {
+// 	if len(o.objectclassguids) == 0 {
+// 	}
+// 	return o.objectclassguids
+// }
 
 func (o *Object) ObjectCategoryGUID(ao *Objects) uuid.UUID {
 	if o.objectcategoryguid == NullGUID {
+		guid := o.OneAttrRaw(ObjectCategoryGUID)
+		if guid == nil {
+			o.objectcategoryguid = UnknownGUID
+		} else {
+			o.objectcategoryguid = guid.(uuid.UUID)
+		}
 	}
 	return o.objectcategoryguid
 }
@@ -663,14 +658,14 @@ func (o *Object) String(ao *Objects) string {
 
 func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 	if o.sdcache == nil {
-		return nil, errors.New("No security desciptor")
+		return nil, errors.New("no security desciptor")
 	}
 	return o.sdcache, nil
 }
 
 func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	if len(rawsd) == 0 {
-		return errors.New("Empty nTSecurityDescriptor attribute!?")
+		return errors.New("empty nTSecurityDescriptor attribute!?")
 	}
 
 	securitydescriptorcachemutex.RLock()

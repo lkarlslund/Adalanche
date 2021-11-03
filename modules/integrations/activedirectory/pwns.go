@@ -39,14 +39,14 @@ var (
 	PwnReadLAPSPassword                     = engine.NewPwn("ReadLAPSPassword")
 	PwnMemberOfGroup                        = engine.NewPwn("MemberOfGroup")
 	PwnHasSPN                               = engine.NewPwn("HasSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(engine.UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
 			return 0
 		}
 		return 50
 	})
 	PwnHasSPNNoPreauth = engine.NewPwn("HasSPNNoPreauth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(engine.UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
 			return 0
 		}

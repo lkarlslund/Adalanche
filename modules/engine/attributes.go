@@ -12,10 +12,10 @@ var attributenames = make(map[string]Attribute)
 
 type attributeinfo struct {
 	name   string
-	multi  bool // expected to have multi value
-	unique bool // requires unique value to be inserted into objects
-	merge  bool // is usable to merge objects
 	tags   []string
+	multi  bool
+	unique bool
+	merge  bool
 }
 
 var attributenums []attributeinfo
@@ -24,78 +24,23 @@ var attributepopularity []int
 var attributesizes []int
 
 var (
-	NonExistingAttribute       = NewAttribute("*NON EXISTING ATTRIBUTE*")
-	DistinguishedName          = NewAttribute("distinguishedName").Tag("AD")
-	ObjectClass                = NewAttribute("objectClass").Tag("AD")
-	ObjectCategory             = NewAttribute("objectCategory").Tag("AD")
-	ObjectCategorySimple       = NewAttribute("objectCategorySimple")
-	StructuralObjectClass      = NewAttribute("structuralObjectClass").Tag("AD")
-	NTSecurityDescriptor       = NewAttribute("nTSecurityDescriptor").Tag("AD")
-	SAMAccountType             = NewAttribute("sAMAccountType").Tag("AD")
-	GroupType                  = NewAttribute("groupType").Tag("AD")
-	MemberOf                   = NewAttribute("memberOf").Tag("AD")
-	AccountExpires             = NewAttribute("accountExpires").Tag("AD")
-	RepsTo                     = NewAttribute("repsTo").Tag("AD")
-	InstanceType               = NewAttribute("instanceType").Tag("AD")
-	ModifiedCount              = NewAttribute("modifiedCount").Tag("AD")
-	MinPwdAge                  = NewAttribute("minPwdAge").Tag("AD")
-	MinPwdLength               = NewAttribute("minPwdLength").Tag("AD")
-	PwdProperties              = NewAttribute("pwdProperties").Tag("AD")
-	LockOutDuration            = NewAttribute("lockoutDuration")
-	PwdHistoryLength           = NewAttribute("pwdHistoryLength")
-	IsCriticalSystemObject     = NewAttribute("isCriticalSystemObject").Tag("AD")
-	FSMORoleOwner              = NewAttribute("fSMORoleOwner")
-	NTMixedDomain              = NewAttribute("nTMixedDomain")
-	SystemFlags                = NewAttribute("systemFlags")
-	PrimaryGroupID             = NewAttribute("primaryGroupID").Tag("AD")
-	LogonCount                 = NewAttribute("logonCount")
-	UserAccountControl         = NewAttribute("userAccountControl").Tag("AD")
-	LocalPolicyFlags           = NewAttribute("localPolicyFlags")
-	CodePage                   = NewAttribute("codePage")
-	CountryCode                = NewAttribute("countryCode")
-	OperatingSystem            = NewAttribute("operatingSystem")
-	OperatingSystemHotfix      = NewAttribute("operatingSystemHotfix")
-	OperatingSystemVersion     = NewAttribute("operatingSystemVersion")
-	OperatingSystemServicePack = NewAttribute("operatingSystemServicePack")
-	AdminCount                 = NewAttribute("adminCount").Tag("AD")
-	LogonHours                 = NewAttribute("logonHours")
-	BadPwdCount                = NewAttribute("badPwdCount")
-	GPCFileSysPath             = NewAttribute("gPCFileSysPath").Tag("AD")
-	SchemaIDGUID               = NewAttribute("schemaIDGUID").Tag("AD")
-	PossSuperiors              = NewAttribute("possSuperiors")
-	SystemMayContain           = NewAttribute("systemMayContain")
-	SystemMustContain          = NewAttribute("systemMustContain")
-	ServicePrincipalName       = NewAttribute("servicePrincipalName").Tag("AD")
-	Name                       = NewAttribute("name").Tag("AD")
-	DisplayName                = NewAttribute("displayName").Tag("AD")
-	LDAPDisplayName            = NewAttribute("lDAPDisplayName").Tag("AD") // Attribute-Schema
-	Description                = NewAttribute("description").Tag("AD")
-	SAMAccountName             = NewAttribute("sAMAccountName").Tag("AD")
-	ObjectSid                  = NewAttribute("objectSid").Tag("AD").Merge()
-	ObjectGUID                 = NewAttribute("objectGUID").Tag("AD").Merge()
-	PwdLastSet                 = NewAttribute("pwdLastSet").Tag("AD")
-	WhenCreated                = NewAttribute("whenCreated")
-	WhenChanged                = NewAttribute("whenChanged")
-	SIDHistory                 = NewAttribute("sIDHistory").Tag("AD")
-	LastLogon                  = NewAttribute("lastLogon")
-	LastLogonTimestamp         = NewAttribute("lastLogonTimestamp")
-	MSDSGroupMSAMembership     = NewAttribute("msDS-GroupMSAMembership").Tag("AD")
-	MSDSHostServiceAccount     = NewAttribute("msDS-HostServiceAccount").Tag("AD")
-	MSDSHostServiceAccountBL   = NewAttribute("msDS-HostServiceAccountBL").Tag("AD")
-	MSmcsAdmPwdExpirationTime  = NewAttribute("ms-mcs-AdmPwdExpirationTime").Tag("AD") // LAPS password timeout
-	SecurityIdentifier         = NewAttribute("securityIdentifier")
-	TrustDirection             = NewAttribute("trustDirection")
-	TrustAttributes            = NewAttribute("trustAttributes")
-	TrustPartner               = NewAttribute("trustPartner")
-	DsHeuristics               = NewAttribute("dsHeuristics").Tag("AD")
-	AttributeSecurityGUID      = NewAttribute("attributeSecurityGUID").Tag("AD")
-	MSDSConsistencyGUID        = NewAttribute("mS-DS-ConsistencyGuid")
-	RightsGUID                 = NewAttribute("rightsGUID").Tag("AD")
-	GPLink                     = NewAttribute("gPLink").Tag("AD")
-	GPOptions                  = NewAttribute("gPOptions").Tag("AD")
-	ScriptPath                 = NewAttribute("scriptPath").Tag("AD")
-	MSPKICertificateNameFlag   = NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD")
-	PKIExtendedUsage           = NewAttribute("pKIExtendedKeyUsage").Tag("AD")
+	NonExistingAttribute = NewAttribute("*NON EXISTING ATTRIBUTE*")
+
+	DistinguishedName     = NewAttribute("distinguishedName")
+	ObjectClass           = NewAttribute("objectClass")
+	ObjectCategory        = NewAttribute("objectCategory")
+	ObjectCategorySimple  = NewAttribute("objectCategorySimple")
+	Name                  = NewAttribute("name")
+	DisplayName           = NewAttribute("displayName")
+	LDAPDisplayName       = NewAttribute("lDAPDisplayName")
+	Description           = NewAttribute("description")
+	SAMAccountName        = NewAttribute("sAMAccountName")
+	ObjectSid             = NewAttribute("objectSid")
+	ObjectGUID            = NewAttribute("objectGUID")
+	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor")
+	SchemaIDGUID          = NewAttribute("schemaIDGUID")
+	RightsGUID            = NewAttribute("rightsGUID")
+	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 
 	dummyflag    = NewAttribute("dummyflag")
 	MAX_IMPORTED = dummyflag
@@ -107,7 +52,6 @@ var (
 
 	IPAddress          = NewAttribute("IPAddress")
 	Hostname           = NewAttribute("Hostname").Merge()
-	MACAddress         = NewAttribute("MACAddress").Multi()
 	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 

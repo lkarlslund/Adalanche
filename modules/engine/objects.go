@@ -14,23 +14,14 @@ var idcounter uint32 // Unique ID +1 to assign to Object added to this collectio
 type typestatistics [OBJECTTYPEMAX]int
 
 type Objects struct {
-	// Domain        string // tld
-	// DomainNetbios string
-	// Base          string // dc=blabla ,dc=com
-
-	DefaultSource AttributeValue // All objects added gets tagged with this as MetaDataSource if object does not have it
-
-	root *Object
-
-	asarray []*Object
-
-	idindex map[uint32]*Object
-	index   map[Attribute]map[interface{}]*Object
-
-	typecount typestatistics
-
-	threadsafe      int
 	threadsafemutex sync.RWMutex
+	DefaultSource   AttributeValue
+	root            *Object
+	idindex         map[uint32]*Object
+	index           map[Attribute]map[interface{}]*Object
+	asarray         []*Object
+	typecount       typestatistics
+	threadsafe      int
 }
 
 func (os *Objects) Init() {
@@ -104,7 +95,7 @@ func (os *Objects) Reindex() {
 	// Clear all indexes
 	os.lock()
 	defer os.unlock()
-	for a, _ := range os.index {
+	for a := range os.index {
 		os.index[a] = make(map[interface{}]*Object)
 	}
 	// Put all objects in index
@@ -188,7 +179,7 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 }
 
 func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
-	if attrtomerge != nil && len(attrtomerge) > 0 {
+	if len(attrtomerge) > 0 {
 		for _, mergeattr := range attrtomerge {
 			for _, lookfor := range o.Attr(mergeattr).Slice() {
 				if lookfor == nil {
@@ -197,9 +188,7 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 				if mergetarget, found := os.Find(mergeattr, lookfor); found {
 					// Let's merge
 					log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-
 					mergetarget.Absorb(o)
-
 					os.updateIndex(mergetarget, false)
 					return true
 				}
@@ -241,17 +230,17 @@ func (os *Objects) add(o *Object) {
 }
 
 // First object added is the root object
-func (os Objects) Root() *Object {
+func (os *Objects) Root() *Object {
 	return os.root
 }
 
-func (os Objects) Statistics() typestatistics {
+func (os *Objects) Statistics() typestatistics {
 	os.rlock()
 	defer os.runlock()
 	return os.typecount
 }
 
-func (os Objects) Slice() []*Object {
+func (os *Objects) Slice() []*Object {
 	os.rlock()
 	defer os.runlock()
 	return os.asarray

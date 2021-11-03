@@ -38,16 +38,16 @@ func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 type AnalyzeObjectsOptions struct {
 	IncludeObjects         *Objects
 	ExcludeObjects         *Objects
-	MethodsF               PwnMethodBitmap
-	MethodsM               PwnMethodBitmap
-	MethodsL               PwnMethodBitmap
 	ObjectTypesF           []ObjectType
 	ObjectTypesM           []ObjectType
 	ObjectTypesL           []ObjectType
-	Reverse                bool
-	Backlinks              bool
+	MethodsL               PwnMethodBitmap
+	MethodsM               PwnMethodBitmap
+	MethodsF               PwnMethodBitmap
 	MaxDepth               int
 	MaxOutgoingConnections int
+	Reverse                bool
+	Backlinks              bool
 	MinProbability         Probability
 	PruneIslands           bool
 }
@@ -248,7 +248,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 
 		// This map contains all the nodes that point to someone else. If you're in this map you're not an outer node
 		pointsatsomeone := make(map[*Object]struct{})
-		for pair, _ := range connectionsmap {
+		for pair := range connectionsmap {
 			pointsatsomeone[pair.Source] = struct{}{}
 		}
 
@@ -280,11 +280,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	if opts.PruneIslands || weremovedsomething {
 		// Find island nodes
 		pointedto := make(map[*Object]struct{})
-		for pair, _ := range connectionsmap {
+		for pair := range connectionsmap {
 			pointedto[pair.Source] = struct{}{}
 			pointedto[pair.Target] = struct{}{}
 		}
-		for node, _ := range implicatedobjectsmap {
+		for node := range implicatedobjectsmap {
 			if _, found := pointedto[node]; !found {
 				if _, found := opts.IncludeObjects.FindByID(node.ID()); opts.PruneIslands || !found {
 					delete(implicatedobjectsmap, node)

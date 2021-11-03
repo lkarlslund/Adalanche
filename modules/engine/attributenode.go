@@ -7,19 +7,19 @@ type AttributeNode interface {
 	ChildrenSlice() []AttributeAndValues
 }
 
-type AttributeValueWithChildren struct {
-	AttributeValue
-	data AttributeValueMap
-}
+// type AttributeValueWithChildren struct {
+// 	AttributeValue
+// 	data AttributeValueMap
+// }
 
-func (avwc AttributeValueWithChildren) Children() AttributeValueMap {
-	return nil
-}
+// func (avwc AttributeValueWithChildren) Children() AttributeValueMap {
+// 	return nil
+// }
 
-func (avwc AttributeValueWithChildren) ChildrenLen() int {
-	return 0
-}
+// func (avwc AttributeValueWithChildren) ChildrenLen() int {
+// 	return 0
+// }
 
-func (avwc AttributeValueWithChildren) ChildrenSlice() []AttributeAndValues {
-	return nil
-}
+// func (avwc AttributeValueWithChildren) ChildrenSlice() []AttributeAndValues {
+// 	return nil
+// }

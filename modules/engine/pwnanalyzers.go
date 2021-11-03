@@ -56,7 +56,7 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
 	SetThreadsafe(false)
 	ao.SetThreadsafe(false)
 
-	for i, _ := range pwnAnalyzers[l] {
+	for i := range pwnAnalyzers[l] {
 		log.Info().Msgf("Elapsed %vms for analysis %v", timings[i].Sub(starttime).Milliseconds(), pwnAnalyzers[l][i].Description)
 	}
 	log.Info().Msgf("Total elapsed %vms for analysis", endtime.Sub(starttime).Milliseconds())
@@ -69,8 +69,8 @@ type ProcessorFunc func(ao *Objects)
 type ProcessPriority int
 
 type ppfInfo struct {
-	description string
 	pf          ProcessorFunc
+	description string
 	priority    ProcessPriority
 	loader      LoaderID
 }

@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/version"
 )
 
@@ -22,7 +23,7 @@ func ExportGraphViz(pg engine.PwnGraph, filename string) error {
 		case engine.ObjectTypeComputer:
 			formatting = ""
 		}
-		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.GUID(), object.OneAttr(engine.Name), formatting)
+		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.GUID(), object.OneAttr(activedirectory.Name), formatting)
 	}
 	fmt.Fprintln(df, "")
 	for _, connection := range pg.Connections {
@@ -61,7 +62,7 @@ type CytoFlatElement struct {
 func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
-		GeneratedBy:              version.VersionStringShort(),
+		GeneratedBy:              version.ProgramVersionShort(),
 		TargetCytoscapeJSVersion: "~3.0",
 		Data: CytoGraphData{
 			SharedName: "adalanche analysis data",
@@ -102,7 +103,7 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 				"type": object.Type().String(),
 			}}
 
-		if uac, ok := object.OneAttrRaw(engine.UserAccountControl).(uint64); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
+		if uac, ok := object.OneAttrRaw(activedirectory.UserAccountControl).(uint64); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
 			newnode.Data["_disabled"] = true
 		}
 

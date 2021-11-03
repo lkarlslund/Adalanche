@@ -27,7 +27,7 @@ func (r *RawObject) init() {
 
 func (r *RawObject) ToObject(importall bool) *engine.Object {
 	result := engine.NewObject(
-		engine.DistinguishedName, engine.AttributeValueString(stringdedup.S(r.DistinguishedName)),
+		DistinguishedName, engine.AttributeValueString(stringdedup.S(r.DistinguishedName)),
 	) // This is possibly repeated in member attributes, so dedup it
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
@@ -65,7 +65,36 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
-		case engine.AttributeSecurityGUID, engine.SchemaIDGUID, engine.MSDSConsistencyGUID:
+		case AccountExpires, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime:
+			// Just use string encoding
+			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
+				t := util.FiletimeToTime(uint64(intval))
+				attributevalue = engine.AttributeValueTime(t)
+			} else {
+				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
+			}
+		case WhenChanged, WhenCreated, DsCorePropagationData,
+			MsExchLastUpdateTime, MsExchPolicyLastAppliedTime, MsExchWhenMailboxCreated,
+			GWARTLastModified, SpaceLastComputed:
+			tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
+			tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
+			switch len(tvalue) {
+			case 14:
+				if t, err := time.Parse("20060102150405", tvalue); err == nil {
+					attributevalue = engine.AttributeValueTime(t)
+				} else {
+					log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
+				}
+			case 12:
+				if t, err := time.Parse("060102150405", tvalue); err == nil {
+					attributevalue = engine.AttributeValueTime(t)
+				} else {
+					log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
+				}
+			default:
+				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
+			}
+		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID:
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				guid = util.SwapUUIDEndianess(guid)
@@ -73,7 +102,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
-		case engine.RightsGUID:
+		case RightsGUID:
 			guid, err := uuid.FromString(value)
 			if err == nil {
 				guid = util.SwapUUIDEndianess(guid)
@@ -81,7 +110,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
-		case engine.ObjectGUID:
+		case ObjectGUID:
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				// 	guid = SwapUUIDEndianess(guid)
@@ -89,9 +118,9 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
-		case engine.ObjectCategory:
+		case ObjectCategory:
 			attributevalue = engine.AttributeValueString(value)
-		case engine.ObjectSid:
+		case ObjectSid:
 			attributevalue = engine.AttributeValueSID(value)
 			fallthrough
 		default:

@@ -121,7 +121,7 @@ func init() {
 						// the hard way
 						gpcachelinks = engine.NoValues{} // We assume there is nothing
 
-						gplinks := strings.Trim(p.OneAttrString(engine.GPLink), " ")
+						gplinks := strings.Trim(p.OneAttrString(activedirectory.GPLink), " ")
 						if len(gplinks) != 0 {
 							// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
 							if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
@@ -172,7 +172,7 @@ func init() {
 						gpo.Pwns(o, activedirectory.PwnComputerAffectedByGPO)
 					}
 
-					gpoptions := p.OneAttrString(engine.GPOptions)
+					gpoptions := p.OneAttrString(activedirectory.GPOptions)
 					if gpoptions == "1" {
 						// inheritance is blocked, so let's not forget that when moving up
 						allowEnforcedGPOsOnly = true
@@ -523,7 +523,7 @@ func init() {
 				if o.Type() != engine.ObjectTypeUser {
 					return
 				}
-				if o.Attr(engine.ServicePrincipalName).Len() > 0 {
+				if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
 					o.SetAttr(engine.MetaHasSPN, engine.AttributeValueInt(1))
 
 					AuthenticatedUsers, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
@@ -656,7 +656,7 @@ func init() {
 			// Method: activedirectory.PwnReadMSAPassword,
 			Description: "Allows someone to read a password of a managed service account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				msasds := o.AttrString(engine.MSDSGroupMSAMembership)
+				msasds := o.AttrString(activedirectory.MSDSGroupMSAMembership)
 				for _, msasd := range msasds {
 					sd, err := engine.ParseSecurityDescriptor([]byte(msasd))
 					if err == nil {
@@ -730,7 +730,7 @@ func init() {
 			// Method: activedirectory.PwnHasMSA,
 			Description: "Indicates that the object has a service account in use",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				msas := o.Attr(engine.MSDSHostServiceAccount).Slice()
+				msas := o.Attr(activedirectory.MSDSHostServiceAccount).Slice()
 				for _, dn := range msas {
 					if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
 						o.Pwns(targetmsa, activedirectory.PwnHasMSA)
@@ -762,7 +762,7 @@ func init() {
 			// Method: activedirectory.PwnSIDHistoryEquality,
 			Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				sids := o.Attr(engine.SIDHistory).Slice()
+				sids := o.Attr(activedirectory.SIDHistory).Slice()
 				for _, sidval := range sids {
 					if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
 						target := ao.FindOrAddSID(sid)
@@ -926,7 +926,7 @@ func init() {
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+rootdn)); found {
-				excluded := ds.OneAttrString(engine.DsHeuristics)
+				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
 					excluded_mask = strings.Index("0123456789ABCDEF", string(excluded[15]))
 				}
@@ -998,11 +998,11 @@ func init() {
 				var guids []engine.AttributeValue
 				for _, class := range objectclasses {
 					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
-						if _, ok := oto.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); !ok {
+						if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); !ok {
 							log.Debug().Msgf("%v", oto)
 							log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 						} else {
-							guids = append(guids, oto.OneAttr(engine.SchemaIDGUID))
+							guids = append(guids, oto.OneAttr(activedirectory.SchemaIDGUID))
 						}
 					}
 				}
@@ -1018,8 +1018,8 @@ func init() {
 			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
 			if typedn != nil && strings.Contains(typedn.String(), ",") {
 				if oto, found := ao.Find(engine.DistinguishedName, typedn); found {
-					if _, ok := oto.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
-						objectcategoryguid = oto.Attr(engine.SchemaIDGUID)
+					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+						objectcategoryguid = oto.Attr(activedirectory.SchemaIDGUID)
 					} else {
 						log.Debug().Msgf("%v", oto)
 						log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
@@ -1030,7 +1030,7 @@ func init() {
 			}
 			object.Set(engine.ObjectCategoryGUID, objectcategoryguid)
 
-			if rid, ok := object.AttrInt(engine.PrimaryGroupID); ok {
+			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {
 					sidbytes := []byte(sid)
@@ -1040,7 +1040,7 @@ func init() {
 				}
 			}
 
-			for _, memberof := range object.Attr(engine.MemberOf).Slice() {
+			for _, memberof := range object.Attr(activedirectory.MemberOf).Slice() {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
 				if !found {
 					group = engine.NewObject(
@@ -1062,22 +1062,22 @@ func init() {
 				authenticatedusers.AddMember(object)
 			}
 
-			if lastlogon, ok := object.AttrTimestamp(engine.LastLogonTimestamp); ok {
+			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
 				object.SetAttr(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
-			if passwordlastset, ok := object.AttrTimestamp(engine.PwdLastSet); ok {
+			if passwordlastset, ok := object.AttrTimestamp(activedirectory.PwdLastSet); ok {
 				object.SetAttr(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
-			if strings.Contains(strings.ToLower(object.OneAttrString(engine.OperatingSystem)), "linux") {
+			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
 				object.SetAttr(engine.MetaLinux, engine.AttributeValueInt(1))
 			}
-			if strings.Contains(strings.ToLower(object.OneAttrString(engine.OperatingSystem)), "windows") {
+			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "windows") {
 				object.SetAttr(engine.MetaWindows, engine.AttributeValueInt(1))
 			}
-			if object.Attr(engine.MSmcsAdmPwdExpirationTime).Len() > 0 {
+			if object.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() > 0 {
 				object.SetAttr(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
 			}
-			if uac, ok := object.AttrInt(engine.UserAccountControl); ok {
+			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
 				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
 					object.SetAttr(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
 				}
@@ -1110,7 +1110,7 @@ func init() {
 			if object.Type() == engine.ObjectTypeTrust {
 				// http://www.frickelsoft.net/blog/?p=211
 				var direction string
-				dir, _ := object.AttrInt(engine.TrustDirection)
+				dir, _ := object.AttrInt(activedirectory.TrustDirection)
 				switch dir {
 				case 0:
 					direction = "disabled"
@@ -1122,10 +1122,10 @@ func init() {
 					direction = "bidirectional"
 				}
 
-				attr, _ := object.AttrInt(engine.TrustAttributes)
-				log.Debug().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(engine.TrustPartner))
+				attr, _ := object.AttrInt(activedirectory.TrustAttributes)
+				log.Debug().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(activedirectory.TrustPartner))
 				if dir&2 != 0 && attr&4 != 0 {
-					log.Debug().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(engine.TrustPartner))
+					log.Debug().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
 				}
 			}
 
@@ -1135,7 +1135,7 @@ func init() {
 			// 	}
 			// } else
 			if object.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
-				if objectGUID, ok := object.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
+				if objectGUID, ok := object.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 
 					// engine.AllSchemaAttributes[objectGUID] = object
 					switch object.OneAttrString(engine.Name) {
@@ -1150,7 +1150,7 @@ func init() {
 									return
 								}
 								// ... that has LAPS installed
-								if o.Attr(engine.MSmcsAdmPwdExpirationTime).Len() == 0 {
+								if o.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() == 0 {
 									return
 								}
 								// Analyze ACL
