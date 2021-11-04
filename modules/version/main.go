@@ -30,7 +30,7 @@ func VersionStringShort() string {
 }
 
 func VersionString() string {
-	result := VersionStringShort()
+	result := ProgramVersionShort()
 
 	if Builddate != "" {
 		result += " built " + Builddate
