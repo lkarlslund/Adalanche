@@ -139,14 +139,16 @@ func (o *Object) runlock() {
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
 func (o *Object) Absorb(source *Object) {
 	o.lock()
-	source.lock()
-	defer source.unlock()
+	if source.lockbucket() != o.lockbucket() {
+		source.lock()
+		defer source.unlock()
+	}
 	defer o.unlock()
 
 	target := o
 	for attr, values := range source.AttributeValueMap {
 		var val AttributeValues
-		tval := target.Attr(attr)
+		tval := target.attr(attr)
 		sval := values
 		tvalslice := tval.Slice()
 		svalslice := sval.Slice()
@@ -382,9 +384,7 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 }
 
 // Returns synthetic blank attribute value if it isn't set
-func (o *Object) Attr(attr Attribute) AttributeValues {
-	o.lock()
-	defer o.unlock()
+func (o *Object) attr(attr Attribute) AttributeValues {
 	if attrs, found := o.Find(attr); found {
 		if attrs == nil {
 			panic(fmt.Sprintf("Looked for attribute %v and found NIL value", attr.String()))
@@ -392,6 +392,13 @@ func (o *Object) Attr(attr Attribute) AttributeValues {
 		return attrs
 	}
 	return NoValues{}
+}
+
+// Returns synthetic blank attribute value if it isn't set
+func (o *Object) Attr(attr Attribute) AttributeValues {
+	o.lock()
+	defer o.unlock()
+	return o.attr(attr)
 }
 
 func (o *Object) OneAttrString(attr Attribute) string {
