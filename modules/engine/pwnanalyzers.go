@@ -68,6 +68,15 @@ type ProcessorFunc func(ao *Objects)
 
 type ProcessPriority int
 
+const (
+	BeforeMergeLow ProcessPriority = iota
+	BeforeMerge
+	BeforeMergeHigh
+	AfterMergeLow
+	AfterMerge
+	AfterMergeHigh
+)
+
 type ppfInfo struct {
 	pf          ProcessorFunc
 	description string
@@ -86,9 +95,9 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 	})
 }
 
-func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID) error {
+func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessPriority) error {
 	for _, processor := range registeredProcessors {
-		if processor.loader == l {
+		if processor.loader == l && processor.priority == priority {
 			log.Info().Msgf("Preprocessing %v ...", processor.description)
 			processor.pf(ao)
 		}

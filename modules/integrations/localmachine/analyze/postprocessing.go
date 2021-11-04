@@ -25,6 +25,6 @@ func init() {
 		}
 	},
 		"Detecting broken links",
-		99,
+		engine.AfterMergeHigh,
 	)
 }

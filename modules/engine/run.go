@@ -30,8 +30,8 @@ func Run(path string) (*Objects, error) {
 	}
 	loadbar.Finish()
 
-	// Do preprocessing
 	for i, loaderobjs := range objs {
+		// Do preprocessing
 		prebar := progressbar.NewOptions(int(len(loaderobjs.Slice())),
 			progressbar.OptionSetDescription(fmt.Sprintf("Preprocessing %v ...", loaders[i].Name())),
 			progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
@@ -42,7 +42,17 @@ func Run(path string) (*Objects, error) {
 		Process(loaderobjs, func(cur, max int) {
 			prebar.ChangeMax(max)
 			prebar.Set(cur)
-		}, LoaderID(i))
+		}, LoaderID(i), BeforeMergeLow)
+
+		Process(loaderobjs, func(cur, max int) {
+			prebar.ChangeMax(max)
+			prebar.Set(cur)
+		}, LoaderID(i), BeforeMerge)
+
+		Process(loaderobjs, func(cur, max int) {
+			prebar.ChangeMax(max)
+			prebar.Set(cur)
+		}, LoaderID(i), BeforeMergeHigh)
 
 		prebar.Finish()
 	}
@@ -79,16 +89,24 @@ func Run(path string) (*Objects, error) {
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
 		progressbar.OptionThrottle(time.Second*1),
 	)
-	Process(ao, func(cur, max int) {
-		postbar.ChangeMax(max)
-		postbar.Set(cur)
-	}, PostProcessing)
-	postbar.Finish()
 
-	err = Process(ao, nil, PostProcessing)
-	if err != nil {
-		return nil, err
+	for i := range objs {
+		Process(ao, func(cur, max int) {
+			postbar.ChangeMax(max)
+			postbar.Set(cur)
+		}, LoaderID(i), AfterMergeLow)
+
+		Process(ao, func(cur, max int) {
+			postbar.ChangeMax(max)
+			postbar.Set(cur)
+		}, LoaderID(i), AfterMerge)
+
+		Process(ao, func(cur, max int) {
+			postbar.ChangeMax(max)
+			postbar.Set(cur)
+		}, LoaderID(i), AfterMergeHigh)
 	}
+	postbar.Finish()
 
 	var statarray []string
 	for stat, count := range ao.Statistics() {

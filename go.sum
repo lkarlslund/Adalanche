@@ -356,6 +356,8 @@ github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29 h1:4fuGT7A0Tb
 github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29/go.mod h1:Q/0KZGCdyOiOp6oN+HFifXw9rwBwVB6NkNL4tXXDF70=
 github.com/lkarlslund/stringdedup v0.2.1 h1:MFDyr/uY2a8A+gBkCcMlA9ePnGnTzXZS5DV0+mnOSZM=
 github.com/lkarlslund/stringdedup v0.2.1/go.mod h1:746ZZPjQHDoKM6mlwEKDiU9ub5CFDx1KL8xzQm/lTSA=
+github.com/lkarlslund/stringsplus v0.0.0-20211104074947-f4268699e369 h1:O9zqIN7Hq1UsneYi1v1nOyzXJ0UPK5+d/g02/hsXkq4=
+github.com/lkarlslund/stringsplus v0.0.0-20211104074947-f4268699e369/go.mod h1:iYoXC1os3S1gI7/SslO+cTU7dCl/bYhBqmQyVeAM2bw=
 github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001 h1:S9Xs8FSeBXkzHyvXHcYQKFqwr63T+VL6C9I+4q+0z4E=
 github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001/go.mod h1:Ckyc7Him7fKmtsSkOJoUNNU7UgBtd/DDH+/xkfX808Q=
 github.com/magiconair/properties v1.8.5/go.mod h1:y3VJvCyxH9uVvJTWEGAELF3aiYNyPKd5NZ3oSwXrF60=

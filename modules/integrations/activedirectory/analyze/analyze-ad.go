@@ -886,7 +886,7 @@ func init() {
 		}
 	},
 		"applying parent/child relationships",
-		0)
+		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Sort the domains so we match on longest first
@@ -912,7 +912,7 @@ func init() {
 		}
 	},
 		"applying DownLevelLoginName attribute",
-		0)
+		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
@@ -935,7 +935,7 @@ func init() {
 		}
 	},
 		"configuration of AdminSDHolder analyzer",
-		0)
+		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Add our known SIDs if they're missing
@@ -958,7 +958,7 @@ func init() {
 		}
 	},
 		"missing well-known SIDs",
-		0,
+		engine.BeforeMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1177,7 +1177,7 @@ func init() {
 		processbar.Finish()
 	},
 		"Active Directory objects and metadata",
-		0)
+		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
@@ -1189,7 +1189,7 @@ func init() {
 		}
 	},
 		"Protected users meta attribute",
-		0,
+		engine.BeforeMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1214,7 +1214,7 @@ func init() {
 			}
 		}
 	}, "CreatorOwnerSID resolution fixup",
-		99,
+		engine.AfterMerge,
 	)
 
 }

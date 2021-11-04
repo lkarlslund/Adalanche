@@ -2,12 +2,14 @@ package engine
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"github.com/rs/zerolog/log"
 )
 
 func CompareAttributeValues(a, b AttributeValue) bool {
@@ -80,7 +82,11 @@ func (avs AttributeValueSlice) Slice() []AttributeValue {
 func (avs AttributeValueSlice) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
-		result[i] = avs[i].String()
+		if avs[i] == nil {
+			log.Warn().Msg("Encountered NIL value")
+		} else {
+			result[i] = avs[i].String()
+		}
 	}
 	return result
 }
@@ -130,6 +136,16 @@ func (as AttributeValueString) String() string {
 
 func (as AttributeValueString) Raw() interface{} {
 	return string(as)
+}
+
+type AttributeValueBlob []byte
+
+func (ab AttributeValueBlob) String() string {
+	return fmt.Sprintf("% x", []byte(ab))
+}
+
+func (ab AttributeValueBlob) Raw() interface{} {
+	return []byte(ab)
 }
 
 type AttributeValueBool bool

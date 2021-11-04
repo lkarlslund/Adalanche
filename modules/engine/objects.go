@@ -114,7 +114,7 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 	for attribute := range os.index {
 		values := o.Attr(attribute)
 		if values.Len() > 1 && !attributenums[attribute].multi {
-			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival")
+			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
 		}
 		for _, value := range values.Slice() {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
@@ -154,6 +154,14 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 	os.lock()
 	os.addmerge(attrtomerge, obs...)
 	os.unlock()
+}
+
+func (os *Objects) AddNew(flexinit ...interface{}) *Object {
+	o := NewObject(flexinit...)
+	os.lock()
+	os.addmerge(nil, o)
+	os.unlock()
+	return o
 }
 
 func (os *Objects) Add(obs ...*Object) {
@@ -251,6 +259,20 @@ func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
 	o, found = os.idindex[id]
 	os.runlock()
 	return
+}
+
+func (os *Objects) MergeOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (o *Object, found bool) {
+	os.lock()
+	defer os.unlock()
+	if o, found := os.find(attribute, value); found {
+		flexinit = append(flexinit, attribute, value)
+		eatme := NewObject(flexinit...)
+		o.Absorb(eatme)
+		return o, true
+	}
+	no := NewObject(append(flexinit, attribute, value)...)
+	os.addmerge(nil, no)
+	return no, false
 }
 
 func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (o *Object, found bool) {

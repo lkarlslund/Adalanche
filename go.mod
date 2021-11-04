@@ -94,6 +94,7 @@ require (
 
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/lkarlslund/stringsplus v0.0.0-20211104074947-f4268699e369 // indirect
 	github.com/open2b/scriggo v0.52.2 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.9 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect

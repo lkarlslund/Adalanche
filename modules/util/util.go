@@ -42,15 +42,6 @@ func SwapUUIDEndianess(u uuid.UUID) uuid.UUID {
 	return r
 }
 
-func StringInSlice(needle string, haystack []string) bool {
-	for _, hay := range haystack {
-		if hay == needle {
-			return true
-		}
-	}
-	return false
-}
-
 func ParseBool(input string) (bool, error) {
 	result, err := strconv.ParseBool(input)
 	if err == nil {
@@ -67,6 +58,7 @@ func ParseBool(input string) (bool, error) {
 
 var nolaterthan, _ = time.Parse("20060102", "99991231")
 
+// Filetype converts 100-nanoseconds intervals since Jan 1, 1601 UTC to time.Time
 func FiletimeToTime(filetime uint64) time.Time {
 	// We assume that a zero time is a blank time
 	if filetime == 0 || filetime == 0xFFFFFFFFFFFFFFFF {
