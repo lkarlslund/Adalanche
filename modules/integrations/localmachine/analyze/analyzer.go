@@ -250,10 +250,14 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			usersid = localsid.AddComponent(usersid.RID())
 		}
 
-		user, _ := ao.FindOrAdd(
+		user, _ := ao.MergeOrAdd(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
-			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
+
+		if !strings.HasSuffix(login.Name, "\\") {
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+		}
+
 		computerobject.Pwns(user, PwnLocalSessionLastDay)
 	}
 
@@ -272,10 +276,14 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			usersid = localsid.AddComponent(usersid.RID())
 		}
 
-		user, _ := ao.FindOrAdd(
+		user, _ := ao.MergeOrAdd(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
-			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
+
+		if !strings.HasSuffix(login.Name, "\\") {
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+		}
+
 		computerobject.Pwns(user, PwnLocalSessionLastWeek)
 	}
 
@@ -294,10 +302,14 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			usersid = localsid.AddComponent(usersid.RID())
 		}
 
-		user, _ := ao.FindOrAdd(
+		user, _ := ao.MergeOrAdd(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
-			engine.DownLevelLogonName, engine.AttributeValueString(login.Name),
 		)
+
+		if !strings.HasSuffix(login.Name, "\\") {
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+		}
+
 		computerobject.Pwns(user, PwnLocalSessionLastMonth)
 	}
 
