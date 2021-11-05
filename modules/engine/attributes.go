@@ -82,10 +82,11 @@ type Attribute uint16
 var attributemutex sync.RWMutex
 
 func NewAttribute(name string) Attribute {
-	if pos := strings.Index(name, ";"); pos != -1 {
+	if name[len(name)-1] >= '0' && name[len(name)-1] <= '9' && strings.Index(name, ";") != -1 {
 		if !strings.HasPrefix(name, "member;") {
 			log.Debug().Msgf("Incomplete data detected in attribute %v", name)
 		}
+		pos := strings.Index(name, ";")
 		name = name[pos+1:]
 	}
 

@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	importall = analyze.Command.Flags().Bool("importall", false, "Load all attributes from dump (expands search options, but at the cost of memory")
+	// FIXME - NEEDS TO ME TRUE AT THE MOMENT AS MAX_IMPORT IS BROKEN4
+	importall = analyze.Command.Flags().Bool("importall", true, "Load all attributes from dump (expands search options, but at the cost of memory")
 
 	adsource = engine.AttributeValueString("Active Directory loader")
 

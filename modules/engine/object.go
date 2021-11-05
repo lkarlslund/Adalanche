@@ -200,23 +200,27 @@ func (o *Object) Absorb(source *Object) {
 		delete(pwner.CanPwn, source)
 	}
 
-	members := make(map[*Object]struct{})
-	for _, member := range target.members {
-		members[member] = struct{}{}
-	}
-	for _, newmember := range source.members {
-		if _, found := members[newmember]; !found {
-			target.members = append(target.members, newmember)
+	if len(source.members) > 0 {
+		members := make(map[*Object]struct{})
+		for _, member := range target.members {
+			members[member] = struct{}{}
+		}
+		for _, newmember := range source.members {
+			if _, found := members[newmember]; !found {
+				target.members = append(target.members, newmember)
+			}
 		}
 	}
 
-	memberofgroups := make(map[*Object]struct{})
-	for _, memberof := range target.memberof {
-		memberofgroups[memberof] = struct{}{}
-	}
-	for _, newmemberof := range source.memberof {
-		if _, found := memberofgroups[newmemberof]; !found {
-			target.memberof = append(target.memberof, newmemberof)
+	if len(source.memberof) > 0 {
+		memberofgroups := make(map[*Object]struct{})
+		for _, memberof := range target.memberof {
+			memberofgroups[memberof] = struct{}{}
+		}
+		for _, newmemberof := range source.memberof {
+			if _, found := memberofgroups[newmemberof]; !found {
+				target.memberof = append(target.memberof, newmemberof)
+			}
 		}
 	}
 

@@ -204,11 +204,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	var attributes []string
 	switch *attributesparam {
-	// case "":
-	// 	return errors.New("I don't know how to interpret attributes (blank?)")
 	case "*":
-
-	// case "needed":
+		// don't do anything
 	default:
 		attributes = strings.Split(*attributesparam, ",")
 	}
