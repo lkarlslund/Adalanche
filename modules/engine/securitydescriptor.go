@@ -153,13 +153,14 @@ func (a ACL) String(ao *Objects) string {
 	return result
 }
 
-func ParseACLentry(data []byte) (ACE, []byte, error) {
+func ParseACLentry(odata []byte) (ACE, []byte, error) {
 	var ace ACE
 	var err error
 	// ACEHEADER
+	data := odata
 	ace.Type = data[0]
 	ace.ACEFlags = data[1]
-	// acesize := binary.LittleEndian.Uint16(data[2:])
+	acesize := binary.LittleEndian.Uint16(data[2:])
 	ace.Mask = ACLPermissionMask(binary.LittleEndian.Uint32(data[4:]))
 
 	data = data[8:]
@@ -188,7 +189,7 @@ func ParseACLentry(data []byte) (ACE, []byte, error) {
 	if err != nil {
 		return ace, data, err
 	}
-	return ace, data, nil
+	return ace, odata[acesize:], nil
 }
 
 func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uuid.UUID, ao *Objects) bool {
