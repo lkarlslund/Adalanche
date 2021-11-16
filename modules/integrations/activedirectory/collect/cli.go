@@ -28,7 +28,7 @@ import (
 var (
 	Command = &cobra.Command{
 		Use:   "activedirectory",
-		Short: "Dumps information from Active Directory",
+		Short: "Collects information from Active Directory",
 	}
 
 	autodetect = Command.Flags().Bool("autodetect", true, "Try to autodetect as much as we can, this will use environment variables and DNS to make this easy")

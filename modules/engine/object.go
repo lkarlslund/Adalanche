@@ -400,12 +400,14 @@ func (o *Object) attr(attr Attribute) AttributeValues {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) Attr(attr Attribute) AttributeValues {
-	o.lock()
-	defer o.unlock()
+	o.rlock()
+	defer o.runlock()
 	return o.attr(attr)
 }
 
 func (o *Object) OneAttrString(attr Attribute) string {
+	o.rlock()
+	defer o.runlock()
 	a, found := o.Find(attr)
 	if !found {
 		return ""
