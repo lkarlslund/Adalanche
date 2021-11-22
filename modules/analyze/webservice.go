@@ -924,12 +924,8 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 	})
 
 	// Serve embedded static files, or from html folder if it exists
-	if *localhtml == "" {
-		router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
-			Prefix: "html",
-			FS:     embeddedassets,
-		})))
-	} else {
+	var usinglocalhtml bool
+	if *localhtml != "" {
 		// Override embedded HTML if asked to
 		if stat, err := os.Stat(*localhtml); err == nil && stat.IsDir() {
 			// Use local files if they exist
@@ -948,9 +944,16 @@ func webservice(bind string, quit chan bool, objs *engine.Objects) (*http.Server
 					FS: assets,
 				})))
 			}
+			usinglocalhtml = true
 		} else {
 			log.Warn().Msgf("Not switching from embedded HTML to local folder %v, failure: %v", *localhtml, err)
 		}
+	}
+	if !usinglocalhtml {
+		router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
+			Prefix: "html",
+			FS:     embeddedassets,
+		})))
 	}
 
 	log.Info().Msgf("Listening - navigate to %v ... (ctrl-c or similar to quit)", bind)
