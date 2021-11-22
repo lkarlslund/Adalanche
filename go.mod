@@ -17,7 +17,6 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166 // indirect
 	github.com/crewjam/rfc5424 v0.1.0 // indirect
-	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/elastic/beats v7.6.2+incompatible // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.7.4
@@ -36,21 +35,17 @@ require (
 	github.com/google/cabbie v1.0.2 // indirect
 	github.com/google/glazier v0.0.0-20211007155120-e60a0495f2ea // indirect
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 // indirect
-	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/renameio v0.1.0 // indirect; DONT CHANGE FROM v0.1.0
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665 // indirect
 	github.com/gravwell/gravwell/v3 v3.8.2 // DONT UPGRADE FROM 3.8.2 - breaks 32-bit builds
-	github.com/gravwell/ipfix v1.4.5 // indirect
-	github.com/h2non/filetype v1.1.1 // indirect
 	github.com/icza/gox v0.0.0-20210726201659-cd40a3f8d324
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20210819104631-275770b98743 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12
-	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
@@ -65,7 +60,6 @@ require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/open-networks/go-msgraph v0.2.1 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8
 	github.com/pkg/errors v0.9.1
@@ -75,7 +69,6 @@ require (
 	github.com/scjalliance/comshim v0.0.0-20190308082608-cf06d2532c4e // indirect
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/tinylib/msgp v1.1.6
 	github.com/ugorji/go/codec v1.2.6 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
@@ -85,18 +78,15 @@ require (
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/gcfg.v1 v1.2.3 // indirect
-	gopkg.in/ini.v1 v1.63.2
 	gopkg.in/nullbio/null.v6 v6.0.0-20161116030900-40264a2e6b79 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
+require github.com/shirou/gopsutil/v3 v3.21.9
+
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
-	github.com/lkarlslund/stringsplus v0.0.0-20211104074947-f4268699e369 // indirect
-	github.com/open2b/scriggo v0.52.2 // indirect
-	github.com/shirou/gopsutil/v3 v3.21.9 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
 )

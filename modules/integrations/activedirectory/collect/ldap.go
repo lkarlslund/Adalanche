@@ -72,7 +72,7 @@ func (ad *AD) Connect(authmode byte) error {
 		}
 		ad.conn = conn
 	default:
-		return errors.New("Unknown transport mode")
+		return errors.New("unknown transport mode")
 	}
 
 	var err error
@@ -90,7 +90,7 @@ func (ad *AD) Connect(authmode byte) error {
 	case 5:
 		err = ad.conn.NTLMSSPIBind()
 	default:
-		return fmt.Errorf("Unknown bind method %v", authmode)
+		return fmt.Errorf("unknown bind method %v", authmode)
 	}
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (ad *AD) Connect(authmode byte) error {
 
 func (ad *AD) Disconnect() error {
 	if ad.conn == nil {
-		return errors.New("Not connected")
+		return errors.New("not connected")
 	}
 	ad.conn.Close()
 	return nil
@@ -188,7 +188,7 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 
 		response, err := ad.conn.Search(request)
 		if err != nil {
-			return objects, fmt.Errorf("Failed to execute search request: %w", err)
+			return objects, fmt.Errorf("failed to execute search request: %w", err)
 		}
 
 		// For a page of results, iterate through the reponse and pull the individual entries

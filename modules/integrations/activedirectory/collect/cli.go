@@ -84,7 +84,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 	var err error
 	tlsmode, err = TLSmodeString(*tlsmodeString)
 	if err != nil {
-		return fmt.Errorf("Unknown TLS mode %v", tlsmode)
+		return fmt.Errorf("unknown TLS mode %v", tlsmode)
 	}
 
 	switch strings.ToLower(*authmodeString) {
@@ -222,7 +222,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("problem querying Active Directory RootDSE: %w", err)
 	}
 	if len(rootdse) != 1 {
-		return fmt.Errorf("expected 1 Active Directory RootDSE object, but got ¤v", len(rootdse))
+		return fmt.Errorf("expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
 	}
 	rd := rootdse[0]
 
@@ -409,7 +409,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	err = ad.Disconnect()
 	if err != nil {
-		return fmt.Errorf("Problem disconnecting from AD: %v", err)
+		return fmt.Errorf("problem disconnecting from AD: %v", err)
 	}
 
 	return nil
