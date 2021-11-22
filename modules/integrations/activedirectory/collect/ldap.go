@@ -109,6 +109,7 @@ func (ad *AD) Disconnect() error {
 
 type DumpOptions struct {
 	SearchBase string
+	Scope      int
 	Query      string
 	Attributes []string
 	NoSACL     bool
@@ -179,7 +180,7 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 	for {
 		request := ldap.NewSearchRequest(
 			da.SearchBase, // The base dn to search
-			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+			da.Scope, ldap.NeverDerefAliases, 0, 0, false,
 			da.Query,      // The filter to apply
 			da.Attributes, // A list attributes to retrieve
 			controls,
