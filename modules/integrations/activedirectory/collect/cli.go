@@ -19,7 +19,9 @@ import (
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -53,14 +55,13 @@ var (
 	nosacl   = Command.Flags().Bool("nosacl", true, "Request data with NO SACL flag, allows normal users to dump ntSecurityDescriptor field")
 	pagesize = Command.Flags().Int("pagesize", 1000, "Number of objects per request to collect (increase for performance, but some DCs have limits)")
 
-	collectconfiguration = Command.Flags().Bool("configuration", true, "Collect Active Directory Configuration")
-	collectschema        = Command.Flags().Bool("schema", true, "Collect Active Directory Schema")
-	collectdns           = Command.Flags().Bool("dns", true, "Collect Active Directory Integrated DNS zones")
-	collectobjects       = Command.Flags().Bool("objects", true, "Collect Active Directory Objects (users, groups etc)")
-	collectgpos          = Command.Flags().Bool("gpos", true, "Collect Group Policy file contents")
+	collectconfiguration = Command.Flags().String("configuration", "auto", "Collect Active Directory Configuration")
+	collectschema        = Command.Flags().String("schema", "auto", "Collect Active Directory Schema")
+	collectother         = Command.Flags().String("other", "auto", "Collect other Active Directory contexts (typically integrated DNS zones)")
+	collectobjects       = Command.Flags().String("objects", "auto", "Collect Active Directory Objects (users, groups etc)")
+	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
 
-	username string // UPN style name
 	// Local authmod as a byte
 	authmode byte
 	tlsmode  TLSmode
@@ -80,43 +81,10 @@ func init() {
 
 // Checks that we have enough data to proceed with the real run
 func PreRun(cmd *cobra.Command, args []string) error {
-	// Auto detect domain if not supplied
-	if *autodetect {
-
-		if *domain == "" {
-			log.Info().Msg("No domain supplied, auto-detecting")
-			*domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
-			if *domain == "" {
-				// That didn't work, lets try something else
-				f, err := fqdn.FqdnHostname()
-				if err == nil && strings.Contains(f, ".") {
-					log.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
-					*domain = strings.ToLower(f[strings.Index(f, ".")+1:])
-				}
-			}
-			if *domain == "" {
-				return errors.New("Domain auto-detection failed")
-			} else {
-				log.Info().Msgf("Auto-detected domain as %v", *domain)
-			}
-		}
-
-		if *domain != "" && *server == "" {
-			// Auto-detect server
-			cname, servers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
-			if err == nil && cname != "" && len(servers) != 0 {
-				*server = strings.TrimRight(servers[0].Target, ".")
-				log.Info().Msgf("AD controller detected as: %v", *server)
-			} else {
-				return errors.New("AD controller auto-detection failed, use '--server' parameter")
-			}
-		}
-	}
-
 	var err error
 	tlsmode, err = TLSmodeString(*tlsmodeString)
 	if err != nil {
-		return fmt.Errorf("Unknown TLS mode %v", tlsmode)
+		return fmt.Errorf("unknown TLS mode %v", tlsmode)
 	}
 
 	switch strings.ToLower(*authmodeString) {
@@ -136,19 +104,52 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown LDAP authentication mode %v", authmodeString)
 	}
 
-	if *autodetect && authmode != 5 && *user == "" {
-		// Auto-detect user
-		*user = os.Getenv("USERNAME")
-		if *user != "" {
-			log.Info().Msgf("Auto-detected username as %v", *user)
-		} else {
-			return errors.New("Username autodetection failed - please use '--username' parameter")
+	// AUTODETECTION
+
+	if *autodetect {
+		if *server == "" {
+
+			// We only need to auto-detect the domain if the server is not supplied
+			if *domain == "" {
+				log.Info().Msg("No domain supplied, auto-detecting")
+				*domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
+				if *domain == "" {
+					// That didn't work, lets try something else
+					f, err := fqdn.FqdnHostname()
+					if err == nil && strings.Contains(f, ".") {
+						log.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
+						*domain = strings.ToLower(f[strings.Index(f, ".")+1:])
+					}
+				}
+				if *domain == "" {
+					return errors.New("Domain auto-detection failed")
+				} else {
+					log.Info().Msgf("Auto-detected domain as %v", *domain)
+				}
+
+				// Auto-detect server
+				cname, servers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
+				if err == nil && cname != "" && len(servers) != 0 {
+					*server = strings.TrimRight(servers[0].Target, ".")
+					log.Info().Msgf("AD controller detected as: %v", *server)
+				} else {
+					return errors.New("AD controller auto-detection failed, use '--server' parameter")
+				}
+			}
+
+			if authmode != 5 && *user == "" {
+				// Auto-detect user
+				*user = os.Getenv("USERNAME")
+				if *user != "" {
+					log.Info().Msgf("Auto-detected username as %v", *user)
+				} else {
+					return errors.New("Username autodetection failed - please use '--username' parameter")
+				}
+			}
 		}
 	}
 
-	if len(*domain) == 0 {
-		return errors.New("missing domain name  - please provide this on commandline")
-	}
+	// END OF AUTODETECTION
 
 	if len(*server) == 0 {
 		return errors.New("missing AD controller server name - please provide this on commandline")
@@ -172,11 +173,9 @@ func PreRun(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		username = *user
-
-		if !strings.Contains(username, "@") && !strings.Contains(username, "\\") {
-			username = username + "@" + *domain
-			log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", username)
+		if *domain != "" && !strings.Contains(*user, "@") && !strings.Contains(*user, "\\") {
+			*user = *user + "@" + *domain
+			log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", *user)
 		}
 	} else {
 		log.Info().Msg("Using integrated NTLM authentication")
@@ -190,7 +189,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		Domain:     *domain,
 		Server:     *server,
 		Port:       uint16(*port),
-		User:       username,
+		User:       *user,
 		Password:   *pass,
 		AuthDomain: *authdomain,
 		TLSMode:    tlsmode,
@@ -212,16 +211,54 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	datapath := cmd.Flag("datapath").Value.String()
 
+	log.Info().Msg("Probing RootDSE ...")
+	rootdse, err := ad.Dump(DumpOptions{
+		SearchBase:    "",
+		Scope:         ldap.ScopeBaseObject,
+		ReturnObjects: true,
+		WriteToFile:   filepath.Join(datapath, *server+"RootDSE.objects.msgp.lz4"),
+	})
+	if err != nil {
+		return fmt.Errorf("problem querying Active Directory RootDSE: %w", err)
+	}
+	if len(rootdse) != 1 {
+		return fmt.Errorf("expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
+	}
+	rd := rootdse[0]
+
+	namingcontexts := map[string]bool{}
+	for _, context := range rd.Attributes["namingContexts"] {
+		namingcontexts[context] = false
+	}
+
+	configContext := rd.Attributes["configurationNamingContext"][0]
+	namingcontexts[configContext] = true
+	domainContext := rd.Attributes["defaultNamingContext"][0]
+	namingcontexts[domainContext] = true
+	rootDomainContext := rd.Attributes["rootDomainNamingContext"][0]
+	namingcontexts[rootDomainContext] = true
+	schemaContext := rd.Attributes["schemaNamingContext"][0]
+	namingcontexts[schemaContext] = true
+
+	var otherContexts []string
+	for context, used := range namingcontexts {
+		if !used {
+			otherContexts = append(otherContexts, context)
+		}
+	}
+
 	do := DumpOptions{
 		Attributes:    attributes,
+		Scope:         ldap.ScopeWholeSubtree,
 		NoSACL:        *nosacl,
 		ChunkSize:     *pagesize,
 		ReturnObjects: false,
 	}
 
-	if *collectschema {
+	cs, _ := util.ParseBool(*collectschema)
+	if (*collectschema == "auto" && schemaContext != "") || cs {
 		log.Info().Msg("Collecting schema objects ...")
-		do.SearchBase = "CN=Schema,CN=Configuration," + ad.RootDn()
+		do.SearchBase = schemaContext
 		do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 		_, err = ad.Dump(do)
 		if err != nil {
@@ -230,9 +267,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if *collectconfiguration {
+	cs, _ = util.ParseBool(*collectconfiguration)
+	if (*collectconfiguration == "auto" && configContext != "") || cs {
 		log.Info().Msg("Collecting configuration objects ...")
-		do.SearchBase = "CN=Configuration," + ad.RootDn()
+		do.SearchBase = configContext
 		do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 		_, err = ad.Dump(do)
 		if err != nil {
@@ -241,34 +279,31 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if *collectdns {
-		log.Info().Msg("Collecting forest DNS objects ...")
-		do.SearchBase = "DC=ForestDnsZones," + ad.RootDn()
-		do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-		_, err = ad.Dump(do)
-		if err != nil {
-			os.Remove(do.WriteToFile)
-			return fmt.Errorf("problem collecting Active Directory Forest DNS objects: %v", err)
-		}
-
-		log.Info().Msg("Collecting domain DNS objects ...")
-		do.SearchBase = "DC=DomainDnsZones," + ad.RootDn()
-		do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-		_, err = ad.Dump(do)
-		if err != nil {
-			os.Remove(do.WriteToFile)
-			return fmt.Errorf("problem collecting Active Directory Domain DNS objects: %v", err)
+	cs, _ = util.ParseBool(*collectother)
+	if (*collectother == "auto" && len(otherContexts) > 0) || cs {
+		log.Info().Msg("Collecting other objects ...")
+		for _, context := range otherContexts {
+			log.Info().Msgf("Collecting from base DN %v ...", context)
+			do.SearchBase = context
+			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
+			_, err = ad.Dump(do)
+			if err != nil {
+				os.Remove(do.WriteToFile)
+				return fmt.Errorf("problem collecting Active Directory Forest DNS objects: %v", err)
+			}
 		}
 	}
 
 	var gpostocollect []*activedirectory.RawObject
 
-	if *collectobjects {
+	cs, _ = util.ParseBool(*collectobjects)
+	if (*collectobjects == "auto" && domainContext != "") || cs {
 		log.Info().Msg("Collecting main AD objects ...")
-		do.SearchBase = ad.RootDn()
+		do.SearchBase = domainContext
 		do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 
-		if *collectgpos {
+		cp, _ := util.ParseBool(*collectgpos)
+		if *collectgpos == "auto" || cp {
 			do.OnObject = func(ro *activedirectory.RawObject) error {
 				if _, found := ro.Attributes["gPCFileSysPath"]; found {
 					gpostocollect = append(gpostocollect, ro)
@@ -284,7 +319,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if *collectgpos {
+	cp, _ := util.ParseBool(*collectgpos)
+	if *collectgpos == "auto" || cp {
 		log.Debug().Msg("Collecting GPO files ...")
 		if *gpopath != "" {
 			log.Warn().Msg("Disabling GPO file ACL detection on overridden GPO path")
@@ -373,7 +409,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	err = ad.Disconnect()
 	if err != nil {
-		return fmt.Errorf("Problem disconnecting from AD: %v", err)
+		return fmt.Errorf("problem disconnecting from AD: %v", err)
 	}
 
 	return nil
