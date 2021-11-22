@@ -254,6 +254,12 @@ func (os *Objects) Slice() []*Object {
 	return os.asarray
 }
 
+func (os *Objects) Len() int {
+	os.rlock()
+	defer os.runlock()
+	return len(os.asarray)
+}
+
 func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
 	os.rlock()
 	o, found = os.idindex[id]
