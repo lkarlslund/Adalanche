@@ -447,7 +447,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		))
 	}
 	if len(installedsoftware) > 0 {
-		computerobject.Set(engine.A("_InstalledSoftware"), installedsoftware)
+		computerobject.Set(localmachine.InstalledSoftware, installedsoftware)
 	}
 	return nil
 }

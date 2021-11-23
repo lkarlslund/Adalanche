@@ -76,7 +76,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 		}
 		return nil
 	})
-	log.Debug().Msgf("Will process %v files", len(files))
+	log.Info().Msgf("Will process %v files", len(files))
 
 	cb(0, len(files))
 

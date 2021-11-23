@@ -12,7 +12,7 @@ import (
 // Loads, processes and merges everything. It's magic, just in code
 func Run(path string) (*Objects, error) {
 	// Load everything
-	loadbar := progressbar.NewOptions(-1,
+	loadbar := progressbar.NewOptions(0,
 		progressbar.OptionSetDescription("Loading data"),
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowIts(),
@@ -22,8 +22,16 @@ func Run(path string) (*Objects, error) {
 	)
 
 	objs, err := Load(path, func(cur, max int) {
-		loadbar.ChangeMax(max)
-		loadbar.Set(cur)
+		if max > 0 {
+			loadbar.ChangeMax(max)
+		} else if max < 0 {
+			loadbar.ChangeMax(loadbar.GetMax() + (-max))
+		}
+		if cur > 0 {
+			loadbar.Set(cur)
+		} else {
+			loadbar.Add(-cur)
+		}
 	})
 	if err != nil {
 		return nil, err

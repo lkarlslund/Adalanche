@@ -2,7 +2,6 @@ package analyze
 
 import (
 	"fmt"
-	"net/http"
 	"os/exec"
 	"runtime"
 
@@ -21,6 +20,8 @@ var (
 	bind      = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
 	nobrowser = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
 	localhtml = Command.Flags().String("localhtml", "", "Override embedded HTML and use a local folder for webservice (for development)")
+
+	WebService = NewWebservice()
 )
 
 func init() {
@@ -155,18 +156,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	*/
 
-	quit := make(chan bool)
-
-	srv, err := webservice(*bind, quit, objs)
+	err = WebService.Start(*bind, objs)
 	if err != nil {
 		return err
 	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Msgf("Problem launching webservice listener: %s", err)
-		}
-	}()
 
 	// Launch browser
 	if !*nobrowser {
@@ -188,6 +181,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Wait for webservice to end
-	<-quit
+	<-WebService.QuitChan()
 	return nil
 }

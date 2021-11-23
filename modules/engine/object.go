@@ -726,18 +726,22 @@ func (o *Object) Pwns(target *Object, method PwnMethod) {
 		return
 	}
 
-	if o.SID() != windowssecurity.BlankSID && o.SID() == target.SID() {
+	osid := o.SID()
+
+	// Ignore these, SELF = self own, Creator/Owner always has full rights
+	if osid == windowssecurity.SelfSID || osid == windowssecurity.SystemSID {
 		return
 	}
 
-	// Ignore these, SELF = self own, Creator/Owner always has full rights
-	if o.SID() == windowssecurity.SelfSID || o.SID() == windowssecurity.SystemSID {
+	tsid := target.SID()
+	if osid != windowssecurity.BlankSID && osid == tsid {
 		return
 	}
 
 	o.lock()
 	o.CanPwn.Set(target, method) // Add the connection
 	o.unlock()
+
 	target.lock()
 	target.PwnableBy.Set(o, method) // Add the reverse connection too
 	target.unlock()
