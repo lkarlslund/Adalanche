@@ -59,13 +59,13 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 		)
 	} else {
-		computerobject.SetAttr(
+		computerobject.SetValues(
 			activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 		)
 	}
 
 	if cinfo.Machine.IsDomainJoined {
-		computerobject.SetAttr(engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+cinfo.Machine.Name+"$"))
+		computerobject.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+cinfo.Machine.Name+"$"))
 	}
 
 	// See if the machine has a unique SID
@@ -74,11 +74,22 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		return fmt.Errorf("collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
 	originalsid := localsid
-	for _, found := ao.Find(LocalMachineSID, engine.AttributeValueSID(localsid)); found; {
+	recollisions := false
+	for {
+		_, found := ao.Find(LocalMachineSID, engine.AttributeValueSID(localsid))
+		if !found {
+			break
+		}
+
 		localsid, _ = windowssecurity.SIDFromString("S-1-5-555-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10) + "-" + strconv.FormatUint(uint64(rand.Int31()), 10))
-		log.Debug().Msgf("Local machine SID collision, trying this random SID %v")
+		if !recollisions {
+			log.Debug().Msgf("Local machine SID collision, trying this random SID %v", localsid.String())
+		} else {
+			log.Debug().Msgf("Local machine SID collision, trying this random SID %v", localsid.String())
+		}
+		recollisions = true
 	}
-	computerobject.SetAttr(LocalMachineSID, engine.AttributeValueSID(localsid))
+	computerobject.SetValues(LocalMachineSID, engine.AttributeValueSID(localsid))
 
 	macaddrs := engine.AttributeValueSlice{}
 	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
@@ -87,7 +98,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		}
 	}
 	if len(macaddrs) > 0 {
-		computerobject.SetAttr(localmachine.MACAddress, macaddrs...)
+		computerobject.SetValues(localmachine.MACAddress, macaddrs...)
 	}
 
 	ao.ReindexObject(computerobject) // We changed stuff after adding it
@@ -255,7 +266,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		)
 
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
 
 		computerobject.Pwns(user, PwnLocalSessionLastDay)
@@ -281,7 +292,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		)
 
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
 
 		computerobject.Pwns(user, PwnLocalSessionLastWeek)
@@ -307,7 +318,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		)
 
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
 
 		computerobject.Pwns(user, PwnLocalSessionLastMonth)

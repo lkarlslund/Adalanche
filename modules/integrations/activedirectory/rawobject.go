@@ -39,7 +39,7 @@ func (r *RawObject) ToObject(importall bool) *engine.Object {
 			continue
 		}
 
-		result.SetAttr(attribute, EncodeAttributeData(attribute, values)...)
+		result.SetValues(attribute, EncodeAttributeData(attribute, values)...)
 	}
 	return result
 }

@@ -117,7 +117,7 @@ func init() {
 
 					var gpcachelinks engine.AttributeValues
 					var found bool
-					if gpcachelinks, found = p.Find(GPLinkCache); !found {
+					if gpcachelinks, found = p.Get(GPLinkCache); !found {
 						// the hard way
 						gpcachelinks = engine.NoValues{} // We assume there is nothing
 
@@ -524,7 +524,7 @@ func init() {
 					return
 				}
 				if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
-					o.SetAttr(engine.MetaHasSPN, engine.AttributeValueInt(1))
+					o.SetValues(engine.MetaHasSPN, engine.AttributeValueInt(1))
 
 					AuthenticatedUsers, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
 					if !found {
@@ -904,7 +904,7 @@ func init() {
 			dn := o.DN()
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
-					o.SetAttr(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+samaccountname))
+					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+samaccountname))
 					ao.ReindexObject(o)
 					break
 				}
@@ -1063,47 +1063,47 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
-				object.SetAttr(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.SetValues(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTimestamp(activedirectory.PwdLastSet); ok {
-				object.SetAttr(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.SetValues(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
-				object.SetAttr(engine.MetaLinux, engine.AttributeValueInt(1))
+				object.SetValues(engine.MetaLinux, engine.AttributeValueInt(1))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "windows") {
-				object.SetAttr(engine.MetaWindows, engine.AttributeValueInt(1))
+				object.SetValues(engine.MetaWindows, engine.AttributeValueInt(1))
 			}
 			if object.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() > 0 {
-				object.SetAttr(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
+				object.SetValues(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
 			}
 			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
 				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
-					object.SetAttr(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
-					object.SetAttr(engine.MetaConstrainedDelegation, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaConstrainedDelegation, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_NOT_DELEGATED != 0 {
 					log.Debug().Msgf("%v has can't be used as delegation", object.DN())
 				}
 				if uac&engine.UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
-					object.SetAttr(engine.MetaWorkstation, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaWorkstation, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
-					object.SetAttr(engine.MetaServer, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaServer, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
-					object.SetAttr(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_PASSWD_CANT_CHANGE != 0 {
-					object.SetAttr(engine.MetaPasswordCantChange, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaPasswordCantChange, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0 {
-					object.SetAttr(engine.MetaPasswordNoExpire, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaPasswordNoExpire, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
-					object.SetAttr(engine.MetaPasswordNotRequired, engine.AttributeValueInt(1))
+					object.SetValues(engine.MetaPasswordNotRequired, engine.AttributeValueInt(1))
 				}
 			}
 
@@ -1183,7 +1183,7 @@ func init() {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
 				for _, member := range object.Members(true) {
-					member.SetAttr(engine.MetaProtectedUser, engine.AttributeValueInt(1))
+					member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
 				}
 			}
 		}

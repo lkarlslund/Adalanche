@@ -210,7 +210,7 @@ func (os *Objects) add(o *Object) {
 	// Add this to the iterator array
 	if !o.HasAttr(MetaDataSource) {
 		if os.DefaultSource != nil {
-			o.SetAttr(MetaDataSource, os.DefaultSource)
+			o.SetValues(MetaDataSource, os.DefaultSource)
 		} else {
 			log.Warn().Msgf("Object %v, missing data source", o.Label())
 		}

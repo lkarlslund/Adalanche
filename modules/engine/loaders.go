@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/rs/zerolog/log"
 )
@@ -66,17 +67,27 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 	}
 
 	log.Info().Msgf("Scanning for data files from %v ...", path)
-	var files []string
+	type fs struct {
+		filename string
+		size     int64
+	}
+
+	var files []fs
 	filepath.Walk(path, func(lpath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			files = append(files, lpath)
+			files = append(files, fs{lpath, info.Size()})
 		}
 		return nil
 	})
 	log.Info().Msgf("Will process %v files", len(files))
+
+	// Sort by biggest files first
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].size > files[j].size
+	})
 
 	cb(0, len(files))
 
@@ -85,7 +96,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 		var fileerr error
 	loaderloop:
 		for _, loader := range loaders {
-			fileerr = loader.Load(file, cb)
+			fileerr = loader.Load(file.filename, cb)
 			switch fileerr {
 			case nil:
 				break loaderloop

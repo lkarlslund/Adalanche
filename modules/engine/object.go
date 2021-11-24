@@ -67,7 +67,7 @@ const (
 )
 
 type Object struct {
-	AttributeValueMap
+	values    AttributeValueMap
 	PwnableBy PwnConnections
 	CanPwn    PwnConnections
 	parent    *Object
@@ -95,7 +95,7 @@ var IgnoreBlanks = "_IGNOREBLANKS_"
 func NewObject(flexinit ...interface{}) *Object {
 	var result Object
 	result.init()
-	result.Set(flexinit...)
+	result.SetFlex(flexinit...)
 
 	return &result
 }
@@ -146,28 +146,33 @@ func (o *Object) Absorb(source *Object) {
 	defer o.unlock()
 
 	target := o
-	for attr, values := range source.AttributeValueMap {
+	for attr, values := range source.values {
 		var val AttributeValues
 		tval := target.attr(attr)
 		sval := values
-		tvalslice := tval.Slice()
-		svalslice := sval.Slice()
 
-		if len(tvalslice) == 0 {
+		if tval.Len() == 0 {
 			val = sval
-		} else if len(svalslice) == 0 {
+		} else if sval.Len() == 0 {
 			panic(fmt.Sprintf("Attribute %v with ZERO LENGTH data failure", attr.String()))
-		} else if len(tvalslice) == 1 && len(svalslice) == 1 {
-			if CompareAttributeValues(tvalslice[0], svalslice[0]) {
+		} else if tval.Len() == 1 && sval.Len() == 1 {
+			tvalue := tval.Slice()[0]
+			svalue := sval.Slice()[0]
+
+			if CompareAttributeValues(tvalue, svalue) {
 				val = tval // They're the same, so pick any
 			} else {
 				// They're not the same, join them
-				val = AttributeValueSlice{tvalslice[0], svalslice[0]}
+				val = AttributeValueSlice{tvalue, svalue}
 			}
 		} else {
 			// One or more of them have more than one value, do it the hard way
-			resultingvalues := make([]AttributeValue, len(svalslice))
+			tvalslice := tval.Slice()
+			svalslice := sval.Slice()
+
+			resultingvalues := make([]AttributeValue, tval.Len())
 			copy(resultingvalues, tvalslice)
+
 			for _, svalue := range svalslice {
 				var alreadythere bool
 			compareloop:
@@ -183,7 +188,7 @@ func (o *Object) Absorb(source *Object) {
 			}
 			val = AttributeValueSlice(resultingvalues)
 		}
-		target.AttributeValueMap[attr] = val
+		target.set(attr, val)
 	}
 
 	for pwntarget, methods := range source.CanPwn {
@@ -242,8 +247,20 @@ func (o *Object) Absorb(source *Object) {
 	target.objecttype = 0 // Recalculate this
 }
 
+func (o *Object) AttributeValueMap() AttributeValueMap {
+	o.lock()
+	defer o.unlock()
+	val := o.values
+	for attr, _ := range val {
+		if attributenums[attr].onget != nil {
+			val[attr], _ = attributenums[attr].onget(o, attr)
+		}
+	}
+	return val
+}
+
 func (o *Object) MarshalJSON() ([]byte, error) {
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&o.AttributeValueMap)
+	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.AttributeValueMap())
 }
 
 func (o *Object) IDString() string {
@@ -388,8 +405,23 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 }
 
 // Returns synthetic blank attribute value if it isn't set
+func (o *Object) get(attr Attribute) (AttributeValues, bool) {
+	if attributenums[attr].onget != nil {
+		return attributenums[attr].onget(o, attr)
+	}
+	return o.values.Get(attr)
+}
+
+// Auto locking version
+func (o *Object) Get(attr Attribute) (AttributeValues, bool) {
+	o.rlock()
+	defer o.runlock()
+	return o.get(attr)
+}
+
+// Returns synthetic blank attribute value if it isn't set
 func (o *Object) attr(attr Attribute) AttributeValues {
-	if attrs, found := o.Find(attr); found {
+	if attrs, found := o.get(attr); found {
 		if attrs == nil {
 			panic(fmt.Sprintf("Looked for attribute %v and found NIL value", attr.String()))
 		}
@@ -408,7 +440,7 @@ func (o *Object) Attr(attr Attribute) AttributeValues {
 func (o *Object) OneAttrString(attr Attribute) string {
 	o.rlock()
 	defer o.runlock()
-	a, found := o.Find(attr)
+	a, found := o.get(attr)
 	if !found {
 		return ""
 	}
@@ -446,7 +478,7 @@ func (o *Object) OneAttr(attr Attribute) AttributeValue {
 }
 
 func (o *Object) HasAttr(attr Attribute) bool {
-	_, found := o.Find(attr)
+	_, found := o.Get(attr)
 	return found
 }
 
@@ -523,7 +555,7 @@ func (o *Object) MemberOf() []*Object {
 }
 
 // Wrapper for Set - easier to call
-func (o *Object) SetAttr(a Attribute, values ...AttributeValue) {
+func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
 	if values == nil {
 		panic(fmt.Sprintf("tried to set attribute %v to NIL value", a.String()))
 	}
@@ -533,7 +565,7 @@ func (o *Object) SetAttr(a Attribute, values ...AttributeValue) {
 	o.Set(a, AttributeValueSlice(values))
 }
 
-func (o *Object) Set(flexinit ...interface{}) {
+func (o *Object) SetFlex(flexinit ...interface{}) {
 	var ignoreblanks bool
 
 	o.lock()
@@ -582,10 +614,16 @@ func (o *Object) Set(flexinit ...interface{}) {
 	}
 }
 
+func (o *Object) Set(a Attribute, values AttributeValues) {
+	o.lock()
+	defer o.unlock()
+	o.set(a, values)
+}
+
 func (o *Object) set(a Attribute, values AttributeValues) {
 	if a == DownLevelLogonName {
 		if values.Len() != 1 {
-			panic("Only one!")
+			log.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
 		}
 		if strings.HasSuffix(values.StringSlice()[0], "\\") {
 			panic("DownLevelLogon ends with \\")
@@ -608,17 +646,24 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		}
 	}
 
-	o.AttributeValueMap.Set(a, AttributeValueSlice(valueslice))
+	var av AttributeValues
 
-	// Statistics
-	for _, value := range values.StringSlice() {
-		attributesizes[a] += len(value)
+	if len(valueslice) == 1 {
+		av = AttributeValueOne{valueslice[0]}
+	} else {
+		av = AttributeValueSlice(valueslice)
+	}
+
+	if attributenums[a].onset != nil {
+		attributenums[a].onset(o, a, av)
+	} else {
+		o.values.Set(a, av)
 	}
 }
 
 func (o *Object) Meta() map[string]string {
 	result := make(map[string]string)
-	for attr, value := range o.AttributeValueMap {
+	for attr, value := range o.values {
 		if attr.String()[0] == '_' {
 			result[attr.String()] = value.Slice()[0].String()
 		}
@@ -628,8 +673,8 @@ func (o *Object) Meta() map[string]string {
 
 func (o *Object) init() {
 	o.id = atomic.AddUint32(&idcounter, 1)
-	if o.AttributeValueMap == nil {
-		o.AttributeValueMap = make(AttributeValueMap)
+	if o.values == nil {
+		o.values = NewAttributeValueMap()
 	}
 	if o.CanPwn == nil || o.PwnableBy == nil {
 		o.CanPwn = make(PwnConnections)
@@ -640,7 +685,7 @@ func (o *Object) init() {
 func (o *Object) String(ao *Objects) string {
 	var result string
 	result += "OBJECT " + o.DN() + "\n"
-	for attr, values := range o.AttributeValueMap {
+	for attr, values := range o.AttributeValueMap() {
 		if attr == NTSecurityDescriptor {
 			continue
 		}

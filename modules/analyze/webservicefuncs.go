@@ -141,7 +141,7 @@ func analysisfuncs(ws *webservice) {
 			Attributes:        make(map[string][]string),
 		}
 
-		for attr, values := range o.AttributeValueMap {
+		for attr, values := range o.AttributeValueMap() {
 			od.Attributes[attr.String()] = values.StringSlice()
 		}
 
@@ -562,7 +562,7 @@ func analysisfuncs(ws *webservice) {
 `, id, node.Label(), node.DN())
 
 				if alldetails {
-					for attribute, values := range node.AttributeValueMap {
+					for attribute, values := range node.AttributeValueMap() {
 						valuesjoined := strings.Join(values.StringSlice(), ", ")
 						if util.IsASCII(valuesjoined) {
 							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
@@ -596,7 +596,7 @@ func analysisfuncs(ws *webservice) {
 				}
 
 				if alldetails {
-					for attribute, values := range object.AttributeValueMap {
+					for attribute, values := range object.AttributeValueMap() {
 						if values != nil {
 							valuesjoined := strings.Join(values.StringSlice(), ", ")
 							if util.IsASCII(valuesjoined) {

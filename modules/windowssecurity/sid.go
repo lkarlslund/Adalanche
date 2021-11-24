@@ -75,7 +75,7 @@ func SIDFromString(input string) (SID, error) {
 		}
 		binary.LittleEndian.PutUint32(sid[8+4*i:], uint32(subauthority))
 	}
-	return SID(stringdedup.S(string(sid))), nil
+	return SID(string(sid)), nil
 }
 
 func (sid SID) IsNull() bool {

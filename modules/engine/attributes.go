@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"sort"
 	"strings"
 	"sync"
 
@@ -10,18 +9,20 @@ import (
 
 var attributenames = make(map[string]Attribute)
 
+type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found bool)
+type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
+
 type attributeinfo struct {
 	name   string
 	tags   []string
 	multi  bool
 	unique bool
 	merge  bool
+	onset  AttributeSetFunc
+	onget  AttributeGetFunc
 }
 
 var attributenums []attributeinfo
-
-var attributepopularity []int
-var attributesizes []int
 
 var (
 	NonExistingAttribute = NewAttribute("*NON EXISTING ATTRIBUTE*")
@@ -95,7 +96,6 @@ func NewAttribute(name string) Attribute {
 
 	attributemutex.RLock()
 	if attribute, found := attributenames[lowername]; found {
-		attributepopularity[attribute]++
 		attributemutex.RUnlock()
 		return attribute
 	}
@@ -103,7 +103,6 @@ func NewAttribute(name string) Attribute {
 	attributemutex.Lock()
 	// Retry, someone might have beaten us to it
 	if attribute, found := attributenames[lowername]; found {
-		attributepopularity[attribute]++
 		attributemutex.Unlock()
 		return attribute
 	}
@@ -111,8 +110,6 @@ func NewAttribute(name string) Attribute {
 	newindex := Attribute(len(attributenames))
 	attributenames[lowername] = newindex
 	attributenums = append(attributenums, attributeinfo{name: name})
-	attributepopularity = append(attributepopularity, 1)
-	attributesizes = append(attributesizes, 0)
 	attributemutex.Unlock()
 
 	return Attribute(newindex)
@@ -150,6 +147,20 @@ func (a Attribute) Tag(t string) Attribute {
 	return a
 }
 
+func (a Attribute) OnSet(onset AttributeSetFunc) Attribute {
+	ai := attributenums[a]
+	ai.onset = onset
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) OnGet(onget AttributeGetFunc) Attribute {
+	ai := attributenums[a]
+	ai.onget = onget
+	attributenums[a] = ai
+	return a
+}
+
 func LookupAttribute(name string) Attribute {
 	attributemutex.RLock()
 	defer attributemutex.RUnlock()
@@ -165,36 +176,4 @@ func A(name string) Attribute {
 
 func (a Attribute) IsMeta() bool {
 	return strings.HasPrefix(a.String(), "_")
-}
-
-type orderedPair struct {
-	key   Attribute
-	count int
-}
-type pairList []orderedPair
-
-func rankByCount(popularity []int) pairList {
-	pl := make(pairList, len(popularity))
-	i := 0
-	for k, v := range popularity {
-		pl[i] = orderedPair{Attribute(k), v}
-		i++
-	}
-	sort.Sort(sort.Reverse(pl))
-	return pl
-}
-
-func (p pairList) Len() int           { return len(p) }
-func (p pairList) Less(i, j int) bool { return p[i].count < p[j].count }
-func (p pairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-func ShowAttributePopularity() {
-	log.Debug().Msg("¤¤¤¤¤¤¤¤¤¤¤ COUNTS ############")
-	for _, pair := range rankByCount(attributepopularity) {
-		log.Debug().Msgf("%v has %v hits", pair.key.String(), pair.count)
-	}
-	log.Debug().Msg("¤¤¤¤¤¤¤¤¤¤¤ SIZES ############")
-	for _, pair := range rankByCount(attributesizes) {
-		log.Debug().Msgf("%v has used %v bytes", pair.key.String(), pair.count)
-	}
 }
