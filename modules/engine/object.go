@@ -656,6 +656,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 
 	if attributenums[a].onset != nil {
 		attributenums[a].onset(o, a, av)
+		o.values.Set(a, nil) // placeholder for iteration over attributes that are set
 	} else {
 		o.values.Set(a, av)
 	}

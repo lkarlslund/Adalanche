@@ -3,9 +3,11 @@ package analyze
 import (
 	"embed"
 	"io/fs"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
+	"text/template"
 
 	"github.com/absfs/gofs"
 	"github.com/absfs/osfs"
@@ -23,21 +25,42 @@ var (
 	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-type FSPrefix struct {
+type UnionFS struct {
+	filesystems []http.FileSystem
+}
+
+func (ufs *UnionFS) AddFS(newfs http.FileSystem) {
+	ufs.filesystems = append(ufs.filesystems, newfs)
+}
+
+func (ufs UnionFS) Open(filename string) (fs.File, error) {
+	for _, fs := range ufs.filesystems {
+		if f, err := fs.Open(filename); err == nil {
+			return f, nil
+		}
+	}
+	return nil, os.ErrNotExist
+}
+
+type AddprefixFS struct {
 	Prefix string
 	FS     fs.FS
 }
 
-func (f FSPrefix) Open(filename string) (fs.File, error) {
-	return f.FS.Open(path.Join(f.Prefix, filename))
+func (apfs AddprefixFS) Open(filename string) (fs.File, error) {
+	return apfs.FS.Open(path.Join(apfs.Prefix, filename))
 }
+
+type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
 
 type webservice struct {
 	quit   chan bool
 	Router *mux.Router
-	fs     fs.FS
-	Objs   *engine.Objects
-	srv    *http.Server
+	UnionFS
+	Objs *engine.Objects
+	srv  *http.Server
+
+	AdditionalHeaders []string // Additional things to add to the main page
 }
 
 func NewWebservice() *webservice {
@@ -46,25 +69,19 @@ func NewWebservice() *webservice {
 		Router: mux.NewRouter(),
 	}
 
+	ws.AddFS(http.FS(AddprefixFS{"html/", embeddedassets}))
+
 	// Add stock functions
 	analysisfuncs(ws)
 
 	return ws
 }
 
-type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
-
-// func (ws *webservice) RegisterHandler(path string, hf handlerfunc) {
-// 	ws.router.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-// 		hf(ws.objs, w, r)
-// 	})
-// }
-
 func (w *webservice) QuitChan() <-chan bool {
 	return w.quit
 }
 
-func (w *webservice) Start(bind string, objs *engine.Objects) error {
+func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string) error {
 	w.Objs = objs
 
 	w.srv = &http.Server{
@@ -72,38 +89,46 @@ func (w *webservice) Start(bind string, objs *engine.Objects) error {
 		Handler: w.Router,
 	}
 
-	// Serve embedded static files, or from html folder if it exists
-	var usinglocalhtml bool
-	if *localhtml != "" {
-		// Override embedded HTML if asked to
-		if stat, err := os.Stat(*localhtml); err == nil && stat.IsDir() {
-			// Use local files if they exist
-			log.Info().Msgf("Switching from embedded HTML to local folder %v", *localhtml)
-			if osf, err := osfs.NewFS(); err == nil {
-				err = osf.Chdir(*localhtml) // Move up one folder, so we have html/ below us
-				if err != nil {
-					return errors.Wrap(err, "")
+	if len(localhtml) != 0 {
+		w.UnionFS = UnionFS{}
+		for _, html := range localhtml {
+			// Override embedded HTML if asked to
+			if stat, err := os.Stat(html); err == nil && stat.IsDir() {
+				// Use local files if they exist
+				log.Info().Msgf("Adding local HTML folder %v", html)
+				if osf, err := osfs.NewFS(); err == nil {
+					err = osf.Chdir(html)
+					if err != nil {
+						return errors.Wrap(err, "")
+					}
+
+					overrideassets, err := gofs.NewFs(osf)
+					if err != nil {
+						return errors.Wrap(err, "")
+					}
+					w.AddFS(http.FS(overrideassets))
 				}
-				assets, err := gofs.NewFs(osf)
-				if err != nil {
-					return errors.Wrap(err, "")
-				}
-				w.Router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
-					// Prefix: "html",
-					FS: assets,
-				})))
+			} else {
+				log.Fatal().Msgf("Could not add local HTML folder %v, failure: %v", html, err)
 			}
-			usinglocalhtml = true
-		} else {
-			log.Warn().Msgf("Not switching from embedded HTML to local folder %v, failure: %v", *localhtml, err)
 		}
 	}
-	if !usinglocalhtml {
-		w.Router.PathPrefix("/").Handler(http.FileServer(http.FS(FSPrefix{
-			Prefix: "html",
-			FS:     embeddedassets,
-		})))
-	}
+
+	w.Router.Path("/").HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		indexfile, err := w.UnionFS.Open("index.html")
+		if err != nil {
+			log.Fatal().Msgf("Could not open index.html: %v", err)
+		}
+		rawindex, _ := ioutil.ReadAll(indexfile)
+		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
+
+		indextemplate.Execute(rw, struct {
+			AdditionalHeaders []string
+		}{
+			AdditionalHeaders: w.AdditionalHeaders,
+		})
+	})
+	w.Router.PathPrefix("/").Handler(http.FileServer(http.FS(w.UnionFS)))
 
 	go func() {
 		if err := w.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -15,8 +15,6 @@
   <!-- we put everything custom here, so we can override earlier variables -->
   <link rel="stylesheet" href="adalanche.css" />
   
-  
-
   <script src="external/jquery-3.6.0.min.js"></script>
   <script src="external/jqueryui/jquery-ui.min.js"></script>
   <script src="external/jstree/jstree.min.js"></script>
@@ -40,6 +38,10 @@
   <script src="preferences.js"></script>
   <script src="graph.js"></script>
   <script src="custom.js"></script>
+
+  {{range .AdditionalHeaders}}
+  {{.}}
+  {{end}}
 </head>
 
 <body class="dark-mode z-0">

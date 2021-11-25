@@ -19,7 +19,7 @@ var (
 
 	bind      = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
 	nobrowser = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
-	localhtml = Command.Flags().String("localhtml", "", "Override embedded HTML and use a local folder for webservice (for development)")
+	localhtml = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
 
 	WebService = NewWebservice()
 )
@@ -156,7 +156,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	*/
 
-	err = WebService.Start(*bind, objs)
+	err = WebService.Start(*bind, objs, *localhtml)
 	if err != nil {
 		return err
 	}
