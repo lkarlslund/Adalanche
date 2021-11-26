@@ -90,11 +90,11 @@ func Run() error {
 	// We do lots of allocations when importing stuff, so lets set this aggressively
 	debug.SetGCPercent(10)
 
-	// Ensure the cache folder is available
+	// Ensure the data folder is available
 	if _, err := os.Stat(*datapath); os.IsNotExist(err) {
-		err = os.MkdirAll(*datapath, 0600)
+		err = os.MkdirAll(*datapath, 0711)
 		if err != nil {
-			return fmt.Errorf("Could not create cache folder %v: %v", datapath, err)
+			return fmt.Errorf("Could not create data folder %v: %v", datapath, err)
 		}
 	}
 
