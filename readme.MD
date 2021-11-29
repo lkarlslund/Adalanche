@@ -61,6 +61,11 @@ This will give you insight into who uses what systems, service accounts that are
 #### Analysis
 This is dead simple - everything you've collected should be in the data directory, either in the main folder or in subfolders. Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
 
+These extensions are recognized:
+- .localmachine.json - Windows collector data
+- .gpodata.json - Active Directory GPO data
+- .objects.msgp.lz4 - Active Directory object/schema data in MsgPack format (LZ4 compressed)
+
 Highly advanced command line to analyze and launch your browser:
 
 <code>adalanche analyze</code>
