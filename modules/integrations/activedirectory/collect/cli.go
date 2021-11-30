@@ -72,7 +72,7 @@ func init() {
 	if runtime.GOOS == "windows" {
 		defaultmode = "ntlmsspi"
 	}
-	authmodeString = Command.Flags().String("authmode", defaultmode, "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (current user, default)")
+	authmodeString = Command.Flags().String("authmode", defaultmode, "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (integrated Windows)")
 
 	clicollect.Collect.AddCommand(Command)
 	Command.PreRunE = PreRun
@@ -209,7 +209,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		attributes = strings.Split(*attributesparam, ",")
 	}
 
-	datapath := cmd.Flag("datapath").Value.String()
+	datapath := "data"
+	if idp := cmd.InheritedFlags().Lookup("datapath"); idp != nil {
+		datapath = idp.Value.String()
+	}
 
 	log.Info().Msg("Probing RootDSE ...")
 	rootdse, err := ad.Dump(DumpOptions{

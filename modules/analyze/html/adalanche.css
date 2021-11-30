@@ -82,10 +82,15 @@ body {
   transform: translate(-50%, 0%);
 }
 
-#explore {
+#commandbuttons {
   position: absolute;
   left: 10px;
   bottom: 10px;
+  white-space: nowrap;
+}
+
+#commandbuttons .btn {
+  margin-right: 5px;
 }
 
 .checkbox-button input[type='checkbox'],
@@ -93,7 +98,7 @@ body {
   display: none;
 }
 
-.checkbox-button input[type='checkbox']:checked + label.btn,
-.checkbox-button input[type='radio']:checked + label.btn {
+.checkbox-button input[type='checkbox']:checked+label.btn,
+.checkbox-button input[type='radio']:checked+label.btn {
   background-color: var(--primary-color);
 }
