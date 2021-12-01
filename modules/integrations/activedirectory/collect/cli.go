@@ -47,9 +47,7 @@ var (
 
 	authmodeString *string
 
-	authdomain = Command.Flags().String("authdomain", "", "domain for authentication, if using ntlm auth")
-	dumpquery  = Command.Flags().String("query", "(objectClass=*)", "LDAP query for dump, defaults to everything")
-
+	authdomain      = Command.Flags().String("authdomain", "", "domain for authentication, if using ntlm auth")
 	attributesparam = Command.Flags().String("attributes", "*", "Comma seperated list of attributes to get, * = all, or a comma seperated list of attribute names (expert)")
 
 	nosacl   = Command.Flags().Bool("nosacl", true, "Request data with NO SACL flag, allows normal users to dump ntSecurityDescriptor field")
@@ -219,7 +217,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		SearchBase:    "",
 		Scope:         ldap.ScopeBaseObject,
 		ReturnObjects: true,
-		WriteToFile:   filepath.Join(datapath, *server+"RootDSE.objects.msgp.lz4"),
 	})
 	if err != nil {
 		return fmt.Errorf("problem querying Active Directory RootDSE: %w", err)
@@ -248,6 +245,16 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if !used {
 			otherContexts = append(otherContexts, context)
 		}
+	}
+
+	log.Info().Msg("Saving RootDSE ...")
+	_, err = ad.Dump(DumpOptions{
+		SearchBase:  "",
+		Scope:       ldap.ScopeBaseObject,
+		WriteToFile: filepath.Join(datapath, domainContext+".RootDSE.objects.msgp.lz4"),
+	})
+	if err != nil {
+		return fmt.Errorf("problem saving Active Directory RootDSE: %w", err)
 	}
 
 	do := DumpOptions{
