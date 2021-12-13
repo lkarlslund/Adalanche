@@ -247,7 +247,9 @@ valueloop:
 				target, _ = ParseQueryStrict(values[1], ao)
 			}
 			var method engine.PwnMethod
-			if pwnmethod != "" && pwnmethod != "*" {
+			if pwnmethod == "*" {
+				method = engine.AnyPwnMethod
+			} else {
 				method = engine.P(pwnmethod)
 				if method == engine.NonExistingPwnMethod {
 					return nil, nil, fmt.Errorf("Could not convert value %v to pwn method", pwnmethod)
@@ -636,7 +638,7 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 		items = o.PwnableBy
 	}
 	for _, pwnmethod := range items {
-		if p.method == 0 || pwnmethod.IsSet(p.method) {
+		if (p.method == engine.AnyPwnMethod && pwnmethod.Count() != 0) || pwnmethod.IsSet(p.method) {
 			return true
 		}
 	}

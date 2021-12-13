@@ -151,6 +151,7 @@ func AllPwnMethodsSlice() []PwnMethod {
 
 var (
 	NonExistingPwnMethod = PwnMethod(10000)
+	AnyPwnMethod         = PwnMethod(9999)
 )
 
 var AllPwnMethods PwnMethodBitmap
