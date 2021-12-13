@@ -219,7 +219,7 @@ func init() {
 			Description: "Permissions that lets someone to create a user object in a container",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit && o.Type() != engine.ObjectTypeBuiltinDomain {
 					return
 				}
 				sd, err := o.SecurityDescriptor()
@@ -257,7 +257,7 @@ func init() {
 			Description: "Permissions that lets someone to create a computer object in a container",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
+				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit && o.Type() != engine.ObjectTypeDomainDNS {
 					return
 				}
 				sd, err := o.SecurityDescriptor()

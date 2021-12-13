@@ -57,6 +57,7 @@ const (
 	ObjectTypeComputer
 	ObjectTypeManagedServiceAccount
 	ObjectTypeOrganizationalUnit
+	ObjectTypeBuiltinDomain
 	ObjectTypeContainer
 	ObjectTypeGroupPolicyContainer
 	ObjectTypeCertificateTemplate
@@ -320,6 +321,8 @@ func (o *Object) Type() ObjectType {
 		o.objecttype = ObjectTypeManagedServiceAccount
 	case "Organizational-Unit":
 		o.objecttype = ObjectTypeOrganizationalUnit
+	case "Builtin-Domain":
+		o.objecttype = ObjectTypeBuiltinDomain
 	case "Container":
 		o.objecttype = ObjectTypeContainer
 	case "Computer":

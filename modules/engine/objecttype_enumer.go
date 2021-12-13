@@ -8,9 +8,9 @@ import (
 	"fmt"
 )
 
-const _ObjectTypeName = "OtherAttributeSchemaClassSchemaControlAccessRightGroupForeignSecurityPrincipalDomainDNSDNSNodeDNSZoneUserComputerManagedServiceAccountOrganizationalUnitContainerGroupPolicyContainerCertificateTemplateTrustServiceExecutable"
+const _ObjectTypeName = "OtherAttributeSchemaClassSchemaControlAccessRightGroupForeignSecurityPrincipalDomainDNSDNSNodeDNSZoneUserComputerManagedServiceAccountOrganizationalUnitBuiltinDomainContainerGroupPolicyContainerCertificateTemplateTrustServiceExecutable"
 
-var _ObjectTypeIndex = [...]uint8{0, 5, 20, 31, 49, 54, 78, 87, 94, 101, 105, 113, 134, 152, 161, 181, 200, 205, 212, 222}
+var _ObjectTypeIndex = [...]uint8{0, 5, 20, 31, 49, 54, 78, 87, 94, 101, 105, 113, 134, 152, 165, 174, 194, 213, 218, 225, 235}
 
 func (i ObjectType) String() string {
 	i -= 1
@@ -20,7 +20,7 @@ func (i ObjectType) String() string {
 	return _ObjectTypeName[_ObjectTypeIndex[i]:_ObjectTypeIndex[i+1]]
 }
 
-var _ObjectTypeValues = []ObjectType{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+var _ObjectTypeValues = []ObjectType{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
 
 var _ObjectTypeNameToValueMap = map[string]ObjectType{
 	_ObjectTypeName[0:5]:     1,
@@ -36,12 +36,13 @@ var _ObjectTypeNameToValueMap = map[string]ObjectType{
 	_ObjectTypeName[105:113]: 11,
 	_ObjectTypeName[113:134]: 12,
 	_ObjectTypeName[134:152]: 13,
-	_ObjectTypeName[152:161]: 14,
-	_ObjectTypeName[161:181]: 15,
-	_ObjectTypeName[181:200]: 16,
-	_ObjectTypeName[200:205]: 17,
-	_ObjectTypeName[205:212]: 18,
-	_ObjectTypeName[212:222]: 19,
+	_ObjectTypeName[152:165]: 14,
+	_ObjectTypeName[165:174]: 15,
+	_ObjectTypeName[174:194]: 16,
+	_ObjectTypeName[194:213]: 17,
+	_ObjectTypeName[213:218]: 18,
+	_ObjectTypeName[218:225]: 19,
+	_ObjectTypeName[225:235]: 20,
 }
 
 // ObjectTypeString retrieves an enum value from the enum constants string name.
