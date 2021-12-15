@@ -103,7 +103,7 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 				"type": object.Type().String(),
 			}}
 
-		if uac, ok := object.OneAttrRaw(activedirectory.UserAccountControl).(uint64); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
+		if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
 			newnode.Data["_disabled"] = true
 		}
 
