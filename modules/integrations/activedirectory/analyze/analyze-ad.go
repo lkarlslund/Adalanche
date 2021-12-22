@@ -500,10 +500,11 @@ func init() {
 			// Method: activedirectory.PwnResetPassword,
 			Description: "Indicator that a group or user can reset the password of an account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only computers and users
+				// Only users, computers and service accounts
 				if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeManagedServiceAccount {
 					return
 				}
+				// Check who can reset the password
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return

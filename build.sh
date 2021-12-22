@@ -14,7 +14,9 @@ LDFLAGS="-X github.com/lkarlslund/adalanche/modules/version.Program=adalanche -X
 
 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o adalanche-windows-x64-$VERSION.exe ./adalanche || EXIT_STATUS=$?
 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o adalanche-osx-x64-$VERSION ./adalanche || EXIT_STATUS=$?
+GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o adalanche-osx-m1-$VERSION ./adalanche || EXIT_STATUS=$?
 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o adalanche-linux-x64-$VERSION ./adalanche || EXIT_STATUS=$?
+GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o adalanche-linux-arm64-$VERSION ./adalanche || EXIT_STATUS=$?
 
 LDFLAGS="-X github.com/lkarlslund/adalanche/modules/version.Program=adalanche-collector -X github.com/lkarlslund/adalanche/modules/version.Builddate=$BUILDDATE -X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 

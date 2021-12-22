@@ -3,15 +3,20 @@ package activedirectory
 import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
-	PwnCreateUser                           = engine.NewPwn("CreateUser")
-	PwnCreateGroup                          = engine.NewPwn("CreateGroup")
-	PwnCreateComputer                       = engine.NewPwn("CreateComputer")
-	PwnCreateAnyObject                      = engine.NewPwn("CreateAnyObject")
-	PwnDeleteChildrenTarget                 = engine.NewPwn("DeleteChildrenTarget")
-	PwnDeleteObject                         = engine.NewPwn("DeleteObject")
-	PwnInheritsSecurity                     = engine.NewPwn("InheritsSecurity")
-	PwnACLContainsDeny                      = engine.NewPwn("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return -1 })
-	PwnResetPassword                        = engine.NewPwn("ResetPassword")
+	PwnCreateUser           = engine.NewPwn("CreateUser")
+	PwnCreateGroup          = engine.NewPwn("CreateGroup")
+	PwnCreateComputer       = engine.NewPwn("CreateComputer")
+	PwnCreateAnyObject      = engine.NewPwn("CreateAnyObject")
+	PwnDeleteChildrenTarget = engine.NewPwn("DeleteChildrenTarget")
+	PwnDeleteObject         = engine.NewPwn("DeleteObject")
+	PwnInheritsSecurity     = engine.NewPwn("InheritsSecurity")
+	PwnACLContainsDeny      = engine.NewPwn("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return -1 })
+	PwnResetPassword        = engine.NewPwn("ResetPassword").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
+			return -1
+		}
+		return 100
+	})
 	PwnOwns                                 = engine.NewPwn("Owns")
 	PwnGenericAll                           = engine.NewPwn("GenericAll")
 	PwnWriteAll                             = engine.NewPwn("WriteAll")
