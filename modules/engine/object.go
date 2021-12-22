@@ -799,23 +799,37 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 }
 
 func (o *Object) SID() windowssecurity.SID {
+	o.lock()
 	if !o.sidcached {
 		o.sidcached = true
-		if sid, ok := o.OneAttrRaw(ObjectSid).(windowssecurity.SID); ok {
-			o.sid = sid
+		if asid, ok := o.get(ObjectSid); ok {
+			if asid.Len() == 1 {
+				if sid, ok := asid.Slice()[0].Raw().(windowssecurity.SID); ok {
+					o.sid = sid
+				}
+			}
 		}
 	}
-	return o.sid
+	sid := o.sid
+	o.unlock()
+	return sid
 }
 
 func (o *Object) GUID() uuid.UUID {
+	o.lock()
 	if !o.guidcached {
-		if guid, ok := o.OneAttrRaw(ObjectGUID).(uuid.UUID); ok {
-			o.guid = guid
-		}
 		o.guidcached = true
+		if aguid, ok := o.get(ObjectGUID); ok {
+			if aguid.Len() == 1 {
+				if guid, ok := aguid.Slice()[0].Raw().(uuid.UUID); ok {
+					o.guid = guid
+				}
+			}
+		}
 	}
-	return o.guid
+	guid := o.guid
+	o.unlock()
+	return guid
 }
 
 func (o *Object) Pwns(target *Object, method PwnMethod) {
