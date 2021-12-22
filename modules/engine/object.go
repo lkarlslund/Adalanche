@@ -590,6 +590,9 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 				continue
 			}
 			for _, s := range *v {
+				if ignoreblanks && s == "" {
+					continue
+				}
 				data = append(data, AttributeValueString(s))
 			}
 		case *string:
