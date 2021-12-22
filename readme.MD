@@ -35,11 +35,31 @@ If you're on a non-domain joined Windows machine or another OS, you'll need at l
 
 LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "--ignorecert" switch, or change protocol to LDAP with <code>--tlsmode NoTLS --port 389</code> options.
 
-Example to create data files file for contoso.local:
 
-<code>adalanche collect activedirectory --domain contoso.local --username joe --password Hunter42</code>
+Example to create data files file for contoso.local coming from your Linux pwnage box using TLS port 636, ignoring certs and using NTLM auth:
+
+<code>adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
+
+From domain joined Windows member using current user:
+
+<code>adalanche collect activedirectory</code>
+
+From domain joined Windows machine using other credentials than logged in:
+
+<code>adalanche collect activedirectory --authmode ntlm --username joe --password Hunter42</code>
 
 There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
+
+## BIG FAT NTLM BUG WARNING
+*There is an unfixed bug that in some cases prevents NTLM authentication from working. AD controller responds with "DAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
+
+Until this is fixed, you can try this alternative method:
+- spin up a Windows VM
+- set the computer name to the domain name
+- add your domain user account to the local machine and set the password accordingly so it matches the domain
+- proceed to dump things using integrated NTLM authentication (the default when running adalanche on Windows)
+
+This has worked for me, even over trusts. If you have any idea what's going on with the bug, please reach out to me.
 
 ### Local Machine (Windows)
 For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines by running the collector module. There is a stand alone version released as a 32-bit Windows executable, and this works transparently also on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). 
