@@ -582,6 +582,49 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 			continue
 		}
 		switch v := i.(type) {
+		case *[]string:
+			if v == nil {
+				continue
+			}
+			if ignoreblanks && len(*v) == 0 {
+				continue
+			}
+			for _, s := range *v {
+				data = append(data, AttributeValueString(s))
+			}
+		case *string:
+			if v == nil {
+				continue
+			}
+			if ignoreblanks && len(*v) == 0 {
+				continue
+			}
+			data = append(data, AttributeValueString(*v))
+		case string:
+			if ignoreblanks && len(v) == 0 {
+				continue
+			}
+			data = append(data, AttributeValueString(v))
+		case *time.Time:
+			if v == nil {
+				continue
+			}
+			if ignoreblanks && v.IsZero() {
+				continue
+			}
+			data = append(data, AttributeValueTime(*v))
+		case time.Time:
+			if ignoreblanks && v.IsZero() {
+				continue
+			}
+			data = append(data, AttributeValueTime(v))
+		case *bool:
+			if v == nil {
+				continue
+			}
+			data = append(data, AttributeValueBool(*v))
+		case bool:
+			data = append(data, AttributeValueBool(v))
 		case Attribute:
 			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
 				o.set(attribute, data)
@@ -591,6 +634,9 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 		case AttributeValue:
 			if v == nil {
 				panic("This is impossble")
+			}
+			if dt, ok := v.Raw().(time.Time); ok && dt.IsZero() {
+				continue
 			}
 			if v.String() == "" && ignoreblanks {
 				continue
