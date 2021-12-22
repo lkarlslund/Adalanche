@@ -45,6 +45,8 @@ var (
 
 	ignoreCert = Command.Flags().Bool("ignorecert", false, "Disable certificate checks")
 
+	ldapdebug = Command.Flags().Bool("ldapdebug", false, "Enable LDAP debugging")
+
 	authmodeString *string
 
 	authdomain      = Command.Flags().String("authdomain", "", "domain for authentication, if using ntlm auth")
@@ -162,6 +164,17 @@ func PreRun(cmd *cobra.Command, args []string) error {
 			return errors.New("Missing username - please use '--username' parameter")
 		}
 
+		if authmode != 3 {
+			if *domain != "" && !strings.Contains(*user, "@") && !strings.Contains(*user, "\\") {
+				*user = *user + "@" + *domain
+				log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", *user)
+			}
+		}
+	} else {
+		log.Info().Msg("Using integrated NTLM authentication")
+	}
+
+	if authmode != 5 {
 		if *pass == "" {
 			fmt.Printf("Please enter password for %v: ", *user)
 			passwd, err := term.ReadPassword(int(syscall.Stdin))
@@ -170,13 +183,12 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				*pass = string(passwd)
 			}
 		}
+	}
 
-		if *domain != "" && !strings.Contains(*user, "@") && !strings.Contains(*user, "\\") {
-			*user = *user + "@" + *domain
-			log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", *user)
+	if authmode == 3 {
+		if *authdomain == "" {
+			return errors.New("Missing authdomain for NTLM - please use '--authdomain' parameter")
 		}
-	} else {
-		log.Info().Msg("Using integrated NTLM authentication")
 	}
 
 	return nil
@@ -192,6 +204,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		AuthDomain: *authdomain,
 		TLSMode:    tlsmode,
 		IgnoreCert: *ignoreCert,
+		Debug:      *ldapdebug,
 	}
 
 	err := ad.Connect(authmode)

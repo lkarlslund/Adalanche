@@ -12,6 +12,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/pierrec/lz4/v4"
+	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -35,6 +36,8 @@ type AD struct {
 	AuthDomain string
 	TLSMode    TLSmode
 	IgnoreCert bool
+
+	Debug bool
 
 	conn *ldap.Conn
 }
@@ -75,19 +78,27 @@ func (ad *AD) Connect(authmode byte) error {
 		return errors.New("unknown transport mode")
 	}
 
+	ad.conn.Debug.Enable(ad.Debug)
+
 	var err error
 	switch authmode {
 	case 0:
+		log.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
 		err = ad.conn.UnauthenticatedBind(ad.User)
 	case 1:
+		log.Debug().Msgf("Doing simple bind with user %s", ad.User)
 		err = ad.conn.Bind(ad.User, ad.Password)
 	case 2:
+		log.Debug().Msgf("Doing MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
 	case 3:
+		log.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
 	case 4:
+		log.Debug().Msgf("Doing NTLM hash auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
 	case 5:
+		log.Debug().Msgf("Doing integrated NTLM auth")
 		err = ad.conn.NTLMSSPIBind()
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
