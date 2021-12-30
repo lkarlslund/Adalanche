@@ -198,6 +198,7 @@ attributeloop:
 
 	// Value
 	var value string
+	var rightparanthesisneeded int
 valueloop:
 	for {
 		if len(s) == 0 {
@@ -207,8 +208,17 @@ valueloop:
 		case '\\': // Escaping
 			value += string(s[1])
 			s = s[2:] // yum yum
+		case '(':
+			rightparanthesisneeded++
+			value += string(s[0])
+			s = s[1:]
 		case ')':
-			break valueloop
+			if rightparanthesisneeded == 0 {
+				break valueloop
+			}
+			value += string(s[0])
+			s = s[1:]
+			rightparanthesisneeded--
 		default:
 			value += string(s[0])
 			s = s[1:]
@@ -244,7 +254,10 @@ valueloop:
 			if strings.Contains(pwnmethod, ",") {
 				values := strings.Split(pwnmethod, ",")
 				pwnmethod = values[0]
-				target, _ = ParseQueryStrict(values[1], ao)
+				target, err = ParseQueryStrict(values[1], ao)
+				if err != nil {
+					return nil, nil, fmt.Errorf("Could not parse sub-query: %v", err)
+				}
 			}
 			var method engine.PwnMethod
 			if pwnmethod == "*" {
@@ -637,9 +650,11 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 	if !p.canpwn {
 		items = o.PwnableBy
 	}
-	for _, pwnmethod := range items {
+	for pwntarget, pwnmethod := range items {
 		if (p.method == engine.AnyPwnMethod && pwnmethod.Count() != 0) || pwnmethod.IsSet(p.method) {
-			return true
+			if p.target == nil || p.target.Evaluate(pwntarget) {
+				return true
+			}
 		}
 	}
 	return false
