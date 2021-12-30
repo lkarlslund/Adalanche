@@ -735,7 +735,7 @@ func (o *Object) init() {
 	}
 }
 
-func (o *Object) String(ao *Objects) string {
+func (o *Object) StringNoACL() string {
 	var result string
 	result += "OBJECT " + o.DN() + "\n"
 	for attr, values := range o.AttributeValueMap() {
@@ -757,6 +757,11 @@ func (o *Object) String(ao *Objects) string {
 			an.Children()
 		}
 	}
+	return result
+}
+
+func (o *Object) String(ao *Objects) string {
+	result := o.StringNoACL()
 
 	sd, err := o.SecurityDescriptor()
 	if err == nil {
