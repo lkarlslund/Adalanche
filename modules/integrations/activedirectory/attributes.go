@@ -1,11 +1,8 @@
 package activedirectory
 
 import (
-	"strings"
-
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -85,12 +82,12 @@ var (
 		if !ok {
 			return
 		}
-		if a.Label() == "Account Operators" {
-			log.Warn().Msgf("GOTCHA %s", asid)
-		}
-		if strings.Contains(a.DN(), "CN=WellKnown") {
-			log.Warn().Msgf("GOTCHA WELLKNOWN %s (%s )with SID %s", a.Label(), a.DN(), asid)
-		}
+		// if a.Label() == "Account Operators" {
+		// 	log.Warn().Msgf("GOTCHA %s", asid)
+		// }
+		// if strings.Contains(a.DN(), "CN=WellKnown") {
+		// 	log.Warn().Msgf("GOTCHA WELLKNOWN %s (%s )with SID %s", a.Label(), a.DN(), asid)
+		// }
 		// if asid.Components() >= 3 && asid.Component(1) == 5 && asid.Component(2) == 32 {
 		if asid.Components() >= 3 && asid.Component(1) == 5 && asid.Component(2) != 21 {
 			return nil, engine.ErrDontMerge
