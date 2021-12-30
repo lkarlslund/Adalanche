@@ -238,29 +238,24 @@
                 mode="Normal" depth=99 methods="default">Who owns your AD?</a>
               <a class="dropdown-item" href="#"
                 query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
-                DNS DLL on your DC?</a>
+                mode="Normal" depth=99 methods="default">Who can pwn your AD by sideloading a custom DLL on your DC?</a>
               <a class="dropdown-item" href="#"
-                query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0))),(|(name=Domain Admins)(name=Enterprise Admins)(name=Administrators))"
-                mode="Normal" depth=99 methods="default">Misconfigured Certificate Templates that lets a user request a
-                Client Auth cert posing as anyone (excl. AD/DA/EA)</a>
+                query="(_canpwn=DCsync,(!(distinguishedName=*DnsZones,DC=*)))"
+                mode="Normal" depth=99 methods="default">Who can DCsync?</a>
+              <a class="dropdown-item" href="#"
+                query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))"
+                mode="Normal" depth=99 methods="default">Client cert templates with custom SAN (pose as anyone)</a>
               <a class="dropdown-item" href="#" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11))" mode="Reverse"
                 depth=99 methods="default">What can Domain Users and Authenticated Users do?</a>
               <a class="dropdown-item" href="#"
-                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who that isn't DA/EA/Admins can pwn your AD by sideloading a
-                DNS DLL on your DC?</a>
-              <a class="dropdown-item" href="#"
-                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (VMware groups, but not via
-                DA/EA/Admins)</a>
+                query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*)))"
+                mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (hypervisor/SAN sounding groups)</a>
               <a class="dropdown-item" href="#"
                 query="(&(objectCategory=Group)(|(name=*backup*)(name=*veeam*)(name=*tsm*)(name=*tivoli storage*)(name=*rubrik*)(name=*commvault*))),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who can wipe your backup or access a DC backup? (Backup groups,
-                but not via DA/EA/Admins)</a>
+                mode="Normal" depth=99 methods="default">Who can wipe or access your backups? (backup sounding groups)</a>
               <a class="dropdown-item" href="#"
-                query="(objectCategory=Group-Policy-Container),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who can change GPOs? (not via DA/EA/Admins)</a>
+                query="(objectCategory=Group-Policy-Container)"
+                mode="Normal" depth=99 methods="default">Who can change GPOs?</a>
               <a class="dropdown-item" href="#"
                 query="(&(objectCategory=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))" mode="Normal" depth=99
                 methods="default">Users not required to have a password</a>

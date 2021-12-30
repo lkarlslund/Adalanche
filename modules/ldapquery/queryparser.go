@@ -251,10 +251,10 @@ valueloop:
 		case "_pwnable", "_canpwn":
 			pwnmethod := value
 			var target Query
-			if strings.Contains(pwnmethod, ",") {
-				values := strings.Split(pwnmethod, ",")
-				pwnmethod = values[0]
-				target, err = ParseQueryStrict(values[1], ao)
+			commapos := strings.Index(pwnmethod, ",")
+			if commapos != -1 {
+				pwnmethod = value[:commapos]
+				target, err = ParseQueryStrict(value[commapos+1:], ao)
 				if err != nil {
 					return nil, nil, fmt.Errorf("Could not parse sub-query: %v", err)
 				}
