@@ -18,7 +18,7 @@ type Loader interface {
 	Name() string
 
 	// Init is called before any loads are done
-	Init(ao *Objects) error
+	Init() error
 
 	// Load will be offered a file, and can either return UnininterestedError, nil or any error it
 	// wishes. UninterestedError will pass the file to the next loader, Nil means it accepted and processed the file,
@@ -26,7 +26,7 @@ type Loader interface {
 	Load(path string, cb ProgressCallbackFunc) error
 
 	// Close signals that no more files are coming
-	Close() error
+	Close() ([]*Objects, error)
 }
 
 var (
@@ -40,27 +40,33 @@ func AddLoader(loader Loader) LoaderID {
 	return LoaderID(len(loaders) - 1)
 }
 
+func NewLoaderObjects(ld Loader) *Objects {
+	aos := &Objects{}
+	aos.Init()
+	aos.SetDefaultSource(AttributeValueString(ld.Name()))
+
+	// Add the root node
+	rootnode := NewObject(Name, AttributeValueString(ld.Name()))
+	aos.Add(rootnode)
+	aos.SetRoot(rootnode)
+
+	return aos
+}
+
+type loaderobjects struct {
+	Loader  Loader
+	Objects *Objects
+}
+
 // Load runs all registered loaders
-func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
+func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 	if st, err := os.Stat(path); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("%v is no a directory", path)
 	}
 
-	// All loaders get their own Objects to add to, so thread safety is up to the loader
-	// This also ensures that a loader doesnt try to cheat and merge stuff it should'nt know about
-	aos := make([]*Objects, len(loaders))
-	for i, loader := range loaders {
-		aos[i] = &Objects{}
-		aos[i].Init()
-		aos[i].SetDefaultSource(AttributeValueString(loader.Name()))
-
-		// Add the root node
-		rootnode := NewObject(Name, AttributeValueString(loader.Name()))
-		aos[i].Add(rootnode)
-		aos[i].SetRoot(rootnode)
-
+	for _, loader := range loaders {
 		log.Debug().Msgf("Initializing loader %v", loader.Name())
-		err := loader.Init(aos[i])
+		err := loader.Init()
 		if err != nil {
 			return nil, err
 		}
@@ -118,16 +124,25 @@ func Load(path string, cb ProgressCallbackFunc) ([]*Objects, error) {
 	var totalobjects int
 
 	log.Info().Msgf("Loaded %v files, skipped %v files", len(files)-skipped, skipped)
-	for i, loader := range loaders {
-		err := loader.Close()
+
+	var aos []loaderobjects
+
+	for _, loader := range loaders {
+		los, err := loader.Close()
 		if err != nil {
 			globalerr = err
 		}
-		loaderproduced := len(aos[i].Slice())
-		totalobjects += loaderproduced
-		log.Info().Msgf("Loader %v produced %v objects", loader.Name(), loaderproduced)
+
+		var loaderproduced int
+
+		for _, lo := range los {
+			loaderproduced += lo.Len()
+			totalobjects += loaderproduced
+			aos = append(aos, loaderobjects{loader, lo})
+		}
+		log.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
 	}
-	log.Info().Msgf("We have a total of %v objects, initiating merge", totalobjects)
+	log.Info().Msgf("We produced a total of %v objects from %v", totalobjects, path)
 
 	return aos, globalerr
 }

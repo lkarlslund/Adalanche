@@ -39,6 +39,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	needsmergeobjects.Init()
 
 	var mergeon []Attribute
+
 	for i, ai := range attributenums {
 		if ai.merge {
 			mergeon = append(mergeon, Attribute(i))

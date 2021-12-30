@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/lkarlslund/stringdedup"
+	"github.com/rs/zerolog/log"
 )
 
 type SID string
@@ -16,8 +17,9 @@ type SID string
 const BlankSID = SID("")
 
 // 0 = revision
-// 1-6 = authority
-// 7-10+ = chunks of 4 with subauthorities
+// 1 = subauthority count
+// 2-7 = authority
+// 8-11+ = chunks of 4 with subauthorities
 
 func ParseSID(data []byte) (SID, []byte, error) {
 	if len(data) == 0 {
@@ -122,7 +124,7 @@ func (sid SID) Components() int {
 func (sid SID) Component(n int) uint64 {
 	switch n {
 	case 0:
-		return uint64(sid[1])
+		return uint64(sid[0])
 	case 1:
 		var authority uint64
 		for i := 2; i <= 7; i++ {
@@ -139,10 +141,14 @@ func (sid SID) Component(n int) uint64 {
 }
 
 func (sid SID) StripRID() SID {
-	if len(sid) <= 8 {
+	if len(sid) < 12 {
+		log.Error().Msgf("SID %s is too short to strip RID", sid)
 		return ""
 	}
-	return sid[:len(sid)-4]
+	newsid := make([]byte, len(sid)-4)
+	copy(newsid, sid)
+	newsid[1] = byte(len(newsid) / 4) // Adjust internal length
+	return SID(newsid)
 }
 
 func (sid SID) RID() uint32 {
@@ -157,5 +163,6 @@ func (sid SID) AddComponent(component uint32) SID {
 	newsid := make([]byte, len(sid)+4)
 	copy(newsid, sid)
 	binary.LittleEndian.PutUint32(newsid[len(sid):], component)
+	newsid[1] = byte(len(newsid) / 4) // Adjust internal length
 	return SID(newsid)
 }

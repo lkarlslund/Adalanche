@@ -33,10 +33,9 @@ func (ld *CollectorLoader) Name() string {
 	return "Collector JSON file"
 }
 
-func (ld *CollectorLoader) Init(ao *engine.Objects) error {
-	ao.SetThreadsafe(true)
-
-	ld.ao = ao
+func (ld *CollectorLoader) Init() error {
+	ld.ao = engine.NewLoaderObjects(ld)
+	ld.ao.SetThreadsafe(true)
 
 	ld.infostoadd = make(chan string, 128)
 
@@ -58,7 +57,7 @@ func (ld *CollectorLoader) Init(ao *engine.Objects) error {
 				}
 
 				// ld.infoaddmutex.Lock()
-				err = ImportCollectorInfo(cinfo, ao)
+				err = ImportCollectorInfo(cinfo, ld.ao)
 				if err != nil {
 					log.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
@@ -74,7 +73,7 @@ func (ld *CollectorLoader) Init(ao *engine.Objects) error {
 	return nil
 }
 
-func (ld *CollectorLoader) Close() error {
+func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
 	ld.ao.SetThreadsafe(false)
@@ -108,7 +107,7 @@ func (ld *CollectorLoader) Close() error {
 		}
 	}
 
-	return nil
+	return []*engine.Objects{ld.ao}, nil
 }
 
 func (ld *CollectorLoader) Load(path string, cb engine.ProgressCallbackFunc) error {

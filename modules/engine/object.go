@@ -833,21 +833,27 @@ func (o *Object) GUID() uuid.UUID {
 }
 
 func (o *Object) Pwns(target *Object, method PwnMethod) {
-	if o == target { // SID check solves (some) dual-AD analysis problems
-		// We don't care about self owns
-		return
-	}
+	o.PwnsEx(target, method, false)
+}
 
-	osid := o.SID()
+func (o *Object) PwnsEx(target *Object, method PwnMethod, force bool) {
+	if !force {
+		if o == target { // SID check solves (some) dual-AD analysis problems
+			// We don't care about self owns
+			return
+		}
 
-	// Ignore these, SELF = self own, Creator/Owner always has full rights
-	if osid == windowssecurity.SelfSID || osid == windowssecurity.SystemSID {
-		return
-	}
+		osid := o.SID()
 
-	tsid := target.SID()
-	if osid != windowssecurity.BlankSID && osid == tsid {
-		return
+		// Ignore these, SELF = self own, Creator/Owner always has full rights
+		if osid == windowssecurity.SelfSID || osid == windowssecurity.SystemSID {
+			return
+		}
+
+		tsid := target.SID()
+		if osid != windowssecurity.BlankSID && osid == tsid {
+			return
+		}
 	}
 
 	o.lock()

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"strings"
 	"sync"
 
@@ -18,6 +19,7 @@ type attributeinfo struct {
 	multi  bool
 	unique bool
 	merge  bool
+	mf     mergefunc
 	onset  AttributeSetFunc
 	onget  AttributeGetFunc
 }
@@ -52,8 +54,8 @@ var (
 	MetaDataSource = NewAttribute("_datasource").Multi()
 
 	IPAddress          = NewAttribute("IPAddress")
-	Hostname           = NewAttribute("Hostname").Merge()
-	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge()
+	Hostname           = NewAttribute("Hostname").Merge(nil)
+	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge(nil)
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
@@ -133,9 +135,23 @@ func (a Attribute) Unique() Attribute {
 	return a
 }
 
-func (a Attribute) Merge() Attribute {
+var ErrDontMerge = errors.New("Dont merge objects using any methods")
+
+type mergefunc func(attr Attribute, a, b *Object) (*Object, error)
+
+func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
+	return nil, nil
+}
+
+func (a Attribute) Merge(mf mergefunc) Attribute {
 	ai := attributenums[a]
 	ai.merge = true
+	if mf != nil {
+		if ai.mf != nil {
+			log.Fatal().Msgf("Attribute %v already has a merge function", a)
+		}
+		ai.mf = mf
+	}
 	attributenums[a] = ai
 	return a
 }

@@ -115,6 +115,7 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 		values := o.Attr(attribute)
 		if values.Len() > 1 && !attributenums[attribute].multi {
 			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
+			log.Debug().Msgf("Object dump:\n%s", o.String(os))
 		}
 		for _, value := range values.Slice() {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
@@ -195,6 +196,22 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 				}
 				if mergetarget, found := os.Find(mergeattr, lookfor); found {
 					// Let's merge
+					mf := attributenums[mergeattr].mf
+					if mf != nil {
+						res, err := mf(mergeattr, o, mergetarget)
+						if err == ErrDontMerge {
+							return false
+						}
+						if err != nil {
+							log.Warn().Msgf("Error merging %v: %v", o.Label(), err)
+							return false
+						}
+						if res != nil {
+							// Custom merge - how do we handle this?
+							log.Error().Msgf("Custom merge function not supported yet")
+							return false
+						}
+					}
 					log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 					mergetarget.Absorb(o)
 					os.updateIndex(mergetarget, false)

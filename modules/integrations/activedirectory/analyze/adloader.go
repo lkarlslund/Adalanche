@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -24,11 +25,16 @@ var (
 	Loader = engine.AddLoader(&ADLoader{})
 )
 
+type convertqueueitem struct {
+	object *activedirectory.RawObject
+	ao     *engine.Objects
+}
+
 type ADLoader struct {
 	importmutex      sync.Mutex
 	done             sync.WaitGroup
-	ao               *engine.Objects
-	objectstoconvert chan *activedirectory.RawObject
+	dco              map[string]*engine.Objects
+	objectstoconvert chan convertqueueitem
 	domains          []domaininfo
 	importall        bool
 }
@@ -42,19 +48,18 @@ func (ld *ADLoader) Name() string {
 	return adsource.String()
 }
 
-func (ld *ADLoader) Init(ao *engine.Objects) error {
+func (ld *ADLoader) Init() error {
 	ld.importall = *importall
 
-	ld.ao = ao
-
-	ld.objectstoconvert = make(chan *activedirectory.RawObject, 8192)
+	ld.dco = make(map[string]*engine.Objects)
+	ld.objectstoconvert = make(chan convertqueueitem, 8192)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
 		go func() {
-			chunk := make([]*engine.Object, 0, 64)
-			for addme := range ld.objectstoconvert {
-				o := addme.ToObject(ld.importall)
+			// chunk := make([]*engine.Object, 0, 64)
+			for item := range ld.objectstoconvert {
+				o := item.object.ToObject(ld.importall)
 
 				// Here's a quirky workaround that will bite me later
 				// Legacy well known objects in ForeignSecurityPrincipals gives us trouble with duplicate SIDs - skip them
@@ -62,20 +67,27 @@ func (ld *ADLoader) Init(ao *engine.Objects) error {
 					continue
 				}
 
-				chunk = append(chunk, o)
-				if cap(chunk) == len(chunk) {
-					// Send chunk to objects
-					ld.importmutex.Lock()
-					ld.ao.Add(chunk...)
-					ld.importmutex.Unlock()
+				/*
+					chunk = append(chunk, o)
+					if cap(chunk) == len(chunk) {
+						// Send chunk to objects
+						ld.importmutex.Lock()
+						ld.ao.Add(chunk...)
+						ld.importmutex.Unlock()
 
-					chunk = chunk[:0]
-				}
+						chunk = chunk[:0]
+					}
+				*/
+
+				// ld.importmutex.Lock()
+				item.ao.Add(o)
+				// ld.importmutex.Unlock()
+
 			}
 			// Process the last incomplete chunk
-			ld.importmutex.Lock()
-			ld.ao.Add(chunk...)
-			ld.importmutex.Unlock()
+			// ld.importmutex.Lock()
+			// ld.ao.Add(chunk...)
+			// ld.importmutex.Unlock()
 			ld.done.Done()
 		}()
 	}
@@ -87,6 +99,18 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, ".objects.msgp.lz4") {
 		return engine.ErrUninterested
 	}
+
+	shard := filepath.Dir(path)
+
+	var ao *engine.Objects
+	ld.importmutex.Lock()
+	ao = ld.dco[shard]
+	if ao == nil {
+		ao = engine.NewLoaderObjects(ld)
+		ao.SetThreadsafe(true)
+		ld.dco[shard] = ao
+	}
+	ld.importmutex.Unlock()
 
 	// 	if ld.ao.Base == "" { // Shoot me, this is horrible
 	// 	objs.Base = "dc=" + strings.Replace(domain, ".", ",dc=", -1)
@@ -130,7 +154,7 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 		var rawObject activedirectory.RawObject
 		err = rawObject.DecodeMsg(d)
 		if err == nil {
-			ld.objectstoconvert <- &rawObject
+			ld.objectstoconvert <- convertqueueitem{&rawObject, ao}
 		} else if msgp.Cause(err) == io.EOF {
 			return nil
 		} else {
@@ -139,9 +163,15 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	}
 }
 
-func (ld *ADLoader) Close() error {
+func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	close(ld.objectstoconvert)
 	ld.done.Wait()
 
-	return nil
+	var aos []*engine.Objects
+	for _, ao := range ld.dco {
+		aos = append(aos, ao)
+		ao.SetThreadsafe(false)
+	}
+
+	return aos, nil
 }

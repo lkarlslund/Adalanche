@@ -28,10 +28,9 @@ func (ld *GPOLoader) Name() string {
 	return gposource.String()
 }
 
-func (ld *GPOLoader) Init(ao *engine.Objects) error {
-	ao.SetThreadsafe(true)
-
-	ld.ao = ao
+func (ld *GPOLoader) Init() error {
+	ld.ao = engine.NewLoaderObjects(ld)
+	ld.ao.SetThreadsafe(true)
 
 	ld.gpofiletoprocess = make(chan string, 8192)
 
@@ -52,7 +51,7 @@ func (ld *GPOLoader) Init(ao *engine.Objects) error {
 					continue
 				}
 
-				err = ImportGPOInfo(ginfo, ao)
+				err = ImportGPOInfo(ginfo, ld.ao)
 				if err != nil {
 					log.Warn().Msgf("Problem importing GPO: %v", err)
 					continue
@@ -74,10 +73,11 @@ func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	return nil
 }
 
-func (ld *GPOLoader) Close() error {
+func (ld *GPOLoader) Close() ([]*engine.Objects, error) {
 	close(ld.gpofiletoprocess)
 	ld.done.Wait()
 
 	ld.ao.SetThreadsafe(false)
-	return nil
+
+	return []*engine.Objects{ld.ao}, nil
 }
