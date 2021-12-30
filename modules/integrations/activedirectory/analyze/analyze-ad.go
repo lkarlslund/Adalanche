@@ -985,13 +985,27 @@ func init() {
 			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
+		administratorssid, _ := windowssecurity.SIDFromString("S-1-5-32-544")
+		administrators, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
+		if !ok {
+			log.Fatal().Msgf("Could not locate Administrators, aborting - this should at least have been added during earlier preprocessing")
+		}
+
+		remotedesktopuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-555")
+		remotedesktopusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
+		if !ok {
+			log.Fatal().Msgf("Could not locate Remote Desktop Users, aborting - this should at least have been added during earlier preprocessing")
+		}
+
+		distributeddcomuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-562")
+		distributeddcomusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
+		if !ok {
+			log.Fatal().Msgf("Could not locate Distributed COM Users, aborting - this should at least have been added during earlier preprocessing")
+		}
+
 		for _, object := range ao.Slice() {
 
 			processbar.Add(1)
-
-			if object.Type() == engine.ObjectTypeDomainDNS {
-
-			}
 
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
 			objectclasses := object.Attr(engine.ObjectClass).Slice()
@@ -1105,6 +1119,12 @@ func init() {
 				}
 				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
 					object.SetValues(engine.MetaPasswordNotRequired, engine.AttributeValueInt(1))
+				}
+				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
+					// Domain Controller
+					administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
+					remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
+					distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
 				}
 			}
 
