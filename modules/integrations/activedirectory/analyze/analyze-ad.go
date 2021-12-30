@@ -1072,7 +1072,7 @@ func init() {
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
-			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount {
+			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal {
 				everyone.AddMember(object)
 				authenticatedusers.AddMember(object)
 			}
