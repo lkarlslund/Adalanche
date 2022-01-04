@@ -68,8 +68,13 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		case AccountExpires, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime:
 			// Just use string encoding
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-				t := util.FiletimeToTime(uint64(intval))
-				attributevalue = engine.AttributeValueTime(t)
+				if attribute == PwdLastSet && intval == 0 {
+					// log.Warn().Msg("PwdLastSet is 0")
+					attributevalue = engine.AttributeValueInt(intval)
+				} else {
+					t := util.FiletimeToTime(uint64(intval))
+					attributevalue = engine.AttributeValueTime(t)
+				}
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
 			}
