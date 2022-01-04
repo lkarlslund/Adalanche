@@ -272,18 +272,26 @@ func (o *Object) DN() string {
 	return o.OneAttrString(DistinguishedName)
 }
 
+var labelattrs = []Attribute{
+	LDAPDisplayName,
+	DisplayName,
+	Name,
+	DownLevelLogonName,
+	SAMAccountName,
+	Description,
+	DistinguishedName,
+	ObjectGUID,
+	ObjectSid,
+}
+
 func (o *Object) Label() string {
-	return util.Default(
-		o.OneAttrString(LDAPDisplayName),
-		o.OneAttrString(DisplayName),
-		o.OneAttrString(Name),
-		o.OneAttrString(DownLevelLogonName),
-		o.OneAttrString(SAMAccountName),
-		o.OneAttrString(Description),
-		o.OneAttrString(DistinguishedName),
-		o.OneAttrString(ObjectGUID),
-		o.OneAttrString(ObjectSid),
-	)
+	for _, attr := range labelattrs {
+		val := o.OneAttrString(attr)
+		if val != "" {
+			return val
+		}
+	}
+	return fmt.Sprintf("OBJ %v", o)
 }
 
 func (o *Object) Type() ObjectType {
@@ -329,7 +337,7 @@ func (o *Object) Type() ObjectType {
 		o.objecttype = ObjectTypeComputer
 	case "Group-Policy-Container":
 		o.objecttype = ObjectTypeGroupPolicyContainer
-	case "Domain Trust":
+	case "Trusted-Domain":
 		o.objecttype = ObjectTypeTrust
 	case "Attribute-Schema":
 		o.objecttype = ObjectTypeAttributeSchema
