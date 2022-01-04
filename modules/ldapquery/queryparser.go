@@ -13,9 +13,7 @@ import (
 	"github.com/gobwas/glob/util/runes"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/lkarlslund/adalanche/modules/util"
 	timespan "github.com/lkarlslund/time-timespan"
-	"github.com/rs/zerolog/log"
 )
 
 type Query interface {
@@ -64,16 +62,6 @@ func (a LowerStringAttribute) Strings(o *engine.Object) []string {
 		l[i] = strings.ToLower(s)
 	}
 	return l
-}
-
-type QueryAttribute engine.Attribute
-
-func (a QueryAttribute) Strings(o *engine.Object) []string {
-	return o.AttrRendered(engine.Attribute(a))
-}
-
-func (a QueryAttribute) Ints(o *engine.Object) (int64, bool) {
-	return o.AttrInt(engine.Attribute(a))
 }
 
 func ParseQueryStrict(s string, ao *engine.Objects) (Query, error) {
@@ -291,12 +279,12 @@ valueloop:
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, countModifier{QueryAttribute(attribute), comparator, valuenum}, nil
+		return s, countModifier{attribute, comparator, valuenum}, nil
 	case "len", "length":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, lengthModifier{QueryAttribute(attribute), comparator, valuenum}, nil
+		return s, lengthModifier{attribute, comparator, valuenum}, nil
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
@@ -305,9 +293,9 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, sinceModifier{QueryAttribute(attribute), comparator, int64(timeinseconds)}, nil
+			return s, sinceModifier{attribute, comparator, int64(timeinseconds)}, nil
 		}
-		return s, lengthModifier{QueryAttribute(attribute), comparator, valuenum}, nil
+		return s, sinceModifier{attribute, comparator, valuenum}, nil
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
@@ -340,7 +328,7 @@ valueloop:
 			if err != nil {
 				return nil, nil, err
 			}
-			return s, hasRegexpMatch{QueryAttribute(attribute), r}, nil
+			return s, hasRegexpMatch{attribute, r}, nil
 		}
 		if strings.ContainsAny(value, "?*") {
 			// glob magic
@@ -353,14 +341,11 @@ valueloop:
 				return nil, nil, err
 			}
 			if casesensitive {
-				return s, hasGlobMatch{QueryAttribute(attribute), g}, nil
+				return s, hasGlobMatch{attribute, true, g}, nil
 			}
-			return s, hasGlobMatch{LowerStringAttribute(attribute), g}, nil
+			return s, hasGlobMatch{attribute, false, g}, nil
 		}
-		if casesensitive {
-			return s, hasStringMatch{QueryAttribute(attribute), value}, nil
-		}
-		return s, hasInsensitiveStringMatch{attribute, value}, nil
+		return s, hasStringMatch{attribute, casesensitive, value}, nil
 	}
 
 	// the other comparators require numeric value
@@ -423,23 +408,32 @@ func (q notquery) Evaluate(o *engine.Object) bool {
 }
 
 type countModifier struct {
-	a     ObjectStrings
+	a     engine.Attribute
 	c     comparatortype
 	value int64
 }
 
 func (a countModifier) Evaluate(o *engine.Object) bool {
-	return a.c.Compare(int64(len(a.a.Strings(o))), a.value)
+	vals, found := o.Get(a.a)
+	count := 0
+	if found {
+		count = vals.Len()
+	}
+	return a.c.Compare(int64(count), a.value)
 }
 
 type lengthModifier struct {
-	a     ObjectStrings
+	a     engine.Attribute
 	c     comparatortype
 	value int64
 }
 
 func (a lengthModifier) Evaluate(o *engine.Object) bool {
-	for _, value := range a.a.Strings(o) {
+	vals, found := o.Get(a.a)
+	if !found {
+		return a.c.Compare(0, a.value)
+	}
+	for _, value := range vals.StringSlice() {
 		if a.c.Compare(int64(len(value)), a.value) {
 			return true
 		}
@@ -448,29 +442,27 @@ func (a lengthModifier) Evaluate(o *engine.Object) bool {
 }
 
 type sinceModifier struct {
-	a     ObjectStrings
+	a     engine.Attribute
 	c     comparatortype
 	value int64 // time in seconds, positive is in the past, negative in the future
 }
 
 func (sm sinceModifier) Evaluate(o *engine.Object) bool {
-	for _, value := range sm.a.Strings(o) {
+	vals, found := o.Get(sm.a)
+	if !found {
+		return false
+	}
+
+	for _, value := range vals.Slice() {
 		// Time in AD is either a
-		var t time.Time
-		if strings.HasSuffix(value, ".0Z") && len(value) == 17 {
-			pt, err := time.Parse("20060102150405", value[:14])
-			if err != nil { // very unlikely, but who knows
-				return false
-			}
-			t = pt
-		} else {
-			i, err := strconv.ParseInt(value, 10, 64)
-			if err != nil {
-				return false
-			}
-			t = util.FiletimeToTime(uint64(i))
+
+		raw := value.Raw()
+
+		t, ok := raw.(time.Time)
+
+		if !ok {
+			return false
 		}
-		log.Debug().Msgf("Object %v has %v parsed as %v", o.Label(), value, t.Format(time.RFC1123Z))
 
 		if sm.c.Compare(t.Unix(), sm.value) {
 			return true
@@ -547,62 +539,65 @@ func (r random100) Evaluate(o *engine.Object) bool {
 	return r.c.Compare(rnd, r.v)
 }
 
-type hasAttr QueryAttribute
+type hasAttr engine.Attribute
 
 func (a hasAttr) Evaluate(o *engine.Object) bool {
-	return len(QueryAttribute(a).Strings(o)) > 0
+	vals, found := o.Get(engine.Attribute(a))
+	if !found {
+		return false
+	}
+	return vals.Len() > 0
 }
 
 type hasStringMatch struct {
-	a ObjectStrings
-	m string
+	a             engine.Attribute
+	casesensitive bool
+	m             string
 }
 
 func (a hasStringMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range a.a.Strings(o) {
-		if a.m == value {
-			return true
-		}
-	}
-	return false
-}
-
-// Need you to lowercase m when creating it!!
-type hasInsensitiveStringMatch struct {
-	a engine.Attribute
-	m string
-}
-
-func (a hasInsensitiveStringMatch) Evaluate(o *engine.Object) bool {
 	for _, value := range o.AttrRendered(a.a) {
-		if strings.EqualFold(a.m, value) {
-			return true
+		if !a.casesensitive {
+			if strings.EqualFold(a.m, value) {
+				return true
+			}
+		} else {
+			if a.m == value {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 type hasGlobMatch struct {
-	a ObjectStrings
-	m glob.Glob
+	a             engine.Attribute
+	casesensitive bool
+	m             glob.Glob
 }
 
 func (a hasGlobMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range a.a.Strings(o) {
-		if a.m.Match(value) {
-			return true
+	for _, value := range o.AttrRendered(a.a) {
+		if !a.casesensitive {
+			if a.m.Match(strings.ToLower(value)) {
+				return true
+			}
+		} else {
+			if a.m.Match(value) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 type hasRegexpMatch struct {
-	a ObjectStrings
+	a engine.Attribute
 	m *regexp.Regexp
 }
 
 func (a hasRegexpMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range a.a.Strings(o) {
+	for _, value := range o.AttrRendered(a.a) {
 		if a.m.MatchString(value) {
 			return true
 		}
@@ -626,13 +621,13 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 		return false
 	}
 	// Check all attribute values for match or ancestry
-	for _, value := range o.Attr(a).Slice() {
+	for _, value := range o.AttrRendered(a) {
 		// We're at the end
-		if strings.EqualFold(value.String(), dn) {
+		if strings.EqualFold(value, dn) {
 			return true
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, value); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value)); found {
 			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 		}
 	}
@@ -659,16 +654,3 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 	}
 	return false
 }
-
-/*
-type pwnable PwnMethod
-
-func (p pwnable) Evaluate(o *Object) bool {
-	for _, pwnmethod := range o.PwnableBy {
-		if pwnmethod.Methods().IsSet(PwnMethod(p)) {
-			return true
-		}
-	}
-	return false
-}
-*/
