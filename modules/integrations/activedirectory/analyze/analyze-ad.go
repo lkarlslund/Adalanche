@@ -61,6 +61,8 @@ var (
 	// SchemaAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21root domain-518")
 	ServerOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-549")
 
+	EnterpriseDomainControllers, _ = windowssecurity.SIDFromString("S-1-5-9")
+
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 )
 
@@ -1112,6 +1114,9 @@ func init() {
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					object.SetValues(engine.MetaServer, engine.AttributeValueInt(1))
+
+					// All DCs are members of Enterprise Domain Controllers
+					object.Pwns(ao.FindOrAddSID(EnterpriseDomainControllers), activedirectory.PwnMemberOfGroup)
 				}
 				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
 					object.SetValues(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
