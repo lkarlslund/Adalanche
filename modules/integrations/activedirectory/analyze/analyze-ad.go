@@ -815,29 +815,34 @@ func init() {
 				if o.Type() != engine.ObjectTypeDomainDNS {
 					return
 				}
+				if !o.HasAttr(activedirectory.SystemFlags) {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					var changes, changesall bool
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
 						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
-						changes = true
 						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
-						changesall = true
 						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
-					}
-					if changes && changesall {
-						// DCsync attack WOT WOT
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDCsync)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
 						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
+					}
+				}
+
+				// Add the DCsync combination flag
+				for p, methods := range o.PwnableBy {
+					if methods.IsSet(activedirectory.PwnDSReplicationGetChanges) && methods.IsSet(activedirectory.PwnDSReplicationGetChangesAll) {
+						// DCsync attack WOT WOT
+						p.Pwns(o, activedirectory.PwnDCsync)
 					}
 				}
 			},
@@ -1144,17 +1149,12 @@ func init() {
 				}
 
 				attr, _ := object.AttrInt(activedirectory.TrustAttributes)
-				log.Debug().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(activedirectory.TrustPartner))
-				if dir&2 != 0 && attr&4 != 0 {
-					log.Debug().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
+				log.Info().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(activedirectory.TrustPartner))
+				if dir&2 != 0 && attr&0x40 != 0 { // Very unsure about this
+					log.Info().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
 				}
 			}
 
-			// if object.HasAttrValue(engine.ObjectClass, "controlAccessRight") {
-			// 	if u, ok := object.OneAttrRaw(engine.RightsGUID).(uuid.UUID); ok {
-			// 		engine.AllRights[u] = object
-			// 	}
-			// } else
 			if object.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
 				if objectGUID, ok := object.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 
