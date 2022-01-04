@@ -315,6 +315,13 @@ var cytostyle = [{
     }
 },
 {
+    selector: 'node[type="DNSNode"]',
+    style: {
+        shape: "rectangle",
+        "background-image": "icons/dns.svg",
+    }
+},
+{
     selector: 'node[type="Computer"]', // [? _workstation]
     style: {
         shape: "round-octagon",
@@ -759,7 +766,7 @@ function initgraph(data) {
             // css classes that menu items will have
             menuItemClasses: [
                 // add class names to this list
-                "bg-secondary"
+                "bg-primary"
             ],
             // css classes that context menu will have
             contextMenuClasses: [
