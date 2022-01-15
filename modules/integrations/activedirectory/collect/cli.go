@@ -126,7 +126,9 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				} else {
 					log.Info().Msgf("Auto-detected domain as %v", *domain)
 				}
+			}
 
+			if *server == "" {
 				// Auto-detect server
 				cname, servers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
 				if err == nil && cname != "" && len(servers) != 0 {
