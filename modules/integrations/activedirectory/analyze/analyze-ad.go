@@ -1221,7 +1221,8 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
 		if !found {
-			log.Fatal().Msg("Could not find Creator Owner Well Known SID !?!? I perish at the thought")
+			log.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
+			return
 		}
 
 		for target, methods := range creatorowner.CanPwn {
