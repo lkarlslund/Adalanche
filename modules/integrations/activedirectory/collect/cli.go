@@ -383,6 +383,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
 
 					offset := len(gppath)
+					var filescollected int
 					filepath.WalkDir(gppath, func(curpath string, d fs.DirEntry, err error) error {
 						if !d.IsDir() &&
 							(strings.HasSuffix(strings.ToLower(curpath), ".adm") || strings.HasSuffix(strings.ToLower(curpath), ".admx")) {
@@ -405,6 +406,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 							}
 						}
 						if !d.IsDir() {
+							filescollected++
+
 							rawfile, err := ioutil.ReadFile(curpath)
 							if err == nil {
 								fileinfo.Contents = rawfile
@@ -415,6 +418,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 						gpoinfo.GPOinfo.Files = append(gpoinfo.GPOinfo.Files, fileinfo)
 						return nil
 					})
+
+					if filescollected == 0 {
+						log.Warn().Msgf("No files found/accessible in %v", gppath)
+					}
 
 					gpodatafile := filepath.Join(datapath, gpoguid[0]+".gpodata.json")
 					f, err := os.Create(gpodatafile)
