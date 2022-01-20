@@ -367,7 +367,7 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		resulttypes := make(map[string]int)
-		for i := 0; i < engine.OBJECTTYPEMAX; i++ {
+		for i := engine.ObjectType(0); i < engine.OBJECTTYPEMAX; i++ {
 			if objecttypes[i] > 0 {
 				resulttypes[engine.ObjectType(i).String()] = objecttypes[i]
 			}

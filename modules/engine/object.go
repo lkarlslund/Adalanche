@@ -64,7 +64,9 @@ const (
 	ObjectTypeTrust
 	ObjectTypeService
 	ObjectTypeExecutable
-	OBJECTTYPEMAX = iota - 1
+	ObjectTypeDirectory
+	ObjectTypeFile
+	OBJECTTYPEMAX = iota
 )
 
 type Object struct {
@@ -351,6 +353,10 @@ func (o *Object) Type() ObjectType {
 		o.objecttype = ObjectTypeService
 	case "Executable":
 		o.objecttype = ObjectTypeExecutable
+	case "Directory":
+		o.objecttype = ObjectTypeDirectory
+	case "File":
+		o.objecttype = ObjectTypeFile
 	default:
 		o.objecttype = ObjectTypeOther
 	}

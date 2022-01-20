@@ -3,6 +3,7 @@ package analyze
 import (
 	"encoding/xml"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -16,6 +17,14 @@ import (
 
 var (
 	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge(nil)
+
+	PwnOwns          = engine.NewPwn("Owns")
+	PwnFSPartOfGPO   = engine.NewPwn("FSPartOfGPO")
+	PwnFileCreate    = engine.NewPwn("FileCreate")
+	PwnDirCreate     = engine.NewPwn("DirCreate")
+	PwnFileWrite     = engine.NewPwn("FileWrite")
+	PwnTakeOwnership = engine.NewPwn("FileTakeOwnership")
+	PwnModifyDACL    = engine.NewPwn("FileModifyDACL")
 )
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
@@ -24,18 +33,60 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	// Pwns(gpoobject)
 
 	for _, item := range ginfo.Files {
+		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
+
+		absolutepath := filepath.Join(ginfo.Path, relativepath)
+
+		objecttype := "File"
+		if item.IsDir {
+			objecttype = "Directory"
+		}
+
+		itemobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(absolutepath),
+			engine.DisplayName, engine.AttributeValueString(relativepath),
+			engine.ObjectCategorySimple, engine.AttributeValueString(objecttype),
+		)
+
+		if relativepath == "/" {
+			itemobject.Pwns(gpoobject, PwnFSPartOfGPO)
+		} else {
+			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
+			parent, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(parentpath))
+			itemobject.Pwns(parent, PwnFSPartOfGPO)
+		}
+
+		if !item.OwnerSID.IsNull() {
+			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.AttributeValueString(item.OwnerSID))
+			owner.Pwns(itemobject, PwnOwns)
+		}
+
 		if item.DACL != nil {
 			dacl, err := engine.ParseACL(item.DACL)
 			if err != nil {
 				return err
 			}
-			for _, acl := range dacl.Entries {
-				// log.Debug().Msgf("ACL: %v", acl.String(ao))
-				_ = acl
+			for _, entry := range dacl.Entries {
+				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
+
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entry.SID.Component(2) == 21 {
+					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
+						entrysidobject.Pwns(itemobject, PwnFileCreate)
+					}
+					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
+						entrysidobject.Pwns(itemobject, PwnDirCreate)
+					}
+					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
+						entrysidobject.Pwns(itemobject, PwnFileWrite)
+					}
+					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
+						entrysidobject.Pwns(itemobject, PwnTakeOwnership) // Not sure about this one
+					}
+					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
+						entrysidobject.Pwns(itemobject, PwnModifyDACL)
+					}
+				}
 			}
 		}
-
-		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
 
 		switch relativepath {
 		case "/machine/preferences/groups/groups.xml", "/machine/microsoft/windows nt/secedit/gpttmpl.inf":

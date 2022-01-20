@@ -377,7 +377,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if sd, err := engine.ParseACL(service.RegistryDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
-				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entrysid.Component(2) == 21 {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entrysid.Component(2) == 21 {
 
 					if localsid != originalsid && entrysid.StripRID() == originalsid {
 						// Replace SID
@@ -424,7 +424,7 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
-				if entry.Type&engine.ACETYPE_ACCESS_ALLOWED != 0 && entrysid.Component(2) == 21 {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entrysid.Component(2) == 21 {
 					if localsid != originalsid && entrysid.StripRID() == originalsid {
 						// Replace SID
 						entrysid = localsid.AddComponent(entrysid.RID())
@@ -433,13 +433,13 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 					o, _ := ao.FindOrAdd(
 						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
-					if entry.Mask&engine.FILE_WRITE_DATA != engine.FILE_WRITE_DATA {
+					if entry.Mask&engine.FILE_WRITE_DATA != 0 {
 						o.Pwns(serviceimageobject, PwnFileWrite)
 					}
-					if entry.Mask&engine.RIGHT_WRITE_OWNER != engine.RIGHT_WRITE_OWNER {
+					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
 						o.Pwns(serviceimageobject, PwnFileTakeOwnership) // Not sure about this one
 					}
-					if entry.Mask&engine.RIGHT_WRITE_DACL != engine.RIGHT_WRITE_DACL {
+					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
 						o.Pwns(serviceimageobject, PwnFileModifyDACL)
 					}
 				}

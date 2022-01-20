@@ -283,6 +283,24 @@ var cytostyle = [{
     }
 },
 {
+    selector: 'node[type="Directory"]',
+    style: {
+        shape: "diamond",
+        "background-image": "icons/source_black_24dp.svg",
+        "background-color": "lightblue"
+    }
+},
+{
+    selector: 'node[type="File"]',
+    style: {
+        shape: "diamond",
+        "background-image": "icons/article_black_24dp.svg",
+        "background-color": "lightblue"
+    }
+},
+
+
+{
     selector: 'node[type="GroupPolicyContainer"]',
     style: {
         shape: "rectangle",
