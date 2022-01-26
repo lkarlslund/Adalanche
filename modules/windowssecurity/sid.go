@@ -124,8 +124,15 @@ func (sid SID) Components() int {
 func (sid SID) Component(n int) uint64 {
 	switch n {
 	case 0:
+		if len(sid) == 0 {
+			return 0 // FAIL
+		}
 		return uint64(sid[0])
 	case 1:
+		if len(sid) < 8 {
+			return 0 // FAIL
+		}
+
 		var authority uint64
 		for i := 2; i <= 7; i++ {
 			authority = authority<<8 | uint64(sid[i])
@@ -134,7 +141,7 @@ func (sid SID) Component(n int) uint64 {
 	default:
 		offset := n * 4
 		if len(sid) < offset+3 {
-			return 0
+			return 0 // FAIL
 		}
 		return uint64(binary.LittleEndian.Uint32([]byte(sid[offset:])))
 	}
@@ -147,7 +154,7 @@ func (sid SID) StripRID() SID {
 	}
 	newsid := make([]byte, len(sid)-4)
 	copy(newsid, sid)
-	newsid[1] = byte(len(newsid) / 4) // Adjust internal length
+	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
 	return SID(newsid)
 }
 
@@ -163,6 +170,6 @@ func (sid SID) AddComponent(component uint32) SID {
 	newsid := make([]byte, len(sid)+4)
 	copy(newsid, sid)
 	binary.LittleEndian.PutUint32(newsid[len(sid):], component)
-	newsid[1] = byte(len(newsid) / 4) // Adjust internal length
+	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
 	return SID(newsid)
 }
