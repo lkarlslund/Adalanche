@@ -695,6 +695,9 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			panic("DownLevelLogon ends with \\")
 		}
 	}
+	if a == ObjectCategory || a == ObjectCategorySimple {
+		o.objectcategoryguid = NullGUID
+	}
 	if a == NTSecurityDescriptor {
 		for _, sd := range values.Slice() {
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {

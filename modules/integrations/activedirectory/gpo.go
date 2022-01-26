@@ -12,9 +12,10 @@ type GPOdump struct {
 }
 
 type GPOinfo struct {
-	GUID  uuid.UUID     `json:",omitempty"`
-	Path  string        `json:",omitempty"`
-	Files []GPOfileinfo `json:",omitempty"`
+	GUID     uuid.UUID     `json:",omitempty"`
+	DomainDN string        `json:",omitempty"`
+	Path     string        `json:",omitempty"`
+	Files    []GPOfileinfo `json:",omitempty"`
 }
 
 type GPOfileinfo struct {

@@ -55,6 +55,12 @@ var (
 	Description                = engine.NewAttribute("description").Tag("AD")
 	SAMAccountName             = engine.NewAttribute("sAMAccountName").Tag("AD")
 	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").Merge(func(attr engine.Attribute, a, b *engine.Object) (result *engine.Object, err error) {
+		if !a.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString("Active Directory loader")) {
+			return nil, engine.ErrMergeOnThis
+		}
+		if !b.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString("Active Directory loader")) {
+			return nil, engine.ErrMergeOnThis
+		}
 
 		aisforeign := a.Type() == engine.ObjectTypeForeignSecurityPrincipal
 		bisforeign := b.Type() == engine.ObjectTypeForeignSecurityPrincipal

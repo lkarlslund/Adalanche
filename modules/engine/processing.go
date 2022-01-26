@@ -18,7 +18,8 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
 
-	globalobjects.Reindex()
+	// After merge we don't need all the indexes
+	globalobjects.DropIndexes()
 
 	globalroot := NewObject(
 		Name, AttributeValueString("adalanche root node"),
@@ -35,19 +36,21 @@ func Merge(aos []*Objects) (*Objects, error) {
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
 
-	needsmergeobjects := &Objects{}
-	needsmergeobjects.Init()
-
+	// Find all the attributes that can be merged objects on
 	var mergeon []Attribute
-
 	for i, ai := range attributenums {
 		if ai.merge {
 			mergeon = append(mergeon, Attribute(i))
 		}
 	}
 
+	needsmergeobjects := &Objects{}
+	needsmergeobjects.Init()
+
+	// Iterate over all the object collections
 	for i, mergeobjects := range aos {
 		if i == biggest {
+			// This is the target object collection, so skip that one
 			continue
 		}
 
@@ -55,6 +58,8 @@ func Merge(aos []*Objects) (*Objects, error) {
 			mergeroot.ChildOf(globalroot)
 		}
 
+		// Merge all the objects in this collection into the target
+		// Does this make sense?? Maybe we should just add the objects and not try merging here?
 		needsmergeobjects.AddMerge(mergeon, mergeobjects.Slice()...)
 	}
 

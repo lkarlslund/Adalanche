@@ -889,7 +889,7 @@ func init() {
 					o.ChildOf(ao.Root())
 					continue
 				}
-				log.Debug().Msgf("AD object %v has no parent :-(", o.DN())
+				log.Debug().Msgf("AD object %v has no parent :-(", o.Label())
 			}
 		}
 	},
@@ -1217,6 +1217,41 @@ func init() {
 		"Protected users meta attribute",
 		engine.BeforeMerge,
 	)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Find all the DomainDNS objects, and find the domain object
+		var ourDomainDN string
+		var ourDomainSid windowssecurity.SID
+
+		for _, domaindns := range ao.Filter(func(o *engine.Object) bool {
+			return o.Type() == engine.ObjectTypeDomainDNS && o.HasAttr(engine.ObjectSid)
+		}).Slice() {
+			if !ourDomainSid.IsNull() {
+				log.Fatal().Msg("Found multiple DomainDNS objects in same domain object group before merge, this is a failure")
+			}
+			ourDomainDN = domaindns.DN()
+			ourDomainSid = domaindns.SID()
+		}
+
+		for _, o := range ao.Slice() {
+			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) {
+				// An unknown SID, is it ours or from another domain?
+				if o.SID().StripRID() == ourDomainSid {
+					// log.Debug().Msgf("Found a 'lost' local SID object %v", o.StringNoACL())
+				} else {
+					// log.Debug().Msgf("Found a 'lost' foreign SID object %v", o.StringNoACL())
+					o.SetFlex(
+						engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=SyntheticForeignSecurityPrincipals,"+ourDomainDN),
+						engine.ObjectCategorySimple, "Foreign-Security-Principal",
+					)
+
+				}
+			}
+		}
+
+	},
+		"Creation of synthetic Foreign-Security-Principal objects",
+		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))

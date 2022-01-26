@@ -14,14 +14,14 @@ type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found boo
 type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
-	name   string
-	tags   []string
-	multi  bool
-	unique bool
-	merge  bool
-	mf     mergefunc
-	onset  AttributeSetFunc
-	onget  AttributeGetFunc
+	name      string
+	tags      []string
+	multi     bool // If true, this attribute can have multiple values
+	nonunique bool // Doing a Find on this attribute will return multiple results
+	merge     bool // If true, objects can be merged on this attribute
+	mf        mergefunc
+	onset     AttributeSetFunc
+	onget     AttributeGetFunc
 }
 
 var attributenums []attributeinfo
@@ -52,6 +52,13 @@ var (
 	ObjectCategoryGUID = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
 
 	MetaDataSource = NewAttribute("_datasource").Multi()
+	UniqueSource   = NewAttribute("_source").Merge(func(attr Attribute, a, b *Object) (*Object, error) {
+		// Prevents objects from vastly different sources to join across them
+		if a.HasAttr(attr) && b.HasAttr(attr) && a.OneAttrString(attr) != b.OneAttrString(attr) {
+			return nil, ErrDontMerge
+		}
+		return nil, ErrMergeOnOtherAttr
+	})
 
 	IPAddress          = NewAttribute("IPAddress")
 	Hostname           = NewAttribute("Hostname").Merge(nil)
@@ -128,14 +135,21 @@ func (a Attribute) Multi() Attribute {
 	return a
 }
 
-func (a Attribute) Unique() Attribute {
+func (a Attribute) IsNonUnique() bool {
 	ai := attributenums[a]
-	ai.unique = true
+	return ai.nonunique
+}
+
+func (a Attribute) NonUnique() Attribute {
+	ai := attributenums[a]
+	ai.nonunique = true
 	attributenums[a] = ai
 	return a
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
+var ErrMergeOnOtherAttr = errors.New("Merge on other attribute")
+var ErrMergeOnThis = errors.New("Merge on this attribute")
 
 type mergefunc func(attr Attribute, a, b *Object) (*Object, error)
 

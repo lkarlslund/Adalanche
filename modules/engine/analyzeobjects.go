@@ -167,11 +167,19 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				// If pwner is already processed, we don't care what it can pwn someone more far away from targets
 				// If pwner is our attacker, we always want to know what it can do
 				targetprocessinground, found := implicatedobjectsmap[pwntarget]
-				if !opts.Backlinks &&
+
+				// SKIP THIS IF
+				if
+				// We're not including backlinks
+				!opts.Backlinks &&
+					// It's found
 					found &&
-					// pwntarget != Attacker && FIXME
+					// This is not the first round
 					targetprocessinground != 0 &&
-					targetprocessinground < processinground {
+					// It was found in an earlier round
+					targetprocessinground < processinground &&
+					// If SIDs match between objects, it's a cross forest link and we want to see it
+					(object.SID().IsNull() || pwntarget.SID().IsNull() || object.SID().Component(2) != 21 || object.SID() != pwntarget.SID()) {
 					// skip it
 					continue
 				}

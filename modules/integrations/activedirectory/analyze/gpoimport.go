@@ -16,8 +16,15 @@ import (
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge(nil)
+	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge(func(attr engine.Attribute, a, b *engine.Object) (*engine.Object, error) {
+		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
+			return nil, engine.ErrDontMerge
+		}
+		return nil, engine.ErrMergeOnThis
+	})
 
+	AbsolutePath     = engine.NewAttribute("AbsolutePath")
+	RelativePath     = engine.NewAttribute("RelativePath")
 	PwnOwns          = engine.NewPwn("Owns")
 	PwnFSPartOfGPO   = engine.NewPwn("FSPartOfGPO")
 	PwnFileCreate    = engine.NewPwn("FileCreate")
@@ -28,12 +35,19 @@ var (
 )
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
+	if ginfo.DomainDN != "" {
+		ao.AddDefaultFlex(engine.UniqueSource, ginfo.DomainDN)
+	}
+
 	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
 
 	// Pwns(gpoobject)
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
+		if relativepath == "" {
+			relativepath = "/"
+		}
 
 		absolutepath := filepath.Join(ginfo.Path, relativepath)
 
@@ -42,21 +56,28 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			objecttype = "Directory"
 		}
 
-		itemobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(absolutepath),
+		itemobject := ao.AddNew(AbsolutePath, engine.AttributeValueString(absolutepath),
+			RelativePath, engine.AttributeValueString(relativepath),
 			engine.DisplayName, engine.AttributeValueString(relativepath),
 			engine.ObjectCategorySimple, engine.AttributeValueString(objecttype),
 		)
 
 		if relativepath == "/" {
 			itemobject.Pwns(gpoobject, PwnFSPartOfGPO)
+			gpoobject.Adopt(itemobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
-			parent, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(parentpath))
+			if parentpath == "" {
+				parentpath = "/"
+			}
+
+			parent, _ := ao.FindOrAdd(AbsolutePath, engine.AttributeValueString(parentpath))
 			itemobject.Pwns(parent, PwnFSPartOfGPO)
+			parent.Adopt(itemobject)
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.AttributeValueString(item.OwnerSID))
+			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.AttributeValueSID(item.OwnerSID))
 			owner.Pwns(itemobject, PwnOwns)
 		}
 
