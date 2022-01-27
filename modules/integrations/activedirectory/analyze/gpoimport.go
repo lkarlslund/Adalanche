@@ -16,12 +16,7 @@ import (
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge(func(attr engine.Attribute, a, b *engine.Object) (*engine.Object, error) {
-		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
-			return nil, engine.ErrDontMerge
-		}
-		return nil, engine.ErrMergeOnThis
-	})
+	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge()
 
 	AbsolutePath     = engine.NewAttribute("AbsolutePath")
 	RelativePath     = engine.NewAttribute("RelativePath")
@@ -33,6 +28,15 @@ var (
 	PwnTakeOwnership = engine.NewPwn("FileTakeOwnership")
 	PwnModifyDACL    = engine.NewPwn("FileModifyDACL")
 )
+
+func init() {
+	engine.AddMergeApprover(func(a, b *engine.Object) (*engine.Object, error) {
+		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
+			return nil, engine.ErrDontMerge
+		}
+		return nil, engine.ErrMergeOnThis
+	})
+}
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	if ginfo.DomainDN != "" {
@@ -56,7 +60,8 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			objecttype = "Directory"
 		}
 
-		itemobject := ao.AddNew(AbsolutePath, engine.AttributeValueString(absolutepath),
+		itemobject := ao.AddNew(
+			AbsolutePath, engine.AttributeValueString(absolutepath),
 			RelativePath, engine.AttributeValueString(relativepath),
 			engine.DisplayName, engine.AttributeValueString(relativepath),
 			engine.ObjectCategorySimple, engine.AttributeValueString(objecttype),

@@ -275,6 +275,13 @@ var cytostyle = [{
     }
 },
 {
+    selector: 'node[type="ForeignSecurityPrincipal"]',
+    style: {
+        "background-image": "icons/badge_black_24dp.svg",
+        "background-color": "lightgreen"
+    }
+},
+{
     selector: 'node[type="Service"]',
     style: {
         shape: "diamond",

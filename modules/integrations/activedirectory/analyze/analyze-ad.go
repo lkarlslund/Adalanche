@@ -529,12 +529,12 @@ func init() {
 				if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
 					o.SetValues(engine.MetaHasSPN, engine.AttributeValueInt(1))
 
-					AuthenticatedUsers, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
+					AuthenticatedUsers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
 					if !found {
 						log.Error().Msgf("Could not locate Authenticated Users")
 						return
 					}
-					AuthenticatedUsers.Pwns(o, activedirectory.PwnHasSPN)
+					AuthenticatedUsers[0].Pwns(o, activedirectory.PwnHasSPN)
 				}
 			},
 		},
@@ -936,7 +936,7 @@ func init() {
 			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+rootdn)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
-					excluded_mask = strings.Index("0123456789ABCDEF", string(excluded[15]))
+					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
 				}
 			}
 			Loader.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
@@ -952,7 +952,7 @@ func init() {
 			if err != nil {
 				log.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
-			if _, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(binsid)); !found {
+			if _, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(binsid)); !found {
 				dn := "CN=" + name + ",CN=microsoft-builtin"
 				log.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 				ao.Add(engine.NewObject(
@@ -981,32 +981,32 @@ func init() {
 		)
 
 		everyonesid, _ := windowssecurity.SIDFromString("S-1-1-0")
-		everyone, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(everyonesid))
-		if !ok {
+		everyone, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(everyonesid))
+		if !found {
 			log.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		authenticateduserssid, _ := windowssecurity.SIDFromString("S-1-5-11")
-		authenticatedusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(authenticateduserssid))
-		if !ok {
+		authenticatedusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(authenticateduserssid))
+		if !found {
 			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		administratorssid, _ := windowssecurity.SIDFromString("S-1-5-32-544")
-		administrators, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
-		if !ok {
+		administrators, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
+		if !found {
 			log.Fatal().Msgf("Could not locate Administrators, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		remotedesktopuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-555")
-		remotedesktopusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
-		if !ok {
+		remotedesktopusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
+		if !found {
 			log.Fatal().Msgf("Could not locate Remote Desktop Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		distributeddcomuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-562")
-		distributeddcomusers, ok := ao.Find(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
-		if !ok {
+		distributeddcomusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
+		if !found {
 			log.Fatal().Msgf("Could not locate Distributed COM Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
@@ -1080,8 +1080,8 @@ func init() {
 
 			// Crude special handling for Everyone and Authenticated Users
 			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				everyone.AddMember(object)
-				authenticatedusers.AddMember(object)
+				everyone[0].AddMember(object)
+				authenticatedusers[0].AddMember(object)
 			}
 
 			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
@@ -1132,9 +1132,9 @@ func init() {
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
-					administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
-					remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
-					distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
+					administrators[0].Pwns(object, activedirectory.PwnLocalAdminRights)
+					remotedesktopusers[0].Pwns(object, activedirectory.PwnLocalRDPRights)
+					distributeddcomusers[0].Pwns(object, activedirectory.PwnLocalDCOMRights)
 				}
 			}
 
@@ -1233,6 +1233,10 @@ func init() {
 			ourDomainSid = domaindns.SID()
 		}
 
+		// Not Objects from AD, don't do anything
+		if ourDomainDN == "" {
+			return
+		}
 		for _, o := range ao.Slice() {
 			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) {
 				// An unknown SID, is it ours or from another domain?
@@ -1276,6 +1280,27 @@ func init() {
 			}
 		}
 	}, "CreatorOwnerSID resolution fixup",
+		engine.AfterMerge,
+	)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, foreign := range ao.Filter(func(o *engine.Object) bool {
+			return o.Type() == engine.ObjectTypeForeignSecurityPrincipal
+		}).Slice() {
+			sid := foreign.SID()
+			if sid.IsNull() {
+				log.Error().Msgf("Found a foreign security principal with no SID %v", foreign.Label())
+				continue
+			}
+			if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
+				for _, source := range sources {
+					if source.Type() != engine.ObjectTypeForeignSecurityPrincipal {
+						source.PwnsEx(foreign, activedirectory.PwnForeignIdentity, true)
+					}
+				}
+			}
+		}
+	}, "Link foreign security principals to their native objects",
 		engine.AfterMerge,
 	)
 

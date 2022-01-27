@@ -37,7 +37,7 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
 	copy(sid, data[0:len(sid)])
-	return SID(stringdedup.S(string(sid))), data[8+subauthoritycount*4:], nil
+	return SID(stringdedup.S(string(sid))), data[len(sid):], nil
 }
 
 func SIDFromString(input string) (SID, error) {

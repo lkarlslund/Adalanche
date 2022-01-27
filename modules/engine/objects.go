@@ -152,8 +152,8 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 				existing, dupe := os.uniqueindex[attribute][value.Raw()]
 				if dupe && existing != o {
 					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing.Label())
-					// log.Debug().Msgf("NEW: %v", o.String(os))
-					// log.Debug().Msgf("EXISTING: %v", existing.String(os))
+					log.Debug().Msgf("NEW: %v", o.StringNoACL())
+					log.Debug().Msgf("EXISTING: %v", existing.StringNoACL())
 					continue
 				}
 			}
@@ -233,38 +233,38 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 
 func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 	if len(attrtomerge) > 0 {
-	outerattrloop:
 		for _, mergeattr := range attrtomerge {
 			for _, lookfor := range o.Attr(mergeattr).Slice() {
 				if lookfor == nil {
 					continue
 				}
-				if mergetarget, found := os.Find(mergeattr, lookfor); found {
-					// Let's merge
-					mf := attributenums[mergeattr].mf
-					if mf != nil {
-						res, err := mf(mergeattr, o, mergetarget)
-						switch err {
-						case ErrDontMerge:
-							return false
-						case ErrMergeOnOtherAttr:
-							continue outerattrloop
-						case ErrMergeOnThis, nil:
-							// Let the code below do the merge
-						default:
-							log.Warn().Msgf("Error merging %v: %v", o.Label(), err)
-							return false
+				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
+
+				targetloop:
+					for _, mergetarget := range mergetargets {
+						for _, mf := range mergeapprovers {
+							if mf != nil {
+								res, err := mf(o, mergetarget)
+								switch err {
+								case ErrDontMerge:
+									continue targetloop
+								case ErrMergeOnThis, nil:
+									// Let the code below do the merge
+								default:
+									log.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
+								}
+								if res != nil {
+									// Custom merge - how do we handle this?
+									log.Fatal().Msgf("Custom merge function not supported yet")
+									return false
+								}
+							}
 						}
-						if res != nil {
-							// Custom merge - how do we handle this?
-							log.Error().Msgf("Custom merge function not supported yet")
-							return false
-						}
+						log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
+						mergetarget.Absorb(o)
+						os.updateIndex(mergetarget, false)
+						return true
 					}
-					log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-					mergetarget.Absorb(o)
-					os.updateIndex(mergetarget, false)
-					return true
 				}
 			}
 		}

@@ -96,7 +96,7 @@ func (ld *ADLoader) Init() error {
 					continue
 				}
 
-				thisao := ld.getShard(path)
+				thisao := ld.getShard(path, true)
 				err = ImportGPOInfo(ginfo, thisao)
 				if err != nil {
 					log.Warn().Msgf("Problem importing GPO: %v", err)
@@ -109,16 +109,23 @@ func (ld *ADLoader) Init() error {
 	return nil
 }
 
-func (ld *ADLoader) getShard(path string) *engine.Objects {
+func (ld *ADLoader) getShard(path string, gpo bool) *engine.Objects {
 	shard := filepath.Dir(path)
+
+	lookupshard := shard
+	if gpo {
+		// Load GPO stuff into their own shard
+		lookupshard += "_gpo"
+	}
+
 	var ao *engine.Objects
 	ld.importmutex.Lock()
-	ao = ld.dco[shard]
+	ao = ld.dco[lookupshard]
 	if ao == nil {
 		ao = engine.NewLoaderObjects(ld)
-
+		ao.AddDefaultFlex(engine.UniqueSource, engine.AttributeValueString(shard))
 		ao.SetThreadsafe(true)
-		ld.dco[shard] = ao
+		ld.dco[lookupshard] = ao
 	}
 	ld.importmutex.Unlock()
 	return ao
@@ -129,7 +136,7 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	case strings.HasSuffix(path, ".gpodata.json"):
 		ld.gpofiletoprocess <- path
 	case strings.HasSuffix(path, ".objects.msgp.lz4"):
-		ao := ld.getShard(path)
+		ao := ld.getShard(path, false)
 
 		cachefile, err := os.Open(path)
 		if err != nil {

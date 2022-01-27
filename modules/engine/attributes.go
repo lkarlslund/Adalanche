@@ -19,11 +19,11 @@ type attributeinfo struct {
 	multi     bool // If true, this attribute can have multiple values
 	nonunique bool // Doing a Find on this attribute will return multiple results
 	merge     bool // If true, objects can be merged on this attribute
-	mf        mergefunc
 	onset     AttributeSetFunc
 	onget     AttributeGetFunc
 }
 
+var mergeapprovers []mergefunc
 var attributenums []attributeinfo
 
 var (
@@ -52,17 +52,11 @@ var (
 	ObjectCategoryGUID = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
 
 	MetaDataSource = NewAttribute("_datasource").Multi()
-	UniqueSource   = NewAttribute("_source").Merge(func(attr Attribute, a, b *Object) (*Object, error) {
-		// Prevents objects from vastly different sources to join across them
-		if a.HasAttr(attr) && b.HasAttr(attr) && a.OneAttrString(attr) != b.OneAttrString(attr) {
-			return nil, ErrDontMerge
-		}
-		return nil, ErrMergeOnOtherAttr
-	})
+	UniqueSource   = NewAttribute("_source")
 
 	IPAddress          = NewAttribute("IPAddress")
-	Hostname           = NewAttribute("Hostname").Merge(nil)
-	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge(nil)
+	Hostname           = NewAttribute("Hostname").Merge()
+	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
@@ -86,6 +80,24 @@ var (
 	_ = NewAttribute("proxyAddresses")
 	_ = NewAttribute("dSCorePropagationData")
 )
+
+func init() {
+	AddMergeApprover(func(a, b *Object) (*Object, error) {
+		// Prevents objects from vastly different sources to join across them
+		if a.HasAttr(UniqueSource) && b.HasAttr(UniqueSource) {
+			for _, v := range a.Attr(UniqueSource).Slice() {
+				if b.HasAttrValue(UniqueSource, v) {
+					// At least one of the UniqueSources overlap
+					return nil, nil
+				}
+			}
+			// Don't cross the streams, protonic reversal may never happen
+			return nil, ErrDontMerge
+		}
+
+		return nil, nil
+	})
+}
 
 type Attribute uint16
 
@@ -148,26 +160,23 @@ func (a Attribute) NonUnique() Attribute {
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
-var ErrMergeOnOtherAttr = errors.New("Merge on other attribute")
 var ErrMergeOnThis = errors.New("Merge on this attribute")
 
-type mergefunc func(attr Attribute, a, b *Object) (*Object, error)
+type mergefunc func(a, b *Object) (*Object, error)
 
 func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
 	return nil, nil
 }
 
-func (a Attribute) Merge(mf mergefunc) Attribute {
+func (a Attribute) Merge() Attribute {
 	ai := attributenums[a]
 	ai.merge = true
-	if mf != nil {
-		if ai.mf != nil {
-			log.Fatal().Msgf("Attribute %v already has a merge function", a)
-		}
-		ai.mf = mf
-	}
 	attributenums[a] = ai
 	return a
+}
+
+func AddMergeApprover(mf mergefunc) {
+	mergeapprovers = append(mergeapprovers, mf)
 }
 
 func (a Attribute) Tag(t string) Attribute {

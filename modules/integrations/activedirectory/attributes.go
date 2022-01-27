@@ -2,7 +2,6 @@ package activedirectory
 
 import (
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 var (
@@ -43,7 +42,7 @@ var (
 	AdminCount                 = engine.NewAttribute("adminCount").Tag("AD")
 	LogonHours                 = engine.NewAttribute("logonHours")
 	BadPwdCount                = engine.NewAttribute("badPwdCount")
-	GPCFileSysPath             = engine.NewAttribute("gPCFileSysPath").Tag("AD")
+	GPCFileSysPath             = engine.NewAttribute("gPCFileSysPath").Tag("AD").Merge()
 	SchemaIDGUID               = engine.NewAttribute("schemaIDGUID").Tag("AD")
 	PossSuperiors              = engine.NewAttribute("possSuperiors")
 	SystemMayContain           = engine.NewAttribute("systemMayContain")
@@ -54,53 +53,9 @@ var (
 	LDAPDisplayName            = engine.NewAttribute("lDAPDisplayName").Tag("AD") // Attribute-Schema
 	Description                = engine.NewAttribute("description").Tag("AD")
 	SAMAccountName             = engine.NewAttribute("sAMAccountName").Tag("AD")
-	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").Merge(func(attr engine.Attribute, a, b *engine.Object) (result *engine.Object, err error) {
-		if !a.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString("Active Directory loader")) {
-			return nil, engine.ErrMergeOnThis
-		}
-		if !b.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString("Active Directory loader")) {
-			return nil, engine.ErrMergeOnThis
-		}
+	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").NonUnique().Merge()
 
-		aisforeign := a.Type() == engine.ObjectTypeForeignSecurityPrincipal
-		bisforeign := b.Type() == engine.ObjectTypeForeignSecurityPrincipal
-
-		// If one of the objects is a foreign security principal, we will not merge them
-		if (aisforeign || bisforeign) && !(aisforeign && bisforeign) {
-			if aisforeign {
-				b.PwnsEx(a, PwnForeignIdentity, true)
-			} else {
-				a.PwnsEx(b, PwnForeignIdentity, true)
-			}
-			return nil, engine.ErrDontMerge
-		}
-
-		if aisforeign && bisforeign {
-			// If both are foreign security principals, we will not merge them either
-			return nil, engine.ErrDontMerge
-		}
-
-		as := a.OneAttrRaw(attr)
-		if as == nil {
-			return
-		}
-		asid, ok := as.(windowssecurity.SID)
-		if !ok {
-			return
-		}
-		// if a.Label() == "Account Operators" {
-		// 	log.Warn().Msgf("GOTCHA %s", asid)
-		// }
-		// if strings.Contains(a.DN(), "CN=WellKnown") {
-		// 	log.Warn().Msgf("GOTCHA WELLKNOWN %s (%s )with SID %s", a.Label(), a.DN(), asid)
-		// }
-		// if asid.Components() >= 3 && asid.Component(1) == 5 && asid.Component(2) == 32 {
-		if asid.Components() >= 3 && asid.Component(1) == 5 && asid.Component(2) != 21 {
-			return nil, engine.ErrDontMerge
-		}
-		return
-	})
-	ObjectGUID                  = engine.NewAttribute("objectGUID").Tag("AD").Merge(nil)
+	ObjectGUID                  = engine.NewAttribute("objectGUID").Tag("AD").Merge()
 	PwdLastSet                  = engine.NewAttribute("pwdLastSet").Tag("AD")
 	WhenCreated                 = engine.NewAttribute("whenCreated")
 	WhenChanged                 = engine.NewAttribute("whenChanged")
@@ -131,3 +86,13 @@ var (
 	MSPKICertificateNameFlag    = engine.NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD")
 	PKIExtendedUsage            = engine.NewAttribute("pKIExtendedKeyUsage").Tag("AD")
 )
+
+func init() {
+	engine.AddMergeApprover(func(a, b *engine.Object) (result *engine.Object, err error) {
+		if a.HasAttr(engine.DistinguishedName) && b.HasAttr(engine.DistinguishedName) && a.DN() != b.DN() {
+			// Yes, it happens we have objects that have different DNs but the same merge attributes (objectSID, etc)
+			return nil, engine.ErrDontMerge
+		}
+		return nil, nil
+	})
+}

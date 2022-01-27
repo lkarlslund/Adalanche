@@ -21,6 +21,9 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// After merge we don't need all the indexes
 	globalobjects.DropIndexes()
 
+	// Let's not change anything in the original objects
+	globalobjects.DefaultValues = nil
+
 	globalroot := NewObject(
 		Name, AttributeValueString("adalanche root node"),
 		ObjectCategorySimple, AttributeValueString("Root"),

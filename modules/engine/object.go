@@ -79,13 +79,13 @@ type Object struct {
 	children  []*Object
 	members   []*Object
 	// objectclassguids   []uuid.UUID
-	memberof           []*Object
-	id                 uint32
-	guid               uuid.UUID
-	objectcategoryguid uuid.UUID
-	guidcached         bool
-	sidcached          bool
-	objecttype         ObjectType
+	memberof []*Object
+	id       uint32
+	guid     uuid.UUID
+	// objectcategoryguid uuid.UUID
+	guidcached bool
+	sidcached  bool
+	objecttype ObjectType
 }
 
 type Connection struct {
@@ -363,22 +363,14 @@ func (o *Object) Type() ObjectType {
 	return o.objecttype
 }
 
-// func (o *Object) ObjectClassGUIDs() []uuid.UUID {
-// 	if len(o.objectclassguids) == 0 {
-// 	}
-// 	return o.objectclassguids
-// }
-
 func (o *Object) ObjectCategoryGUID(ao *Objects) uuid.UUID {
-	if o.objectcategoryguid == NullGUID {
-		guid := o.OneAttrRaw(ObjectCategoryGUID)
-		if guid == nil {
-			o.objectcategoryguid = UnknownGUID
-		} else {
-			o.objectcategoryguid = guid.(uuid.UUID)
-		}
+	// if o.objectcategoryguid == NullGUID {
+	guid := o.OneAttrRaw(ObjectCategoryGUID)
+	if guid == nil {
+		return UnknownGUID
 	}
-	return o.objectcategoryguid
+	return guid.(uuid.UUID)
+	// return o.objectcategoryguid
 }
 
 func (o *Object) AttrString(attr Attribute) []string {
@@ -695,9 +687,11 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			panic("DownLevelLogon ends with \\")
 		}
 	}
+
 	if a == ObjectCategory || a == ObjectCategorySimple {
-		o.objectcategoryguid = NullGUID
+		o.objecttype = 0
 	}
+
 	if a == NTSecurityDescriptor {
 		for _, sd := range values.Slice() {
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {

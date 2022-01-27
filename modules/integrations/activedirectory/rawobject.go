@@ -41,6 +41,7 @@ func (r *RawObject) ToObject(importall bool) *engine.Object {
 
 		result.SetValues(attribute, EncodeAttributeData(attribute, values)...)
 	}
+
 	return result
 }
 

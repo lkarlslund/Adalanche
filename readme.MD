@@ -1,23 +1,29 @@
 # adalanche: Active Directory ACL Visualizer and Explorer
+
 *adalanche* gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
 ## I Can Haz Domain Admin?
+
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
 ### Download
+
 adalanche is an all-in-one binary - it collects information from Active Directory or from local Windows machines and can the analyze the collected data. If you're only doing AD analysis, just grab the binary for your preferred platform. Later you can deploy the dedicated collector .exe for your Windows member machines via a GPO or other orchestration and get even more insight.
 
 Download either the latest release or the build of the latest commit from [Releases](https://github.com/lkarlslund/adalanche/releases). Usually running with the latest commit is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
 
 ### Build it yourself
+
 If you prefer full control, you can roll your own:
-  - Install go 1.17
-  - <code>git clone https://github.com/lkarlslund/adalanche</code>
-  - <code>cd adalanche-master</code>
-  - Windows: <code>build.cmd</code>
-  - Linux/OSX: <code>./build.sh</code>
+
+- Install go 1.17
+- <code>git clone https://github.com/lkarlslund/adalanche</code>
+- <code>cd adalanche-master</code>
+- Windows: <code>build.cmd</code>
+- Linux/OSX: <code>./build.sh</code>
 
 ## First run - full auto
+
 If you're running adalanche on a Windows domain joined machine should just work *without any parameters*, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
 
 For more advanced use (recommended) first collect, with proper options. All your data files (are belong to us), and will end up in the data subfolder (or use <code>--datapath dir</code> to use an alternative folder).
@@ -35,7 +41,6 @@ If you're on a non-domain joined Windows machine or another OS, you'll need at l
 
 LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "--ignorecert" switch, or change protocol to LDAP with <code>--tlsmode NoTLS --port 389</code> options.
 
-
 Example to create data files file for contoso.local coming from your Linux pwnage box using TLS port 636, ignoring certs and using NTLM auth:
 
 <code>adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
@@ -51,9 +56,11 @@ From domain joined Windows machine using other credentials than logged in:
 There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
 
 ## BIG FAT NTLM BUG WARNING
+
 *There is an unfixed bug that in some cases prevents NTLM authentication from working. AD controller responds with "DAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
 
 Until this is fixed, you can try this alternative method:
+
 - spin up a Windows VM
 - set the computer name to the domain name
 - add your domain user account to the local machine and set the password accordingly so it matches the domain
@@ -62,6 +69,7 @@ Until this is fixed, you can try this alternative method:
 This has worked for me, even over trusts. If you have any idea what's going on with the bug, please reach out to me.
 
 ### Local Machine (Windows)
+
 For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines by running the collector module. There is a stand alone version released as a 32-bit Windows executable, and this works transparently also on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). 
 
 The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
@@ -78,8 +86,13 @@ The files will automatically be imported into adalanche when you run it, if they
 
 This will give you insight into who uses what systems, service accounts that are domain users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
 
-#### Analysis
-This is dead simple - everything you've collected should be in the data directory, either in the main folder or in subfolders. Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
+## Analysis
+
+This is dead simple - everything you've collected should be in the data directory, either in the main folder or in subfolders. 
+
+Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
+
+IMPORTANT: If you're doing multi forest analysis, place all AD object and GPO files for each forest in their own subfolder, so adalanche can figure out what to merge and what NOT to merge.
 
 These extensions are recognized:
 - .localmachine.json - Windows collector data
@@ -93,23 +106,21 @@ Highly advanced command line to analyze and launch your browser:
 There are options here as well - try <code>adalanche analyze --help</code>
 
 ### User Interface
+
 When launched, you get to see who can pwn "Domain Admins" and "Enterprise Admins". Query targets are marked with RED. If you get a lot of objects on this one, congratz, you're running a pwnshop.
 
 *PLEASE NOTE THAT:*
+
 - SCREENSHOTS ARE OUTDATED AT THE MOMENT
 - SOME UI ELEMENTS HAVE MOVED
 - THERE ARE MORE ADVANCED ANALYSIS FEATURES NOT YET DESCRIBED HERE
 
-The below examples loaded from the included domain beyond.local, which is a synthetic domain, that has been heavy handedly been messed up using [BadBlood](https://github.com/davidprowe/BadBlood). You can try the same analysis with:
-<code>adalanche -domain beyond.local analyze</code>
-
-Your browser should pop up with:
 
 <img src="readme-images/welcome.png" width="80%">
 
-No really exciting results on this synthetic AD. Yes, some users are Domain Admins and Administrators. But let's expand the search a bit.
 
 #### Analysis Methods
+
 Press the "Analysis Methods" tab on the bottom portion of the page, and you get this:
 
 <img src="readme-images/analysis-methods.png" width="50%">
@@ -133,36 +144,17 @@ Analyze button gets the show on the road, and runs the query.
 
 - "Force" button allows you to run requests that returns more than 1000 objects (potentially crashing your browser tab, I don't recommend more than 2500 objects but you can try your luck - be patient). 
 - "Max Depth" can limit results by not going further from a target than this depth.
+- 
 
 - Normal searches for other objects that can pwn the selection in your LDAP query (i.e. who can reach these objects)
 - Reverse searches for objects that you LDAP query targets can pwn (i.e. what can these objects reach)
-
-I enabled "Force" as I was warned that the analysis would return more than 1000 objects, and pressed "Analyze / Normal".
-
-<img src="readme-images/query-with-all-methods.png" width="80%">
-
-Whoa - that's a lot. But can all these objects then suddenly do a system takeover? No, not neccesarily, this depends on the analysis methods used. We enabled the CanDelete*, CanCreate* and InheritsSecurity methods.
-
-Let's investigate what's going on here - right click on one of your targets, and choose "Set as target". 
-<img src="readme-images/set-as-target.png" width="30%">
-
-Then right-click on someone else, and choose "Route to target".
-
-<img src="readme-images/route-to-target.png" width="30%">
-
-Then you'll get a route, which shows the best way to the target.
-
-<img src="readme-images/found-route.png" width="40%">
-
-So here the problem is just a matter of groups being nested members of other groups, but at the very end you see that someone set the DELETE_CHILD flag on the parent container, yielding the right to delete (or potentially move) the target. That does look wrong, doesn't it?
-
-If you examine the "Domain Users" object, you will see that it doesn't have the InheritsSecurity flag, so you can't really pwn it by moving it around.
 
 So try it out on your own data - see what your user can pwn by searching for (&(objectCategory=Person)(Name=YOURLOGIN)) and do a Reverse search. Maybe you'll just end up with the groups that you are a member of, maybe you have access to more than you think ...
 
 Remember, you might get too many results. Limit the selection of targets with (&(attribute=something)(_limit=10)) to just get 10 random targets (see LDAP queries below)
 
 ### Operational theory
+
 *adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
 
 If you collect GPOs I recommend using a Domain Admin, as GPOs are often restricted to apply only to certain computers, and regular users can't read the files. This will limit the results that could have been gathered from GPOs.
@@ -254,14 +246,13 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 | CertificateEnroll | The entity is allowed to enroll into this certificate template. That does not mean it's published on a CA server where you're alloed to do enrollment though |
 
 ## Current limitations
+
 - A large AD with 500.000 objects results in a file approximately 250MB in size
 - adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
 - There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome!
 - There is an unsolved challenge with services that require multiple ACLs to pass (for instance Cert servers only lets members of "Users that can enroll" group use enrollment, while the Certificate Template lets "Domain Users" enroll - this looks like "Domain Users" can enroll to adalanche). The same problem arises with fileshares, so this analysis is not done yet.
 
-# Frequently Asked Questions
-
-## How does this compare to BloodHound?
+## Frequently Asked Question: How does this compare to BloodHound?
 
 Since this is a frequent question, here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and not while doing adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
 
@@ -280,7 +271,7 @@ Since this is a frequent question, here's a short list of things I know that dif
 
 *so far
 
-# Shoutouts
+## Shoutouts
 To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow FTW) where I dug up technical stuff
 
 If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at [PayloadsAllTheThings Active Directory section](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md)
