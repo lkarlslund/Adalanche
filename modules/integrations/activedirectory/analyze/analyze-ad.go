@@ -341,10 +341,6 @@ func init() {
 			// Method: activedirectory.PwnMemberOfGroup,
 			Description: "Members of groups",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for groups
-				if o.Type() != engine.ObjectTypeGroup && o.Type() != engine.ObjectTypeForeignSecurityPrincipal {
-					return
-				}
 				// It's a group
 				for _, member := range o.Members(false) {
 					member.Pwns(o, activedirectory.PwnMemberOfGroup)
@@ -1062,6 +1058,7 @@ func init() {
 				}
 			}
 
+			// Object that is member of something
 			for _, memberof := range object.Attr(activedirectory.MemberOf).Slice() {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
 				if !found {
@@ -1076,6 +1073,19 @@ func init() {
 					ao.Add(group)
 				}
 				group.AddMember(object)
+			}
+
+			// Group that contains members
+			for _, member := range object.Attr(activedirectory.Member).Slice() {
+				memberobject, found := ao.Find(engine.DistinguishedName, member)
+				if !found {
+					log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic member", object.DN(), member)
+					memberobject = engine.NewObject(
+						engine.DistinguishedName, member,
+					)
+					ao.Add(memberobject)
+				}
+				object.AddMember(memberobject)
 			}
 
 			// Crude special handling for Everyone and Authenticated Users

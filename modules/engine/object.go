@@ -523,9 +523,18 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 }
 
 func (o *Object) AddMember(member *Object) {
+	member.lock()
+	for _, mo := range member.memberof {
+		// Dupe elimination
+		if mo == o {
+			member.unlock()
+			return
+		}
+	}
+	member.memberof = append(member.memberof, o)
+	member.unlock()
 	o.lock()
 	o.members = append(o.members, member)
-	member.memberof = append(member.memberof, o)
 	o.unlock()
 }
 

@@ -16,6 +16,7 @@ var (
 	SAMAccountType             = engine.NewAttribute("sAMAccountType").Tag("AD")
 	GroupType                  = engine.NewAttribute("groupType").Tag("AD")
 	MemberOf                   = engine.NewAttribute("memberOf").Tag("AD")
+	Member                     = engine.NewAttribute("member").Tag("AD")
 	AccountExpires             = engine.NewAttribute("accountExpires").Tag("AD")
 	RepsTo                     = engine.NewAttribute("repsTo").Tag("AD")
 	InstanceType               = engine.NewAttribute("instanceType").Tag("AD")
