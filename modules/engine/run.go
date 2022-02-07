@@ -141,6 +141,9 @@ func Run(path string) (*Objects, error) {
 		if stat == 0 {
 			continue
 		}
+		if count == 0 {
+			continue
+		}
 		statarray = append(statarray, fmt.Sprintf("%v: %v", ObjectType(stat).String(), count))
 	}
 	log.Info().Msg(strings.Join(statarray, ", "))

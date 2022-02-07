@@ -11,7 +11,7 @@ import (
 
 var idcounter uint32 // Unique ID +1 to assign to Object added to this collection if it's zero
 
-type typestatistics [OBJECTTYPEMAX]int
+type typestatistics [256]int
 
 type Objects struct {
 	threadsafemutex sync.RWMutex

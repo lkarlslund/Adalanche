@@ -27,6 +27,7 @@ func analysisfuncs(ws *webservice) {
 	ws.Router.HandleFunc("/filteroptions", func(w http.ResponseWriter, r *http.Request) {
 		type filterinfo struct {
 			Name            string `json:"name"`
+			Lookup          string `json:"lookup"`
 			DefaultEnabledF bool   `json:"defaultenabled_f"`
 			DefaultEnabledM bool   `json:"defaultenabled_m"`
 			DefaultEnabledL bool   `json:"defaultenabled_l"`
@@ -41,18 +42,20 @@ func analysisfuncs(ws *webservice) {
 		for _, method := range engine.AllPwnMethodsSlice() {
 			results.Methods = append(results.Methods, filterinfo{
 				Name:            method.String(),
+				Lookup:          method.String(),
 				DefaultEnabledF: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
 				DefaultEnabledM: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
 				DefaultEnabledL: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
 			})
 		}
 
-		for _, objecttype := range engine.ObjectTypeValues() {
+		for _, objecttype := range engine.ObjectTypes() {
 			results.ObjectTypes = append(results.ObjectTypes, filterinfo{
-				Name:            objecttype.String(),
-				DefaultEnabledF: true,
-				DefaultEnabledM: true,
-				DefaultEnabledL: true,
+				Name:            objecttype.Name,
+				Lookup:          objecttype.Lookup,
+				DefaultEnabledF: objecttype.DefaultEnabledF,
+				DefaultEnabledM: objecttype.DefaultEnabledM,
+				DefaultEnabledL: objecttype.DefaultEnabledL,
 			})
 		}
 
@@ -289,8 +292,8 @@ func analysisfuncs(ws *webservice) {
 			} else if strings.HasPrefix(potentialfilter, "type_") {
 				prefix := potentialfilter[5 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
-				ot, found := engine.ObjectTypeString(prefix)
-				if found != nil {
+				ot, found := engine.ObjectTypeLookup(prefix)
+				if !found {
 					continue
 				}
 
@@ -356,7 +359,7 @@ func analysisfuncs(ws *webservice) {
 
 		var targets int
 
-		var objecttypes [engine.OBJECTTYPEMAX]int
+		var objecttypes [256]int
 
 		for _, node := range pg.Nodes {
 			if node.Target {
@@ -367,7 +370,7 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		resulttypes := make(map[string]int)
-		for i := engine.ObjectType(0); i < engine.OBJECTTYPEMAX; i++ {
+		for i := 0; i < 256; i++ {
 			if objecttypes[i] > 0 {
 				resulttypes[engine.ObjectType(i).String()] = objecttypes[i]
 			}
@@ -842,6 +845,9 @@ func analysisfuncs(ws *webservice) {
 		for objecttype, count := range ws.Objs.Statistics() {
 			if objecttype == 0 {
 				continue // skip the dummy one
+			}
+			if count == 0 {
+				continue
 			}
 			result.Statistics[engine.ObjectType(objecttype).String()] += count
 		}

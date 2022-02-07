@@ -431,37 +431,37 @@ $(function () {
                     `<input type="checkbox" ` +
                     (method.defaultenabled_f ? 'checked' : '') +
                     ` id="` +
-                    method.name +
+                    method.lookup +
                     `_f" name="pwn_` +
-                    method.name +
+                    method.lookup +
                     `_f" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    method.name +
+                    method.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (method.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
-                    method.name +
+                    method.lookup +
                     `_m" name="pwn_` +
-                    method.name +
+                    method.lookup +
                     `_m" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    method.name +
+                    method.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (method.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
-                    method.name +
+                    method.lookup +
                     `_l" name="pwn_` +
-                    method.name +
+                    method.lookup +
                     `_l" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    method.name +
+                    method.lookup +
                     `_l" class ="btn btn-sm mb-0">L</label>`;
                 buttons += '</td>';
 
@@ -486,37 +486,37 @@ $(function () {
                     `<input type="checkbox" ` +
                     (objecttype.defaultenabled_f ? 'checked' : '') +
                     ` id="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_f" name="type_` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_f" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (objecttype.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_m" name="type_` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_m" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (objecttype.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_l" name="type_` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_l" autocomplete="off">`;
                 buttons +=
                     `<label for="` +
-                    objecttype.name +
+                    objecttype.lookup +
                     `_l" class ="btn btn-sm mb-0">L</label>`;
 
                 buttons += '</td>';

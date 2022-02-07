@@ -19,8 +19,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-//go:generate enumer -type=ObjectType -trimprefix=ObjectType -json
-
 var threadsafeobject int
 
 const threadbuckets = 1024
@@ -38,36 +36,7 @@ func SetThreadsafe(enable bool) {
 	}
 }
 
-type ObjectType byte
-
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
-
-const (
-	_ ObjectType = iota
-	ObjectTypeOther
-	ObjectTypeAttributeSchema
-	ObjectTypeClassSchema
-	ObjectTypeControlAccessRight
-	ObjectTypeGroup
-	ObjectTypeForeignSecurityPrincipal
-	ObjectTypeDomainDNS
-	ObjectTypeDNSNode
-	ObjectTypeDNSZone
-	ObjectTypeUser
-	ObjectTypeComputer
-	ObjectTypeManagedServiceAccount
-	ObjectTypeOrganizationalUnit
-	ObjectTypeBuiltinDomain
-	ObjectTypeContainer
-	ObjectTypeGroupPolicyContainer
-	ObjectTypeCertificateTemplate
-	ObjectTypeTrust
-	ObjectTypeService
-	ObjectTypeExecutable
-	ObjectTypeDirectory
-	ObjectTypeFile
-	OBJECTTYPEMAX = iota
-)
 
 type Object struct {
 	values    AttributeValueMap
@@ -314,53 +283,11 @@ func (o *Object) Type() ObjectType {
 		category = o.OneAttrString(ObjectCategorySimple)
 	}
 
-	switch category {
-	case "Domain-DNS":
-		o.objecttype = ObjectTypeDomainDNS
-	case "Dns-Node":
-		o.objecttype = ObjectTypeDNSNode
-	case "Dns-Zone":
-		o.objecttype = ObjectTypeDNSZone
-	case "Person":
-		o.objecttype = ObjectTypeUser
-	case "Group":
-		o.objecttype = ObjectTypeGroup
-	case "Foreign-Security-Principal":
-		o.objecttype = ObjectTypeForeignSecurityPrincipal
-	case "ms-DS-Group-Managed-Service-Account":
-		o.objecttype = ObjectTypeManagedServiceAccount
-	case "Organizational-Unit":
-		o.objecttype = ObjectTypeOrganizationalUnit
-	case "Builtin-Domain":
-		o.objecttype = ObjectTypeBuiltinDomain
-	case "Container":
-		o.objecttype = ObjectTypeContainer
-	case "Computer":
-		o.objecttype = ObjectTypeComputer
-	case "Group-Policy-Container":
-		o.objecttype = ObjectTypeGroupPolicyContainer
-	case "Trusted-Domain":
-		o.objecttype = ObjectTypeTrust
-	case "Attribute-Schema":
-		o.objecttype = ObjectTypeAttributeSchema
-	case "Class-Schema":
-		o.objecttype = ObjectTypeClassSchema
-	case "Control-Access-Right":
-		o.objecttype = ObjectTypeControlAccessRight
-	case "PKI-Certificate-Template":
-		o.objecttype = ObjectTypeCertificateTemplate
-	case "Service":
-		o.objecttype = ObjectTypeService
-	case "Executable":
-		o.objecttype = ObjectTypeExecutable
-	case "Directory":
-		o.objecttype = ObjectTypeDirectory
-	case "File":
-		o.objecttype = ObjectTypeFile
-	default:
-		o.objecttype = ObjectTypeOther
+	objecttype, found := ObjectTypeLookup(category)
+	if found {
+		o.objecttype = objecttype
 	}
-	return o.objecttype
+	return objecttype
 }
 
 func (o *Object) ObjectCategoryGUID(ao *Objects) uuid.UUID {
