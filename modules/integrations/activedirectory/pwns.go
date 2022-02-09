@@ -29,7 +29,7 @@ var (
 	PwnWriteAllowedToAct                    = engine.NewPwn("WriteAllowedToAct")
 	PwnAddMember                            = engine.NewPwn("AddMember")
 	PwnAddMemberGroupAttr                   = engine.NewPwn("AddMemberGroupAttr")
-	PwnAddSelfMember                        = engine.NewPwn("AddSelfMemeber")
+	PwnAddSelfMember                        = engine.NewPwn("AddSelfMember")
 	PwnReadMSAPassword                      = engine.NewPwn("ReadMSAPassword")
 	PwnHasMSA                               = engine.NewPwn("HasMSA")
 	PwnWriteKeyCredentialLink               = engine.NewPwn("WriteKeyCredentialLink")
