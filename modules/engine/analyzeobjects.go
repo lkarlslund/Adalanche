@@ -175,10 +175,6 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				// If pwner is our attacker, we always want to know what it can do
 				tri, found := implicatedobjectsmap[pwntarget]
 
-				if pwntarget.Label() == "S-1-5-21-1912508229-386351500-4206070068-4929" && processinground > 3 {
-					log.Debug().Msgf("Found S-1-5-21-1912508229-386351500-4206070068-4929")
-				}
-
 				// SKIP THIS IF
 				if
 				// We're not including backlinks
