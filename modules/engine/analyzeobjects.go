@@ -47,7 +47,8 @@ type AnalyzeObjectsOptions struct {
 	MaxDepth               int
 	MaxOutgoingConnections int
 	Reverse                bool
-	Backlinks              bool
+	Backlinks              bool // Full backlinks
+	Fuzzlevel              int  // Backlink depth
 	MinProbability         Probability
 	PruneIslands           bool
 }
@@ -67,19 +68,25 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		opts.ObjectTypesL = opts.ObjectTypesM
 	}
 
-	connectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
-	implicatedobjectsmap := make(map[*Object]int)       // Object -> Processed in round n
-	canexpand := make(map[*Object]int)
+	type roundinfo struct {
+		roundadded int
+		processed  bool
+		canexpand  int
+	}
+
+	connectionsmap := make(map[PwnPair]PwnMethodBitmap)  // Pwn Connection between objects
+	implicatedobjectsmap := make(map[*Object]*roundinfo) // Object -> Processed in round n
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
 	forward := !opts.Reverse
 
 	// Convert to our working map
-	for _, object := range opts.IncludeObjects.Slice() {
-		implicatedobjectsmap[object] = 0
-	}
-
 	processinground := 1
+	for _, object := range opts.IncludeObjects.Slice() {
+		implicatedobjectsmap[object] = &roundinfo{
+			roundadded: processinground,
+		}
+	}
 
 	// Methods and ObjectTypes allowed
 	detectmethods := opts.MethodsF
@@ -108,8 +115,8 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		log.Debug().Msgf("Processing round %v with %v total objects and %v connections", processinground, len(implicatedobjectsmap), len(connectionsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
 
-		for object, processed := range implicatedobjectsmap {
-			if processed != 0 {
+		for object, ri := range implicatedobjectsmap {
+			if ri.processed {
 				continue
 			}
 
@@ -166,7 +173,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				// Targets are allowed to pwn each other as a way to reach the goal of pwning all of them
 				// If pwner is already processed, we don't care what it can pwn someone more far away from targets
 				// If pwner is our attacker, we always want to know what it can do
-				targetprocessinground, found := implicatedobjectsmap[pwntarget]
+				tri, found := implicatedobjectsmap[pwntarget]
+
+				if pwntarget.Label() == "S-1-5-21-1912508229-386351500-4206070068-4929" && processinground > 3 {
+					log.Debug().Msgf("Found S-1-5-21-1912508229-386351500-4206070068-4929")
+				}
 
 				// SKIP THIS IF
 				if
@@ -174,10 +185,8 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				!opts.Backlinks &&
 					// It's found
 					found &&
-					// This is not the first round
-					targetprocessinground != 0 &&
 					// It was found in an earlier round
-					targetprocessinground < processinground &&
+					tri.roundadded+opts.Fuzzlevel <= processinground &&
 					// If SIDs match between objects, it's a cross forest link and we want to see it
 					(object.SID().IsNull() || pwntarget.SID().IsNull() || object.SID().Component(2) != 21 || object.SID() != pwntarget.SID()) {
 					// skip it
@@ -225,20 +234,25 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 							addedanyway++
 						}
 					}
-					canexpand[object] = len(newconnectionsmap) - addedanyway
+					ri.canexpand = len(newconnectionsmap) - addedanyway
 				}
 			}
-			implicatedobjectsmap[object] = processinground // We're done processing this
+
+			ri.processed = true
+			// We're done processing this
 		}
 		log.Debug().Msgf("Processing round %v yielded %v new objects", processinground, len(newimplicatedobjects))
 		if len(newimplicatedobjects) == 0 {
 			// Nothing more to do
 			break
 		}
-		for newentry := range newimplicatedobjects {
-			implicatedobjectsmap[newentry] = 0
-		}
+
 		processinground++
+		for newentry := range newimplicatedobjects {
+			implicatedobjectsmap[newentry] = &roundinfo{
+				roundadded: processinground,
+			}
+		}
 	}
 
 	// Remove outer end nodes that are invalid
@@ -319,14 +333,12 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 
 	pg.Nodes = make([]GraphObject, len(implicatedobjectsmap))
 	i = 0
-	for object := range implicatedobjectsmap {
+	for object, ri := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
 		if _, found := opts.IncludeObjects.FindByID(object.ID()); found {
 			pg.Nodes[i].Target = true
 		}
-		if expandnum, found := canexpand[object]; found {
-			pg.Nodes[i].CanExpand = expandnum
-		}
+		pg.Nodes[i].CanExpand = ri.canexpand
 		i++
 	}
 
