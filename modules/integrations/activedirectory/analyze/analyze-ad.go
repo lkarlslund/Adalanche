@@ -632,7 +632,6 @@ func init() {
 			},
 		},
 		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnAddSelfMember,
 			Description: "Permission to add yourself to a group",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for groups
@@ -646,7 +645,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMember)
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddSelfMember)
 					}
 				}
 			},
