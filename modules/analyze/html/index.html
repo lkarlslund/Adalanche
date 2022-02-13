@@ -243,8 +243,8 @@
                 query="(_canpwn=DCsync,(!(distinguishedName=*DnsZones,DC=*)))"
                 mode="Normal" depth=99 methods="default">Who can DCsync?</a>
               <a class="dropdown-item" href="#"
-                query="(objectSid=S-1-5-32-551)"
-                mode="Normal" depth=99 methods="default">Who can dump your ntds.dit? (Backup Operators)</a>
+                query="(|(objectSid=S-1-5-32-551)(objectSid=S-1-5-32-549))"
+                mode="Normal" depth=99 methods="default">Who can dump your ntds.dit? (Server and Backup Operators)</a>
               <a class="dropdown-item" href="#"
                 query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))"
                 mode="Normal" depth=99 methods="default">Client cert templates with custom SAN (pose as anyone)</a>
