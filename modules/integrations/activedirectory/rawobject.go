@@ -39,7 +39,10 @@ func (r *RawObject) ToObject(importall bool) *engine.Object {
 			continue
 		}
 
-		result.SetValues(attribute, EncodeAttributeData(attribute, values)...)
+		encodedvals := EncodeAttributeData(attribute, values)
+		if len(encodedvals) > 0 {
+			result.SetValues(attribute, encodedvals...)
+		}
 	}
 
 	return result
@@ -101,12 +104,23 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID:
-			guid, err := uuid.FromBytes([]byte(value))
-			if err == nil {
-				guid = util.SwapUUIDEndianess(guid)
-				attributevalue = engine.AttributeValueGUID(guid)
-			} else {
-				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
+			switch len(value) {
+			case 16:
+				guid, err := uuid.FromBytes([]byte(value))
+				if err == nil {
+					guid = util.SwapUUIDEndianess(guid)
+					attributevalue = engine.AttributeValueGUID(guid)
+				} else {
+					log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
+				}
+			case 36:
+				guid, err := uuid.FromString(value)
+				if err == nil {
+					guid = util.SwapUUIDEndianess(guid) // Unsure if this is needed
+					attributevalue = engine.AttributeValueGUID(guid)
+				} else {
+					log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
+				}
 			}
 		case RightsGUID:
 			guid, err := uuid.FromString(value)
