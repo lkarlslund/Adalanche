@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/lkarlslund/stringdedup"
 	"github.com/rs/zerolog/log"
@@ -172,4 +173,16 @@ func (sid SID) AddComponent(component uint32) SID {
 	binary.LittleEndian.PutUint32(newsid[len(sid):], component)
 	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
 	return SID(newsid)
+}
+
+func SIDFromBytes(data uintptr) (SID, error) {
+	bytes := (*[1024]byte)(unsafe.Pointer(data))
+	if bytes[0] != 0x01 {
+		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", bytes[0:32])
+	}
+	subauthoritycount := int(bytes[1])
+	var sid = make([]byte, 8+4*subauthoritycount)
+
+	copy(sid, bytes[0:len(sid)])
+	return SID(sid), nil
 }

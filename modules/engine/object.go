@@ -25,7 +25,7 @@ const threadbuckets = 1024
 
 var threadsafeobjectmutexes [threadbuckets]sync.RWMutex
 
-func SetThreadsafe(enable bool) {
+func setThreadsafe(enable bool) {
 	if enable {
 		threadsafeobject++
 	} else {
@@ -187,6 +187,8 @@ func (o *Object) Absorb(source *Object) {
 				target.members = append(target.members, newmember)
 			}
 		}
+	} else {
+		target.members = source.members
 	}
 
 	if len(source.memberof) > 0 {
@@ -199,6 +201,8 @@ func (o *Object) Absorb(source *Object) {
 				target.memberof = append(target.memberof, newmemberof)
 			}
 		}
+	} else {
+		target.memberof = source.memberof
 	}
 
 	for _, child := range source.children {
@@ -208,6 +212,8 @@ func (o *Object) Absorb(source *Object) {
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 	if target.sdcache == nil && source.sdcache != nil {
 		target.sdcache = source.sdcache
+	} else {
+		target.sdcache = nil
 	}
 
 	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
@@ -473,7 +479,7 @@ func (o *Object) Members(recursive bool) []*Object {
 	}
 
 	members := make(map[*Object]struct{})
-	o.recursemembers(members)
+	o.recursemembers(&members)
 
 	membersarray := make([]*Object, len(members))
 	var i int
@@ -484,19 +490,45 @@ func (o *Object) Members(recursive bool) []*Object {
 	return membersarray
 }
 
-func (o *Object) recursemembers(members map[*Object]struct{}) {
+func (o *Object) recursemembers(members *map[*Object]struct{}) {
 	for _, directmember := range o.members {
-		if _, found := members[directmember]; found {
+		if _, found := (*members)[directmember]; found {
 			// endless loop, not today thanks
 			continue
 		}
-		members[directmember] = struct{}{}
+		(*members)[directmember] = struct{}{}
 		directmember.recursemembers(members)
 	}
 }
 
-func (o *Object) MemberOf() []*Object {
-	return o.memberof
+func (o *Object) MemberOf(recursive bool) []*Object {
+	o.lock()
+	defer o.unlock()
+	if !recursive {
+		return o.memberof
+	}
+
+	memberof := make(map[*Object]struct{})
+	o.recursememberof(&memberof)
+
+	memberofarray := make([]*Object, len(memberof))
+	var i int
+	for member := range memberof {
+		memberofarray[i] = member
+		i++
+	}
+	return memberofarray
+}
+
+func (o *Object) recursememberof(memberof *map[*Object]struct{}) {
+	for _, directmemberof := range o.memberof {
+		if _, found := (*memberof)[directmemberof]; found {
+			// endless loop, not today thanks
+			continue
+		}
+		(*memberof)[directmemberof] = struct{}{}
+		directmemberof.recursemembers(memberof)
+	}
 }
 
 // Wrapper for Set - easier to call
@@ -570,6 +602,11 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 			data = append(data, AttributeValueBool(*v))
 		case bool:
 			data = append(data, AttributeValueBool(v))
+		case int64:
+			if ignoreblanks && v == 0 {
+				continue
+			}
+			data = append(data, AttributeValueInt(v))
 		case Attribute:
 			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
 				o.set(attribute, data)

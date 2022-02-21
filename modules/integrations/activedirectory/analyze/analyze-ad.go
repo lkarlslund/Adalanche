@@ -922,10 +922,12 @@ func init() {
 		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
 		}).Slice() {
+			// We found it - so we know it can change ACLs of some objects
 			rootdn := adminsdholder.OneAttrString(engine.DistinguishedName)[27:]
 
-			// We found it - so we know it can theoretically "pwn" some objects, lets see if some are excluded though
+			// Are some groups excluded?
 			excluded_mask := 0
+
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+rootdn)); found {
@@ -934,10 +936,70 @@ func init() {
 					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
 				}
 			}
-			Loader.AddAnalyzers(MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder, excluded_mask, rootdn))
+
+			for _, o := range ao.Filter(func(o *engine.Object) bool {
+				// Check if object is a user account
+				if o.Type() != engine.ObjectTypeGroup {
+					return false
+				}
+				return true
+			}).Slice() {
+
+				grpsid := o.SID()
+				if grpsid.IsNull() {
+					continue
+				}
+
+				// Only this "local" AD (for multi domain analysis)
+				if !strings.HasSuffix(o.OneAttrString(engine.DistinguishedName), rootdn) {
+					continue
+				}
+
+				switch grpsid.RID() {
+				case DOMAIN_USER_RID_ADMIN:
+				case DOMAIN_USER_RID_KRBTGT:
+				case DOMAIN_GROUP_RID_ADMINS:
+				case DOMAIN_GROUP_RID_CONTROLLERS:
+				case DOMAIN_GROUP_RID_SCHEMA_ADMINS:
+				case DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
+				case DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
+				case DOMAIN_ALIAS_RID_ADMINS:
+				case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
+					if excluded_mask&1 != 0 {
+						continue
+					}
+				case DOMAIN_ALIAS_RID_SYSTEM_OPS:
+					if excluded_mask&2 != 0 {
+						continue
+					}
+				case DOMAIN_ALIAS_RID_PRINT_OPS:
+					if excluded_mask&4 != 0 {
+						continue
+					}
+				case DOMAIN_ALIAS_RID_BACKUP_OPS:
+					if excluded_mask&8 != 0 {
+						continue
+					}
+				case DOMAIN_ALIAS_RID_REPLICATOR:
+				default:
+					// Not a protected group
+					continue
+				}
+
+				// Only domain groups
+				if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
+					log.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
+					continue
+				}
+
+				adminsdholder.Pwns(o, activedirectory.PwnAdminSDHolderOverwriteACL)
+				for _, member := range o.Members(true) {
+					adminsdholder.Pwns(member, activedirectory.PwnAdminSDHolderOverwriteACL)
+				}
+			}
 		}
 	},
-		"configuration of AdminSDHolder analyzer",
+		"AdminSDHolder rights propagation indicator",
 		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1313,68 +1375,4 @@ func init() {
 		engine.AfterMerge,
 	)
 
-}
-
-func MakeAdminSDHolderPwnAnalyzerFunc(adminsdholder *engine.Object, excluded int, rootdn string) engine.PwnAnalyzer {
-	return engine.PwnAnalyzer{
-		// Method: activedirectory.PwnAdminSDHolderOverwriteACL,
-		Description: "AdminSDHolder rights propagation indicator",
-		ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-
-			// Check if object is a user account
-			if o.Type() != engine.ObjectTypeGroup {
-				return
-			}
-
-			grpsid := o.SID()
-			if grpsid.IsNull() {
-				return
-			}
-
-			// Only this "local" AD (for multi domain analysis)
-			if !strings.HasSuffix(o.OneAttrString(engine.DistinguishedName), rootdn) {
-				return
-			}
-
-			switch grpsid.RID() {
-			case DOMAIN_USER_RID_ADMIN:
-			case DOMAIN_USER_RID_KRBTGT:
-			case DOMAIN_GROUP_RID_ADMINS:
-			case DOMAIN_GROUP_RID_CONTROLLERS:
-			case DOMAIN_GROUP_RID_SCHEMA_ADMINS:
-			case DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
-			case DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
-			case DOMAIN_ALIAS_RID_ADMINS:
-			case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
-				if excluded&1 != 0 {
-					return
-				}
-			case DOMAIN_ALIAS_RID_SYSTEM_OPS:
-				if excluded&2 != 0 {
-					return
-				}
-			case DOMAIN_ALIAS_RID_PRINT_OPS:
-				if excluded&4 != 0 {
-					return
-				}
-
-			case DOMAIN_ALIAS_RID_BACKUP_OPS:
-				if excluded&8 != 0 {
-					return
-				}
-			case DOMAIN_ALIAS_RID_REPLICATOR:
-			default:
-				// Not a protected group
-				return
-			}
-
-			// Only domain groups
-			if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
-				log.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
-				return
-			}
-
-			adminsdholder.Pwns(o, activedirectory.PwnAdminSDHolderOverwriteACL)
-		},
-	}
 }

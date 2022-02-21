@@ -1,5 +1,7 @@
 package engine
 
+import "log"
+
 type GraphObject struct {
 	*Object
 	Target    bool
@@ -18,6 +20,68 @@ type PwnPair struct {
 type PwnConnection struct {
 	Source, Target *Object
 	PwnMethodBitmap
+}
+
+func (pg *PwnGraph) Merge(npg PwnGraph) {
+	nodemap := make(map[*Object]GraphObject)
+	for _, node := range pg.Nodes {
+		nodemap[node.Object] = node
+	}
+
+	if len(nodemap) != len(pg.Nodes) {
+		log.Panic("Nodes not equal")
+	}
+
+	pairmap := make(map[PwnPair]PwnMethodBitmap)
+	for _, connection := range pg.Connections {
+		pairmap[PwnPair{connection.Source, connection.Target}] = connection.PwnMethodBitmap
+	}
+
+	if len(pairmap) != len(pg.Connections) {
+		log.Panic("Connections not equal")
+	}
+
+	for _, node := range npg.Nodes {
+		if e, ok := nodemap[node.Object]; ok {
+			if node.Target {
+				e.Target = true
+				nodemap[node.Object] = e
+			}
+			if node.CanExpand > e.CanExpand {
+				e.CanExpand = node.CanExpand
+				nodemap[node.Object] = e
+			}
+		} else {
+			nodemap[node.Object] = node
+		}
+	}
+
+	for _, connection := range npg.Connections {
+		if e, ok := pairmap[PwnPair{connection.Source, connection.Target}]; ok {
+			e.Merge(connection.PwnMethodBitmap)
+			pairmap[PwnPair{connection.Source, connection.Target}] = e
+		} else {
+			pairmap[PwnPair{connection.Source, connection.Target}] = connection.PwnMethodBitmap
+		}
+	}
+
+	pg.Nodes = make([]GraphObject, len(nodemap))
+	i := 0
+	for _, node := range nodemap {
+		pg.Nodes[i] = node
+		i++
+	}
+
+	pg.Connections = make([]PwnConnection, len(pairmap))
+	i = 0
+	for connection, methods := range pairmap {
+		pg.Connections[i] = PwnConnection{
+			Source:          connection.Source,
+			Target:          connection.Target,
+			PwnMethodBitmap: methods,
+		}
+		i++
+	}
 }
 
 func (pg PwnGraph) SCC() [][]*Object {

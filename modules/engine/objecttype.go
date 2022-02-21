@@ -50,7 +50,9 @@ type objecttypeinfo struct {
 	DefaultEnabledL bool
 }
 
-var objecttypenums []objecttypeinfo
+var objecttypenums = []objecttypeinfo{
+	{Name: "#OBJECT_TYPE_NOT_FOUND_ERROR#"},
+}
 
 var objecttypemutex sync.RWMutex
 
@@ -71,7 +73,7 @@ func NewObjectType(name, lookup string) ObjectType {
 		return objecttype
 	}
 
-	newindex := ObjectType(len(objecttypenames))
+	newindex := ObjectType(len(objecttypenums))
 	objecttypenames[lookup] = newindex
 	objecttypenums = append(objecttypenums, objecttypeinfo{
 		Name:            name,

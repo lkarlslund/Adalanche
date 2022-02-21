@@ -27,7 +27,6 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
 
 	timings := make([]time.Time, len(pwnAnalyzers[l]))
 
-	SetThreadsafe(true)
 	ao.SetThreadsafe(true)
 
 	starttime := time.Now()
@@ -53,7 +52,6 @@ func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
 	cb(max, max)
 	endtime := time.Now()
 
-	SetThreadsafe(false)
 	ao.SetThreadsafe(false)
 
 	for i := range pwnAnalyzers[l] {

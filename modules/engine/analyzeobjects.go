@@ -4,6 +4,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var PwnMemberOfGroup = NewPwn("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
+
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
 
 var pcfs = make(map[PwnMethod]ProbabilityCalculatorFunction)
@@ -181,6 +183,8 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				!opts.Backlinks &&
 					// It's found
 					found &&
+					// This is not the first round
+					processinground > 1 &&
 					// It was found in an earlier round
 					tri.roundadded+opts.Fuzzlevel <= processinground &&
 					// If SIDs match between objects, it's a cross forest link and we want to see it
@@ -211,9 +215,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 			} else {
 				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", opts.MaxOutgoingConnections, object.Label(), len(newconnectionsmap))
 				var groupcount int
-				for pwnpair := range newconnectionsmap {
+				for _, detectedmethods := range newconnectionsmap {
 					// We assume the number of groups are limited and add them anyway
-					if pwnpair.Target.Type() == ObjectTypeGroup {
+					if detectedmethods.IsSet(PwnMemberOfGroup) {
 						groupcount++
 					}
 				}
@@ -222,7 +226,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 					var addedanyway int
 					for pwnpair, detectedmethods := range newconnectionsmap {
 						// We assume the number of groups are limited and add them anyway
-						if pwnpair.Target.Type() == ObjectTypeGroup {
+						if detectedmethods.IsSet(PwnMemberOfGroup) {
 							connectionsmap[pwnpair] = detectedmethods
 							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
 								newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
@@ -230,6 +234,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 							addedanyway++
 						}
 					}
+					log.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", addedanyway, opts.MaxOutgoingConnections)
 					ri.canexpand = len(newconnectionsmap) - addedanyway
 				}
 			}

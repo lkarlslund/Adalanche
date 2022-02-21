@@ -11,6 +11,10 @@ function makePopper(ele) {
     });
 }
 
+window.onpopstate = function (event) {
+    $('body').html(event.state);
+}
+
 function setquery(
     query,
     depth,
@@ -183,7 +187,7 @@ function analyze(e) {
         url: 'cytograph.json',
         contentType: 'charset=utf-8',
         data: JSON.stringify(
-            $('#queryform, #optionsform')
+            $('#queryform, #analysisoptionsform, #analysispwnform, #analysistypeform')
                 .serializeArray()
                 .reduce(function (m, o) {
                     m[o.name] = o.value;
@@ -235,6 +239,8 @@ function analyze(e) {
                 }
 
                 initgraph(data.elements);
+
+                history.pushState($('body').html(), 'adalanche')
             }
         },
         error: function (xhr, status, error) {

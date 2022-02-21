@@ -65,7 +65,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 	}
 
 	for _, loader := range loaders {
-		log.Debug().Msgf("Initializing loader %v", loader.Name())
+		log.Debug().Msgf("Initializing loader for %v", loader.Name())
 		err := loader.Init()
 		if err != nil {
 			return nil, err

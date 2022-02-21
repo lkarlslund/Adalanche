@@ -44,7 +44,7 @@ func (os *Objects) SetThreadsafe(enable bool) {
 	if os.threadsafe < 0 {
 		panic("threadsafe is negative")
 	}
-	SetThreadsafe(enable) // Do this globally for individial objects too
+	setThreadsafe(enable) // Do this globally for individial objects too
 }
 
 func (os *Objects) lock() {

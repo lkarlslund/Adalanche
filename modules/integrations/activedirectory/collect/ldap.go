@@ -103,11 +103,8 @@ func (ad *AD) Connect(authmode byte) error {
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
 	}
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (ad *AD) Disconnect() error {

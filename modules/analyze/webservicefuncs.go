@@ -319,14 +319,20 @@ func analysisfuncs(ws *webservice) {
 
 		var pg engine.PwnGraph
 		if mode == "sourcetarget" {
-			if len(includeobjects.Slice()) == 0 || excludeobjects == nil || len(excludeobjects.Slice()) == 0 {
+			if includeobjects.Len() == 0 || excludeobjects == nil || excludeobjects.Len() == 0 {
 				fmt.Fprintf(w, "You must use two queries (source and target), seperated by commas. Each must return at least one object.")
 			}
 
 			// We dont support this yet, so merge all of them
 			combinedmethods := methods_f.Merge(methods_m).Merge(methods_l)
 
-			pg = engine.AnalyzePaths(includeobjects.Slice()[0], excludeobjects.Slice()[0], ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
+			for _, source := range includeobjects.Slice() {
+				for _, target := range excludeobjects.Slice() {
+					newpg := engine.AnalyzePaths(source, target, ws.Objs, combinedmethods, engine.Probability(minprobability), maxdepth)
+					pg.Merge(newpg)
+				}
+			}
+			// pg = engine.AnalyzePaths(includeobjects.Slice()[0], excludeobjects.Slice()[0], ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
 		} else {
 			opts := engine.NewAnalyzeObjectsOptions()
 			opts.IncludeObjects = includeobjects
