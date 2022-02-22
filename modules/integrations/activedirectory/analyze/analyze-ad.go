@@ -171,7 +171,7 @@ func init() {
 							// Enforcement required, but this is not an enforced GPO
 							continue
 						}
-						gpo.Pwns(o, activedirectory.PwnComputerAffectedByGPO)
+						gpo.Pwns(o, activedirectory.PwnAffectedByGPO)
 					}
 
 					gpoptions := p.OneAttrString(activedirectory.GPOptions)
@@ -193,12 +193,9 @@ func init() {
 				// Only for computers, you can't really pwn users this way
 				p, hasparent := ao.DistinguishedParent(o)
 				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
-					if strings.Contains(p.DN(), "Policies") {
-						log.Debug().Msgf("%v+", p)
-					}
 					return
 				}
-				p.Pwns(o, activedirectory.PwnGPOMachineConfigPartOfGPO)
+				p.Pwns(o, activedirectory.PartOfGPO)
 			},
 		},
 		engine.PwnAnalyzer{
@@ -210,10 +207,10 @@ func init() {
 				}
 				// Only for users, you can't really pwn users this way
 				p, hasparent := ao.DistinguishedParent(o)
-				if o.Type() != engine.ObjectTypeContainer || !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
+				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
 					return
 				}
-				p.Pwns(o, activedirectory.PwnGPOUserConfigPartOfGPO)
+				p.Pwns(o, activedirectory.PartOfGPO)
 			},
 		},
 		engine.PwnAnalyzer{
@@ -256,7 +253,7 @@ func init() {
 		},
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnCreateComputer,
-			Description: "Permissions that lets someone to create a computer object in a container",
+			Description: "Permissions that lets someone create a computer object in a container",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for containers and org units
 				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit && o.Type() != engine.ObjectTypeDomainDNS {
@@ -275,7 +272,7 @@ func init() {
 		},
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnCreateAnyObject,
-			Description: "Permissions that lets someone to create any kind of object in a container",
+			Description: "Permissions that lets someone create any kind of object in a container",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for containers and org units
 				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
@@ -294,7 +291,7 @@ func init() {
 		},
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnDeleteObject,
-			Description: "Permissions that lets someone to delete any kind of object in a container",
+			Description: "Permissions that lets someone delete any kind of object in a container",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for containers and org units
 				sd, err := o.SecurityDescriptor()
@@ -310,7 +307,7 @@ func init() {
 		},
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnDeleteChildrenTarget,
-			Description: "Permissions that lets someone to delete any kind of object in a container (via the DS_DELETE_CHILD permission)",
+			Description: "Permissions that lets someone delete any kind of object in a container (via the DS_DELETE_CHILD permission)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// If parent has DELETE CHILD, I can be deleted by some SID
 				if parent, found := ao.DistinguishedParent(o); found {
@@ -992,9 +989,13 @@ func init() {
 					continue
 				}
 
-				adminsdholder.Pwns(o, activedirectory.PwnAdminSDHolderOverwriteACL)
+				adminsdholder.Pwns(o, activedirectory.PwnOverwritesACL)
+				dm := o.Members(false)
+				idm := o.Members(true)
+				_ = dm
+				_ = idm
 				for _, member := range o.Members(true) {
-					adminsdholder.Pwns(member, activedirectory.PwnAdminSDHolderOverwriteACL)
+					adminsdholder.Pwns(member, activedirectory.PwnOverwritesACL)
 				}
 			}
 		}

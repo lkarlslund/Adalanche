@@ -27,6 +27,8 @@ type Info struct {
 	Shares   Shares            `json:",omitempty"`
 	Services Services          `json:",omitempty"`
 	Software []shared.Software `json:",omitempty"`
+
+	Privileges Privileges `json:",omitempty"`
 }
 
 type Machine struct {
@@ -140,6 +142,13 @@ type Member struct {
 	Name string
 	SID  string
 }
+
+type Privileges []Privilege
+type Privilege struct {
+	Name         string
+	AssignedSIDs []string
+}
+
 type NetworkInformation struct {
 	InternetConnectivity string
 	NetworkInterfaces    []NetworkInterfaceInfo

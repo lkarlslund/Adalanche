@@ -615,6 +615,28 @@ func Collect(outputpath string) error {
 
 	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
+	var privilegesinfo localmachine.Privileges
+	pol, err := LsaOpenPolicy("", _POLICY_LOOKUP_NAMES|_POLICY_VIEW_LOCAL_INFORMATION)
+	if err == nil {
+		for _, privilege := range PRIVILEGE_NAMES {
+			sids, err := LsaEnumerateAccountsWithUserRight(*pol, string(privilege))
+			if err == nil {
+				sidstrings := make([]string, len(sids))
+				for i, sid := range sids {
+					sidstrings[i] = sid.String()
+				}
+				privilegesinfo = append(privilegesinfo, localmachine.Privilege{
+					Name:         string(privilege),
+					AssignedSIDs: sidstrings,
+				})
+			} else if err != STATUS_NO_MORE_ENTRIES {
+				log.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
+			}
+		}
+		LsaClose(*pol)
+	} else {
+		log.Warn().Msgf("Could not open LSA policy: %v", err)
+	}
 	info := localmachine.Info{
 		Common: basedata.Common{
 			Collector: "collector",
@@ -637,6 +659,7 @@ func Collect(outputpath string) error {
 		Shares:          sharesinfo,
 		Services:        servicesinfo,
 		Software:        softwareinfo,
+		Privileges:      privilegesinfo,
 	}
 
 	if outputpath == "" {

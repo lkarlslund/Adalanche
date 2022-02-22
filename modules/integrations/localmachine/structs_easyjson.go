@@ -545,7 +545,112 @@ func (v *Service) UnmarshalJSON(data []byte) error {
 func (v *Service) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine2(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(in *jlexer.Lexer, out *NetworkInterfaceInfo) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(in *jlexer.Lexer, out *Privilege) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "Name":
+			out.Name = string(in.String())
+		case "AssignedSIDs":
+			if in.IsNull() {
+				in.Skip()
+				out.AssignedSIDs = nil
+			} else {
+				in.Delim('[')
+				if out.AssignedSIDs == nil {
+					if !in.IsDelim(']') {
+						out.AssignedSIDs = make([]string, 0, 4)
+					} else {
+						out.AssignedSIDs = []string{}
+					}
+				} else {
+					out.AssignedSIDs = (out.AssignedSIDs)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v13 string
+					v13 = string(in.String())
+					out.AssignedSIDs = append(out.AssignedSIDs, v13)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(out *jwriter.Writer, in Privilege) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"Name\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Name))
+	}
+	{
+		const prefix string = ",\"AssignedSIDs\":"
+		out.RawString(prefix)
+		if in.AssignedSIDs == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v14, v15 := range in.AssignedSIDs {
+				if v14 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v15))
+			}
+			out.RawByte(']')
+		}
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v Privilege) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v Privilege) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *Privilege) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *Privilege) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(l, v)
+}
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(in *jlexer.Lexer, out *NetworkInterfaceInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -586,9 +691,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Addresses = (out.Addresses)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v13 string
-					v13 = string(in.String())
-					out.Addresses = append(out.Addresses, v13)
+					var v16 string
+					v16 = string(in.String())
+					out.Addresses = append(out.Addresses, v16)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -603,7 +708,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(out *jwriter.Writer, in NetworkInterfaceInfo) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(out *jwriter.Writer, in NetworkInterfaceInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -629,11 +734,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v14, v15 := range in.Addresses {
-				if v14 > 0 {
+			for v17, v18 := range in.Addresses {
+				if v17 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v15))
+				out.String(string(v18))
 			}
 			out.RawByte(']')
 		}
@@ -644,27 +749,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v NetworkInterfaceInfo) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v NetworkInterfaceInfo) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *NetworkInterfaceInfo) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *NetworkInterfaceInfo) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine3(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(in *jlexer.Lexer, out *NetworkInformation) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(in *jlexer.Lexer, out *NetworkInformation) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -701,9 +806,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.NetworkInterfaces = (out.NetworkInterfaces)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v16 NetworkInterfaceInfo
-					(v16).UnmarshalEasyJSON(in)
-					out.NetworkInterfaces = append(out.NetworkInterfaces, v16)
+					var v19 NetworkInterfaceInfo
+					(v19).UnmarshalEasyJSON(in)
+					out.NetworkInterfaces = append(out.NetworkInterfaces, v19)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -718,7 +823,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(out *jwriter.Writer, in NetworkInformation) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(out *jwriter.Writer, in NetworkInformation) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -734,11 +839,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v17, v18 := range in.NetworkInterfaces {
-				if v17 > 0 {
+			for v20, v21 := range in.NetworkInterfaces {
+				if v20 > 0 {
 					out.RawByte(',')
 				}
-				(v18).MarshalEasyJSON(out)
+				(v21).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -749,27 +854,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v NetworkInformation) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v NetworkInformation) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *NetworkInformation) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *NetworkInformation) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine4(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(in *jlexer.Lexer, out *Member) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(in *jlexer.Lexer, out *Member) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -802,7 +907,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(out *jwriter.Writer, in Member) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(out *jwriter.Writer, in Member) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -822,27 +927,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v Member) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Member) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Member) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Member) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine5(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(in *jlexer.Lexer, out *Machine) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(in *jlexer.Lexer, out *Machine) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -913,14 +1018,14 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.AppCache = (out.AppCache)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v19 []uint8
+					var v22 []uint8
 					if in.IsNull() {
 						in.Skip()
-						v19 = nil
+						v22 = nil
 					} else {
-						v19 = in.Bytes()
+						v22 = in.Bytes()
 					}
-					out.AppCache = append(out.AppCache, v19)
+					out.AppCache = append(out.AppCache, v22)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -945,7 +1050,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(out *jwriter.Writer, in Machine) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(out *jwriter.Writer, in Machine) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1135,11 +1240,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v21, v22 := range in.AppCache {
-				if v21 > 0 {
+			for v24, v25 := range in.AppCache {
+				if v24 > 0 {
 					out.RawByte(',')
 				}
-				out.Base64Bytes(v22)
+				out.Base64Bytes(v25)
 			}
 			out.RawByte(']')
 		}
@@ -1200,27 +1305,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v Machine) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Machine) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Machine) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Machine) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine6(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(in *jlexer.Lexer, out *LoginPopularity) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(in *jlexer.Lexer, out *LoginPopularity) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1255,9 +1360,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Day = (out.Day)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v25 LoginCount
-					(v25).UnmarshalEasyJSON(in)
-					out.Day = append(out.Day, v25)
+					var v28 LoginCount
+					(v28).UnmarshalEasyJSON(in)
+					out.Day = append(out.Day, v28)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1278,9 +1383,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Week = (out.Week)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v26 LoginCount
-					(v26).UnmarshalEasyJSON(in)
-					out.Week = append(out.Week, v26)
+					var v29 LoginCount
+					(v29).UnmarshalEasyJSON(in)
+					out.Week = append(out.Week, v29)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1301,9 +1406,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Month = (out.Month)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v27 LoginCount
-					(v27).UnmarshalEasyJSON(in)
-					out.Month = append(out.Month, v27)
+					var v30 LoginCount
+					(v30).UnmarshalEasyJSON(in)
+					out.Month = append(out.Month, v30)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1318,7 +1423,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(out *jwriter.Writer, in LoginPopularity) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(out *jwriter.Writer, in LoginPopularity) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1329,11 +1434,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v28, v29 := range in.Day {
-				if v28 > 0 {
+			for v31, v32 := range in.Day {
+				if v31 > 0 {
 					out.RawByte(',')
 				}
-				(v29).MarshalEasyJSON(out)
+				(v32).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1345,11 +1450,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v30, v31 := range in.Week {
-				if v30 > 0 {
+			for v33, v34 := range in.Week {
+				if v33 > 0 {
 					out.RawByte(',')
 				}
-				(v31).MarshalEasyJSON(out)
+				(v34).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1361,11 +1466,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v32, v33 := range in.Month {
-				if v32 > 0 {
+			for v35, v36 := range in.Month {
+				if v35 > 0 {
 					out.RawByte(',')
 				}
-				(v33).MarshalEasyJSON(out)
+				(v36).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1376,27 +1481,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v LoginPopularity) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v LoginPopularity) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *LoginPopularity) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *LoginPopularity) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine7(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(in *jlexer.Lexer, out *LoginCount) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(in *jlexer.Lexer, out *LoginCount) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1431,7 +1536,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(out *jwriter.Writer, in LoginCount) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(out *jwriter.Writer, in LoginCount) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1456,27 +1561,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v LoginCount) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v LoginCount) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *LoginCount) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *LoginCount) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine8(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(in *jlexer.Lexer, out *Info) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(in *jlexer.Lexer, out *Info) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1525,9 +1630,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Users = (out.Users)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v34 User
-					(v34).UnmarshalEasyJSON(in)
-					out.Users = append(out.Users, v34)
+					var v37 User
+					(v37).UnmarshalEasyJSON(in)
+					out.Users = append(out.Users, v37)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1548,9 +1653,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Groups = (out.Groups)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v35 Group
-					(v35).UnmarshalEasyJSON(in)
-					out.Groups = append(out.Groups, v35)
+					var v38 Group
+					(v38).UnmarshalEasyJSON(in)
+					out.Groups = append(out.Groups, v38)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1571,9 +1676,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Shares = (out.Shares)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v36 Share
-					(v36).UnmarshalEasyJSON(in)
-					out.Shares = append(out.Shares, v36)
+					var v39 Share
+					(v39).UnmarshalEasyJSON(in)
+					out.Shares = append(out.Shares, v39)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1594,9 +1699,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Services = (out.Services)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v37 Service
-					(v37).UnmarshalEasyJSON(in)
-					out.Services = append(out.Services, v37)
+					var v40 Service
+					(v40).UnmarshalEasyJSON(in)
+					out.Services = append(out.Services, v40)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1617,15 +1722,40 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Software = (out.Software)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v38 shared.Software
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared3(in, &v38)
-					out.Software = append(out.Software, v38)
+					var v41 shared.Software
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared3(in, &v41)
+					out.Software = append(out.Software, v41)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "Privileges":
+			if in.IsNull() {
+				in.Skip()
+				out.Privileges = nil
+			} else {
+				in.Delim('[')
+				if out.Privileges == nil {
+					if !in.IsDelim(']') {
+						out.Privileges = make(Privileges, 0, 1)
+					} else {
+						out.Privileges = Privileges{}
+					}
+				} else {
+					out.Privileges = (out.Privileges)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v42 Privilege
+					(v42).UnmarshalEasyJSON(in)
+					out.Privileges = append(out.Privileges, v42)
 					in.WantComma()
 				}
 				in.Delim(']')
 			}
 		case "Collector":
 			out.Collector = string(in.String())
+		case "Version":
+			out.Version = string(in.String())
 		case "BuildDate":
 			out.BuildDate = string(in.String())
 		case "Commit":
@@ -1644,7 +1774,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(out *jwriter.Writer, in Info) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(out *jwriter.Writer, in Info) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1694,11 +1824,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v39, v40 := range in.Users {
-				if v39 > 0 {
+			for v43, v44 := range in.Users {
+				if v43 > 0 {
 					out.RawByte(',')
 				}
-				(v40).MarshalEasyJSON(out)
+				(v44).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1708,11 +1838,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v41, v42 := range in.Groups {
-				if v41 > 0 {
+			for v45, v46 := range in.Groups {
+				if v45 > 0 {
 					out.RawByte(',')
 				}
-				(v42).MarshalEasyJSON(out)
+				(v46).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1722,11 +1852,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v43, v44 := range in.Shares {
-				if v43 > 0 {
+			for v47, v48 := range in.Shares {
+				if v47 > 0 {
 					out.RawByte(',')
 				}
-				(v44).MarshalEasyJSON(out)
+				(v48).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1736,11 +1866,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v45, v46 := range in.Services {
-				if v45 > 0 {
+			for v49, v50 := range in.Services {
+				if v49 > 0 {
 					out.RawByte(',')
 				}
-				(v46).MarshalEasyJSON(out)
+				(v50).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1750,11 +1880,25 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v47, v48 := range in.Software {
-				if v47 > 0 {
+			for v51, v52 := range in.Software {
+				if v51 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared3(out, v48)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared3(out, v52)
+			}
+			out.RawByte(']')
+		}
+	}
+	if len(in.Privileges) != 0 {
+		const prefix string = ",\"Privileges\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('[')
+			for v53, v54 := range in.Privileges {
+				if v53 > 0 {
+					out.RawByte(',')
+				}
+				(v54).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -1763,6 +1907,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		const prefix string = ",\"Collector\":"
 		out.RawString(prefix)
 		out.String(string(in.Collector))
+	}
+	{
+		const prefix string = ",\"Version\":"
+		out.RawString(prefix)
+		out.String(string(in.Version))
 	}
 	{
 		const prefix string = ",\"BuildDate\":"
@@ -1785,25 +1934,25 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v Info) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Info) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Info) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Info) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine9(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(l, v)
 }
 func easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared3(in *jlexer.Lexer, out *shared.Software) {
 	isTopLevel := in.IsStart()
@@ -2137,9 +2286,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared(in *jlexer.Lexer,
 					out.CPU = (out.CPU)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v49 shared.CPU
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared4(in, &v49)
-					out.CPU = append(out.CPU, v49)
+					var v55 shared.CPU
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared4(in, &v55)
+					out.CPU = append(out.CPU, v55)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2160,9 +2309,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared(in *jlexer.Lexer,
 					out.Memory = (out.Memory)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v50 shared.MemoryDIMM
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared5(in, &v50)
-					out.Memory = append(out.Memory, v50)
+					var v56 shared.MemoryDIMM
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared5(in, &v56)
+					out.Memory = append(out.Memory, v56)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2233,11 +2382,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared(out *jwriter.Writ
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v51, v52 := range in.CPU {
-				if v51 > 0 {
+			for v57, v58 := range in.CPU {
+				if v57 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared4(out, v52)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared4(out, v58)
 			}
 			out.RawByte(']')
 		}
@@ -2249,11 +2398,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared(out *jwriter.Writ
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v53, v54 := range in.Memory {
-				if v53 > 0 {
+			for v59, v60 := range in.Memory {
+				if v59 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared5(out, v54)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared5(out, v60)
 			}
 			out.RawByte(']')
 		}
@@ -2372,7 +2521,7 @@ func easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared4(out *jwriter.Wri
 	}
 	out.RawByte('}')
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(in *jlexer.Lexer, out *Group) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(in *jlexer.Lexer, out *Group) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2413,9 +2562,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Members = (out.Members)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v55 Member
-					(v55).UnmarshalEasyJSON(in)
-					out.Members = append(out.Members, v55)
+					var v61 Member
+					(v61).UnmarshalEasyJSON(in)
+					out.Members = append(out.Members, v61)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2430,7 +2579,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(out *jwriter.Writer, in Group) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(out *jwriter.Writer, in Group) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2456,11 +2605,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v56, v57 := range in.Members {
-				if v56 > 0 {
+			for v62, v63 := range in.Members {
+				if v62 > 0 {
 					out.RawByte(',')
 				}
-				(v57).MarshalEasyJSON(out)
+				(v63).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -2471,27 +2620,27 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v Group) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Group) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Group) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Group) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine10(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(l, v)
 }
-func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(in *jlexer.Lexer, out *Availability) {
+func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(in *jlexer.Lexer, out *Availability) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2526,7 +2675,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		in.Consumed()
 	}
 }
-func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(out *jwriter.Writer, in Availability) {
+func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(out *jwriter.Writer, in Availability) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2562,23 +2711,23 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 // MarshalJSON supports json.Marshaler interface
 func (v Availability) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(&w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Availability) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(w, v)
+	easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Availability) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(&r, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Availability) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine11(l, v)
+	easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalmachine12(l, v)
 }

@@ -36,6 +36,19 @@ var (
 	PwnFileModifyDACL               = engine.NewPwn("FileModifyDACL")
 	PwnRegistryWrite                = engine.NewPwn("RegistryWrite")
 	PwnRegistryModifyDACL           = engine.NewPwn("RegistryModifyDACL")
+
+	PwnSeBackupPrivilege        = engine.NewPwn("SeBackupPrivilege")
+	PwnSeRestorePrivilege       = engine.NewPwn("SeRestorePrivilege")
+	PwnSeTakeOwnershipPrivilege = engine.NewPwn("SeTakeOwnershipPrivilege")
+
+	PwnSeAssignPrimaryToken = engine.NewPwn("SeAssignPrimaryToken")
+	PwnSeCreateToken        = engine.NewPwn("SeCreateToken")
+	PwnSeDebug              = engine.NewPwn("SeDebug")
+	PwnSeImpersonate        = engine.NewPwn("SeImpersonate")
+	PwnSeLoadDriver         = engine.NewPwn("SeLoadDriver")
+	PwnSeManageVolume       = engine.NewPwn("SeManageVolume")
+	PwnSeTakeOwnership      = engine.NewPwn("SeTakeOwnership")
+	PwnSeTcb                = engine.NewPwn("SeTcb")
 )
 
 func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
@@ -459,6 +472,47 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 	}
 	if len(installedsoftware) > 0 {
 		computerobject.Set(localmachine.InstalledSoftware, installedsoftware)
+	}
+
+	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
+	for _, pi := range cinfo.Privileges {
+		var pwn engine.PwnMethod
+		switch pi.Name {
+		case "SeBackupPrivilege":
+			pwn = PwnSeBackupPrivilege
+		case "SeRestorePrivilege":
+			pwn = PwnSeRestorePrivilege
+		case "SeAssignPrimaryToken":
+			pwn = PwnSeAssignPrimaryToken
+		case "SeCreateToken":
+			pwn = PwnSeCreateToken
+		case "SeDebug":
+			pwn = PwnSeDebug
+		case "SeImpersonate":
+			pwn = PwnSeImpersonate
+		case "SeLoadDriver":
+			pwn = PwnSeLoadDriver
+		case "SeManageVolume":
+			pwn = PwnSeManageVolume
+		case "SeTakeOwnership":
+			pwn = PwnSeTakeOwnership
+		case "SeTcb":
+			pwn = PwnSeTcb
+		default:
+			continue
+		}
+
+		for _, sidstring := range pi.AssignedSIDs {
+			sid, err := windowssecurity.SIDFromString(sidstring)
+			if err != nil {
+				log.Error().Msgf("Invalid SID %v: %v", sidstring, err)
+				continue
+			}
+			assignee, _ := ao.FindOrAdd(
+				activedirectory.ObjectSid, engine.AttributeValueSID(sid),
+			)
+			assignee.Pwns(computerobject, pwn)
+		}
 	}
 	return nil
 }
