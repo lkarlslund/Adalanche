@@ -218,6 +218,10 @@ valueloop:
 
 	valuenum, numok := strconv.ParseInt(value, 10, 64)
 
+	if len(attributename) == 0 {
+		return nil, nil, errors.New("Empty attribute name detected")
+	}
+
 	if attributename[0] == '_' {
 		// Magic attributes, uuuuuh ....
 		switch attributename {
