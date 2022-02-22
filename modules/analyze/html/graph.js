@@ -1,5 +1,3 @@
-window['d3-force'] = d3
-
 var cy
 var nodemenu
 
@@ -11,31 +9,32 @@ var d3forcelayout = {
     maxSimulationTime: 0, // max length in ms to run the layout
     ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
     fixedAfterDragging: false, // fixed node after dragging
-    fit: false, // on every layout reposition of nodes, fit the viewport
+    fit: true, // on every layout reposition of nodes, fit the viewport
     padding: 30, // padding around the simulation
     boundingBox: undefined, // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
     /**d3-force API**/
     alpha: 0.4, // sets the current alpha to the specified number in the range [0,1]
     alphaMin: 0.001, // sets the minimum alpha to the specified number in the range [0,1]
-    alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
+    alphaDecay: 0.1,
+    // alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
     alphaTarget: 0, // sets the current target alpha to the specified number in the range [0,1]
-    velocityDecay: 0.4, // sets the velocity decay factor to the specified number in the range [0,1]
-    collideRadius: 60, // sets the radius accessor to the specified number or function
+    velocityDecay: 0.2, // sets the velocity decay factor to the specified number in the range [0,1]
+    collideRadius: 80, // sets the radius accessor to the specified number or function
     collideStrength: 0.7, // sets the force strength to the specified number in the range [0,1]
     collideIterations: 1, // sets the number of iterations per application to the specified number
     linkId: function id(d) {
         // return d.index;
         return d.id;
     }, // sets the node id accessor to the specified function
-    linkDistance: 40, // sets the distance accessor to the specified number or function
+    linkDistance: 20, // sets the distance accessor to the specified number or function
     linkStrength: function strength(link) {
         // return 1 / Math.min(count(link.source), count(link.target));
-        return 1 / link._maxprob;
+        return 8 / link._maxprob;
     }, // sets the strength accessor to the specified number or function
-    linkIterations: 1, // sets the number of iterations per application to the specified number
-    manyBodyStrength: -600, // sets the strength accessor to the specified number or function
+    linkIterations: 25, // sets the number of iterations per application to the specified number
+    manyBodyStrength: -1500, // sets the strength accessor to the specified number or function
     manyBodyTheta: 0.5, // sets the Barnes–Hut approximation criterion to the specified number
-    manyBodyDistanceMin: 1, // sets the minimum distance between nodes over which this force is considered
+    manyBodyDistanceMin: 10, // sets the minimum distance between nodes over which this force is considered
     manyBodyDistanceMax: Infinity, // sets the maximum distance between nodes over which this force is considered
     xStrength: 0.1, // sets the strength accessor to the specified number or function
     xX: 0, // sets the x-coordinate accessor to the specified number or function
