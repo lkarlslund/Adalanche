@@ -444,7 +444,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     method.lookup +
-                    `_f" class ="btn btn-sm mb-0">F</label>`;
+                    `_f" class ="btn btn-sm mb-0 mr-5">F</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (method.defaultenabled_m ? 'checked' : '') +
@@ -456,7 +456,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     method.lookup +
-                    `_m" class ="btn btn-sm mb-0">M</label>`;
+                    `_m" class ="btn btn-sm mb-0 mr-5">M</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (method.defaultenabled_l ? 'checked' : '') +
@@ -468,7 +468,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     method.lookup +
-                    `_l" class ="btn btn-sm mb-0">L</label>`;
+                    `_l" class ="btn btn-sm mb-0 mr-5">L</label>`;
                 buttons += '</td>';
 
                 buttons += '</tr>';
@@ -499,7 +499,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     objecttype.lookup +
-                    `_f" class ="btn btn-sm mb-0">F</label>`;
+                    `_f" class ="btn btn-sm mb-0 mr-5">F</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (objecttype.defaultenabled_m ? 'checked' : '') +
@@ -511,7 +511,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     objecttype.lookup +
-                    `_m" class ="btn btn-sm mb-0">M</label>`;
+                    `_m" class ="btn btn-sm mb-0 mr-5">M</label>`;
                 buttons +=
                     `<input type="checkbox" ` +
                     (objecttype.defaultenabled_l ? 'checked' : '') +
@@ -523,7 +523,7 @@ $(function () {
                 buttons +=
                     `<label for="` +
                     objecttype.lookup +
-                    `_l" class ="btn btn-sm mb-0">L</label>`;
+                    `_l" class ="btn btn-sm mb-0 mr-5">L</label>`;
 
                 buttons += '</td>';
 
