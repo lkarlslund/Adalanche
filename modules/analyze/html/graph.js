@@ -15,9 +15,10 @@ var d3forcelayout = {
     /**d3-force API**/
     alpha: 0.4, // sets the current alpha to the specified number in the range [0,1]
     alphaMin: 0.001, // sets the minimum alpha to the specified number in the range [0,1]
-    alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
+    alphaDecay: 0.1,
+    // alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
     alphaTarget: 0, // sets the current target alpha to the specified number in the range [0,1]
-    velocityDecay: 0.4, // sets the velocity decay factor to the specified number in the range [0,1]
+    velocityDecay: 0.2, // sets the velocity decay factor to the specified number in the range [0,1]
     collideRadius: 80, // sets the radius accessor to the specified number or function
     collideStrength: 0.7, // sets the force strength to the specified number in the range [0,1]
     collideIterations: 1, // sets the number of iterations per application to the specified number
@@ -28,7 +29,7 @@ var d3forcelayout = {
     linkDistance: 20, // sets the distance accessor to the specified number or function
     linkStrength: function strength(link) {
         // return 1 / Math.min(count(link.source), count(link.target));
-        return 2 / link._maxprob;
+        return 8 / link._maxprob;
     }, // sets the strength accessor to the specified number or function
     linkIterations: 25, // sets the number of iterations per application to the specified number
     manyBodyStrength: -1500, // sets the strength accessor to the specified number or function
