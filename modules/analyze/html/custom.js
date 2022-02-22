@@ -432,7 +432,7 @@ $(function () {
                     method.name;
                 `</td>`;
 
-                buttons += '<td class="checkbox-button no-wrap">';
+                buttons += '<td class="checkbox-button no-wrap pb-5">';
                 buttons +=
                     `<input type="checkbox" ` +
                     (method.defaultenabled_f ? 'checked' : '') +
