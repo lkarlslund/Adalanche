@@ -428,7 +428,7 @@ $(function () {
                 buttons += '<tr class="pb-5">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle">` +
+                    `<td class="overflow-hidden font-size-12 align-middle pr-5">` +
                     method.name;
                 `</td>`;
 
@@ -483,7 +483,7 @@ $(function () {
                 buttons += '<tr class="pb-5">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle">` +
+                    `<td class="overflow-hidden font-size-12 align-middle pr-5">` +
                     objecttype.name;
                 `</td>`;
                 buttons += '<td class="checkbox-button no-wrap pb-5">';
