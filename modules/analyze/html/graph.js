@@ -479,6 +479,13 @@ var cytostyle = [{
     }
 },
 {
+    selector: 'edge[?method_ForeignIdentity]',
+    style: {
+        "target-arrow-color": "lightgreen",
+        "line-color": "lightgreen"
+    }
+},
+{
     selector: 'edge[?method_ResetPassword]',
     style: {
         "target-arrow-color": "red",
