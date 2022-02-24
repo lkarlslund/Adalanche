@@ -120,5 +120,5 @@ func (ot ObjectType) SetDefault(p PriorityFML, enabled bool) ObjectType {
 func ObjectTypes() []objecttypeinfo {
 	objecttypemutex.RLock()
 	defer objecttypemutex.RUnlock()
-	return objecttypenums
+	return objecttypenums[1:]
 }
