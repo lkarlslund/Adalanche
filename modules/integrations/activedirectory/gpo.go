@@ -1,6 +1,8 @@
 package activedirectory
 
 import (
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -22,8 +24,10 @@ type GPOfileinfo struct {
 	RelativePath string `json:",omitempty"`
 	IsDir        bool   `json:",omitempty"`
 
-	OwnerSID windowssecurity.SID `json:",omitempty"`
-	DACL     []byte              `json:",omitempty"`
+	Size      int64               `json:",omitempty"`
+	Timestamp time.Time           `json:",omitempty"`
+	OwnerSID  windowssecurity.SID `json:",omitempty"`
+	DACL      []byte              `json:",omitempty"`
 
 	Contents []byte `json:",omitempty"`
 }

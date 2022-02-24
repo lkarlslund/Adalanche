@@ -393,6 +393,12 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 						var fileinfo activedirectory.GPOfileinfo
 						fileinfo.IsDir = d.IsDir()
+						if !fileinfo.IsDir {
+							if info, err := d.Info(); err == nil {
+								fileinfo.Timestamp = info.ModTime()
+								fileinfo.Size = info.Size()
+							}
+						}
 						fileinfo.RelativePath = curpath[offset:]
 
 						if gppath == originalpath {

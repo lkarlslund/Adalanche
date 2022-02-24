@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"strconv"
@@ -39,18 +40,21 @@ func setThreadsafe(enable bool) {
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
-	values    AttributeValueMap
-	PwnableBy PwnConnections
-	CanPwn    PwnConnections
-	parent    *Object
-	sdcache   *SecurityDescriptor
-	sid       windowssecurity.SID
-	children  []*Object
-	members   []*Object
+	values           AttributeValueMap
+	PwnableBy        PwnConnections
+	CanPwn           PwnConnections
+	parent           *Object
+	sdcache          *SecurityDescriptor
+	sid              windowssecurity.SID
+	children         []*Object
+	members          []*Object
+	membersrecursive []*Object
+
 	// objectclassguids   []uuid.UUID
-	memberof []*Object
-	id       uint32
-	guid     uuid.UUID
+	memberof          []*Object
+	memberofrecursive []*Object
+	id                uint32
+	guid              uuid.UUID
 	// objectcategoryguid uuid.UUID
 	guidcached bool
 	sidcached  bool
@@ -223,6 +227,8 @@ func (o *Object) Absorb(source *Object) {
 	}
 
 	target.objecttype = 0 // Recalculate this
+	target.memberofrecursive = nil
+	target.membersrecursive = nil
 }
 
 func (o *Object) AttributeValueMap() AttributeValueMap {
@@ -237,8 +243,48 @@ func (o *Object) AttributeValueMap() AttributeValueMap {
 	return val
 }
 
+type StringMap map[string][]string
+
+func (s StringMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+
+	tokens := []xml.Token{start}
+
+	for key, values := range s {
+		t := xml.StartElement{Name: xml.Name{"", key}}
+		for _, value := range values {
+			tokens = append(tokens, t, xml.CharData(value), xml.EndElement{t.Name})
+		}
+	}
+
+	tokens = append(tokens, xml.EndElement{start.Name})
+
+	for _, t := range tokens {
+		err := e.EncodeToken(t)
+		if err != nil {
+			return err
+		}
+	}
+
+	// flush to ensure tokens are written
+	return e.Flush()
+}
+
+func (o *Object) NameStringMap() StringMap {
+	o.lock()
+	defer o.unlock()
+	result := make(StringMap)
+	for attr, values := range o.values {
+		result[attr.String()] = values.StringSlice()
+	}
+	return result
+}
+
 func (o *Object) MarshalJSON() ([]byte, error) {
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.AttributeValueMap())
+	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.NameStringMap())
+}
+
+func (o *Object) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return o.NameStringMap().MarshalXML(e, start)
 }
 
 func (o *Object) IDString() string {
@@ -504,8 +550,12 @@ func (o *Object) recursemembers(members *map[*Object]struct{}) {
 func (o *Object) MemberOf(recursive bool) []*Object {
 	o.lock()
 	defer o.unlock()
-	if !recursive {
+	if !recursive || len(o.memberof) == 0 {
 		return o.memberof
+	}
+
+	if o.memberofrecursive != nil {
+		return o.memberofrecursive
 	}
 
 	memberof := make(map[*Object]struct{})
@@ -517,18 +567,25 @@ func (o *Object) MemberOf(recursive bool) []*Object {
 		memberofarray[i] = member
 		i++
 	}
+	o.memberofrecursive = memberofarray
 	return memberofarray
 }
 
-func (o *Object) recursememberof(memberof *map[*Object]struct{}) {
+// Recursive memberof, returns true if loop is detected
+func (o *Object) recursememberof(memberof *map[*Object]struct{}) bool {
+	var loop bool
 	for _, directmemberof := range o.memberof {
 		if _, found := (*memberof)[directmemberof]; found {
 			// endless loop, not today thanks
+			loop = true
 			continue
 		}
 		(*memberof)[directmemberof] = struct{}{}
-		directmemberof.recursemembers(memberof)
+		if directmemberof.recursememberof(memberof) {
+			loop = true
+		}
 	}
+	return loop
 }
 
 // Wrapper for Set - easier to call

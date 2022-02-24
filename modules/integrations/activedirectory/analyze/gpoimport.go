@@ -18,15 +18,21 @@ import (
 var (
 	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge()
 
-	AbsolutePath     = engine.NewAttribute("AbsolutePath")
-	RelativePath     = engine.NewAttribute("RelativePath")
-	PwnOwns          = engine.NewPwn("Owns")
-	PwnFSPartOfGPO   = engine.NewPwn("FSPartOfGPO")
-	PwnFileCreate    = engine.NewPwn("FileCreate")
-	PwnDirCreate     = engine.NewPwn("DirCreate")
-	PwnFileWrite     = engine.NewPwn("FileWrite")
-	PwnTakeOwnership = engine.NewPwn("FileTakeOwnership")
-	PwnModifyDACL    = engine.NewPwn("FileModifyDACL")
+	AbsolutePath    = engine.NewAttribute("absolutePath")
+	RelativePath    = engine.NewAttribute("relativePath")
+	BinarySize      = engine.NewAttribute("binarySize")
+	ExposedPassword = engine.NewAttribute("exposedPassword")
+
+	PwnExposesPassword       = engine.NewPwn("ExposesPassword")
+	PwnContainsSensitiveData = engine.NewPwn("ContainsSensitiveData")
+	PwnReadSensitiveData     = engine.NewPwn("ReadSensitiveData")
+	PwnOwns                  = engine.NewPwn("Owns")
+	PwnFSPartOfGPO           = engine.NewPwn("FSPartOfGPO")
+	PwnFileCreate            = engine.NewPwn("FileCreate")
+	PwnDirCreate             = engine.NewPwn("DirCreate")
+	PwnFileWrite             = engine.NewPwn("FileWrite")
+	PwnTakeOwnership         = engine.NewPwn("FileTakeOwnership")
+	PwnModifyDACL            = engine.NewPwn("FileModifyDACL")
 )
 
 func init() {
@@ -37,6 +43,9 @@ func init() {
 		return nil, engine.ErrMergeOnThis
 	})
 }
+
+var cpasswordusername = regexp.MustCompile(`cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
+var usernamecpassword = regexp.MustCompile(`(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	if ginfo.DomainDN != "" {
@@ -61,10 +70,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 		}
 
 		itemobject := ao.AddNew(
+			engine.IgnoreBlanks,
 			AbsolutePath, engine.AttributeValueString(absolutepath),
 			RelativePath, engine.AttributeValueString(relativepath),
 			engine.DisplayName, engine.AttributeValueString(relativepath),
 			engine.ObjectCategorySimple, engine.AttributeValueString(objecttype),
+			BinarySize, engine.AttributeValueInt(item.Size),
+			activedirectory.WhenChanged, engine.AttributeValueTime(item.Timestamp),
 		)
 
 		if relativepath == "/" {
@@ -114,6 +126,73 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			}
 		}
 
+		var exposed []struct{ Username, Password string }
+
+		for _, line := range strings.Split(string(item.Contents), "\n") {
+			var unhandledpass bool
+
+			// FIXME: Handle other formats, adding something to catch this here
+			if strings.Contains(line, "cpassword=") && !strings.Contains(line, "cpassword=\"\"") {
+				log.Debug().Msgf("Found cpassword in %s", item.RelativePath)
+				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				unhandledpass = true
+			}
+			for _, match := range cpasswordusername.FindAllStringSubmatch(line, -1) {
+				log.Debug().Msgf("Found password in %s", item.RelativePath)
+				log.Debug().Msgf("Password: %v", match)
+				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				exposed = append(exposed, struct{ Username, Password string }{match[cpasswordusername.SubexpIndex("username")], match[cpasswordusername.SubexpIndex("password")]})
+				unhandledpass = false
+			}
+			for _, match := range usernamecpassword.FindAllStringSubmatch(line, -1) {
+				log.Debug().Msgf("Found username in %s", item.RelativePath)
+				log.Debug().Msgf("Password: %v", match)
+				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				exposed = append(exposed, struct{ Username, Password string }{match[usernamecpassword.SubexpIndex("username")], match[usernamecpassword.SubexpIndex("password")]})
+				unhandledpass = false
+			}
+			if unhandledpass {
+				log.Error().Msgf("Unhandled password in %s", item.RelativePath)
+				log.Error().Msgf("GPO Dump\n%s", item.Contents)
+				log.Panic().Msg("Please submit bugreport on Github with redacted account name and redacted password")
+			}
+		}
+		for _, e := range exposed {
+			// New object to contain the sensitive data
+			expobj := ao.AddNew(
+				engine.ObjectCategorySimple, "ExposedPassword",
+				engine.DisplayName, "Exposed password for "+e.Username,
+				ExposedPassword, e.Password,
+			)
+
+			// The account targeted
+			target, _ := ao.FindOrAdd(
+				engine.DownLevelLogonName, engine.AttributeValueString(e.Username),
+			)
+
+			// GPO exposes this object
+			itemobject.Pwns(expobj, PwnContainsSensitiveData)
+			// Exposed password leaks this object
+			expobj.Pwns(target, PwnExposesPassword)
+
+			// Everyone that can read the file can then read the password
+			if item.DACL != nil {
+				dacl, err := engine.ParseACL(item.DACL)
+				if err != nil {
+					return err
+				}
+				for _, entry := range dacl.Entries {
+					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
+
+					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entry.SID.Component(2) == 21 {
+						if entry.Mask&engine.FILE_READ_DATA != 0 {
+							entrysidobject.Pwns(expobj, PwnReadSensitiveData)
+						}
+					}
+				}
+			}
+
+		}
 		switch relativepath {
 		case "/machine/preferences/groups/groups.xml", "/machine/microsoft/windows nt/secedit/gpttmpl.inf":
 			var pairs []SIDpair
