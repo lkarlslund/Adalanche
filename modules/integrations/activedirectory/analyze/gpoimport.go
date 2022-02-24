@@ -44,8 +44,8 @@ func init() {
 	})
 }
 
-var cpasswordusername = regexp.MustCompile(`cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
-var usernamecpassword = regexp.MustCompile(`(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
+var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
+var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	if ginfo.DomainDN != "" {
