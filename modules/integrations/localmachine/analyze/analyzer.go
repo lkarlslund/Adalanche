@@ -482,21 +482,21 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 			pwn = PwnSeBackupPrivilege
 		case "SeRestorePrivilege":
 			pwn = PwnSeRestorePrivilege
-		case "SeAssignPrimaryToken":
+		case "SeAssignPrimaryTokenPrivilege":
 			pwn = PwnSeAssignPrimaryToken
-		case "SeCreateToken":
+		case "SeCreateTokenPrivilege":
 			pwn = PwnSeCreateToken
-		case "SeDebug":
+		case "SeDebugPrivilege":
 			pwn = PwnSeDebug
-		case "SeImpersonate":
+		case "SeImpersonatePrivilege":
 			pwn = PwnSeImpersonate
-		case "SeLoadDriver":
+		case "SeLoadDriverPrivilege":
 			pwn = PwnSeLoadDriver
-		case "SeManageVolume":
+		case "SeManageVolumePrivilege":
 			pwn = PwnSeManageVolume
-		case "SeTakeOwnership":
+		case "SeTakeOwnershipPrivilege":
 			pwn = PwnSeTakeOwnership
-		case "SeTcb":
+		case "SeTcbPrivilege":
 			pwn = PwnSeTcb
 		default:
 			continue
@@ -508,6 +508,12 @@ func ImportCollectorInfo(cinfo localmachine.Info, ao *engine.Objects) error {
 				log.Error().Msgf("Invalid SID %v: %v", sidstring, err)
 				continue
 			}
+
+			// Only domain users for now
+			if sid.Component(2) != 21 {
+				continue
+			}
+
 			assignee, _ := ao.FindOrAdd(
 				activedirectory.ObjectSid, engine.AttributeValueSID(sid),
 			)
