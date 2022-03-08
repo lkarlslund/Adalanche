@@ -92,7 +92,16 @@ type PwnMethod int
 
 var pwnmutex sync.RWMutex
 var pwnnames = make(map[string]PwnMethod)
-var pwnnums []string
+var pwnnums []pwninfo
+
+type pwninfo struct {
+	name                         string
+	tags                         []string
+	multi                        bool // If true, this attribute can have multiple values
+	nonunique                    bool // Doing a Find on this attribute will return multiple results
+	merge                        bool // If true, objects can be merged on this attribute
+	defaultf, defaultm, defaultl bool
+}
 
 func NewPwn(name string) PwnMethod {
 	// Lowercase it, everything is case insensitive
@@ -112,7 +121,12 @@ func NewPwn(name string) PwnMethod {
 	}
 
 	newindex := PwnMethod(len(pwnnums))
-	pwnnums = append(pwnnums, name)
+	pwnnums = append(pwnnums, pwninfo{
+		name:     name,
+		defaultf: true,
+		defaultm: true,
+		defaultl: true,
+	})
 	pwnnames[lowername] = newindex
 	pwnmutex.Unlock()
 
@@ -123,7 +137,7 @@ func (p PwnMethod) String() string {
 	if p == 10000 {
 		return "NOT A PWN METHOD. DIVISION BY ZORRO ERROR."
 	}
-	return pwnnums[p]
+	return pwnnums[p].name
 }
 
 func LookupPwnMethod(name string) PwnMethod {

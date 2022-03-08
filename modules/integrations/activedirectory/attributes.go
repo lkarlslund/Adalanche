@@ -89,7 +89,7 @@ var (
 )
 
 func init() {
-	engine.AddMergeApprover(func(a, b *engine.Object) (result *engine.Object, err error) {
+	engine.AddMergeApprover("Don't merge differing distinguishedName", func(a, b *engine.Object) (result *engine.Object, err error) {
 		if a.HasAttr(engine.DistinguishedName) && b.HasAttr(engine.DistinguishedName) && a.DN() != b.DN() {
 			// Yes, it happens we have objects that have different DNs but the same merge attributes (objectSID, etc)
 			return nil, engine.ErrDontMerge

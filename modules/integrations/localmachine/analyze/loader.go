@@ -24,9 +24,11 @@ func init() {
 }
 
 type CollectorLoader struct {
-	done       sync.WaitGroup
-	ao         *engine.Objects
-	infostoadd chan string
+	done        sync.WaitGroup
+	ao          *engine.Objects
+	mutex       sync.Mutex
+	machinesids map[windowssecurity.SID][]*engine.Object
+	infostoadd  chan string
 }
 
 func (ld *CollectorLoader) Name() string {
@@ -36,7 +38,7 @@ func (ld *CollectorLoader) Name() string {
 func (ld *CollectorLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
 	ld.ao.SetThreadsafe(true)
-
+	ld.machinesids = make(map[windowssecurity.SID][]*engine.Object)
 	ld.infostoadd = make(chan string, 128)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -57,7 +59,7 @@ func (ld *CollectorLoader) Init() error {
 				}
 
 				// ld.infoaddmutex.Lock()
-				err = ImportCollectorInfo(cinfo, ld.ao)
+				err = ld.ImportCollectorInfo(cinfo)
 				if err != nil {
 					log.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
@@ -102,6 +104,18 @@ func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
 					if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 						o.ChildOf(computer) // We don't know what it is
 					}
+				}
+			}
+		}
+	}
+
+	// Knot all the objects with colliding SIDs together
+	for _, os := range ld.machinesids {
+		for _, o := range os {
+			for _, p := range os {
+				if o != p {
+					p.Pwns(o, PwnSIDCollision)
+					o.Pwns(p, PwnSIDCollision)
 				}
 			}
 		}

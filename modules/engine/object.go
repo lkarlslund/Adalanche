@@ -71,7 +71,7 @@ var IgnoreBlanks = "_IGNOREBLANKS_"
 func NewObject(flexinit ...interface{}) *Object {
 	var result Object
 	result.init()
-	result.SetFlex(flexinit...)
+	result.setFlex(flexinit...)
 
 	return &result
 }
@@ -600,10 +600,13 @@ func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
 }
 
 func (o *Object) SetFlex(flexinit ...interface{}) {
-	var ignoreblanks bool
-
 	o.lock()
-	defer o.unlock()
+	o.setFlex(flexinit...)
+	o.unlock()
+}
+
+func (o *Object) setFlex(flexinit ...interface{}) {
+	var ignoreblanks bool
 
 	var attribute Attribute
 	data := make(AttributeValueSlice, 0, 1)
@@ -613,6 +616,11 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 			continue
 		}
 		switch v := i.(type) {
+		case windowssecurity.SID:
+			if ignoreblanks && v.IsNull() {
+				continue
+			}
+			data = append(data, AttributeValueSID(v))
 		case *[]string:
 			if v == nil {
 				continue
@@ -783,7 +791,7 @@ func (o *Object) StringNoACL() string {
 		if attr == NTSecurityDescriptor {
 			continue
 		}
-		result += "  " + attributenums[attr].name + ":\n"
+		result += "  " + attributenums[attr].Name + ":\n"
 		for _, value := range values.Slice() {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {
@@ -931,7 +939,10 @@ func (o *Object) Dedup() {
 func (o *Object) ChildOf(parent *Object) {
 	o.lock()
 	if o.parent != nil {
+		// Unlock, as we call thing that lock in the debug message
+		o.unlock()
 		log.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		o.lock()
 		// panic("objects can only have one parent")
 	}
 	o.parent = parent

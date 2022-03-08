@@ -139,7 +139,7 @@ func (os *Objects) ReindexObject(o *Object) {
 func (os *Objects) updateIndex(o *Object, warn bool) {
 	for attribute := range os.uniqueindex {
 		values := o.Attr(attribute)
-		if values.Len() > 1 && !attributenums[attribute].multi {
+		if values.Len() > 1 && !attributenums[attribute].Multi {
 			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
 			log.Debug().Msgf("Object dump:\n%s", o.String(os))
 		}
@@ -163,7 +163,7 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 
 	for attribute := range os.multiindex {
 		values := o.Attr(attribute)
-		if values.Len() > 1 && !attributenums[attribute].multi {
+		if values.Len() > 1 && !attributenums[attribute].Multi {
 			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
 			log.Debug().Msgf("Object dump:\n%s", o.String(os))
 		}
@@ -201,7 +201,7 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 func (os *Objects) AddNew(flexinit ...interface{}) *Object {
 	o := NewObject(flexinit...)
 	if os.DefaultValues != nil {
-		o.SetFlex(os.DefaultValues...)
+		o.setFlex(os.DefaultValues...)
 	}
 	os.lock()
 	os.addmerge(nil, o)
@@ -242,22 +242,23 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 
 				targetloop:
 					for _, mergetarget := range mergetargets {
-						for _, mf := range mergeapprovers {
-							if mf != nil {
-								res, err := mf(o, mergetarget)
-								switch err {
-								case ErrDontMerge:
-									continue targetloop
-								case ErrMergeOnThis, nil:
-									// Let the code below do the merge
-								default:
-									log.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
+						for _, mfi := range mergeapprovers {
+							res, err := mfi.mergefunc(o, mergetarget)
+							switch err {
+							case ErrDontMerge:
+								if !strings.HasPrefix(mfi.name, "QUIET") {
+									log.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
 								}
-								if res != nil {
-									// Custom merge - how do we handle this?
-									log.Fatal().Msgf("Custom merge function not supported yet")
-									return false
-								}
+								continue targetloop
+							case ErrMergeOnThis, nil:
+								// Let the code below do the merge
+							default:
+								log.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
+							}
+							if res != nil {
+								// Custom merge - how do we handle this?
+								log.Fatal().Msgf("Custom merge function not supported yet")
+								return false
 							}
 						}
 						log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
@@ -275,7 +276,7 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 func (os *Objects) add(o *Object) {
 	// Add this to the iterator array
 	if os.DefaultValues != nil {
-		o.SetFlex(os.DefaultValues...)
+		o.setFlex(os.DefaultValues...)
 	}
 
 	// Do chunked extensions for speed

@@ -22,6 +22,7 @@ import (
 var (
 	// FIXME - NEEDS TO ME TRUE AT THE MOMENT AS MAX_IMPORT IS BROKEN4
 	importall = analyze.Command.Flags().Bool("importall", true, "Load all attributes from dump (expands search options, but at the cost of memory")
+	importcnf = analyze.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
 
 	adsource = engine.AttributeValueString("Active Directory dumps")
 	Loader   = engine.AddLoader(&ADLoader{})
@@ -40,6 +41,7 @@ type ADLoader struct {
 	gpofiletoprocess chan string
 	// domains          []domaininfo
 	importall bool
+	importcnf bool
 }
 
 type domaininfo struct {
@@ -53,6 +55,7 @@ func (ld *ADLoader) Name() string {
 
 func (ld *ADLoader) Init() error {
 	ld.importall = *importall
+	ld.importcnf = *importcnf
 
 	ld.dco = make(map[string]*engine.Objects)
 	ld.objectstoconvert = make(chan convertqueueitem, 8192)
@@ -66,6 +69,9 @@ func (ld *ADLoader) Init() error {
 			for item := range ld.objectstoconvert {
 				o := item.object.ToObject(ld.importall)
 
+				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
+					continue // skip conflict object
+				}
 				// Here's a quirky workaround that will bite me later
 				// Legacy well known objects in ForeignSecurityPrincipals gives us trouble with duplicate SIDs - skip them
 				if strings.Count(o.OneAttrString(engine.ObjectSid), "-") == 3 && strings.Contains(o.OneAttrString(engine.DistinguishedName), "CN=ForeignSecurityPrincipals") {

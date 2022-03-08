@@ -14,16 +14,23 @@ type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found boo
 type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
-	name      string
-	tags      []string
-	multi     bool // If true, this attribute can have multiple values
-	nonunique bool // Doing a Find on this attribute will return multiple results
-	merge     bool // If true, objects can be merged on this attribute
-	onset     AttributeSetFunc
-	onget     AttributeGetFunc
+	Name                         string
+	Tags                         []string
+	Multi                        bool // If true, this attribute can have multiple values
+	NonUnique                    bool // Doing a Find on this attribute will return multiple results
+	Merge                        bool // If true, objects can be merged on this attribute
+	DefaultF, DefaultM, DefaultL bool
+	onset                        AttributeSetFunc
+	onget                        AttributeGetFunc
 }
 
-var mergeapprovers []mergefunc
+type mergeapproverinfo struct {
+	mergefunc mergefunc
+	// priority  int
+	name string
+}
+
+var mergeapprovers []mergeapproverinfo
 var attributenums []attributeinfo
 
 var (
@@ -41,7 +48,7 @@ var (
 	ObjectSid             = NewAttribute("objectSid")
 	ObjectGUID            = NewAttribute("objectGUID")
 	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor")
-	SchemaIDGUID          = NewAttribute("schemaIDGUID")
+	SchemaIDGUID          = NewAttribute("schemaIDGUID").NonUnique() // Dirty, needs proper FIXME for multi domain
 	RightsGUID            = NewAttribute("rightsGUID")
 	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 
@@ -82,7 +89,7 @@ var (
 )
 
 func init() {
-	AddMergeApprover(func(a, b *Object) (*Object, error) {
+	AddMergeApprover("Don't merge across UniqueSource", func(a, b *Object) (*Object, error) {
 		// Prevents objects from vastly different sources to join across them
 		if a.HasAttr(UniqueSource) && b.HasAttr(UniqueSource) {
 			for _, v := range a.Attr(UniqueSource).Slice() {
@@ -130,31 +137,36 @@ func NewAttribute(name string) Attribute {
 
 	newindex := Attribute(len(attributenames))
 	attributenames[lowername] = newindex
-	attributenums = append(attributenums, attributeinfo{name: name})
+	attributenums = append(attributenums, attributeinfo{
+		Name:     name,
+		DefaultF: true,
+		DefaultM: true,
+		DefaultL: true,
+	})
 	attributemutex.Unlock()
 
 	return Attribute(newindex)
 }
 
 func (a Attribute) String() string {
-	return attributenums[a].name
+	return attributenums[a].Name
 }
 
 func (a Attribute) Multi() Attribute {
 	ai := attributenums[a]
-	ai.multi = true
+	ai.Multi = true
 	attributenums[a] = ai
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
 	ai := attributenums[a]
-	return ai.nonunique
+	return ai.NonUnique
 }
 
 func (a Attribute) NonUnique() Attribute {
 	ai := attributenums[a]
-	ai.nonunique = true
+	ai.NonUnique = true
 	attributenums[a] = ai
 	return a
 }
@@ -170,18 +182,21 @@ func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
 
 func (a Attribute) Merge() Attribute {
 	ai := attributenums[a]
-	ai.merge = true
+	ai.Merge = true
 	attributenums[a] = ai
 	return a
 }
 
-func AddMergeApprover(mf mergefunc) {
-	mergeapprovers = append(mergeapprovers, mf)
+func AddMergeApprover(name string, mf mergefunc) {
+	mergeapprovers = append(mergeapprovers, mergeapproverinfo{
+		name:      name,
+		mergefunc: mf,
+	})
 }
 
 func (a Attribute) Tag(t string) Attribute {
 	ai := attributenums[a]
-	ai.tags = append(ai.tags, t)
+	ai.Tags = append(ai.Tags, t)
 	attributenums[a] = ai
 	return a
 }

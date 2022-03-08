@@ -36,12 +36,20 @@ var (
 )
 
 func init() {
-	engine.AddMergeApprover(func(a, b *engine.Object) (*engine.Object, error) {
+	engine.AddMergeApprover("Don't merge differing relative paths from GPOs", func(a, b *engine.Object) (*engine.Object, error) {
 		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
 			return nil, engine.ErrDontMerge
 		}
-		return nil, engine.ErrMergeOnThis
+		return nil, nil
 	})
+
+	// engine.AddMergeApprover(func(a, b *engine.Object) (*engine.Object, error) {
+	// 	if a.HasAttr(engine.ObjectSid) && b.HasAttr(engine.ObjectSid) && a.OneAttr(engine.ObjectSid).String() == b.OneAttr(engine.ObjectSid).String() {
+	// 		return nil, engine.ErrDontMerge
+	// 	}
+	// 	return nil, engine.ErrMergeOnThis
+	// })
+
 }
 
 var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
