@@ -42,6 +42,8 @@ type Machine struct {
 	NumberOfProcessors int    `json:",omitempty"`
 
 	ProductName        string `json:",omitempty"`
+	ProductType        string `json:",omitempty"`
+	ProductSuite       string `json:",omitempty"`
 	EditionID          string `json:",omitempty"`
 	ReleaseID          string `json:",omitempty"`
 	BuildBranch        string `json:",omitempty"`

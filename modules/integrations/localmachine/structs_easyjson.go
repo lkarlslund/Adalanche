@@ -982,6 +982,10 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.NumberOfProcessors = int(in.Int())
 		case "ProductName":
 			out.ProductName = string(in.String())
+		case "ProductType":
+			out.ProductType = string(in.String())
+		case "ProductSuite":
+			out.ProductSuite = string(in.String())
 		case "EditionID":
 			out.EditionID = string(in.String())
 		case "ReleaseID":
@@ -1129,6 +1133,26 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString(prefix)
 		}
 		out.String(string(in.ProductName))
+	}
+	if in.ProductType != "" {
+		const prefix string = ",\"ProductType\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ProductType))
+	}
+	if in.ProductSuite != "" {
+		const prefix string = ",\"ProductSuite\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ProductSuite))
 	}
 	if in.EditionID != "" {
 		const prefix string = ",\"EditionID\":"

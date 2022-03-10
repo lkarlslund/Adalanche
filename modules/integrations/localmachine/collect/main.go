@@ -125,6 +125,18 @@ func Collect(outputpath string) error {
 		}
 	}
 
+	productoptions_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Control\ProductOptions`,
+		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err == nil {
+		defer productoptions_key.Close()
+		machineinfo.ProductType, _, _ = productoptions_key.GetStringValue("ProductType")
+		ptypes, _, err := productoptions_key.GetStringsValue("ProductSuite")
+		if err == nil {
+			machineinfo.ProductSuite = strings.Join(ptypes, ", ")
+		}
+	}
+
 	// AUTOLOGON - FREE CREDENTIALS
 	winlogon_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`,
