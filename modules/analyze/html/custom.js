@@ -312,7 +312,7 @@ $(function () {
     });
 
     // Predefined queries dropdown button
-    $('#predefinedqueries').on('click', 'a', function (event) {
+    $('#predefinedqueries').on('click', 'li', function (event) {
         console.log('You clicked the drop downs', event.target);
         setquery(
             event.target.getAttribute('query'),
