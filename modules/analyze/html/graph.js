@@ -304,7 +304,14 @@ var cytostyle = [{
         "background-color": "lightblue"
     }
 },
-
+    {
+        selector: 'node[type="Executable"]',
+        style: {
+            shape: "rectangle",
+            "background-image": "icons/binary-code-binary-svgrepo-com.svg",
+            "background-color": "lightgreen"
+        }
+    },
 
 {
     selector: 'node[type="GroupPolicyContainer"]',
