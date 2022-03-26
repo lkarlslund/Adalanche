@@ -7,14 +7,14 @@ import (
 var (
 	PwnForeignIdentity = engine.NewPwn("ForeignIdentity")
 
-	DistinguishedName          = engine.NewAttribute("distinguishedName").Tag("AD")
+	DistinguishedName          = engine.NewAttribute("distinguishedName").Tag("AD").Unique()
 	ObjectClass                = engine.NewAttribute("objectClass").Tag("AD")
-	ObjectCategory             = engine.NewAttribute("objectCategory").Tag("AD")
-	ObjectCategorySimple       = engine.NewAttribute("objectCategorySimple")
+	ObjectCategory             = engine.NewAttribute("objectCategory").Tag("AD").Single()
+	ObjectCategorySimple       = engine.NewAttribute("objectCategorySimple").Single()
 	StructuralObjectClass      = engine.NewAttribute("structuralObjectClass").Tag("AD")
-	NTSecurityDescriptor       = engine.NewAttribute("nTSecurityDescriptor").Tag("AD")
-	SAMAccountType             = engine.NewAttribute("sAMAccountType").Tag("AD")
-	GroupType                  = engine.NewAttribute("groupType").Tag("AD")
+	NTSecurityDescriptor       = engine.NewAttribute("nTSecurityDescriptor").Tag("AD").Single()
+	SAMAccountType             = engine.NewAttribute("sAMAccountType").Tag("AD").Single()
+	GroupType                  = engine.NewAttribute("groupType").Tag("AD").Single()
 	MemberOf                   = engine.NewAttribute("memberOf").Tag("AD")
 	Member                     = engine.NewAttribute("member").Tag("AD")
 	AccountExpires             = engine.NewAttribute("accountExpires").Tag("AD")
@@ -54,7 +54,7 @@ var (
 	LDAPDisplayName            = engine.NewAttribute("lDAPDisplayName").Tag("AD") // Attribute-Schema
 	Description                = engine.NewAttribute("description").Tag("AD")
 	SAMAccountName             = engine.NewAttribute("sAMAccountName").Tag("AD")
-	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").NonUnique().Merge()
+	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").Merge()
 
 	ObjectGUID                  = engine.NewAttribute("objectGUID").Tag("AD").Merge()
 	PwdLastSet                  = engine.NewAttribute("pwdLastSet").Tag("AD")
@@ -87,13 +87,3 @@ var (
 	MSPKICertificateNameFlag    = engine.NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD")
 	PKIExtendedUsage            = engine.NewAttribute("pKIExtendedKeyUsage").Tag("AD")
 )
-
-func init() {
-	engine.AddMergeApprover("Don't merge differing distinguishedName", func(a, b *engine.Object) (result *engine.Object, err error) {
-		if a.HasAttr(engine.DistinguishedName) && b.HasAttr(engine.DistinguishedName) && a.DN() != b.DN() {
-			// Yes, it happens we have objects that have different DNs but the same merge attributes (objectSID, etc)
-			return nil, engine.ErrDontMerge
-		}
-		return nil, nil
-	})
-}

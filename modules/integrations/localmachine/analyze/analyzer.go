@@ -91,10 +91,15 @@ func (ld *CollectorLoader) ImportCollectorInfo(cinfo localmachine.Info) error {
 		activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 	)
 
+	isdomaincontroller := strings.EqualFold(cinfo.Machine.ProductType, "SERVERNT")
+
 	downlevelmachinename := cinfo.Machine.Domain + "\\" + cinfo.Machine.Name + "$"
 
-	// EXPERIMENT - THIS SHOULD NOT APPLY TO DCs!
+	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
 	uniquesource := cinfo.Machine.Name
+	if isdomaincontroller {
+		uniquesource = cinfo.Machine.Domain
+	}
 
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
 	// computerobject.SetFlex(engine.UniqueSource, uniquesource)
@@ -115,7 +120,8 @@ func (ld *CollectorLoader) ImportCollectorInfo(cinfo localmachine.Info) error {
 
 	macaddrs := engine.AttributeValueSlice{}
 	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
-		if networkinterface.MACAddress != "" {
+		if strings.Count(networkinterface.MACAddress, ":") == 5 {
+			// Sanity check, removes ISATAP interfaces
 			macaddrs = append(macaddrs, engine.AttributeValueString(strings.ReplaceAll(networkinterface.MACAddress, ":", "")))
 		}
 	}
@@ -143,7 +149,7 @@ func (ld *CollectorLoader) ImportCollectorInfo(cinfo localmachine.Info) error {
 		usid, err := windowssecurity.SIDFromString(user.SID)
 		if err == nil {
 			if domainsid.StripRID() == usid.StripRID() {
-				// Domain user from a DC, just drop it silently
+				// Domain user from a DC, just drop it silently, we got this from the AD dump
 				continue
 			}
 
@@ -217,7 +223,8 @@ func (ld *CollectorLoader) ImportCollectorInfo(cinfo localmachine.Info) error {
 				continue
 			}
 
-			if strings.HasSuffix(member.Name, "\\") {
+			// Collector sometimes returns junk, remove it
+			if strings.HasSuffix(member.Name, "\\") || strings.HasPrefix(member.Name, "S-1-") {
 				// If name resolution fails, you end up with DOMAIN\ and nothing else
 				member.Name = ""
 			}
@@ -434,7 +441,7 @@ func (ld *CollectorLoader) ImportCollectorInfo(cinfo localmachine.Info) error {
 		serviceimageobject := engine.NewObject(
 			activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
 			AbsolutePath, service.ImageExecutable,
-			activedirectory.ObjectClass, "Executable",
+			engine.ObjectCategorySimple, "Executable",
 		)
 		ld.ao.Add(serviceimageobject)
 		serviceimageobject.Pwns(serviceobject, PwnExecuted)

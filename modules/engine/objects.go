@@ -25,10 +25,12 @@ type Objects struct {
 	threadsafe      int
 }
 
-func (os *Objects) Init() {
+func NewObjects() *Objects {
+	var os Objects
 	os.uniqueindex = make(map[Attribute]map[interface{}]*Object)
 	os.multiindex = make(map[Attribute]map[interface{}][]*Object)
 	os.idindex = make(map[uint32]*Object)
+	return &os
 }
 
 func (os *Objects) AddDefaultFlex(data ...interface{}) {
@@ -71,6 +73,27 @@ func (os *Objects) runlock() {
 	}
 }
 
+func (os *Objects) AddIndex(attribute Attribute) {
+	os.lock()
+	os.addIndex(attribute)
+	os.unlock()
+}
+
+func (os *Objects) GetIndex(attribute Attribute) map[interface{}][]*Object {
+	os.rlock()
+	defer os.runlock()
+	if attribute.IsNonUnique() {
+		return os.multiindex[attribute]
+	}
+
+	i := os.uniqueindex[attribute]
+	mi := make(map[interface{}][]*Object)
+	for k, v := range i {
+		mi[k] = []*Object{v}
+	}
+	return mi
+}
+
 func (os *Objects) addIndex(attribute Attribute) {
 	// create index
 	if attribute.IsNonUnique() {
@@ -81,15 +104,8 @@ func (os *Objects) addIndex(attribute Attribute) {
 
 	// add all existing stuff to index
 	for _, o := range os.asarray {
-		value := o.OneAttr(attribute)
-		if value != nil {
-			var key interface{}
-			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			if vs, ok := value.(AttributeValueString); ok {
-				key = strings.ToLower(string(vs))
-			} else {
-				key = value.Raw()
-			}
+		for _, value := range o.Attr(attribute).Slice() {
+			key := attributeValueToIndex(value)
 
 			// Add to index
 			if attribute.IsNonUnique() {
@@ -138,48 +154,41 @@ func (os *Objects) ReindexObject(o *Object) {
 
 func (os *Objects) updateIndex(o *Object, warn bool) {
 	for attribute := range os.uniqueindex {
-		values := o.Attr(attribute)
-		if values.Len() > 1 && !attributenums[attribute].Multi {
-			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
-			log.Debug().Msgf("Object dump:\n%s", o.String(os))
-		}
-		for _, value := range values.Slice() {
+		for _, value := range o.Attr(attribute).Slice() {
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			if vs, ok := value.(AttributeValueString); ok {
-				value = AttributeValueString(strings.ToLower(string(vs)))
-			}
+			indexval := attributeValueToIndex(value)
 			if warn {
-				existing, dupe := os.uniqueindex[attribute][value.Raw()]
+				existing, dupe := os.uniqueindex[attribute][indexval]
 				if dupe && existing != o {
 					log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing.Label())
-					log.Debug().Msgf("NEW: %v", o.StringNoACL())
-					log.Debug().Msgf("EXISTING: %v", existing.StringNoACL())
+					log.Debug().Msgf("NEW DN: %v", o.DN())
+					log.Debug().Msgf("EXISTING DN: %v", existing.DN())
 					continue
 				}
 			}
-			os.uniqueindex[attribute][value.Raw()] = o
+			os.uniqueindex[attribute][indexval] = o
 		}
 	}
 
 	for attribute := range os.multiindex {
 		values := o.Attr(attribute)
-		if values.Len() > 1 && !attributenums[attribute].Multi {
-			log.Warn().Msgf("Encountered multiple values on attribute %v, but is not declared as multival", attribute.String())
-			log.Debug().Msgf("Object dump:\n%s", o.String(os))
-		}
 		for _, value := range values.Slice() {
+			indexval := attributeValueToIndex(value)
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			if vs, ok := value.(AttributeValueString); ok {
-				value = AttributeValueString(strings.ToLower(string(vs)))
-			}
-			os.multiindex[attribute][value.Raw()] = append(os.multiindex[attribute][value.Raw()], o)
+			os.multiindex[attribute][indexval] = append(os.multiindex[attribute][indexval], o)
 		}
 	}
 }
 
+func attributeValueToIndex(value AttributeValue) interface{} {
+	if vs, ok := value.(AttributeValueString); ok {
+		return strings.ToLower(string(vs))
+	}
+	return value.Raw()
+}
+
 func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
-	var result Objects
-	result.Init()
+	result := NewObjects()
 
 	os.rlock()
 	objects := os.asarray
@@ -189,7 +198,7 @@ func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 			result.Add(object)
 		}
 	}
-	return &result
+	return result
 }
 
 func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
@@ -232,23 +241,36 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 }
 
 func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
+	// var deb int
 	if len(attrtomerge) > 0 {
 		for _, mergeattr := range attrtomerge {
+			if !o.HasAttr(mergeattr) {
+				continue
+			}
 			for _, lookfor := range o.Attr(mergeattr).Slice() {
-				if lookfor == nil {
-					continue
-				}
 				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
-
 				targetloop:
 					for _, mergetarget := range mergetargets {
+						for attr, values := range o.AttributeValueMap() {
+							if attr.IsSingle() && mergetarget.HasAttr(attr) {
+								if !CompareAttributeValues(values.Slice()[0], mergetarget.Attr(attr).Slice()[0]) {
+									// Conflicting attribute values, we can't merge these
+									log.Debug().Msgf("Not merging %v into %v on %v with value %v, as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
+									// if attr == WhenCreated {
+									// 	log.Debug().Msgf("Object details: %v", o.StringNoACL())
+									// 	log.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
+									// }
+									continue targetloop
+								}
+							}
+						}
 						for _, mfi := range mergeapprovers {
 							res, err := mfi.mergefunc(o, mergetarget)
 							switch err {
 							case ErrDontMerge:
-								if !strings.HasPrefix(mfi.name, "QUIET") {
-									log.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
-								}
+								// if !strings.HasPrefix(mfi.name, "QUIET") {
+								// 	log.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
+								// }
 								continue targetloop
 							case ErrMergeOnThis, nil:
 								// Let the code below do the merge
@@ -261,7 +283,7 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 								return false
 							}
 						}
-						log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
+						// log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 						mergetarget.Absorb(o)
 						os.updateIndex(mergetarget, false)
 						return true
@@ -367,6 +389,22 @@ func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, f
 	return v[0], found
 }
 
+func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o *Object, found bool) {
+	os.lock()
+	defer os.unlock()
+	v, found := os.find(attribute, value)
+	var result *Object
+	for _, o := range v {
+		if o.HasAttrValue(attribute2, value2) {
+			if result != nil {
+				return nil, false
+			}
+			result = o
+		}
+	}
+	return result, result != nil
+}
+
 func (os *Objects) FindMulti(attribute Attribute, value AttributeValue) (o []*Object, found bool) {
 	os.lock()
 	defer os.unlock()
@@ -374,14 +412,8 @@ func (os *Objects) FindMulti(attribute Attribute, value AttributeValue) (o []*Ob
 }
 
 func (os *Objects) find(attribute Attribute, value AttributeValue) ([]*Object, bool) {
-	var lookup interface{}
-
 	// If it's a string, lowercase it before adding to index, we do the same on lookups
-	if vs, ok := value.(AttributeValueString); ok {
-		lookup = strings.ToLower(string(vs))
-	} else {
-		lookup = value.Raw()
-	}
+	lookup := attributeValueToIndex(value)
 
 	if attribute.IsNonUnique() {
 		index, found := os.multiindex[attribute]
@@ -398,7 +430,11 @@ func (os *Objects) find(attribute Attribute, value AttributeValue) ([]*Object, b
 		os.addIndex(attribute)
 		index = os.uniqueindex[attribute]
 	}
+
 	result, found := index[lookup]
+	if !found {
+		return []*Object{}, false
+	}
 	return []*Object{result}, found
 }
 

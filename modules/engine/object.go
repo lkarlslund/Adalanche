@@ -717,7 +717,13 @@ func (o *Object) Set(a Attribute, values AttributeValues) {
 }
 
 func (o *Object) set(a Attribute, values AttributeValues) {
+	if a.IsSingle() && values.Len() > 1 {
+		log.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
+	}
 	if a == DownLevelLogonName {
+		if strings.HasPrefix(values.StringSlice()[0], "S-") {
+			log.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
+		}
 		if values.Len() != 1 {
 			log.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
 		}

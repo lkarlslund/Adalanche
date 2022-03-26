@@ -17,6 +17,7 @@ var (
 		}
 		return 100
 	})
+	PwnReadPasswordId                       = engine.NewPwn("ReadPasswordId")
 	PwnOwns                                 = engine.NewPwn("Owns")
 	PwnGenericAll                           = engine.NewPwn("GenericAll")
 	PwnWriteAll                             = engine.NewPwn("WriteAll")

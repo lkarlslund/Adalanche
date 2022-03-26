@@ -36,34 +36,35 @@ var attributenums []attributeinfo
 var (
 	NonExistingAttribute = NewAttribute("*NON EXISTING ATTRIBUTE*")
 
-	DistinguishedName     = NewAttribute("distinguishedName")
+	DistinguishedName     = NewAttribute("distinguishedName").Single().Unique()
 	ObjectClass           = NewAttribute("objectClass")
-	ObjectCategory        = NewAttribute("objectCategory")
-	ObjectCategorySimple  = NewAttribute("objectCategorySimple")
-	Name                  = NewAttribute("name")
-	DisplayName           = NewAttribute("displayName")
-	LDAPDisplayName       = NewAttribute("lDAPDisplayName")
-	Description           = NewAttribute("description")
-	SAMAccountName        = NewAttribute("sAMAccountName")
-	ObjectSid             = NewAttribute("objectSid")
-	ObjectGUID            = NewAttribute("objectGUID")
-	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor")
-	SchemaIDGUID          = NewAttribute("schemaIDGUID").NonUnique() // Dirty, needs proper FIXME for multi domain
+	ObjectCategory        = NewAttribute("objectCategory").Single()
+	ObjectCategorySimple  = NewAttribute("objectCategorySimple").Single()
+	Name                  = NewAttribute("name").Single()
+	DisplayName           = NewAttribute("displayName").Single()
+	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Single()
+	Description           = NewAttribute("description").Single()
+	SAMAccountName        = NewAttribute("sAMAccountName").Single()
+	ObjectSid             = NewAttribute("objectSid").Single() // Strange yes, but in the final results there are multiple objects with the same SID
+	ObjectGUID            = NewAttribute("objectGUID").Single().Unique()
+	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Single()
+	SchemaIDGUID          = NewAttribute("schemaIDGUID") // Dirty, needs proper FIXME for multi domain
 	RightsGUID            = NewAttribute("rightsGUID")
 	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 
-	dummyflag    = NewAttribute("dummyflag")
-	MAX_IMPORTED = dummyflag
+	WhenCreated = NewAttribute("whenCreated").Single()
 
-	ObjectClassGUIDs   = NewAttribute("objectClassGUID")    // Used for caching the GUIDs, should belong in AD analyzer, but it's used in the SecurityDescritor mapping, so we're cheating a bit
-	ObjectCategoryGUID = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
+	ObjectClassGUIDs       = NewAttribute("objectClassGUID")    // Used for caching the GUIDs, should belong in AD analyzer, but it's used in the SecurityDescritor mapping, so we're cheating a bit
+	ObjectCategoryGUID     = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
+	IsCriticalSystemObject = NewAttribute("isCriticalSystemObject")
 
-	MetaDataSource = NewAttribute("_datasource").Multi()
-	UniqueSource   = NewAttribute("_source")
+	MetaDataSource = NewAttribute("_datasource")
+	UniqueSource   = NewAttribute("_source").Single()
 
 	IPAddress          = NewAttribute("IPAddress")
-	Hostname           = NewAttribute("Hostname").Merge()
-	DownLevelLogonName = NewAttribute("DownLevelLogonName").Merge()
+	Hostname           = NewAttribute("hostname").Merge()
+	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
+	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
@@ -87,24 +88,6 @@ var (
 	_ = NewAttribute("proxyAddresses")
 	_ = NewAttribute("dSCorePropagationData")
 )
-
-func init() {
-	AddMergeApprover("Don't merge across UniqueSource", func(a, b *Object) (*Object, error) {
-		// Prevents objects from vastly different sources to join across them
-		if a.HasAttr(UniqueSource) && b.HasAttr(UniqueSource) {
-			for _, v := range a.Attr(UniqueSource).Slice() {
-				if b.HasAttrValue(UniqueSource, v) {
-					// At least one of the UniqueSources overlap
-					return nil, nil
-				}
-			}
-			// Don't cross the streams, protonic reversal may never happen
-			return nil, ErrDontMerge
-		}
-
-		return nil, nil
-	})
-}
 
 type Attribute uint16
 
@@ -152,23 +135,40 @@ func (a Attribute) String() string {
 	return attributenums[a].Name
 }
 
-func (a Attribute) Multi() Attribute {
+func (a Attribute) Type(t AttributeType) Attribute {
 	ai := attributenums[a]
-	ai.Multi = true
+	ai.Type = t
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) Single() Attribute {
+	ai := attributenums[a]
+	ai.Single = true
+	attributenums[a] = ai
+	return a
+}
+
+func (a Attribute) IsSingle() bool {
+	ai := attributenums[a]
+	return ai.Single
+}
+
+func (a Attribute) Unique() Attribute {
+	ai := attributenums[a]
+	ai.Unique = true
 	attributenums[a] = ai
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
 	ai := attributenums[a]
-	return ai.NonUnique
+	return !ai.Unique
 }
 
-func (a Attribute) NonUnique() Attribute {
+func (a Attribute) IsUnique() bool {
 	ai := attributenums[a]
-	ai.NonUnique = true
-	attributenums[a] = ai
-	return a
+	return ai.Unique
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")

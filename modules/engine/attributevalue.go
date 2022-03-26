@@ -62,11 +62,11 @@ type AttributeValues interface {
 type NoValues struct{}
 
 func (nv NoValues) Slice() []AttributeValue {
-	return []AttributeValue{}
+	return nil
 }
 
 func (nv NoValues) StringSlice() []string {
-	return []string{}
+	return nil
 }
 
 func (nv NoValues) Len() int {

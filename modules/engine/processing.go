@@ -1,6 +1,12 @@
 package engine
 
-import "github.com/rs/zerolog/log"
+import (
+	"fmt"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/schollz/progressbar/v3"
+)
 
 func Merge(aos []*Objects) (*Objects, error) {
 	var biggest, biggestcount, totalobjects int
@@ -12,11 +18,14 @@ func Merge(aos []*Objects) (*Objects, error) {
 			biggest = i
 		}
 	}
+
 	log.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
 
-	globalobjects := aos[biggest]
+	globalobjects := NewObjects()
+	_ = biggest
+	// globalobjects := aos[biggest]
 
-	log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
+	// log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
 
 	// After merge we don't need all the indexes
 	globalobjects.DropIndexes()
@@ -47,56 +56,51 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 	}
 
-	needsmergeobjects := &Objects{}
-	needsmergeobjects.Init()
+	var needsmerge []*Object
 
 	// Iterate over all the object collections
-	for i, mergeobjects := range aos {
-		if i == biggest {
-			// This is the target object collection, so skip that one
-			continue
-		}
-
+	for _, mergeobjects := range aos {
 		if mergeroot := mergeobjects.Root(); mergeroot != nil {
 			mergeroot.ChildOf(globalroot)
 		}
 
-		// Merge all the objects in this collection into the target
-		// Does this make sense?? Maybe we should just add the objects and not try merging here?
-		needsmergeobjects.AddMerge(mergeon, mergeobjects.Slice()...)
+		needsmerge = append(needsmerge, mergeobjects.Slice()...)
 	}
-
-	needsmerge := needsmergeobjects.Slice()
-	merged := make([]bool, len(needsmerge))
 
 	log.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
 
-	round := 1
-	for {
-		var mergecount int
-		for i, mergeobject := range needsmerge {
-			if !merged[i] {
-				if globalobjects.Merge(mergeon, mergeobject) {
-					merged[i] = true
-					mergecount++
-				}
+	pb := progressbar.NewOptions(len(needsmerge),
+		progressbar.OptionSetDescription("Merging objects ..."),
+		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
+		progressbar.OptionOnCompletion(func() { fmt.Println() }),
+		progressbar.OptionThrottle(time.Second*1),
+	)
+
+	// To ease anti-cross-the-beams on UniqueSource we temporarily group each source and combine them in the end
+	sourcemap := make(map[string]*Objects)
+
+	nosourceobjects := NewObjects()
+
+	for _, mergeobject := range needsmerge {
+		if mergeobject.HasAttr(UniqueSource) {
+			us := mergeobject.OneAttrString(UniqueSource)
+			if sourcemap[us] == nil {
+				sourcemap[us] = NewObjects()
 			}
+			sourcemap[us].AddMerge(mergeon, mergeobject)
+		} else {
+			nosourceobjects.AddMerge(mergeon, mergeobject)
 		}
-
-		log.Info().Msgf("Merged %v objects in round %v", mergecount, round)
-		if mergecount == 0 {
-			// nothing merged, just add the rest
-			break
-		}
-		round++
+		pb.Add(1)
 	}
 
-	log.Info().Msgf("Adding the last unmerged objects ...")
-	for i, mergeobject := range needsmerge {
-		if !merged[i] {
-			globalobjects.Add(mergeobject)
-		}
+	for _, usao := range sourcemap {
+		globalobjects.Add(usao.Slice()...)
 	}
+
+	globalobjects.AddMerge(mergeon, nosourceobjects.Slice()...)
+
+	pb.Finish()
 
 	aftermergetotalobjects := len(globalobjects.Slice())
 	log.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)

@@ -25,7 +25,7 @@ func (r *RawObject) init() {
 	r.Attributes = make(map[string][]string)
 }
 
-func (r *RawObject) ToObject(importall bool) *engine.Object {
+func (r *RawObject) ToObject() *engine.Object {
 	result := engine.NewObject(
 		DistinguishedName, engine.AttributeValueString(stringdedup.S(r.DistinguishedName)),
 	) // This is possibly repeated in member attributes, so dedup it
@@ -34,10 +34,6 @@ func (r *RawObject) ToObject(importall bool) *engine.Object {
 			continue
 		}
 		attribute := engine.NewAttribute(name)
-		// do we even want this?
-		if !importall && attribute > engine.MAX_IMPORTED && !strings.HasPrefix(name, "_") {
-			continue
-		}
 
 		encodedvals := EncodeAttributeData(attribute, values)
 		if len(encodedvals) > 0 {

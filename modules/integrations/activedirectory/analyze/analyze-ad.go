@@ -35,6 +35,7 @@ var (
 	AttributeAltSecurityIdentitiesGUID, _           = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
 	AttributeProfilePathGUID, _                     = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
 	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
+	AttributeMSDSManagedPasswordId, _               = uuid.FromString("0e78295a-c6d3-0a40-b491-d62251ffa0a6")
 
 	ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 
@@ -64,6 +65,8 @@ var (
 	EnterpriseDomainControllers, _ = windowssecurity.SIDFromString("S-1-5-9")
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
+
+	PwnPublishesCertificateTemplate = engine.NewPwn("PublishCertTmpl")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -148,7 +151,9 @@ func init() {
 										}
 									} else {
 										linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
-										collecteddata = append(collecteddata, engine.AttributeValueObject{gpo}, engine.AttributeValueInt(linktype))
+										collecteddata = append(collecteddata, engine.AttributeValueObject{
+											Object: gpo,
+										}, engine.AttributeValueInt(linktype))
 									}
 								}
 								gpcachelinks = collecteddata
@@ -512,6 +517,25 @@ func init() {
 			},
 		},
 		engine.PwnAnalyzer{
+			Description: "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only managed service accounts
+				if o.Type() != engine.ObjectTypeManagedServiceAccount {
+					return
+				}
+				// Check who can reset the password
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
+						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadPasswordId)
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnHasSPN,
 			Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -783,13 +807,29 @@ func init() {
 			},
 		},
 		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnCertificateEnroll,
+			Description: "Certificate service publishes Certificate Template",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() != engine.ObjectTypePKIEnrollmentService {
+					return
+				}
+				for _, cts := range o.AttrString(engine.A("certificateTemplates")) {
+					for _, ct := range cts {
+						templates, _ := ao.FindMulti(engine.Name, engine.AttributeValueString(ct))
+						for _, template := range templates {
+							if template.Type() == engine.ObjectTypeCertificateTemplate {
+								o.Pwns(template, PwnPublishesCertificateTemplate)
+							}
+						}
+					}
+				}
+			},
+		},
+		engine.PwnAnalyzer{
 			Description: "Permission to enroll into a certificate template",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeCertificateTemplate {
 					return
 				}
-				// It's a group
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -803,7 +843,6 @@ func init() {
 		},
 
 		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnDSReplicationSyncronize, // FIXME
 			Description: "Permissions on DomainDNS objects leading to DCsync attacks",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeDomainDNS {
@@ -911,7 +950,7 @@ func init() {
 			}
 		}
 	},
-		"applying DownLevelLoginName attribute",
+		"applying DownLevelLogonName attribute",
 		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {

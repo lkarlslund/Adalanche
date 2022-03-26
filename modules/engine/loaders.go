@@ -41,8 +41,7 @@ func AddLoader(loader Loader) LoaderID {
 }
 
 func NewLoaderObjects(ld Loader) *Objects {
-	aos := &Objects{}
-	aos.Init()
+	aos := NewObjects()
 	aos.AddDefaultFlex(MetaDataSource, AttributeValueString(ld.Name()))
 
 	// Add the root node
@@ -94,6 +93,8 @@ func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].size > files[j].size
 	})
+
+	log.Info().Msg("Processing files with the biggest files first")
 
 	cb(0, len(files))
 

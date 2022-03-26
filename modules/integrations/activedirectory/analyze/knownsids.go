@@ -25,8 +25,13 @@ const (
 
 var (
 	groupTranslationTable = map[string]windowssecurity.SID{
-		strings.ToLower("Administrators"):             windowssecurity.SIDAdministrators,     // EN
-		strings.ToLower("Administratorer"):            windowssecurity.SIDAdministrators,     // DK
+		strings.ToLower("Administrators"):  windowssecurity.SIDAdministrators, // EN
+		strings.ToLower("Administratoren"): windowssecurity.SIDAdministrators, // DE
+		strings.ToLower("Administrateurs"): windowssecurity.SIDAdministrators, // FR
+		strings.ToLower("Administradores"): windowssecurity.SIDAdministrators, // ES
+		strings.ToLower("Administratoren"): windowssecurity.SIDAdministrators, // NL
+		strings.ToLower("Administratorzy"): windowssecurity.SIDAdministrators, // PL
+
 		strings.ToLower("Remote Desktop Users"):       windowssecurity.SIDRemoteDesktopUsers, // DK
 		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.SIDRemoteDesktopUsers, // DK
 	}

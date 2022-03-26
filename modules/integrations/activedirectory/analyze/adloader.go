@@ -20,8 +20,6 @@ import (
 )
 
 var (
-	// FIXME - NEEDS TO ME TRUE AT THE MOMENT AS MAX_IMPORT IS BROKEN4
-	importall = analyze.Command.Flags().Bool("importall", true, "Load all attributes from dump (expands search options, but at the cost of memory")
 	importcnf = analyze.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
 
 	adsource = engine.AttributeValueString("Active Directory dumps")
@@ -40,7 +38,6 @@ type ADLoader struct {
 	objectstoconvert chan convertqueueitem
 	gpofiletoprocess chan string
 	// domains          []domaininfo
-	importall bool
 	importcnf bool
 }
 
@@ -54,7 +51,6 @@ func (ld *ADLoader) Name() string {
 }
 
 func (ld *ADLoader) Init() error {
-	ld.importall = *importall
 	ld.importcnf = *importcnf
 
 	ld.dco = make(map[string]*engine.Objects)
@@ -67,7 +63,7 @@ func (ld *ADLoader) Init() error {
 		go func() {
 			// chunk := make([]*engine.Object, 0, 64)
 			for item := range ld.objectstoconvert {
-				o := item.object.ToObject(ld.importall)
+				o := item.object.ToObject()
 
 				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
 					continue // skip conflict object
@@ -119,17 +115,17 @@ func (ld *ADLoader) getShard(path string, gpo bool) *engine.Objects {
 	shard := filepath.Dir(path)
 
 	lookupshard := shard
-	if gpo {
+	/*	if gpo {
 		// Load GPO stuff into their own shard
 		lookupshard += "_gpo"
-	}
+	} */
 
 	var ao *engine.Objects
 	ld.importmutex.Lock()
 	ao = ld.dco[lookupshard]
 	if ao == nil {
 		ao = engine.NewLoaderObjects(ld)
-		ao.AddDefaultFlex(engine.UniqueSource, engine.AttributeValueString(shard))
+		// ao.AddDefaultFlex(engine.UniqueSource, engine.AttributeValueString(shard))
 		ao.SetThreadsafe(true)
 		ld.dco[lookupshard] = ao
 	}
@@ -197,6 +193,18 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 
 	var aos []*engine.Objects
 	for _, ao := range ld.dco {
+		// Replace shard path value with the NETBIOS domain name
+		// This allows merging with localmachine data for accounts that are in the same domain
+		domobj, found := ao.FindTwo(engine.ObjectClass, engine.AttributeValueString("domainDNS"),
+			engine.IsCriticalSystemObject, engine.AttributeValueString("true"))
+
+		if found {
+			netbiosdomain := domobj.Attr(engine.Name)
+			for _, o := range ao.Slice() {
+				o.Set(engine.UniqueSource, netbiosdomain)
+			}
+		}
+
 		aos = append(aos, ao)
 		ao.SetThreadsafe(false)
 	}
