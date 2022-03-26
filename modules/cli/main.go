@@ -24,9 +24,10 @@ var (
 		SilenceUsage:  true,
 	}
 
-	debuglogging     = Root.PersistentFlags().Bool("debug", false, "Enable debug logging")
-	embeddedprofiler = Root.PersistentFlags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
-	cpuprofile       = Root.PersistentFlags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
+	debuglogging      = Root.PersistentFlags().Bool("debug", false, "Enable debug logging")
+	embeddedprofiler  = Root.PersistentFlags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
+	cpuprofile        = Root.PersistentFlags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
+	cpuprofiletimeout = Root.PersistentFlags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
 
 	datapath = Root.PersistentFlags().String("datapath", "data", "folder to store and read data")
 
@@ -71,6 +72,8 @@ func Run() error {
 		}()
 	}
 
+	stopprofile := make(chan bool, 5)
+
 	if *cpuprofile {
 		pproffile := filepath.Join(*datapath, "adalanche-cpuprofile-"+time.Now().Format("06010215040506")+".pprof")
 		f, err := os.Create(pproffile)
@@ -78,6 +81,18 @@ func Run() error {
 			return fmt.Errorf("Could not set up CPU profiling in file %v: %v", pproffile, err)
 		}
 		pprof.StartCPUProfile(f)
+
+		go func() {
+			<-stopprofile
+			pprof.StopCPUProfile()
+		}()
+
+		if *cpuprofiletimeout > 0 {
+			go func() {
+				time.Sleep(time.Second * (time.Duration(*cpuprofiletimeout)))
+				stopprofile <- true
+			}()
+		}
 	}
 
 	if !*debuglogging {
@@ -100,9 +115,7 @@ func Run() error {
 
 	err := Root.Execute()
 
-	if *cpuprofile {
-		pprof.StopCPUProfile()
-	}
+	stopprofile <- true
 
 	if err == nil {
 		log.Info().Msgf("Terminating successfully")
