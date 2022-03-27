@@ -16,13 +16,24 @@ type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 type attributeinfo struct {
 	Name                         string
 	Tags                         []string
-	Multi                        bool // If true, this attribute can have multiple values
-	NonUnique                    bool // Doing a Find on this attribute will return multiple results
+	Type                         AttributeType
+	Single                       bool // If true, this attribute can not have multiple values
+	Unique                       bool // Doing a Find on this attribute will return multiple results
 	Merge                        bool // If true, objects can be merged on this attribute
 	DefaultF, DefaultM, DefaultL bool
 	onset                        AttributeSetFunc
 	onget                        AttributeGetFunc
 }
+
+type AttributeType uint8
+
+const (
+	AttributeTypeString AttributeType = iota
+	AttributeTypeInt
+	AttributeTypeFloat
+	AttributeTypeBool
+	AttributeTypeTime
+)
 
 type mergeapproverinfo struct {
 	mergefunc mergefunc
