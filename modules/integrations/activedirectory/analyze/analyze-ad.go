@@ -1282,10 +1282,9 @@ func init() {
 				case 3:
 					direction = "bidirectional"
 				}
-
 				attr, _ := object.AttrInt(activedirectory.TrustAttributes)
 				log.Info().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(activedirectory.TrustPartner))
-				if dir&2 != 0 && attr&0x40 != 0 { // Very unsure about this
+				if dir&2 != 0 && attr&0x08 != 0 && attr&0x40 != 0 {
 					log.Info().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
 				}
 			}
