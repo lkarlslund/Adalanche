@@ -32,7 +32,8 @@ var (
 		strings.ToLower("Administratoren"): windowssecurity.SIDAdministrators, // NL
 		strings.ToLower("Administratorzy"): windowssecurity.SIDAdministrators, // PL
 
-		strings.ToLower("Remote Desktop Users"):       windowssecurity.SIDRemoteDesktopUsers, // DK
+		strings.ToLower("Remote Desktop Users"): windowssecurity.SIDRemoteDesktopUsers, // DK
+
 		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.SIDRemoteDesktopUsers, // DK
 	}
 )

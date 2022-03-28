@@ -212,15 +212,27 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			}
 
 			for _, sidpair := range pairs {
-				membersid, err := windowssecurity.SIDFromString(sidpair.MemberSID)
-				if err == nil {
+				var member *engine.Object
+				if sidpair.MemberSID == "" {
+					// Just use the name, we assume it's a domain object
+					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
+				} else {
+					// Use the SID
+					membersid, err := windowssecurity.SIDFromString(sidpair.MemberSID)
+					if err == nil {
+						member = ao.FindOrAddSID(membersid)
+					}
+				}
+				if member != nil {
 					switch sidpair.GroupSID {
 					case "S-1-5-32-544":
-						ao.FindOrAddSID(membersid).Pwns(gpoobject, activedirectory.PwnLocalAdminRights)
+						member.Pwns(gpoobject, activedirectory.PwnLocalAdminRights)
 					case "S-1-5-32-562":
-						ao.FindOrAddSID(membersid).Pwns(gpoobject, activedirectory.PwnLocalDCOMRights)
+						member.Pwns(gpoobject, activedirectory.PwnLocalDCOMRights)
 					case "S-1-5-32-555":
-						ao.FindOrAddSID(membersid).Pwns(gpoobject, activedirectory.PwnLocalRDPRights)
+						member.Pwns(gpoobject, activedirectory.PwnLocalRDPRights)
+					case "":
+						log.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
 				} else {
 					log.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
@@ -431,7 +443,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					membersid = ""
 					translatedsid, err := TranslateLocalizedGroupToSID(membername)
 					if err != nil {
-						log.Warn().Msgf("GPO GptTmplInf Memberof non-SID member %v translation failed (PLEASE CONTRIBUTE): %v", membername, err)
+						log.Info().Msgf("GPO GptTmplInf Memberof non-SID member %v translation gave no results, assuming it's a custom name: %v", membername, err)
 					} else {
 						membersid = translatedsid.String()
 					}
@@ -448,7 +460,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						groupsid = ""
 						translatedsid, err := TranslateLocalizedGroupToSID(groupname)
 						if err != nil {
-							log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v translation failed (PLEASE CONTRIBUTE): %v", groupname, err)
+							log.Info().Msgf("GPO GptTmplInf Memberof non-SID group %v translation gave no results (PLEASE CONTRIBUTE): %v", groupname, err)
 						} else {
 							groupsid = translatedsid.String()
 						}

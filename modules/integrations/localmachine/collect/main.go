@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	winio "github.com/Microsoft/go-winio"
+	"github.com/amidaware/taskmaster"
 	"github.com/antchfx/xmlquery"
 	"github.com/gravwell/gravwell/v3/winevent"
 	"github.com/lkarlslund/adalanche/modules/basedata"
@@ -265,6 +266,13 @@ func Collect(outputpath string) error {
 		}
 	}
 
+	// SCHEDULED TASKS
+	var scheduledtasksinfo taskmaster.RegisteredTaskCollection
+	ts, err := taskmaster.Connect()
+	if err == nil {
+		scheduledtasksinfo, _ = ts.GetRegisteredTasks()
+	}
+
 	// GATHER INTERESTING STUFF FROM EVENT LOG
 
 	// chn, _ := wineventlog.Channels()
@@ -355,7 +363,48 @@ func Collect(outputpath string) error {
 			Count: count,
 		})
 	}
+	/*
+		slog, err := winevent.NewStream(winevent.EventStreamParams{
+			Channel:  "Microsoft-Windows-Winlogon/Operational",
+			EventIDs: "811,812",
+			BuffSize: 2048000,
+		}, 0)
 
+		if err == nil {
+			for {
+				events, _, _, err := elog.Read()
+				if err != nil {
+					// fmt.Println(err)
+					break
+				}
+				for _, event := range events {
+					// fmt.Println(string(event.Buff))
+					doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
+					if err == nil {
+						i := xmlquery.FindOne(doc, "//Event//System//EventID")
+						if i.InnerText() == "811" {
+							// Login
+							user := xmlquery.FindOne(doc, "//Event//System//Security//@UserID")
+							timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
+
+							us := user.InnerText()
+							t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
+							if t.After(amonthago) {
+								monthmap[us] = monthmap[us] + 1
+							}
+							if t.After(aweekago) {
+								weekmap[us] = weekmap[us] + 1
+							}
+							if t.After(adayago) {
+								daymap[us] = daymap[us] + 1
+							}
+							// fmt.Printf("%v logged in %v", user.InnerText(), timestamp.InnerText())
+						}
+					}
+				}
+			}
+		}
+	*/
 	// MACHINE AVAILABILITY
 	var timeonmonth, timeonweek, timeonday time.Duration
 	elog, err = winevent.NewStream(winevent.EventStreamParams{
@@ -671,7 +720,14 @@ func Collect(outputpath string) error {
 		Shares:          sharesinfo,
 		Services:        servicesinfo,
 		Software:        softwareinfo,
-		Privileges:      privilegesinfo,
+		Tasks: func() []localmachine.RegisteredTask {
+			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
+			for i, task := range scheduledtasksinfo {
+				tasks[i] = localmachine.ConvertRegisteredTask(task)
+			}
+			return tasks
+		}(),
+		Privileges: privilegesinfo,
 	}
 
 	if outputpath == "" {

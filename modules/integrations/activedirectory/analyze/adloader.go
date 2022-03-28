@@ -68,10 +68,13 @@ func (ld *ADLoader) Init() error {
 				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
 					continue // skip conflict object
 				}
-				// Here's a quirky workaround that will bite me later
-				// Legacy well known objects in ForeignSecurityPrincipals gives us trouble with duplicate SIDs - skip them
-				if strings.Count(o.OneAttrString(engine.ObjectSid), "-") == 3 && strings.Contains(o.OneAttrString(engine.DistinguishedName), "CN=ForeignSecurityPrincipals") {
-					continue
+
+				if !o.HasAttr(engine.ObjectClass) {
+					if strings.Contains(o.DN(), ",CN=MicrosoftDNS,") {
+						log.Debug().Msgf("Hardened DNS object without objectclass detected: %v", o.DN())
+					} else {
+						log.Warn().Msgf("Hardened object without objectclass detected: %v. This *might* affect your analysis, depending on object.", o.DN())
+					}
 				}
 
 				item.ao.Add(o)

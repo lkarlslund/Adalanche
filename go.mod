@@ -3,41 +3,16 @@ module github.com/lkarlslund/adalanche
 go 1.17
 
 require (
+	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/Showmax/go-fqdn v1.0.0
-	github.com/absfs/gofs v0.0.0-20210326223041-415ec8094056
-	github.com/absfs/osfs v0.0.0-20210816191758-403afc5396f8
-	github.com/antchfx/xmlquery v1.3.9
-	github.com/gin-gonic/gin v1.7.7
-	github.com/go-asn1-ber/asn1-ber v1.5.3
-	github.com/go-ini/ini v1.66.4
-	github.com/gobwas/glob v0.2.3
-	github.com/gofrs/uuid v4.2.0+incompatible
-	github.com/gorilla/mux v1.8.0
-	github.com/gravwell/gravwell/v3 v3.8.2 // DONT UPGRADE FROM 3.8.2 - breaks 32-bit builds
-	github.com/icza/gox v0.0.0-20210726201659-cd40a3f8d324
-	github.com/json-iterator/go v1.1.12
-	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
-	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
-	github.com/lkarlslund/stringdedup v0.2.1
-	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
-	github.com/mailru/easyjson v0.7.7
-	github.com/mattn/go-colorable v0.1.12
-	github.com/pierrec/lz4/v4 v4.1.14
-	github.com/pkg/errors v0.9.1
-	github.com/rs/zerolog v1.26.1
-	github.com/schollz/progressbar/v3 v3.8.6
-	github.com/shirou/gopsutil/v3 v3.22.2
-	github.com/spf13/cobra v1.3.0
-	github.com/tinylib/msgp v1.1.6
-	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	golang.org/x/text v0.3.7
-	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 // indirect
+	github.com/absfs/gofs v0.0.0-20210326223041-415ec8094056
+	github.com/absfs/osfs v0.0.0-20210816191758-403afc5396f8
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
+	github.com/antchfx/xmlquery v1.3.9
 	github.com/antchfx/xpath v1.2.0 // indirect
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -52,12 +27,17 @@ require (
 	github.com/elastic/go-ucfg v0.8.4 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
+	github.com/gin-gonic/gin v1.7.7
+	github.com/go-asn1-ber/asn1-ber v1.5.3
+	github.com/go-ini/ini v1.66.4
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.10.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
+	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.8.1 // indirect
+	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -71,19 +51,29 @@ require (
 	github.com/google/renameio v0.1.0 // indirect; DONT CHANGE FROM v0.1.0
 	github.com/google/subcommands v1.2.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/gorilla/mux v1.8.0
 	github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665 // indirect
+	github.com/gravwell/gravwell/v3 v3.8.2 // DONT UPGRADE FROM 3.8.2 - breaks 32-bit builds
 	github.com/gravwell/ipfix v1.4.3 // indirect
 	github.com/h2non/filetype v1.0.10 // indirect
 	github.com/iamacarpet/go-win64api v0.0.0-20210311141720-fe38760bed28 // indirect
+	github.com/icza/gox v0.0.0-20210726201659-cd40a3f8d324
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20210819104631-275770b98743 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+	github.com/json-iterator/go v1.1.12
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
+	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
+	github.com/lkarlslund/stringdedup v0.2.1
+	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/magefile/mage v1.12.1 // indirect
+	github.com/mailru/easyjson v0.7.7
+	github.com/mattn/go-colorable v0.1.12
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
@@ -96,13 +86,20 @@ require (
 	github.com/open-networks/go-msgraph v0.0.0-20200217121338-a7bf31e9c1f2 // indirect
 	github.com/open2b/scriggo v0.52.2 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/pierrec/lz4/v4 v4.1.14
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/procfs v0.0.8 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/rs/zerolog v1.26.1
+	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/scjalliance/comshim v0.0.0-20190308082608-cf06d2532c4e // indirect
+	github.com/shirou/gopsutil/v3 v3.22.2
+	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
+	github.com/tinylib/msgp v1.1.6
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
@@ -112,6 +109,9 @@ require (
 	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70 // indirect
 	golang.org/x/mod v0.5.0 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
+	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	golang.org/x/tools v0.1.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
@@ -125,4 +125,10 @@ require (
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
 
-require github.com/yusufpapurcu/wmi v1.2.2 // indirect
+require (
+	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2 // indirect
+	github.com/capnspacehook/taskmaster v0.0.0-20210519235353-1629df7c85e9 // indirect
+	github.com/rickb777/date v1.14.2 // indirect
+	github.com/rickb777/plural v1.2.2 // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+)

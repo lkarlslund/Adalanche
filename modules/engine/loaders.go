@@ -94,7 +94,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 		return files[i].size > files[j].size
 	})
 
-	log.Info().Msg("Processing files with the biggest files first")
+	log.Debug().Msg("Processing files with the biggest files first")
 
 	cb(0, len(files))
 

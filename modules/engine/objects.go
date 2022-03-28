@@ -389,26 +389,31 @@ func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, f
 	return v[0], found
 }
 
-func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o *Object, found bool) {
-	os.lock()
-	defer os.unlock()
-	v, found := os.find(attribute, value)
-	var result *Object
-	for _, o := range v {
-		if o.HasAttrValue(attribute2, value2) {
-			if result != nil {
-				return nil, false
-			}
-			result = o
-		}
-	}
-	return result, result != nil
-}
-
 func (os *Objects) FindMulti(attribute Attribute, value AttributeValue) (o []*Object, found bool) {
 	os.lock()
 	defer os.unlock()
 	return os.find(attribute, value)
+}
+
+func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o *Object, found bool) {
+	results, found := os.FindTwoMulti(attribute, value, attribute2, value2)
+	if !found {
+		return nil, false
+	}
+	return results[0], len(results) == 1
+}
+
+func (os *Objects) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o []*Object, found bool) {
+	os.lock()
+	defer os.unlock()
+	v, found := os.find(attribute, value)
+	var results []*Object
+	for _, o := range v {
+		if o.HasAttrValue(attribute2, value2) {
+			results = append(results, o)
+		}
+	}
+	return results, len(results) > 0
 }
 
 func (os *Objects) find(attribute Attribute, value AttributeValue) ([]*Object, bool) {
@@ -458,7 +463,7 @@ func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
 
 	// Use object chaining if possible
 	directparent := o.Parent()
-	if directparent != nil && directparent.OneAttrString(DistinguishedName) == dn {
+	if directparent != nil && strings.EqualFold(directparent.OneAttrString(DistinguishedName), dn) {
 		return directparent, true
 	}
 

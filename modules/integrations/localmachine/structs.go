@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/amidaware/taskmaster"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/go-win64api/shared"
 )
@@ -22,13 +23,13 @@ type Info struct {
 	Availability    Availability
 	LoginPopularity LoginPopularity
 
-	Users    Users             `json:",omitempty"`
-	Groups   Groups            `json:",omitempty"`
-	Shares   Shares            `json:",omitempty"`
-	Services Services          `json:",omitempty"`
-	Software []shared.Software `json:",omitempty"`
-
-	Privileges Privileges `json:",omitempty"`
+	Users      Users             `json:",omitempty"`
+	Groups     Groups            `json:",omitempty"`
+	Shares     Shares            `json:",omitempty"`
+	Services   Services          `json:",omitempty"`
+	Software   []shared.Software `json:",omitempty"`
+	Tasks      []RegisteredTask  `json:",omitempty"`
+	Privileges Privileges        `json:",omitempty"`
 }
 
 type Machine struct {
@@ -161,4 +162,63 @@ type NetworkInterfaceInfo struct {
 	MACAddress string
 	Flags      net.Flags
 	Addresses  []string
+}
+
+type RegisteredTask struct {
+	Name           string // the name of the registered task
+	Path           string // the path to where the registered task is stored
+	Definition     TaskDefinition
+	Enabled        bool
+	State          taskmaster.TaskState  // the operational state of the registered task
+	MissedRuns     uint                  // the number of times the registered task has missed a scheduled run
+	NextRunTime    time.Time             // the time when the registered task is next scheduled to run
+	LastRunTime    time.Time             // the time the registered task was last run
+	LastTaskResult taskmaster.TaskResult // the results that were returned the last time the registered task was run
+}
+
+type TaskDefinition struct {
+	Actions          []string
+	Context          string // specifies the security context under which the actions of the task are performed
+	Data             string // the data that is associated with the task
+	Principal        taskmaster.Principal
+	RegistrationInfo taskmaster.RegistrationInfo
+	Settings         taskmaster.TaskSettings
+	Triggers         []string
+	XMLText          string // the XML-formatted definition of the task
+}
+
+func ConvertRegisteredTask(rt taskmaster.RegisteredTask) RegisteredTask {
+	return RegisteredTask{
+		Name: rt.Name,
+		Path: rt.Path,
+		Definition: TaskDefinition{
+			Actions: func() []string {
+				a := make([]string, len(rt.Definition.Actions))
+				for i, v := range rt.Definition.Actions {
+					a[i] = v.GetType().String()
+				}
+				return a
+			}(),
+			Context:          rt.Definition.Context,
+			Data:             rt.Definition.Data,
+			Principal:        rt.Definition.Principal,
+			RegistrationInfo: rt.Definition.RegistrationInfo,
+			Settings:         rt.Definition.Settings,
+			Triggers: func() []string {
+				a := make([]string, len(rt.Definition.Triggers))
+				for i, v := range rt.Definition.Triggers {
+					a[i] = v.GetType().String()
+				}
+				return a
+			}(),
+			XMLText: rt.Definition.XMLText,
+		},
+		Enabled:        rt.Enabled,
+		State:          rt.State,
+		MissedRuns:     rt.MissedRuns,
+		NextRunTime:    rt.NextRunTime,
+		LastRunTime:    rt.LastRunTime,
+		LastTaskResult: rt.LastTaskResult,
+	}
+
 }
