@@ -14,14 +14,14 @@ import (
 type Info struct {
 	basedata.Common
 
-	Machine         Machine `json:",omitempty"`
-	Hardware        shared.Hardware
-	Network         NetworkInformation
-	OperatingSystem shared.OperatingSystem
-	Memory          shared.Memory
+	Machine         Machine                `json:",omitempty"`
+	Hardware        shared.Hardware        `json:",omitempty"`
+	Network         NetworkInformation     `json:",omitempty"`
+	OperatingSystem shared.OperatingSystem `json:",omitempty"`
+	Memory          shared.Memory          `json:",omitempty"`
 
-	Availability    Availability
-	LoginPopularity LoginPopularity
+	Availability    Availability    `json:",omitempty"`
+	LoginPopularity LoginPopularity `json:",omitempty"`
 
 	Users      Users             `json:",omitempty"`
 	Groups     Groups            `json:",omitempty"`
@@ -80,9 +80,9 @@ type LoginPopularity struct {
 }
 
 type LoginCount struct {
-	Name  string
-	SID   string
-	Count uint64
+	Name  string `json:",omitempty"`
+	SID   string `json:",omitempty"`
+	Count uint64 `json:",omitempty"`
 }
 
 type Shares []Share
@@ -119,112 +119,108 @@ type Service struct {
 
 type Users []User
 type User struct {
-	Name                 string
-	SID                  string
-	FullName             string
-	IsEnabled            bool
-	IsLocked             bool
-	IsAdmin              bool
-	PasswordNeverExpires bool
-	NoChangePassword     bool
-	PasswordLastSet      time.Time
-	LastLogon            time.Time
-	LastLogoff           time.Time
-	BadPasswordCount     int
-	NumberOfLogins       int
+	Name                 string    `json:",omitempty"`
+	SID                  string    `json:",omitempty"`
+	FullName             string    `json:",omitempty"`
+	IsEnabled            bool      `json:",omitempty"`
+	IsLocked             bool      `json:",omitempty"`
+	IsAdmin              bool      `json:",omitempty"`
+	PasswordNeverExpires bool      `json:",omitempty"`
+	NoChangePassword     bool      `json:",omitempty"`
+	PasswordLastSet      time.Time `json:",omitempty"`
+	LastLogon            time.Time `json:",omitempty"`
+	LastLogoff           time.Time `json:",omitempty"`
+	BadPasswordCount     int       `json:",omitempty"`
+	NumberOfLogins       int       `json:",omitempty"`
 }
 
 type Groups []Group
 type Group struct {
-	Name    string
-	SID     string
-	Comment string
-	Members []Member
+	Name    string   `json:",omitempty"`
+	SID     string   `json:",omitempty"`
+	Comment string   `json:",omitempty"`
+	Members []Member `json:",omitempty"`
 }
 type Member struct {
-	Name string
-	SID  string
+	Name string `json:",omitempty"`
+	SID  string `json:",omitempty"`
 }
 
 type Privileges []Privilege
 type Privilege struct {
-	Name         string
-	AssignedSIDs []string
+	Name         string   `json:",omitempty"`
+	AssignedSIDs []string `json:",omitempty"`
 }
 
 type NetworkInformation struct {
-	InternetConnectivity string
-	NetworkInterfaces    []NetworkInterfaceInfo
+	InternetConnectivity string                 `json:",omitempty"`
+	NetworkInterfaces    []NetworkInterfaceInfo `json:",omitempty"`
 }
 type NetworkInterfaceInfo struct {
 	// Hardware   net.Interface
-	Name       string
-	MACAddress string
-	Flags      net.Flags
-	Addresses  []string
+	Name       string    `json:",omitempty"`
+	MACAddress string    `json:",omitempty"`
+	Flags      net.Flags `json:",omitempty"`
+	Addresses  []string  `json:",omitempty"`
 }
 
 type RegisteredTask struct {
-	Name           string // the name of the registered task
-	Path           string // the path to where the registered task is stored
-	Definition     TaskDefinition
-	Enabled        bool
-	State          string    // the operational state of the registered task
-	MissedRuns     uint      // the number of times the registered task has missed a scheduled run
-	NextRunTime    time.Time // the time when the registered task is next scheduled to run
-	LastRunTime    time.Time // the time the registered task was last run
-	LastTaskResult uint32    // the results that were returned the last time the registered task was run
+	Name           string         `json:",omitempty"`
+	Path           string         `json:",omitempty"`
+	Definition     TaskDefinition `json:",omitempty"`
+	Enabled        bool           `json:",omitempty"`
+	State          string         `json:",omitempty"`
+	MissedRuns     uint           `json:",omitempty"`
+	NextRunTime    time.Time      `json:",omitempty"`
+	LastRunTime    time.Time      `json:",omitempty"`
+	LastTaskResult uint32         `json:",omitempty"`
 }
 
 type TaskDefinition struct {
-	Actions          []string
-	Context          string // specifies the security context under which the actions of the task are performed
-	Data             string // the data that is associated with the task
-	Principal        Principal
-	RegistrationInfo RegistrationInfo
-	Settings         TaskSettings
-	Triggers         []string
-	XMLText          string // the XML-formatted definition of the task
+	Actions          []string         `json:",omitempty"`
+	Context          string           `json:",omitempty"`
+	Data             string           `json:",omitempty"`
+	Principal        Principal        `json:",omitempty"`
+	RegistrationInfo RegistrationInfo `json:",omitempty"`
+	Settings         TaskSettings     `json:",omitempty"`
+	Triggers         []string         `json:",omitempty"`
+	XMLText          string           `json:",omitempty"`
 }
 
 type Principal struct {
-	Name      string // the name of the principal
-	GroupID   string // the identifier of the user group that is required to run the tasks
-	ID        string // the identifier of the principal
-	LogonType int    // the security logon method that is required to run the tasks
-	RunLevel  int    // the identifier that is used to specify the privilege level that is required to run the tasks
-	UserID    string // the user identifier that is required to run the tasks
+	Name      string `json:",omitempty"`
+	GroupID   string `json:",omitempty"`
+	ID        string `json:",omitempty"`
+	LogonType int    `json:",omitempty"`
+	RunLevel  int    `json:",omitempty"`
+	UserID    string `json:",omitempty"`
 }
 
 type RegistrationInfo struct {
-	Author             string
-	Date               time.Time
-	Description        string
-	Documentation      string
-	SecurityDescriptor string
-	Source             string
-	URI                string
-	Version            string
+	Author             string    `json:",omitempty"`
+	Date               time.Time `json:",omitempty"`
+	Description        string    `json:",omitempty"`
+	Documentation      string    `json:",omitempty"`
+	SecurityDescriptor string    `json:",omitempty"`
+	Source             string    `json:",omitempty"`
+	URI                string    `json:",omitempty"`
+	Version            string    `json:",omitempty"`
 }
 
 type TaskSettings struct {
-	AllowDemandStart   bool // indicates that the task can be started by using either the Run command or the Context menu
-	AllowHardTerminate bool // indicates that the task may be terminated by the Task Scheduler service using TerminateProcess
-	// Compatibility          TaskCompatibility // indicates which version of Task Scheduler a task is compatible with
-	DeleteExpiredTaskAfter string        // the amount of time that the Task Scheduler will wait before deleting the task after it expires
-	DontStartOnBatteries   bool          // indicates that the task will not be started if the computer is running on batteries
-	Enabled                bool          // indicates that the task is enabled
-	TimeLimit              period.Period // the amount of time that is allowed to complete the task
-	Hidden                 bool          // indicates that the task will not be visible in the UI
-	// IdleSettings
-	// MultipleInstances TaskInstancesPolicy // defines how the Task Scheduler deals with multiple instances of the task
-	// NetworkSettings
-	Priority                  uint          // the priority level of the task, ranging from 0 - 10, where 0 is the highest priority, and 10 is the lowest. Only applies to ComHandler, Email, and MessageBox actions
-	RestartCount              uint          // the number of times that the Task Scheduler will attempt to restart the task
-	RestartInterval           period.Period // specifies how long the Task Scheduler will attempt to restart the task
-	RunOnlyIfIdle             bool          // indicates that the Task Scheduler will run the task only if the computer is in an idle condition
-	RunOnlyIfNetworkAvailable bool          // indicates that the Task Scheduler will run the task only when a network is available
-	StartWhenAvailable        bool          // indicates that the Task Scheduler can start the task at any time after its scheduled time has passed
-	StopIfGoingOnBatteries    bool          // indicates that the task will be stopped if the computer is going onto batteries
-	WakeToRun                 bool          // indicates that the Task Scheduler will wake the computer when it is time to run the task, and keep the computer awake until the task is completed
+	AllowDemandStart          bool          `json:",omitempty"`
+	AllowHardTerminate        bool          `json:",omitempty"`
+	DeleteExpiredTaskAfter    string        `json:",omitempty"`
+	DontStartOnBatteries      bool          `json:",omitempty"`
+	Enabled                   bool          `json:",omitempty"`
+	TimeLimit                 period.Period `json:",omitempty"`
+	Hidden                    bool          `json:",omitempty"`
+	Priority                  uint          `json:",omitempty"`
+	RestartCount              uint          `json:",omitempty"`
+	RestartInterval           period.Period `json:",omitempty"`
+	RunOnlyIfIdle             bool          `json:",omitempty"`
+	RunOnlyIfNetworkAvailable bool          `json:",omitempty"`
+	StartWhenAvailable        bool          `json:",omitempty"`
+	StopIfGoingOnBatteries    bool          `json:",omitempty"`
+	WakeToRun                 bool          `json:",omitempty"`
 }
