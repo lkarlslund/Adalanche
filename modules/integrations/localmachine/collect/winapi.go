@@ -18,41 +18,52 @@ const (
 	//                                                                    //
 	////////////////////////////////////////////////////////////////////////
 
-	SE_CREATE_TOKEN_NAME           Privilege = "SeCreateTokenPrivilege"
-	SE_ASSIGNPRIMARYTOKEN_NAME     Privilege = "SeAssignPrimaryTokenPrivilege"
-	SE_LOCK_MEMORY_NAME            Privilege = "SeLockMemoryPrivilege"
-	SE_INCREASE_QUOTA_NAME         Privilege = "SeIncreaseQuotaPrivilege"
-	SE_UNSOLICITED_INPUT_NAME      Privilege = "SeUnsolicitedInputPrivilege"
-	SE_MACHINE_ACCOUNT_NAME        Privilege = "SeMachineAccountPrivilege"
-	SE_TCB_NAME                    Privilege = "SeTcbPrivilege"
-	SE_SECURITY_NAME               Privilege = "SeSecurityPrivilege"
-	SE_TAKE_OWNERSHIP_NAME         Privilege = "SeTakeOwnershipPrivilege"
-	SE_LOAD_DRIVER_NAME            Privilege = "SeLoadDriverPrivilege"
-	SE_SYSTEM_PROFILE_NAME         Privilege = "SeSystemProfilePrivilege"
-	SE_SYSTEMTIME_NAME             Privilege = "SeSystemtimePrivilege"
-	SE_PROF_SINGLE_PROCESS_NAME    Privilege = "SeProfileSingleProcessPrivilege"
-	SE_INC_BASE_PRIORITY_NAME      Privilege = "SeIncreaseBasePriorityPrivilege"
-	SE_CREATE_PAGEFILE_NAME        Privilege = "SeCreatePagefilePrivilege"
-	SE_CREATE_PERMANENT_NAME       Privilege = "SeCreatePermanentPrivilege"
-	SE_BACKUP_NAME                 Privilege = "SeBackupPrivilege"
-	SE_RESTORE_NAME                Privilege = "SeRestorePrivilege"
-	SE_SHUTDOWN_NAME               Privilege = "SeShutdownPrivilege"
-	SE_DEBUG_NAME                  Privilege = "SeDebugPrivilege"
-	SE_AUDIT_NAME                  Privilege = "SeAuditPrivilege"
-	SE_SYSTEM_ENVIRONMENT_NAME     Privilege = "SeSystemEnvironmentPrivilege"
-	SE_CHANGE_NOTIFY_NAME          Privilege = "SeChangeNotifyPrivilege"
-	SE_REMOTE_SHUTDOWN_NAME        Privilege = "SeRemoteShutdownPrivilege"
-	SE_UNDOCK_NAME                 Privilege = "SeUndockPrivilege"
-	SE_SYNC_AGENT_NAME             Privilege = "SeSyncAgentPrivilege"
-	SE_ENABLE_DELEGATION_NAME      Privilege = "SeEnableDelegationPrivilege"
-	SE_MANAGE_VOLUME_NAME          Privilege = "SeManageVolumePrivilege"
-	SE_IMPERSONATE_NAME            Privilege = "SeImpersonatePrivilege"
-	SE_CREATE_GLOBAL_NAME          Privilege = "SeCreateGlobalPrivilege"
-	SE_TRUSTED_CREDMAN_ACCESS_NAME Privilege = "SeTrustedCredManAccessPrivilege"
-	SE_RELABEL_NAME                Privilege = "SeRelabelPrivilege"
-	SE_INC_WORKING_SET_NAME        Privilege = "SeIncreaseWorkingSetPrivilege"
-	SE_TIME_ZONE_NAME              Privilege = "SeTimeZonePrivilege"
-	SE_CREATE_SYMBOLIC_LINK_NAME   Privilege = "SeCreateSymbolicLinkPrivilege"
+	SE_CREATE_TOKEN_NAME                      Privilege = "SeCreateTokenPrivilege"
+	SE_ASSIGNPRIMARYTOKEN_NAME                Privilege = "SeAssignPrimaryTokenPrivilege"
+	SE_LOCK_MEMORY_NAME                       Privilege = "SeLockMemoryPrivilege"
+	SE_INCREASE_QUOTA_NAME                    Privilege = "SeIncreaseQuotaPrivilege"
+	SE_UNSOLICITED_INPUT_NAME                 Privilege = "SeUnsolicitedInputPrivilege"
+	SE_MACHINE_ACCOUNT_NAME                   Privilege = "SeMachineAccountPrivilege"
+	SE_TCB_NAME                               Privilege = "SeTcbPrivilege"
+	SE_SECURITY_NAME                          Privilege = "SeSecurityPrivilege"
+	SE_TAKE_OWNERSHIP_NAME                    Privilege = "SeTakeOwnershipPrivilege"
+	SE_LOAD_DRIVER_NAME                       Privilege = "SeLoadDriverPrivilege"
+	SE_SYSTEM_PROFILE_NAME                    Privilege = "SeSystemProfilePrivilege"
+	SE_SYSTEMTIME_NAME                        Privilege = "SeSystemtimePrivilege"
+	SE_PROF_SINGLE_PROCESS_NAME               Privilege = "SeProfileSingleProcessPrivilege"
+	SE_INC_BASE_PRIORITY_NAME                 Privilege = "SeIncreaseBasePriorityPrivilege"
+	SE_CREATE_PAGEFILE_NAME                   Privilege = "SeCreatePagefilePrivilege"
+	SE_CREATE_PERMANENT_NAME                  Privilege = "SeCreatePermanentPrivilege"
+	SE_BACKUP_NAME                            Privilege = "SeBackupPrivilege"
+	SE_RESTORE_NAME                           Privilege = "SeRestorePrivilege"
+	SE_SHUTDOWN_NAME                          Privilege = "SeShutdownPrivilege"
+	SE_DEBUG_NAME                             Privilege = "SeDebugPrivilege"
+	SE_AUDIT_NAME                             Privilege = "SeAuditPrivilege"
+	SE_SYSTEM_ENVIRONMENT_NAME                Privilege = "SeSystemEnvironmentPrivilege"
+	SE_CHANGE_NOTIFY_NAME                     Privilege = "SeChangeNotifyPrivilege"
+	SE_REMOTE_SHUTDOWN_NAME                   Privilege = "SeRemoteShutdownPrivilege"
+	SE_UNDOCK_NAME                            Privilege = "SeUndockPrivilege"
+	SE_SYNC_AGENT_NAME                        Privilege = "SeSyncAgentPrivilege"
+	SE_ENABLE_DELEGATION_NAME                 Privilege = "SeEnableDelegationPrivilege"
+	SE_MANAGE_VOLUME_NAME                     Privilege = "SeManageVolumePrivilege"
+	SE_IMPERSONATE_NAME                       Privilege = "SeImpersonatePrivilege"
+	SE_CREATE_GLOBAL_NAME                     Privilege = "SeCreateGlobalPrivilege"
+	SE_TRUSTED_CREDMAN_ACCESS_NAME            Privilege = "SeTrustedCredManAccessPrivilege"
+	SE_RELABEL_NAME                           Privilege = "SeRelabelPrivilege"
+	SE_INC_WORKING_SET_NAME                   Privilege = "SeIncreaseWorkingSetPrivilege"
+	SE_TIME_ZONE_NAME                         Privilege = "SeTimeZonePrivilege"
+	SE_CREATE_SYMBOLIC_LINK_NAME              Privilege = "SeCreateSymbolicLinkPrivilege"
+	SE_NETWORK_LOGON_RIGHT                    Privilege = "SeNetworkLogonRight"
+	SE_INTERACTIVE_LOGON_NAME                 Privilege = "SeInteractiveLogonRight"
+	SE_REMOTE_INTERACTIVE_LOGON_NAME          Privilege = "SeRemoteInteractiveLogonRight"
+	SE_DENY_NETWORK_LOGON_NAME                Privilege = "SeDenyNetworkLogonRight"
+	SE_DENY_INTERACTIVE_LOGON_NAME            Privilege = "SeDenyInteractiveLogonRight"
+	SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME     Privilege = "SeDenyRemoteInteractiveLogonRight"
+	SE_DENY_BATCH_LOGON_NAME                  Privilege = "SeDenyBatchLogonRight"
+	SE_DENY_SERVICE_LOGON_NAME                Privilege = "SeDenyServiceLogonRight"
+	SE_BATCH_LOGON_NAME                       Privilege = "SeBatchLogonRight"
+	SE_SERVICE_LOGON_NAME                     Privilege = "SeServiceLogonRight"
+	SE_DELEGATE_SESSION_USER_IMPERSONATE_NAME Privilege = "SeDelegateSessionUserImpersonatePrivilege"
 )
 
 var (
@@ -91,7 +102,19 @@ var (
 		SE_RELABEL_NAME,
 		SE_INC_WORKING_SET_NAME,
 		SE_TIME_ZONE_NAME,
-		SE_CREATE_SYMBOLIC_LINK_NAME}
+		SE_CREATE_SYMBOLIC_LINK_NAME,
+		SE_NETWORK_LOGON_RIGHT,
+		SE_INTERACTIVE_LOGON_NAME,
+		SE_REMOTE_INTERACTIVE_LOGON_NAME,
+		SE_DENY_NETWORK_LOGON_NAME,
+		SE_DENY_INTERACTIVE_LOGON_NAME,
+		SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME,
+		SE_DENY_BATCH_LOGON_NAME,
+		SE_DENY_SERVICE_LOGON_NAME,
+		SE_BATCH_LOGON_NAME,
+		SE_SERVICE_LOGON_NAME,
+		SE_DELEGATE_SESSION_USER_IMPERSONATE_NAME,
+	}
 )
 
 // Types Reference: https://docs.microsoft.com/en-us/windows/desktop/WinProg/windows-data-types
