@@ -271,6 +271,8 @@ func Collect(outputpath string) error {
 	ts, err := taskmaster.Connect()
 	if err == nil {
 		scheduledtasksinfo, _ = ts.GetRegisteredTasks()
+		defer scheduledtasksinfo.Release()
+		defer ts.Disconnect()
 	}
 
 	// GATHER INTERESTING STUFF FROM EVENT LOG
@@ -363,6 +365,7 @@ func Collect(outputpath string) error {
 			Count: count,
 		})
 	}
+
 	/*
 		slog, err := winevent.NewStream(winevent.EventStreamParams{
 			Channel:  "Microsoft-Windows-Winlogon/Operational",
@@ -405,6 +408,7 @@ func Collect(outputpath string) error {
 			}
 		}
 	*/
+
 	// MACHINE AVAILABILITY
 	var timeonmonth, timeonweek, timeonday time.Duration
 	elog, err = winevent.NewStream(winevent.EventStreamParams{

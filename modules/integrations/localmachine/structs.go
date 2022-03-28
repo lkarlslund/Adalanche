@@ -177,7 +177,7 @@ type RegisteredTask struct {
 }
 
 type TaskDefinition struct {
-	Actions          []string         `json:",omitempty"`
+	Actions          []TaskAction     `json:",omitempty"`
 	Context          string           `json:",omitempty"`
 	Data             string           `json:",omitempty"`
 	Principal        Principal        `json:",omitempty"`
@@ -185,6 +185,13 @@ type TaskDefinition struct {
 	Settings         TaskSettings     `json:",omitempty"`
 	Triggers         []string         `json:",omitempty"`
 	XMLText          string           `json:",omitempty"`
+}
+
+type TaskAction struct {
+	Type       string `json:",omitempty"`
+	Path       string `json:",omitempty"`
+	Args       string `json:",omitempty"`
+	WorkingDir string `json:",omitempty"`
 }
 
 type Principal struct {

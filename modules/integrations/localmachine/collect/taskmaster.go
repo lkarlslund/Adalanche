@@ -10,10 +10,15 @@ func ConvertRegisteredTask(rt taskmaster.RegisteredTask) localmachine.Registered
 		Name: rt.Name,
 		Path: rt.Path,
 		Definition: localmachine.TaskDefinition{
-			Actions: func() []string {
-				a := make([]string, len(rt.Definition.Actions))
+			Actions: func() []localmachine.TaskAction {
+				a := make([]localmachine.TaskAction, len(rt.Definition.Actions))
 				for i, v := range rt.Definition.Actions {
-					a[i] = v.GetType().String()
+					a[i].Type = v.GetType().String()
+					if e, ok := v.(taskmaster.ExecAction); ok {
+						a[i].Path = e.Path
+						a[i].Args = e.Args
+						a[i].WorkingDir = e.WorkingDir
+					}
 				}
 				return a
 			}(),
