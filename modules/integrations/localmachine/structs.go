@@ -189,6 +189,8 @@ type TaskDefinition struct {
 
 type TaskAction struct {
 	Type       string `json:",omitempty"`
+	PathDACL   []byte `json:",omitempty"`
+	PathOwner  string `json:",omitempty"`
 	Path       string `json:",omitempty"`
 	Args       string `json:",omitempty"`
 	WorkingDir string `json:",omitempty"`

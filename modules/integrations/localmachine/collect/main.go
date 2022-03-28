@@ -254,8 +254,8 @@ func Collect(outputpath string) error {
 						ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(shareinfo.Path, windows.SE_FILE_OBJECT)
 						if err == nil {
 							shareinfo.PathOwner = ownersid.String()
+							shareinfo.PathDACL = dacl
 						}
-						shareinfo.PathDACL = dacl
 					}
 
 					// if stype >= 16 {

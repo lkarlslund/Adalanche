@@ -3,6 +3,8 @@ package collect
 import (
 	"github.com/amidaware/taskmaster"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"golang.org/x/sys/windows"
 )
 
 func ConvertRegisteredTask(rt taskmaster.RegisteredTask) localmachine.RegisteredTask {
@@ -18,6 +20,15 @@ func ConvertRegisteredTask(rt taskmaster.RegisteredTask) localmachine.Registered
 						a[i].Path = e.Path
 						a[i].Args = e.Args
 						a[i].WorkingDir = e.WorkingDir
+
+						if e.Path != "" {
+							executable := resolvepath(e.Path)
+							ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+							if err == nil {
+								a[i].PathOwner = ownersid.String()
+								a[i].PathDACL = dacl
+							}
+						}
 					}
 				}
 				return a

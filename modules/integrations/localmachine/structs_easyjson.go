@@ -502,7 +502,7 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 				in.Delim('[')
 				if out.Actions == nil {
 					if !in.IsDelim(']') {
-						out.Actions = make([]TaskAction, 0, 1)
+						out.Actions = make([]TaskAction, 0, 0)
 					} else {
 						out.Actions = []TaskAction{}
 					}
@@ -707,6 +707,15 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		switch key {
 		case "Type":
 			out.Type = string(in.String())
+		case "PathDACL":
+			if in.IsNull() {
+				in.Skip()
+				out.PathDACL = nil
+			} else {
+				out.PathDACL = in.Bytes()
+			}
+		case "PathOwner":
+			out.PathOwner = string(in.String())
 		case "Path":
 			out.Path = string(in.String())
 		case "Args":
@@ -732,6 +741,26 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.Type))
+	}
+	if len(in.PathDACL) != 0 {
+		const prefix string = ",\"PathDACL\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Base64Bytes(in.PathDACL)
+	}
+	if in.PathOwner != "" {
+		const prefix string = ",\"PathOwner\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathOwner))
 	}
 	if in.Path != "" {
 		const prefix string = ",\"Path\":"
@@ -1516,9 +1545,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.AssignedSIDs = (out.AssignedSIDs)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v19 string
-					v19 = string(in.String())
-					out.AssignedSIDs = append(out.AssignedSIDs, v19)
+					var v22 string
+					v22 = string(in.String())
+					out.AssignedSIDs = append(out.AssignedSIDs, v22)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1553,11 +1582,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v20, v21 := range in.AssignedSIDs {
-				if v20 > 0 {
+			for v23, v24 := range in.AssignedSIDs {
+				if v23 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v21))
+				out.String(string(v24))
 			}
 			out.RawByte(']')
 		}
@@ -1756,9 +1785,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Addresses = (out.Addresses)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v22 string
-					v22 = string(in.String())
-					out.Addresses = append(out.Addresses, v22)
+					var v25 string
+					v25 = string(in.String())
+					out.Addresses = append(out.Addresses, v25)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1813,11 +1842,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v23, v24 := range in.Addresses {
-				if v23 > 0 {
+			for v26, v27 := range in.Addresses {
+				if v26 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v24))
+				out.String(string(v27))
 			}
 			out.RawByte(']')
 		}
@@ -1885,9 +1914,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.NetworkInterfaces = (out.NetworkInterfaces)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v25 NetworkInterfaceInfo
-					(v25).UnmarshalEasyJSON(in)
-					out.NetworkInterfaces = append(out.NetworkInterfaces, v25)
+					var v28 NetworkInterfaceInfo
+					(v28).UnmarshalEasyJSON(in)
+					out.NetworkInterfaces = append(out.NetworkInterfaces, v28)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1922,11 +1951,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v26, v27 := range in.NetworkInterfaces {
-				if v26 > 0 {
+			for v29, v30 := range in.NetworkInterfaces {
+				if v29 > 0 {
 					out.RawByte(',')
 				}
-				(v27).MarshalEasyJSON(out)
+				(v30).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -2111,14 +2140,14 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.AppCache = (out.AppCache)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v28 []uint8
+					var v31 []uint8
 					if in.IsNull() {
 						in.Skip()
-						v28 = nil
+						v31 = nil
 					} else {
-						v28 = in.Bytes()
+						v31 = in.Bytes()
 					}
-					out.AppCache = append(out.AppCache, v28)
+					out.AppCache = append(out.AppCache, v31)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2353,11 +2382,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v30, v31 := range in.AppCache {
-				if v30 > 0 {
+			for v33, v34 := range in.AppCache {
+				if v33 > 0 {
 					out.RawByte(',')
 				}
-				out.Base64Bytes(v31)
+				out.Base64Bytes(v34)
 			}
 			out.RawByte(']')
 		}
@@ -2473,9 +2502,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Day = (out.Day)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v34 LoginCount
-					(v34).UnmarshalEasyJSON(in)
-					out.Day = append(out.Day, v34)
+					var v37 LoginCount
+					(v37).UnmarshalEasyJSON(in)
+					out.Day = append(out.Day, v37)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2496,9 +2525,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Week = (out.Week)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v35 LoginCount
-					(v35).UnmarshalEasyJSON(in)
-					out.Week = append(out.Week, v35)
+					var v38 LoginCount
+					(v38).UnmarshalEasyJSON(in)
+					out.Week = append(out.Week, v38)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2519,9 +2548,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Month = (out.Month)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v36 LoginCount
-					(v36).UnmarshalEasyJSON(in)
-					out.Month = append(out.Month, v36)
+					var v39 LoginCount
+					(v39).UnmarshalEasyJSON(in)
+					out.Month = append(out.Month, v39)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2547,11 +2576,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v37, v38 := range in.Day {
-				if v37 > 0 {
+			for v40, v41 := range in.Day {
+				if v40 > 0 {
 					out.RawByte(',')
 				}
-				(v38).MarshalEasyJSON(out)
+				(v41).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -2563,11 +2592,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v39, v40 := range in.Week {
-				if v39 > 0 {
+			for v42, v43 := range in.Week {
+				if v42 > 0 {
 					out.RawByte(',')
 				}
-				(v40).MarshalEasyJSON(out)
+				(v43).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -2579,11 +2608,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v41, v42 := range in.Month {
-				if v41 > 0 {
+			for v44, v45 := range in.Month {
+				if v44 > 0 {
 					out.RawByte(',')
 				}
-				(v42).MarshalEasyJSON(out)
+				(v45).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -2754,9 +2783,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Users = (out.Users)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v43 User
-					(v43).UnmarshalEasyJSON(in)
-					out.Users = append(out.Users, v43)
+					var v46 User
+					(v46).UnmarshalEasyJSON(in)
+					out.Users = append(out.Users, v46)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2777,9 +2806,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Groups = (out.Groups)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v44 Group
-					(v44).UnmarshalEasyJSON(in)
-					out.Groups = append(out.Groups, v44)
+					var v47 Group
+					(v47).UnmarshalEasyJSON(in)
+					out.Groups = append(out.Groups, v47)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2800,9 +2829,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Shares = (out.Shares)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v45 Share
-					(v45).UnmarshalEasyJSON(in)
-					out.Shares = append(out.Shares, v45)
+					var v48 Share
+					(v48).UnmarshalEasyJSON(in)
+					out.Shares = append(out.Shares, v48)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2823,9 +2852,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Services = (out.Services)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v46 Service
-					(v46).UnmarshalEasyJSON(in)
-					out.Services = append(out.Services, v46)
+					var v49 Service
+					(v49).UnmarshalEasyJSON(in)
+					out.Services = append(out.Services, v49)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2846,9 +2875,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Software = (out.Software)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v47 shared.Software
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared3(in, &v47)
-					out.Software = append(out.Software, v47)
+					var v50 shared.Software
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared3(in, &v50)
+					out.Software = append(out.Software, v50)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2869,9 +2898,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Tasks = (out.Tasks)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v48 RegisteredTask
-					(v48).UnmarshalEasyJSON(in)
-					out.Tasks = append(out.Tasks, v48)
+					var v51 RegisteredTask
+					(v51).UnmarshalEasyJSON(in)
+					out.Tasks = append(out.Tasks, v51)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2892,9 +2921,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Privileges = (out.Privileges)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v49 Privilege
-					(v49).UnmarshalEasyJSON(in)
-					out.Privileges = append(out.Privileges, v49)
+					var v52 Privilege
+					(v52).UnmarshalEasyJSON(in)
+					out.Privileges = append(out.Privileges, v52)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3001,11 +3030,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v50, v51 := range in.Users {
-				if v50 > 0 {
+			for v53, v54 := range in.Users {
+				if v53 > 0 {
 					out.RawByte(',')
 				}
-				(v51).MarshalEasyJSON(out)
+				(v54).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3020,11 +3049,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v52, v53 := range in.Groups {
-				if v52 > 0 {
+			for v55, v56 := range in.Groups {
+				if v55 > 0 {
 					out.RawByte(',')
 				}
-				(v53).MarshalEasyJSON(out)
+				(v56).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3039,11 +3068,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v54, v55 := range in.Shares {
-				if v54 > 0 {
+			for v57, v58 := range in.Shares {
+				if v57 > 0 {
 					out.RawByte(',')
 				}
-				(v55).MarshalEasyJSON(out)
+				(v58).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3058,11 +3087,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v56, v57 := range in.Services {
-				if v56 > 0 {
+			for v59, v60 := range in.Services {
+				if v59 > 0 {
 					out.RawByte(',')
 				}
-				(v57).MarshalEasyJSON(out)
+				(v60).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3077,11 +3106,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v58, v59 := range in.Software {
-				if v58 > 0 {
+			for v61, v62 := range in.Software {
+				if v61 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared3(out, v59)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared3(out, v62)
 			}
 			out.RawByte(']')
 		}
@@ -3096,11 +3125,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v60, v61 := range in.Tasks {
-				if v60 > 0 {
+			for v63, v64 := range in.Tasks {
+				if v63 > 0 {
 					out.RawByte(',')
 				}
-				(v61).MarshalEasyJSON(out)
+				(v64).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3115,11 +3144,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v62, v63 := range in.Privileges {
-				if v62 > 0 {
+			for v65, v66 := range in.Privileges {
+				if v65 > 0 {
 					out.RawByte(',')
 				}
-				(v63).MarshalEasyJSON(out)
+				(v66).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3512,9 +3541,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared(in *jlexer.Lexer,
 					out.CPU = (out.CPU)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v64 shared.CPU
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared4(in, &v64)
-					out.CPU = append(out.CPU, v64)
+					var v67 shared.CPU
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared4(in, &v67)
+					out.CPU = append(out.CPU, v67)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3535,9 +3564,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared(in *jlexer.Lexer,
 					out.Memory = (out.Memory)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v65 shared.MemoryDIMM
-					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared5(in, &v65)
-					out.Memory = append(out.Memory, v65)
+					var v68 shared.MemoryDIMM
+					easyjson6a975c40DecodeGithubComLkarlslundGoWin64apiShared5(in, &v68)
+					out.Memory = append(out.Memory, v68)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3608,11 +3637,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared(out *jwriter.Writ
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v66, v67 := range in.CPU {
-				if v66 > 0 {
+			for v69, v70 := range in.CPU {
+				if v69 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared4(out, v67)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared4(out, v70)
 			}
 			out.RawByte(']')
 		}
@@ -3624,11 +3653,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared(out *jwriter.Writ
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v68, v69 := range in.Memory {
-				if v68 > 0 {
+			for v71, v72 := range in.Memory {
+				if v71 > 0 {
 					out.RawByte(',')
 				}
-				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared5(out, v69)
+				easyjson6a975c40EncodeGithubComLkarlslundGoWin64apiShared5(out, v72)
 			}
 			out.RawByte(']')
 		}
@@ -3788,9 +3817,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Members = (out.Members)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v70 Member
-					(v70).UnmarshalEasyJSON(in)
-					out.Members = append(out.Members, v70)
+					var v73 Member
+					(v73).UnmarshalEasyJSON(in)
+					out.Members = append(out.Members, v73)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3845,11 +3874,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v71, v72 := range in.Members {
-				if v71 > 0 {
+			for v74, v75 := range in.Members {
+				if v74 > 0 {
 					out.RawByte(',')
 				}
-				(v72).MarshalEasyJSON(out)
+				(v75).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
