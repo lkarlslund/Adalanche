@@ -6,9 +6,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/amidaware/taskmaster"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/go-win64api/shared"
+	"github.com/rickb777/date/period"
 )
 
 type Info struct {
@@ -169,56 +169,62 @@ type RegisteredTask struct {
 	Path           string // the path to where the registered task is stored
 	Definition     TaskDefinition
 	Enabled        bool
-	State          taskmaster.TaskState  // the operational state of the registered task
-	MissedRuns     uint                  // the number of times the registered task has missed a scheduled run
-	NextRunTime    time.Time             // the time when the registered task is next scheduled to run
-	LastRunTime    time.Time             // the time the registered task was last run
-	LastTaskResult taskmaster.TaskResult // the results that were returned the last time the registered task was run
+	State          string    // the operational state of the registered task
+	MissedRuns     uint      // the number of times the registered task has missed a scheduled run
+	NextRunTime    time.Time // the time when the registered task is next scheduled to run
+	LastRunTime    time.Time // the time the registered task was last run
+	LastTaskResult uint32    // the results that were returned the last time the registered task was run
 }
 
 type TaskDefinition struct {
 	Actions          []string
 	Context          string // specifies the security context under which the actions of the task are performed
 	Data             string // the data that is associated with the task
-	Principal        taskmaster.Principal
-	RegistrationInfo taskmaster.RegistrationInfo
-	Settings         taskmaster.TaskSettings
+	Principal        Principal
+	RegistrationInfo RegistrationInfo
+	Settings         TaskSettings
 	Triggers         []string
 	XMLText          string // the XML-formatted definition of the task
 }
 
-func ConvertRegisteredTask(rt taskmaster.RegisteredTask) RegisteredTask {
-	return RegisteredTask{
-		Name: rt.Name,
-		Path: rt.Path,
-		Definition: TaskDefinition{
-			Actions: func() []string {
-				a := make([]string, len(rt.Definition.Actions))
-				for i, v := range rt.Definition.Actions {
-					a[i] = v.GetType().String()
-				}
-				return a
-			}(),
-			Context:          rt.Definition.Context,
-			Data:             rt.Definition.Data,
-			Principal:        rt.Definition.Principal,
-			RegistrationInfo: rt.Definition.RegistrationInfo,
-			Settings:         rt.Definition.Settings,
-			Triggers: func() []string {
-				a := make([]string, len(rt.Definition.Triggers))
-				for i, v := range rt.Definition.Triggers {
-					a[i] = v.GetType().String()
-				}
-				return a
-			}(),
-			XMLText: rt.Definition.XMLText,
-		},
-		Enabled:        rt.Enabled,
-		State:          rt.State,
-		MissedRuns:     rt.MissedRuns,
-		NextRunTime:    rt.NextRunTime,
-		LastRunTime:    rt.LastRunTime,
-		LastTaskResult: rt.LastTaskResult,
-	}
+type Principal struct {
+	Name      string // the name of the principal
+	GroupID   string // the identifier of the user group that is required to run the tasks
+	ID        string // the identifier of the principal
+	LogonType int    // the security logon method that is required to run the tasks
+	RunLevel  int    // the identifier that is used to specify the privilege level that is required to run the tasks
+	UserID    string // the user identifier that is required to run the tasks
+}
 
+type RegistrationInfo struct {
+	Author             string
+	Date               time.Time
+	Description        string
+	Documentation      string
+	SecurityDescriptor string
+	Source             string
+	URI                string
+	Version            string
+}
+
+type TaskSettings struct {
+	AllowDemandStart   bool // indicates that the task can be started by using either the Run command or the Context menu
+	AllowHardTerminate bool // indicates that the task may be terminated by the Task Scheduler service using TerminateProcess
+	// Compatibility          TaskCompatibility // indicates which version of Task Scheduler a task is compatible with
+	DeleteExpiredTaskAfter string        // the amount of time that the Task Scheduler will wait before deleting the task after it expires
+	DontStartOnBatteries   bool          // indicates that the task will not be started if the computer is running on batteries
+	Enabled                bool          // indicates that the task is enabled
+	TimeLimit              period.Period // the amount of time that is allowed to complete the task
+	Hidden                 bool          // indicates that the task will not be visible in the UI
+	// IdleSettings
+	// MultipleInstances TaskInstancesPolicy // defines how the Task Scheduler deals with multiple instances of the task
+	// NetworkSettings
+	Priority                  uint          // the priority level of the task, ranging from 0 - 10, where 0 is the highest priority, and 10 is the lowest. Only applies to ComHandler, Email, and MessageBox actions
+	RestartCount              uint          // the number of times that the Task Scheduler will attempt to restart the task
+	RestartInterval           period.Period // specifies how long the Task Scheduler will attempt to restart the task
+	RunOnlyIfIdle             bool          // indicates that the Task Scheduler will run the task only if the computer is in an idle condition
+	RunOnlyIfNetworkAvailable bool          // indicates that the Task Scheduler will run the task only when a network is available
+	StartWhenAvailable        bool          // indicates that the Task Scheduler can start the task at any time after its scheduled time has passed
+	StopIfGoingOnBatteries    bool          // indicates that the task will be stopped if the computer is going onto batteries
+	WakeToRun                 bool          // indicates that the Task Scheduler will wake the computer when it is time to run the task, and keep the computer awake until the task is completed
 }

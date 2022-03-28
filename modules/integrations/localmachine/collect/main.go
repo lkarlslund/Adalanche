@@ -723,7 +723,7 @@ func Collect(outputpath string) error {
 		Tasks: func() []localmachine.RegisteredTask {
 			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
 			for i, task := range scheduledtasksinfo {
-				tasks[i] = localmachine.ConvertRegisteredTask(task)
+				tasks[i] = ConvertRegisteredTask(task)
 			}
 			return tasks
 		}(),
