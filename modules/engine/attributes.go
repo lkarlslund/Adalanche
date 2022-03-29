@@ -92,11 +92,6 @@ var (
 	MetaWorkstation             = NewAttribute("_workstation")
 	MetaServer                  = NewAttribute("_server")
 	MetaLAPSInstalled           = NewAttribute("_haslaps")
-	// The rest is skipped
-	_ = NewAttribute("member")
-	_ = NewAttribute("member;range=0-4999")
-	_ = NewAttribute("proxyAddresses")
-	_ = NewAttribute("dSCorePropagationData")
 )
 
 type Attribute uint16
