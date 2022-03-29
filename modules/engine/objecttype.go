@@ -16,7 +16,7 @@ const (
 type ObjectType byte
 
 var (
-	OtherType                          = NewObjectType("Other", "")
+	ObjectTypeOther                    = NewObjectType("Other", "")
 	ObjectTypeDomainDNS                = NewObjectType("DomainDNS", "Domain-DNS")
 	ObjectTypeDNSNode                  = NewObjectType("DNSNode", "Dns-Node")
 	ObjectTypeDNSZone                  = NewObjectType("DNSZone", "Dns-Zone")
@@ -95,7 +95,7 @@ func ObjectTypeLookup(lookup string) (ObjectType, bool) {
 	objecttype, found := objecttypenames[lowername]
 	objecttypemutex.RUnlock()
 	if !found {
-		return OtherType, false
+		return ObjectTypeOther, false
 	}
 	return objecttype, found
 }

@@ -92,11 +92,13 @@ type PwnMethod int
 
 var pwnmutex sync.RWMutex
 var pwnnames = make(map[string]PwnMethod)
-var pwnnums []pwninfo
+var pwnnums []*pwninfo
 
 type pwninfo struct {
 	name                         string
+	description                  string
 	tags                         []string
+	probability                  ProbabilityCalculatorFunction
 	multi                        bool // If true, this attribute can have multiple values
 	nonunique                    bool // Doing a Find on this attribute will return multiple results
 	merge                        bool // If true, objects can be merged on this attribute
@@ -121,7 +123,7 @@ func NewPwn(name string) PwnMethod {
 	}
 
 	newindex := PwnMethod(len(pwnnums))
-	pwnnums = append(pwnnums, pwninfo{
+	pwnnums = append(pwnnums, &pwninfo{
 		name:     name,
 		defaultf: true,
 		defaultm: true,

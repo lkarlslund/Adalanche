@@ -797,7 +797,7 @@ func (o *Object) StringNoACL() string {
 		if attr == NTSecurityDescriptor {
 			continue
 		}
-		result += "  " + attributenums[attr].Name + ":\n"
+		result += "  " + attributenums[attr].name + ":\n"
 		for _, value := range values.Slice() {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {

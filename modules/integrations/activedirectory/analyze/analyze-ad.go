@@ -555,6 +555,26 @@ func init() {
 				}
 			},
 		},
+
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnHasSPN,
+			Description: "Indicator that a user has \"don't require preauth\" and can be kerberoasted",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only users
+				if o.Type() != engine.ObjectTypeUser {
+					return
+				}
+				if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
+					AuthenticatedUsers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID))
+					if !found {
+						log.Error().Msgf("Could not locate Everyone")
+						return
+					}
+					AuthenticatedUsers[0].Pwns(o, activedirectory.PwnDontReqPreauth)
+				}
+			},
+		},
+
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnWriteSPN, // Same GUID as Validated writes, just a different permission (?)
 			Description: "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account",
@@ -1398,19 +1418,28 @@ func init() {
 			// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
 			if sd, err := target.SecurityDescriptor(); err == nil {
 				if sd.Owner != windowssecurity.BlankSID {
-					if realo, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
-						// Link real target
-						realo.CanPwn[target] = methods
-						target.PwnableBy[realo] = methods
-						// Unlink creatorowner
-						delete(creatorowner.CanPwn, target)
-						delete(target.PwnableBy, creatorowner)
+					if realowners, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
+						for _, realo := range realowners {
+							if realo.Type() == engine.ObjectTypeForeignSecurityPrincipal || realo.Type() == engine.ObjectTypeOther {
+								// Skip this
+								continue
+							}
+
+							// Link real target
+							realo.CanPwn[target] = realo.CanPwn[target].Merge(methods)
+							target.PwnableBy[realo] = target.PwnableBy[realo].Merge(methods)
+
+							// Unlink creatorowner
+							delete(creatorowner.CanPwn, target)
+							delete(target.PwnableBy, creatorowner)
+						}
 					}
 				}
 			}
 		}
-	}, "CreatorOwnerSID resolution fixup",
-		engine.AfterMerge,
+	},
+		"CreatorOwnerSID resolution fixup",
+		engine.BeforeMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {

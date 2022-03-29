@@ -14,15 +14,14 @@ type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found boo
 type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
-	Name                         string
-	Tags                         []string
-	Type                         AttributeType
-	Single                       bool // If true, this attribute can not have multiple values
-	Unique                       bool // Doing a Find on this attribute will return multiple results
-	Merge                        bool // If true, objects can be merged on this attribute
-	DefaultF, DefaultM, DefaultL bool
-	onset                        AttributeSetFunc
-	onget                        AttributeGetFunc
+	name   string
+	tags   []string
+	atype  AttributeType
+	single bool // If true, this attribute can not have multiple values
+	unique bool // Doing a Find on this attribute will return multiple results
+	merge  bool // If true, objects can be merged on this attribute
+	onset  AttributeSetFunc
+	onget  AttributeGetFunc
 }
 
 type AttributeType uint8
@@ -132,10 +131,7 @@ func NewAttribute(name string) Attribute {
 	newindex := Attribute(len(attributenames))
 	attributenames[lowername] = newindex
 	attributenums = append(attributenums, attributeinfo{
-		Name:     name,
-		DefaultF: true,
-		DefaultM: true,
-		DefaultL: true,
+		name: name,
 	})
 	attributemutex.Unlock()
 
@@ -143,43 +139,43 @@ func NewAttribute(name string) Attribute {
 }
 
 func (a Attribute) String() string {
-	return attributenums[a].Name
+	return attributenums[a].name
 }
 
 func (a Attribute) Type(t AttributeType) Attribute {
 	ai := attributenums[a]
-	ai.Type = t
+	ai.atype = t
 	attributenums[a] = ai
 	return a
 }
 
 func (a Attribute) Single() Attribute {
 	ai := attributenums[a]
-	ai.Single = true
+	ai.single = true
 	attributenums[a] = ai
 	return a
 }
 
 func (a Attribute) IsSingle() bool {
 	ai := attributenums[a]
-	return ai.Single
+	return ai.single
 }
 
 func (a Attribute) Unique() Attribute {
 	ai := attributenums[a]
-	ai.Unique = true
+	ai.unique = true
 	attributenums[a] = ai
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
 	ai := attributenums[a]
-	return !ai.Unique
+	return !ai.unique
 }
 
 func (a Attribute) IsUnique() bool {
 	ai := attributenums[a]
-	return ai.Unique
+	return ai.unique
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
@@ -193,7 +189,7 @@ func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
 
 func (a Attribute) Merge() Attribute {
 	ai := attributenums[a]
-	ai.Merge = true
+	ai.merge = true
 	attributenums[a] = ai
 	return a
 }
@@ -207,7 +203,7 @@ func AddMergeApprover(name string, mf mergefunc) {
 
 func (a Attribute) Tag(t string) Attribute {
 	ai := attributenums[a]
-	ai.Tags = append(ai.Tags, t)
+	ai.tags = append(ai.tags, t)
 	attributenums[a] = ai
 	return a
 }

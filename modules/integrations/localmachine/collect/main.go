@@ -694,7 +694,7 @@ func Collect(outputpath string) error {
 					Name:         string(privilege),
 					AssignedSIDs: sidstrings,
 				})
-			} else if err != STATUS_NO_MORE_ENTRIES {
+			} else if err != STATUS_NO_MORE_ENTRIES && err != NO_MORE_DATA_IS_AVAILABLE {
 				log.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
 			}
 		}

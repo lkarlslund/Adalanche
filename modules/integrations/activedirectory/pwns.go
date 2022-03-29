@@ -44,14 +44,14 @@ var (
 	PwnDCsync                               = engine.NewPwn("DCsync")
 	PwnReadLAPSPassword                     = engine.NewPwn("ReadLAPSPassword")
 	PwnMemberOfGroup                        = engine.NewPwn("MemberOfGroup")
-	PwnHasSPN                               = engine.NewPwn("HasSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+	PwnHasSPN                               = engine.NewPwn("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
 			return 0
 		}
 		return 50
 	})
-	PwnHasSPNNoPreauth = engine.NewPwn("HasSPNNoPreauth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+	PwnDontReqPreauth = engine.NewPwn("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
 			return 0

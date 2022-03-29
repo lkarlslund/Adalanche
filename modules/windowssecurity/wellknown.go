@@ -89,6 +89,7 @@ var (
 	CreatorOwnerSID, _       = SIDFromString("S-1-3-0")
 	SelfSID, _               = SIDFromString("S-1-5-10")
 	AuthenticatedUsersSID, _ = SIDFromString("S-1-5-11")
+	EveryoneSID, _           = SIDFromString("S-1-1-0")
 
 	AccountOperatorsSID, _ = SIDFromString("S-1-5-32-548")
 )

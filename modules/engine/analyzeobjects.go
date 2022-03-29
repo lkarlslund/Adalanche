@@ -8,15 +8,18 @@ var PwnMemberOfGroup = NewPwn("MemberOfGroup") // FIXME, this should be generali
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
 
-var pcfs = make(map[PwnMethod]ProbabilityCalculatorFunction)
-
 func (pm PwnMethod) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) PwnMethod {
-	pcfs[pm] = doCalc
+	pwnnums[pm].probability = doCalc
+	return pm
+}
+
+func (pm PwnMethod) Describe(description string) PwnMethod {
+	pwnnums[pm].description = description
 	return pm
 }
 
 func CalculateProbability(source, target *Object, method PwnMethod) Probability {
-	if f, found := pcfs[method]; found {
+	if f := pwnnums[method].probability; f != nil {
 		return f(source, target)
 	}
 

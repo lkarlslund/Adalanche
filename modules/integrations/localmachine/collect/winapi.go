@@ -236,11 +236,12 @@ const (
 	ANY_SIZE int = 1
 
 	// Error Codes
-	NO_ERROR               uintptr       = 0
-	ERROR_SUCCESS          uintptr       = 0
-	ERROR_MORE_DATA        uintptr       = 0xea // 234
-	ERROR_MR_MID_NOT_FOUND uintptr       = 317
-	STATUS_NO_MORE_ENTRIES syscall.Errno = 0x8000001A
+	NO_ERROR                  uintptr       = 0
+	ERROR_SUCCESS             uintptr       = 0
+	ERROR_MORE_DATA           uintptr       = 0xea // 234
+	ERROR_MR_MID_NOT_FOUND    uintptr       = 317
+	STATUS_NO_MORE_ENTRIES    syscall.Errno = 0x8000001A
+	NO_MORE_DATA_IS_AVAILABLE syscall.Errno = 0x80070103
 
 	// Booleans
 	FALSE BOOL = 0

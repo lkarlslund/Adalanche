@@ -81,7 +81,7 @@ func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
 	ld.ao.SetThreadsafe(false)
 
 	for _, o := range ld.ao.Slice() {
-		if o.HasAttr(activedirectory.ObjectSid) {
+		if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.UniqueSource) {
 
 			// We can do this with confidence as everything comes from this loader
 			sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
@@ -91,20 +91,26 @@ func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
 				// We don't link that - it's either absorbed into the real computer object, or it's orphaned
 			case engine.ObjectTypeUser:
 				// It's a User we added, find the computer
-				if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+				if computer, found := ld.ao.FindTwo(
+					engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 					o.ChildOf(computer) // FIXME -> Users
 				}
 			case engine.ObjectTypeGroup:
 				// It's a Group we added
-				if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+				if computer, found := ld.ao.FindTwo(
+					engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 					o.ChildOf(computer) // FIXME -> Groups
 				}
 			default:
-				if o.HasAttr(activedirectory.ObjectSid) {
-					if computer, found := ld.ao.Find(LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
-						o.ChildOf(computer) // We don't know what it is
-					}
-				}
+				// if o.HasAttr(activedirectory.ObjectSid) {
+				// 	if computer, found := ld.ao.FindTwo(
+				// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+				// 		LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+				// 		o.ChildOf(computer) // We don't know what it is
+				// 	}
+				// }
 			}
 		}
 	}

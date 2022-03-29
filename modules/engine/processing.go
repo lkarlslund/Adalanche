@@ -51,7 +51,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// Find all the attributes that can be merged objects on
 	var mergeon []Attribute
 	for i, ai := range attributenums {
-		if ai.Merge {
+		if ai.merge {
 			mergeon = append(mergeon, Attribute(i))
 		}
 	}
