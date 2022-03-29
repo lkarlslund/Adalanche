@@ -50,7 +50,7 @@ function setquery(
         }
     }
     if (mode) {
-        setquerymode(mode);
+        set_querymode(mode);
     }
     if (maxoutgoing) {
         $('#maxoutgoing').val(maxoutgoing);
@@ -67,12 +67,6 @@ function set_querymode(mode) {
     $('#querymode_normal').prop('checked', mode == 'normal');
     $('#querymode_reverse').prop('checked', mode == 'reverse');
     $('#querymode_sourcetarget').prop('checked', mode == 'sourcetarget');
-}
-
-function setquerymode(mode) {
-    normal = mode == 'Normal';
-    $('#querymode_normal').prop('checked', normal);
-    $('#querymode_reverse').prop('checked', !normal);
 }
 
 function window_front(win) {
@@ -422,6 +416,7 @@ $(function () {
         dataType: 'json',
         success: function (data) {
             buttons = `<table class="w-full">`;
+            data.methods.sort((a, b) => (a.name > b.name) ? 1 : -1)
             for (i in data.methods) {
                 method = data.methods[i];
 
@@ -476,6 +471,7 @@ $(function () {
             buttons += '</table>';
             $('#pwnfilter').html(buttons);
 
+            data.objecttypes.sort((a, b) => (a.name > b.name) ? 1 : -1)
             buttons = `<table class="w-full">`;
             for (i in data.objecttypes) {
                 objecttype = data.objecttypes[i];

@@ -85,7 +85,7 @@
                     aria-label="Mode">
                     <input type="radio" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
                     <label class="btn btn-sm" for="querymode_normal">Normal</label>
-                    <input type="radio" name="mode" id="querymode_reverse" value="inverted" autocomplete="off" />
+                    <input type="radio" name="mode" id="querymode_reverse" value="reverse" autocomplete="off" />
                     <label class="btn btn-sm" for="querymode_reverse">Reverse</label>
                     <input type="radio" name="mode" id="querymode_sourcetarget" value="sourcetarget" autocomplete="off" />
                     <label class="btn btn-sm" for="querymode_sourcetarget">SrcTgt</label>
@@ -260,8 +260,8 @@
               <li class="dropdown-item"
                 query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))"
                 mode="Normal" depth=99 methods="default">Client cert templates with custom SAN (pose as anyone)</li>
-              <li class="dropdown-item" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11))" mode="Reverse"
-                depth=99 methods="default">What can Domain Users and Authenticated Users do?</li>
+              <li class="dropdown-item" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11)(objectSid=S-1-1-0))" mode="Reverse"
+                depth=99 methods="default">What can Domain Users, Authenticated Users and Everyone do?</li>
               <li class="dropdown-item"
                 query="(&(objectCategory=Group)(|(name=*vcenter*)(name=*vmware*)(name=*esxi*)(name=*vsan*)(name=*simplivity*)))"
                 mode="Normal" depth=99 methods="default">Who can dump a virtual DC? (hypervisor/SAN sounding groups)</li>

@@ -93,6 +93,10 @@ body {
   margin-right: 5px;
 }
 
+.input-group div {
+  margin-bottom: 5px;
+}
+
 .checkbox-button input[type='checkbox'],
 .checkbox-button input[type='radio'] {
   display: none;
