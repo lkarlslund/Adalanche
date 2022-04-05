@@ -7,7 +7,7 @@ var (
 	Builddate  = ""
 	Commit     = ""
 	Version    = ""
-	Copyright  = "(c) 2020-2021 Lars Karlslund"
+	Copyright  = "(c) 2020-2022 Lars Karlslund"
 	Disclaimer = "This program comes with ABSOLUTELY NO WARRANTY"
 )
 
