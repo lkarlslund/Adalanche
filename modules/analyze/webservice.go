@@ -84,6 +84,9 @@ func (w *webservice) QuitChan() <-chan bool {
 func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string) error {
 	w.Objs = objs
 
+	// Profiling
+	w.Router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+
 	w.srv = &http.Server{
 		Addr:    bind,
 		Handler: w.Router,
