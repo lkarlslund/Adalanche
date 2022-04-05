@@ -11,6 +11,19 @@ import (
 
 // Loads, processes and merges everything. It's magic, just in code
 func Run(path string) (*Objects, error) {
+	var loaders []Loader
+
+	for _, lg := range loadergenerators {
+		loader := lg()
+
+		log.Debug().Msgf("Initializing loader for %v", loader.Name())
+		err := loader.Init()
+		if err != nil {
+			return nil, err
+		}
+		loaders = append(loaders, loader)
+	}
+
 	// Load everything
 	loadbar := progressbar.NewOptions(0,
 		progressbar.OptionSetDescription("Loading data"),
@@ -21,7 +34,7 @@ func Run(path string) (*Objects, error) {
 		progressbar.OptionThrottle(time.Second*1),
 	)
 
-	loaderobjects, err := Load(path, func(cur, max int) {
+	loaderobjects, err := Load(loaders, path, func(cur, max int) {
 		if max > 0 {
 			loadbar.ChangeMax(max)
 		} else if max < 0 {

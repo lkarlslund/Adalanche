@@ -26,6 +26,10 @@ const threadbuckets = 1024
 
 var threadsafeobjectmutexes [threadbuckets]sync.RWMutex
 
+func init() {
+	stringdedup.YesIKnowThisCouldGoHorriblyWrong = true
+}
+
 func setThreadsafe(enable bool) {
 	if enable {
 		threadsafeobject++
@@ -50,7 +54,6 @@ type Object struct {
 	members          []*Object
 	membersrecursive []*Object
 
-	// objectclassguids   []uuid.UUID
 	memberof          []*Object
 	memberofrecursive []*Object
 	id                uint32
@@ -185,12 +188,21 @@ func (o *Object) Absorb(source *Object) {
 		members := make(map[*Object]struct{})
 		for _, member := range target.members {
 			members[member] = struct{}{}
+
+			member.memberofrecursive = nil
+			member.membersrecursive = nil
 		}
+
 		for _, newmember := range source.members {
 			if _, found := members[newmember]; !found {
 				target.members = append(target.members, newmember)
+
+				newmember.memberofrecursive = nil
+				newmember.membersrecursive = nil
 			}
 		}
+		source.members = nil
+		source.membersrecursive = nil
 	} else {
 		target.members = source.members
 	}
@@ -205,6 +217,8 @@ func (o *Object) Absorb(source *Object) {
 				target.memberof = append(target.memberof, newmemberof)
 			}
 		}
+		source.memberof = nil
+		source.memberofrecursive = nil
 	} else {
 		target.memberof = source.memberof
 	}
@@ -605,11 +619,19 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 	o.unlock()
 }
 
+var avsPool sync.Pool
+
+func init() {
+	avsPool.New = func() interface{} {
+		return make(AttributeValueSlice, 0, 16)
+	}
+}
+
 func (o *Object) setFlex(flexinit ...interface{}) {
 	var ignoreblanks bool
 
 	var attribute Attribute
-	data := make(AttributeValueSlice, 0, 1)
+	data := avsPool.Get().(AttributeValueSlice)
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
 			ignoreblanks = true
@@ -629,6 +651,16 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 				continue
 			}
 			for _, s := range *v {
+				if ignoreblanks && s == "" {
+					continue
+				}
+				data = append(data, AttributeValueString(s))
+			}
+		case []string:
+			if ignoreblanks && len(v) == 0 {
+				continue
+			}
+			for _, s := range v {
 				if ignoreblanks && s == "" {
 					continue
 				}
@@ -667,47 +699,45 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			data = append(data, AttributeValueBool(*v))
 		case bool:
 			data = append(data, AttributeValueBool(v))
+		case int:
+			if ignoreblanks && v == 0 {
+				continue
+			}
+			data = append(data, AttributeValueInt(v))
 		case int64:
 			if ignoreblanks && v == 0 {
 				continue
 			}
 			data = append(data, AttributeValueInt(v))
-		case Attribute:
-			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
-				o.set(attribute, data)
-			}
-			data = make(AttributeValueSlice, 0, 1)
-			attribute = v
 		case AttributeValue:
-			if v == nil {
-				panic("This is impossble")
-			}
-			if dt, ok := v.Raw().(time.Time); ok && dt.IsZero() {
-				continue
-			}
-			if v.String() == "" && ignoreblanks {
+			if ignoreblanks && v.IsZero() {
 				continue
 			}
 			data = append(data, v)
 		case AttributeValueSlice:
-			for _, value := range v.Slice() {
-				if value == nil {
-					panic("Inserting NIL is not supported")
-				}
-				if ignoreblanks && value.String() == "" {
+			for _, value := range v {
+				if ignoreblanks && value.IsZero() {
 					continue
 				}
 				data = append(data, value)
 			}
 		case NoValues:
 			// Ignore it
+		case Attribute:
+			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
+				o.set(attribute, data)
+				data = data[:0]
+			}
+			attribute = v
 		default:
-			panic("Invalid type in object declaration")
+			panic("SetFlex called with invalid type in object declaration")
 		}
 	}
 	if attribute != 0 && (!ignoreblanks || len(data) > 0) {
 		o.set(attribute, data)
+		data = data[:0]
 	}
+	avsPool.Put(data)
 }
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
@@ -720,22 +750,33 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 	if a.IsSingle() && values.Len() > 1 {
 		log.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
 	}
+
 	if a == DownLevelLogonName {
-		if strings.HasPrefix(values.StringSlice()[0], "S-") {
+		// There's been so many problems with DLLN that we're going to just check for these
+		strval := values.StringSlice()[0]
+		if strval == "," {
+			log.Warn().Msgf("Setting DownLevelLogonName to ',' is not allowed")
+		}
+		if strval == "" {
+			log.Warn().Msgf("Setting DownLevelLogonName to blank is not allowed")
+		}
+		if strings.HasPrefix(strval, "S-") {
 			log.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
 		}
 		if values.Len() != 1 {
 			log.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
 		}
-		if strings.HasSuffix(values.StringSlice()[0], "\\") {
+		if strings.HasSuffix(strval, "\\") {
 			panic("DownLevelLogon ends with \\")
 		}
 	}
 
 	if a == ObjectCategory || a == ObjectCategorySimple {
+		// Clear objecttype cache attribute
 		o.objecttype = 0
 	}
 
+	// Cache the NTSecurityDescriptor
 	if a == NTSecurityDescriptor {
 		for _, sd := range values.Slice() {
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {
@@ -745,11 +786,14 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		return // We dont store the raw version, just the decoded one, KTHX
 	}
 
-	// Deduplication of strings
+	// Deduplication of values
 	valueslice := values.Slice()
 	for i, value := range valueslice {
-		if avs, ok := value.(AttributeValueString); ok {
+		switch avs := value.(type) {
+		case AttributeValueString:
 			valueslice[i] = AttributeValueString(stringdedup.S(string(avs)))
+		case AttributeValueBlob:
+			valueslice[i] = AttributeValueBlob(stringdedup.B([]byte(avs)))
 		}
 	}
 

@@ -32,12 +32,14 @@ type Loader interface {
 var (
 	ErrUninterested = errors.New("plugin is not interested in this file, try harder")
 
-	loaders []Loader
+	loadergenerators []LoaderGenerator
 )
 
-func AddLoader(loader Loader) LoaderID {
-	loaders = append(loaders, loader)
-	return LoaderID(len(loaders) - 1)
+type LoaderGenerator func() Loader
+
+func AddLoader(lg LoaderGenerator) LoaderID {
+	loadergenerators = append(loadergenerators, lg)
+	return LoaderID(len(loadergenerators) - 1)
 }
 
 func NewLoaderObjects(ld Loader) *Objects {
@@ -45,7 +47,7 @@ func NewLoaderObjects(ld Loader) *Objects {
 	aos.AddDefaultFlex(MetaDataSource, AttributeValueString(ld.Name()))
 
 	// Add the root node
-	rootnode := NewObject(Name, AttributeValueString(ld.Name()))
+	rootnode := NewObject(Name, ld.Name())
 	aos.Add(rootnode)
 	aos.SetRoot(rootnode)
 
@@ -58,17 +60,9 @@ type loaderobjects struct {
 }
 
 // Load runs all registered loaders
-func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
+func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 	if st, err := os.Stat(path); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("%v is no a directory", path)
-	}
-
-	for _, loader := range loaders {
-		log.Debug().Msgf("Initializing loader for %v", loader.Name())
-		err := loader.Init()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	log.Info().Msgf("Scanning for data files from %v ...", path)
@@ -100,7 +94,7 @@ func Load(path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 
 	var skipped int
 	for _, file := range files {
-		var fileerr error
+		fileerr := ErrUninterested
 	loaderloop:
 		for _, loader := range loaders {
 			fileerr = loader.Load(file.filename, cb)

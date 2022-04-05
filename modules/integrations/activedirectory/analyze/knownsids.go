@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -43,4 +44,14 @@ func TranslateLocalizedGroupToSID(groupname string) (windowssecurity.SID, error)
 		return sid, nil
 	}
 	return windowssecurity.SID(""), errors.New("Localized group name not found")
+}
+
+func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
+	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
+	for _, result := range results {
+		if strings.Contains(result.DN(), "WellKnown") {
+			return result
+		}
+	}
+	return nil
 }

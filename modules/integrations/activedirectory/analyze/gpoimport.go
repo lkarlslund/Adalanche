@@ -18,9 +18,9 @@ import (
 var (
 	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge()
 
-	AbsolutePath    = engine.NewAttribute("absolutePath")
-	RelativePath    = engine.NewAttribute("relativePath")
-	BinarySize      = engine.NewAttribute("binarySize")
+	AbsolutePath    = engine.NewAttribute("absolutePath").Single()
+	RelativePath    = engine.NewAttribute("relativePath").Single()
+	BinarySize      = engine.NewAttribute("binarySize").Single()
 	ExposedPassword = engine.NewAttribute("exposedPassword")
 
 	PwnExposesPassword       = engine.NewPwn("ExposesPassword")
@@ -42,14 +42,6 @@ func init() {
 		}
 		return nil, nil
 	})
-
-	// engine.AddMergeApprover(func(a, b *engine.Object) (*engine.Object, error) {
-	// 	if a.HasAttr(engine.ObjectSid) && b.HasAttr(engine.ObjectSid) && a.OneAttr(engine.ObjectSid).String() == b.OneAttr(engine.ObjectSid).String() {
-	// 		return nil, engine.ErrDontMerge
-	// 	}
-	// 	return nil, engine.ErrMergeOnThis
-	// })
-
 }
 
 var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
@@ -79,12 +71,12 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 		itemobject := ao.AddNew(
 			engine.IgnoreBlanks,
-			AbsolutePath, engine.AttributeValueString(absolutepath),
-			RelativePath, engine.AttributeValueString(relativepath),
-			engine.DisplayName, engine.AttributeValueString(relativepath),
-			engine.ObjectCategorySimple, engine.AttributeValueString(objecttype),
-			BinarySize, engine.AttributeValueInt(item.Size),
-			activedirectory.WhenChanged, engine.AttributeValueTime(item.Timestamp),
+			AbsolutePath, absolutepath,
+			RelativePath, relativepath,
+			engine.DisplayName, relativepath,
+			engine.ObjectCategorySimple, objecttype,
+			BinarySize, item.Size,
+			activedirectory.WhenChanged, item.Timestamp,
 		)
 
 		if relativepath == "/" {
@@ -114,7 +106,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			for _, entry := range dacl.Entries {
 				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
 
-				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entry.SID.Component(2) == 21 {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID.String() == "S-1-1-0" || entry.SID.String() == "S-1-5-11") {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
 						entrysidobject.Pwns(itemobject, PwnFileCreate)
 					}
@@ -192,7 +184,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				for _, entry := range dacl.Entries {
 					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
 
-					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && entry.SID.Component(2) == 21 {
+					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID.String() == "S-1-1-0" || entry.SID.String() == "S-1-5-11") {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
 							entrysidobject.Pwns(expobj, PwnReadSensitiveData)
 						}

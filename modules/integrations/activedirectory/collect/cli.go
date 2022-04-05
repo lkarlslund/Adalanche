@@ -239,6 +239,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 	if len(rootdse) != 1 {
 		return fmt.Errorf("expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
 	}
+
 	rd := rootdse[0]
 
 	namingcontexts := map[string]bool{}
@@ -248,12 +249,17 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	configContext := rd.Attributes["configurationNamingContext"][0]
 	namingcontexts[configContext] = true
+
 	domainContext := rd.Attributes["defaultNamingContext"][0]
 	namingcontexts[domainContext] = true
+
 	rootDomainContext := rd.Attributes["rootDomainNamingContext"][0]
 	namingcontexts[rootDomainContext] = true
+
 	schemaContext := rd.Attributes["schemaNamingContext"][0]
 	namingcontexts[schemaContext] = true
+
+	domainNetbios := util.ExtractNetbiosFromBase(rd.Attributes["defaultNamingContext"][0])
 
 	var otherContexts []string
 	for context, used := range namingcontexts {
@@ -270,6 +276,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("problem saving Active Directory RootDSE: %w", err)
+	}
+
+	if len(rootdse) != 1 {
+		log.Error().Msgf("Expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
 	}
 
 	do := DumpOptions{
@@ -381,6 +391,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 					gpoinfo.GPOinfo.GUID = gpuuid
 					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
+					gpoinfo.GPOinfo.DomainDN = domainContext
+					gpoinfo.GPOinfo.DomainNetbios = domainNetbios
 
 					offset := len(gppath)
 					var filescollected int

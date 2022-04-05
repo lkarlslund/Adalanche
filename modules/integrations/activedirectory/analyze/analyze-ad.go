@@ -565,12 +565,12 @@ func init() {
 					return
 				}
 				if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-					AuthenticatedUsers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID))
+					everyone, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID))
 					if !found {
 						log.Error().Msgf("Could not locate Everyone")
 						return
 					}
-					AuthenticatedUsers[0].Pwns(o, activedirectory.PwnDontReqPreauth)
+					everyone[0].Pwns(o, activedirectory.PwnDontReqPreauth)
 				}
 			},
 		},
@@ -1106,32 +1106,38 @@ func init() {
 		)
 
 		everyonesid, _ := windowssecurity.SIDFromString("S-1-1-0")
-		everyone, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(everyonesid))
-		if !found {
+		everyone := FindWellKnown(ao, everyonesid)
+		if everyone == nil {
 			log.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		authenticateduserssid, _ := windowssecurity.SIDFromString("S-1-5-11")
-		authenticatedusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(authenticateduserssid))
-		if !found {
+		authenticatedusers := FindWellKnown(ao, authenticateduserssid)
+		if authenticatedusers == nil {
 			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		administratorssid, _ := windowssecurity.SIDFromString("S-1-5-32-544")
-		administrators, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
+		administratorss, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
 		if !found {
 			log.Fatal().Msgf("Could not locate Administrators, aborting - this should at least have been added during earlier preprocessing")
 		}
+		if len(administratorss) != 1 {
+			for _, o := range administratorss {
+				log.Info().Msgf("Administrators dump: %v", o.StringNoACL())
+			}
+		}
+		administrators := administratorss[0]
 
 		remotedesktopuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-555")
-		remotedesktopusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
-		if !found {
+		remotedesktopusers, _ := ao.Find(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
+		if remotedesktopusers == nil {
 			log.Fatal().Msgf("Could not locate Remote Desktop Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		distributeddcomuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-562")
-		distributeddcomusers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
-		if !found {
+		distributeddcomusers, _ := ao.Find(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
+		if distributeddcomusers == nil {
 			log.Fatal().Msgf("Could not locate Distributed COM Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
@@ -1246,8 +1252,8 @@ func init() {
 
 			// Crude special handling for Everyone and Authenticated Users
 			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				everyone[0].AddMember(object)
-				authenticatedusers[0].AddMember(object)
+				everyone.AddMember(object)
+				authenticatedusers.AddMember(object)
 			}
 
 			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
@@ -1298,9 +1304,9 @@ func init() {
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
-					administrators[0].Pwns(object, activedirectory.PwnLocalAdminRights)
-					remotedesktopusers[0].Pwns(object, activedirectory.PwnLocalRDPRights)
-					distributeddcomusers[0].Pwns(object, activedirectory.PwnLocalDCOMRights)
+					administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
+					remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
+					distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
 				}
 			}
 

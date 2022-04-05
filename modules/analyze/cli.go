@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
+	"time"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -31,12 +33,17 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
+	starttime := time.Now()
+
 	datapath := cmd.InheritedFlags().Lookup("datapath").Value.String()
 
 	objs, err := engine.Run(datapath)
 	if err != nil {
 		return err
 	}
+
+	// After all this loading and merging, it's time to do release unused RAM
+	debug.FreeOSMemory()
 
 	/*
 		switch command {
@@ -155,6 +162,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 			showUsage()
 		}
 	*/
+
+	log.Info().Msgf("Processing done in %v", time.Since(starttime))
 
 	err = WebService.Start(*bind, objs, *localhtml)
 	if err != nil {

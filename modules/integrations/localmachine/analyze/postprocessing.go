@@ -9,8 +9,9 @@ import (
 func init() {
 	engine.PostProcessing.AddProcessor(func(ao *engine.Objects) {
 		var warns int
+		ln := engine.AttributeValueString(loadername)
 		for _, o := range ao.Slice() {
-			if o.HasAttrValue(engine.MetaDataSource, engine.AttributeValueString(myloader.Name())) {
+			if o.HasAttrValue(engine.MetaDataSource, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
 					if len(o.CanPwn) == 0 && len(o.PwnableBy) == 0 {
 						log.Debug().Msgf("Object has no graph connections: %v", o.Label())

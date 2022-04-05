@@ -9,7 +9,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/util"
 	ldap "github.com/lkarlslund/ldap/v3"
-	"github.com/lkarlslund/stringdedup"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,7 +26,7 @@ func (r *RawObject) init() {
 
 func (r *RawObject) ToObject() *engine.Object {
 	result := engine.NewObject(
-		DistinguishedName, engine.AttributeValueString(stringdedup.S(r.DistinguishedName)),
+		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
@@ -156,7 +155,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			}
 			if attributevalue == nil {
 				// Just a string
-				attributevalue = engine.AttributeValueString(stringdedup.S(value))
+				attributevalue = engine.AttributeValueString(value)
 			}
 		}
 

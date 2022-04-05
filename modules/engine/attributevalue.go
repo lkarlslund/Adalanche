@@ -16,6 +16,11 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 	araw := a.Raw()
 	braw := b.Raw()
 	switch na := araw.(type) {
+	case bool:
+		nb, btype := braw.(bool)
+		if btype {
+			return na == nb
+		}
 	case string:
 		nb, btype := braw.(string)
 		if btype {
@@ -39,12 +44,19 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 	case windowssecurity.SID:
 		nb, btype := braw.(windowssecurity.SID)
 		if btype {
+			return string(na) == string(nb)
+		}
+	case uuid.UUID:
+		nb, btype := braw.(uuid.UUID)
+		if btype {
 			return na == nb
 		}
+	default:
+		// Fallback
+		return a.String() == b.String()
 	}
 
-	// Fallback
-	return a.String() == b.String()
+	return false
 }
 
 type AttributeAndValues struct {
@@ -122,6 +134,7 @@ func (avo AttributeValueOne) StringSlice() []string {
 type AttributeValue interface {
 	String() string
 	Raw() interface{}
+	IsZero() bool
 }
 
 type AttributeValueObject struct {
@@ -136,6 +149,13 @@ func (avo AttributeValueObject) Raw() interface{} {
 	return (*Object)(avo.Object)
 }
 
+func (avo AttributeValueObject) IsZero() bool {
+	if avo.Object == nil {
+		return true
+	}
+	return len(avo.values) == 0
+}
+
 type AttributeValueString string
 
 func (as AttributeValueString) String() string {
@@ -146,6 +166,10 @@ func (as AttributeValueString) Raw() interface{} {
 	return string(as)
 }
 
+func (as AttributeValueString) IsZero() bool {
+	return len(as) == 0
+}
+
 type AttributeValueBlob []byte
 
 func (ab AttributeValueBlob) String() string {
@@ -154,6 +178,10 @@ func (ab AttributeValueBlob) String() string {
 
 func (ab AttributeValueBlob) Raw() interface{} {
 	return []byte(ab)
+}
+
+func (ab AttributeValueBlob) IsZero() bool {
+	return len(ab) == 0
 }
 
 type AttributeValueBool bool
@@ -169,6 +197,10 @@ func (ab AttributeValueBool) Raw() interface{} {
 	return bool(ab)
 }
 
+func (ab AttributeValueBool) IsZero() bool {
+	return !bool(ab)
+}
+
 type AttributeValueInt int64
 
 func (as AttributeValueInt) String() string {
@@ -177,6 +209,10 @@ func (as AttributeValueInt) String() string {
 
 func (as AttributeValueInt) Raw() interface{} {
 	return int64(as)
+}
+
+func (as AttributeValueInt) IsZero() bool {
+	return int64(as) == 0
 }
 
 type AttributeValueTime time.Time
@@ -189,6 +225,10 @@ func (as AttributeValueTime) Raw() interface{} {
 	return time.Time(as)
 }
 
+func (as AttributeValueTime) IsZero() bool {
+	return time.Time(as).IsZero()
+}
+
 type AttributeValueSID windowssecurity.SID
 
 func (as AttributeValueSID) String() string {
@@ -197,6 +237,10 @@ func (as AttributeValueSID) String() string {
 
 func (as AttributeValueSID) Raw() interface{} {
 	return windowssecurity.SID(as)
+}
+
+func (as AttributeValueSID) IsZero() bool {
+	return windowssecurity.SID(as).IsNull()
 }
 
 type AttributeValueGUID uuid.UUID
@@ -209,15 +253,19 @@ func (as AttributeValueGUID) Raw() interface{} {
 	return uuid.UUID(as)
 }
 
-type AttributeValueFiletime []byte
-
-func (as AttributeValueFiletime) String() string {
-	return string(as)
+func (as AttributeValueGUID) IsZero() bool {
+	return uuid.UUID(as).IsNil()
 }
 
-func (as AttributeValueFiletime) Raw() interface{} {
-	return string(as)
-}
+// type AttributeValueFiletime []byte
+
+// func (as AttributeValueFiletime) String() string {
+// 	return string(as)
+// }
+
+// func (as AttributeValueFiletime) Raw() interface{} {
+// 	return string(as)
+// }
 
 // func (as AttributeValueFiletime) AsTime() time.Time {
 // 	return nil

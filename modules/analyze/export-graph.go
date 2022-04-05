@@ -55,8 +55,8 @@ type CytoGraphData struct {
 type CytoElements []CytoFlatElement
 
 type CytoFlatElement struct {
-	Group string   `json:"group"` // nodes or edges
 	Data  CytoData `json:"data"`
+	Group string   `json:"group"` // nodes or edges
 }
 
 func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error) {

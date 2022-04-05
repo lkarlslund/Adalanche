@@ -13,7 +13,8 @@ type PwnAnalyzer struct {
 	Description    string
 }
 
-const PMBSIZE = 4
+// Increas this when we run out of space
+const PMBSIZE = 2
 const MAXPWNMETHODPOSSIBLE = PMBSIZE * 64
 
 type PwnMethodBitmap [PMBSIZE]uint64
@@ -123,6 +124,10 @@ func NewPwn(name string) PwnMethod {
 	}
 
 	newindex := PwnMethod(len(pwnnums))
+	if newindex == MAXPWNMETHODPOSSIBLE {
+		panic("Too many PwnMethods")
+	}
+
 	pwnnums = append(pwnnums, &pwninfo{
 		name:     name,
 		defaultf: true,
@@ -136,7 +141,7 @@ func NewPwn(name string) PwnMethod {
 }
 
 func (p PwnMethod) String() string {
-	if p == 10000 {
+	if int(p) >= len(pwnnums) {
 		return "NOT A PWN METHOD. DIVISION BY ZORRO ERROR."
 	}
 	return pwnnums[p].name
@@ -172,10 +177,10 @@ var (
 
 var AllPwnMethods PwnMethodBitmap
 
-var PwnPopularity [PMBSIZE * 64]uint64
+var PwnPopularity [MAXPWNMETHODPOSSIBLE]uint64
 
 func init() {
-	for i := PwnMethod(0); i < PMBSIZE*64; i++ {
+	for i := PwnMethod(0); i < MAXPWNMETHODPOSSIBLE; i++ {
 		AllPwnMethods = AllPwnMethods.set(i)
 	}
 }

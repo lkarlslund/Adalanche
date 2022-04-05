@@ -32,6 +32,9 @@ const (
 	AttributeTypeFloat
 	AttributeTypeBool
 	AttributeTypeTime
+	AttributeTypeSID
+	AttributeTypeGUID
+	AttributeTypeBlob
 )
 
 type mergeapproverinfo struct {

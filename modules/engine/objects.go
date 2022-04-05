@@ -14,13 +14,13 @@ var idcounter uint32 // Unique ID +1 to assign to Object added to this collectio
 type typestatistics [256]int
 
 type Objects struct {
-	threadsafemutex sync.RWMutex
-	DefaultValues   []interface{}
 	root            *Object
+	asarray         []*Object
+	DefaultValues   []interface{}
 	idindex         map[uint32]*Object
 	uniqueindex     map[Attribute]map[interface{}]*Object
-	multiindex      map[Attribute]map[interface{}][]*Object
-	asarray         []*Object
+	multiindex      map[Attribute]map[interface{}]map[*Object]struct{}
+	threadsafemutex sync.RWMutex
 	typecount       typestatistics
 	threadsafe      int
 }
@@ -28,7 +28,7 @@ type Objects struct {
 func NewObjects() *Objects {
 	var os Objects
 	os.uniqueindex = make(map[Attribute]map[interface{}]*Object)
-	os.multiindex = make(map[Attribute]map[interface{}][]*Object)
+	os.multiindex = make(map[Attribute]map[interface{}]map[*Object]struct{})
 	os.idindex = make(map[uint32]*Object)
 	return &os
 }
@@ -83,7 +83,18 @@ func (os *Objects) GetIndex(attribute Attribute) map[interface{}][]*Object {
 	os.rlock()
 	defer os.runlock()
 	if attribute.IsNonUnique() {
-		return os.multiindex[attribute]
+		i := os.multiindex[attribute]
+		mi := make(map[interface{}][]*Object)
+		for k, v := range i {
+			s := make([]*Object, len(v))
+			i := 0
+			for o, _ := range v {
+				s[i] = o
+				i++
+			}
+			mi[k] = s
+		}
+		return mi
 	}
 
 	i := os.uniqueindex[attribute]
@@ -97,7 +108,7 @@ func (os *Objects) GetIndex(attribute Attribute) map[interface{}][]*Object {
 func (os *Objects) addIndex(attribute Attribute) {
 	// create index
 	if attribute.IsNonUnique() {
-		os.multiindex[attribute] = make(map[interface{}][]*Object)
+		os.multiindex[attribute] = make(map[interface{}]map[*Object]struct{})
 	} else {
 		os.uniqueindex[attribute] = make(map[interface{}]*Object)
 	}
@@ -109,7 +120,10 @@ func (os *Objects) addIndex(attribute Attribute) {
 
 			// Add to index
 			if attribute.IsNonUnique() {
-				os.multiindex[attribute][key] = append(os.multiindex[attribute][key], o)
+				if os.multiindex[attribute][key] == nil {
+					os.multiindex[attribute][key] = make(map[*Object]struct{})
+				}
+				os.multiindex[attribute][key][o] = struct{}{}
 			} else {
 				os.uniqueindex[attribute][key] = o
 			}
@@ -126,7 +140,7 @@ func (os *Objects) DropIndexes() {
 	os.lock()
 	defer os.unlock()
 	os.uniqueindex = make(map[Attribute]map[interface{}]*Object)
-	os.multiindex = make(map[Attribute]map[interface{}][]*Object)
+	os.multiindex = make(map[Attribute]map[interface{}]map[*Object]struct{})
 }
 
 // Force reindex after changing data in Objects
@@ -138,7 +152,7 @@ func (os *Objects) Reindex() {
 		os.uniqueindex[a] = make(map[interface{}]*Object)
 	}
 	for a := range os.multiindex {
-		os.multiindex[a] = make(map[interface{}][]*Object)
+		os.multiindex[a] = make(map[interface{}]map[*Object]struct{})
 	}
 	// Put all objects in index
 	for _, o := range os.asarray {
@@ -175,7 +189,12 @@ func (os *Objects) updateIndex(o *Object, warn bool) {
 		for _, value := range values.Slice() {
 			indexval := attributeValueToIndex(value)
 			// If it's a string, lowercase it before adding to index, we do the same on lookups
-			os.multiindex[attribute][indexval] = append(os.multiindex[attribute][indexval], o)
+
+			if os.multiindex[attribute][indexval] == nil {
+				os.multiindex[attribute][indexval] = make(map[*Object]struct{})
+			}
+
+			os.multiindex[attribute][indexval][o] = struct{}{}
 		}
 	}
 }
@@ -255,7 +274,7 @@ func (os *Objects) merge(attrtomerge []Attribute, o *Object) bool {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
 								if !CompareAttributeValues(values.Slice()[0], mergetarget.Attr(attr).Slice()[0]) {
 									// Conflicting attribute values, we can't merge these
-									log.Debug().Msgf("Not merging %v into %v on %v with value %v, as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
+									log.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
 									// if attr == WhenCreated {
 									// 	log.Debug().Msgf("Object details: %v", o.StringNoACL())
 									// 	log.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
@@ -303,7 +322,11 @@ func (os *Objects) add(o *Object) {
 
 	// Do chunked extensions for speed
 	if len(os.asarray) == cap(os.asarray) {
-		newarray := make([]*Object, len(os.asarray), len(os.asarray)+1024)
+		increase := len(os.asarray) / 8
+		if increase < 1024 {
+			increase = 1024
+		}
+		newarray := make([]*Object, len(os.asarray), len(os.asarray)+increase)
 		copy(newarray, os.asarray)
 		os.asarray = newarray
 	}
@@ -407,10 +430,19 @@ func (os *Objects) FindTwoMulti(attribute Attribute, value AttributeValue, attri
 	os.lock()
 	defer os.unlock()
 	v, found := os.find(attribute, value)
+	if !found {
+		return nil, false
+	}
+	v2, found := os.find(attribute2, value2)
+	if !found {
+		return nil, false
+	}
 	var results []*Object
 	for _, o := range v {
-		if o.HasAttrValue(attribute2, value2) {
-			results = append(results, o)
+		for _, o2 := range v2 {
+			if o == o2 {
+				results = append(results, o)
+			}
 		}
 	}
 	return results, len(results) > 0
@@ -427,7 +459,13 @@ func (os *Objects) find(attribute Attribute, value AttributeValue) ([]*Object, b
 			index = os.multiindex[attribute]
 		}
 		result, found := index[lookup]
-		return result, found
+		s := make([]*Object, len(result))
+		i := 0
+		for o, _ := range result {
+			s[i] = o
+			i++
+		}
+		return s, found
 	}
 
 	index, found := os.uniqueindex[attribute]
@@ -438,7 +476,7 @@ func (os *Objects) find(attribute Attribute, value AttributeValue) ([]*Object, b
 
 	result, found := index[lookup]
 	if !found {
-		return []*Object{}, false
+		return nil, false
 	}
 	return []*Object{result}, found
 }

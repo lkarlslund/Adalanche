@@ -1,10 +1,8 @@
 package analyze
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,7 +21,7 @@ var (
 	importcnf = analyze.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
 
 	adsource = engine.AttributeValueString("Active Directory dumps")
-	Loader   = engine.AddLoader(&ADLoader{})
+	Loader   = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
 )
 
 type convertqueueitem struct {
@@ -36,9 +34,7 @@ type ADLoader struct {
 	done             sync.WaitGroup
 	dco              map[string]*engine.Objects
 	objectstoconvert chan convertqueueitem
-	gpofiletoprocess chan string
-	// domains          []domaininfo
-	importcnf bool
+	importcnf        bool
 }
 
 type domaininfo struct {
@@ -55,7 +51,6 @@ func (ld *ADLoader) Init() error {
 
 	ld.dco = make(map[string]*engine.Objects)
 	ld.objectstoconvert = make(chan convertqueueitem, 8192)
-	ld.gpofiletoprocess = make(chan string, 8192)
 
 	// AD Objects
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -83,45 +78,13 @@ func (ld *ADLoader) Init() error {
 		}()
 	}
 
-	// GPO objects
-	for i := 0; i < runtime.NumCPU(); i++ {
-		ld.done.Add(1)
-		go func() {
-			for path := range ld.gpofiletoprocess {
-				raw, err := ioutil.ReadFile(path)
-				if err != nil {
-					log.Warn().Msgf("Problem reading data from GPO JSON file %v: %v", path, err)
-					continue
-				}
-
-				var ginfo activedirectory.GPOdump
-				err = json.Unmarshal(raw, &ginfo)
-				if err != nil {
-					log.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
-					continue
-				}
-
-				thisao := ld.getShard(path, true)
-				err = ImportGPOInfo(ginfo, thisao)
-				if err != nil {
-					log.Warn().Msgf("Problem importing GPO: %v", err)
-					continue
-				}
-			}
-			ld.done.Done()
-		}()
-	}
 	return nil
 }
 
-func (ld *ADLoader) getShard(path string, gpo bool) *engine.Objects {
+func (ld *ADLoader) getShard(path string) *engine.Objects {
 	shard := filepath.Dir(path)
 
 	lookupshard := shard
-	/*	if gpo {
-		// Load GPO stuff into their own shard
-		lookupshard += "_gpo"
-	} */
 
 	var ao *engine.Objects
 	ld.importmutex.Lock()
@@ -137,11 +100,8 @@ func (ld *ADLoader) getShard(path string, gpo bool) *engine.Objects {
 }
 
 func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
-	switch {
-	case strings.HasSuffix(path, ".gpodata.json"):
-		ld.gpofiletoprocess <- path
-	case strings.HasSuffix(path, ".objects.msgp.lz4"):
-		ao := ld.getShard(path, false)
+	if strings.HasSuffix(path, ".objects.msgp.lz4") {
+		ao := ld.getShard(path)
 
 		cachefile, err := os.Open(path)
 		if err != nil {
@@ -191,7 +151,6 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 
 func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	close(ld.objectstoconvert)
-	close(ld.gpofiletoprocess)
 	ld.done.Wait()
 
 	var aos []*engine.Objects
@@ -211,6 +170,8 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		aos = append(aos, ao)
 		ao.SetThreadsafe(false)
 	}
+
+	ld.dco = make(map[string]*engine.Objects) // Clear from memory
 
 	return aos, nil
 }

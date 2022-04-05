@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 
@@ -111,4 +112,10 @@ func StringScrambler(s string) string {
 		}
 	}
 	return result
+}
+
+func ExtractNetbiosFromBase(dn string) string {
+	elements := strings.Split(dn, ",")
+	netbios, _, _ := strings.Cut(elements[0], "=")
+	return netbios
 }

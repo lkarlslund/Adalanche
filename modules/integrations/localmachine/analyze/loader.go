@@ -14,28 +14,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var (
-	myloader CollectorLoader
-	// dscollector = engine.AttributeValueString(myloader.Name())
-)
+const loadername = "LocalMachine JSON file"
 
 func init() {
-	engine.AddLoader(&myloader)
+	engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
 }
 
-type CollectorLoader struct {
-	done        sync.WaitGroup
+type LocalMachineLoader struct {
 	ao          *engine.Objects
+	done        sync.WaitGroup
 	mutex       sync.Mutex
 	machinesids map[windowssecurity.SID][]*engine.Object
 	infostoadd  chan string
 }
 
-func (ld *CollectorLoader) Name() string {
-	return "Collector JSON file"
+func (ld *LocalMachineLoader) Name() string {
+	return loadername
 }
 
-func (ld *CollectorLoader) Init() error {
+func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
 	ld.ao.SetThreadsafe(true)
 	ld.machinesids = make(map[windowssecurity.SID][]*engine.Object)
@@ -75,7 +72,7 @@ func (ld *CollectorLoader) Init() error {
 	return nil
 }
 
-func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
+func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
 	ld.ao.SetThreadsafe(false)
@@ -127,10 +124,12 @@ func (ld *CollectorLoader) Close() ([]*engine.Objects, error) {
 		}
 	}
 
-	return []*engine.Objects{ld.ao}, nil
+	result := []*engine.Objects{ld.ao}
+	ld.ao = nil
+	return result, nil
 }
 
-func (ld *CollectorLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
+func (ld *LocalMachineLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
 		return engine.ErrUninterested
 	}
