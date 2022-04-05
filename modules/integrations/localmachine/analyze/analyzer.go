@@ -267,7 +267,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 					engine.DownLevelLogonName, member.Name,
 				)
 
-				if membersid.StripRID() == localsid || (membersid.Component(2) != 21 && membersid.String() != "S-1-1-0" && membersid.String() != "S-1-5-11") {
+				if membersid.StripRID() == localsid || (membersid.Component(2) != 21 && membersid != windowssecurity.EveryoneSID && membersid != windowssecurity.AuthenticatedUsersSID) {
 					memberobject.SetFlex(
 						engine.UniqueSource, uniquesource,
 					)
@@ -452,17 +452,17 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
 
-					if entrysid.String() != "S-1-1-0" && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
+					if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
 						o.SetFlex(
 							engine.UniqueSource, uniquesource,
 						)
 					}
 
-					if entry.Mask&engine.KEY_SET_VALUE != engine.KEY_SET_VALUE {
+					if entry.Mask&engine.KEY_SET_VALUE == engine.KEY_SET_VALUE {
 						o.Pwns(serviceobject, PwnRegistryWrite)
 					}
 
-					if entry.Mask&engine.RIGHT_WRITE_DACL != engine.RIGHT_WRITE_DACL {
+					if entry.Mask&engine.RIGHT_WRITE_DACL == engine.RIGHT_WRITE_DACL {
 						o.Pwns(serviceobject, PwnRegistryModifyDACL)
 					}
 				}
@@ -497,7 +497,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
-				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entrysid.Component(2) == 21 || entry.SID.String() == "S-1-1-0" || entry.SID.String() == "S-1-5-11") {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entrysid.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					o := ld.ao.AddNew(
 						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
