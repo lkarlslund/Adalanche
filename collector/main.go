@@ -42,5 +42,8 @@ func main() {
 
 	log.Info().Msg(version.VersionString())
 
-	wrapcollector.Execute()
+	err := wrapcollector.Execute()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to execute")
+	}
 }
