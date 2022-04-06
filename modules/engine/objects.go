@@ -253,9 +253,7 @@ func (os *Objects) addmerge(attrtomerge []Attribute, obs ...*Object) {
 
 // Attemps to merge the object into the objects
 func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
-	os.lock()
 	result := os.merge(attrtomerge, o)
-	os.unlock()
 	return result
 }
 
