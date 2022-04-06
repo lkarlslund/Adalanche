@@ -39,7 +39,7 @@ var (
 	port   = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
 	domain = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
 	user   = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
-	pass   = Command.Flags().String("password", "", "password to connect with ex. --password hunter42")
+	pass   = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
 
 	tlsmodeString = Command.Flags().String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
@@ -184,6 +184,11 @@ func PreRun(cmd *cobra.Command, args []string) error {
 			if err == nil {
 				*pass = string(passwd)
 			}
+		}
+
+		if *pass == "!" {
+			// A single ! indicates we want to use a blank password, so lets change it to that
+			*pass = ""
 		}
 	}
 

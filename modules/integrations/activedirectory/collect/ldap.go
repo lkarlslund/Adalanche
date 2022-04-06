@@ -86,8 +86,13 @@ func (ad *AD) Connect(authmode byte) error {
 		log.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
 		err = ad.conn.UnauthenticatedBind(ad.User)
 	case 1:
-		log.Debug().Msgf("Doing simple bind with user %s", ad.User)
-		err = ad.conn.Bind(ad.User, ad.Password)
+		if ad.Password == "" {
+			log.Debug().Msgf("Doing simple unauthenticated bind with user %s", ad.User)
+			err = ad.conn.UnauthenticatedBind(ad.User)
+		} else {
+			log.Debug().Msgf("Doing simple bind with user %s", ad.User)
+			err = ad.conn.Bind(ad.User, ad.Password)
+		}
 	case 2:
 		log.Debug().Msgf("Doing MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
