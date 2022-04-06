@@ -96,7 +96,11 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessPriority) error {
 	for _, processor := range registeredProcessors {
 		if processor.loader == l && processor.priority == priority {
-			log.Info().Msgf("Preprocessing %v ...", processor.description)
+			if priority < AfterMergeLow {
+				log.Info().Msgf("Preprocessing %v ...", processor.description)
+			} else {
+				log.Info().Msgf("Postprocessing %v ...", processor.description)
+			}
 			processor.pf(ao)
 		}
 	}
