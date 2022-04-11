@@ -90,6 +90,10 @@ var (
 	SelfSID, _               = SIDFromString("S-1-5-10")
 	AuthenticatedUsersSID, _ = SIDFromString("S-1-5-11")
 	EveryoneSID, _           = SIDFromString("S-1-1-0")
+	AdministratorsSID, _     = SIDFromString("S-1-5-32-544")
+	ServicesSID, _           = SIDFromString("S-1-5-6")
+	NetworkServiceSID, _     = SIDFromString("S-1-5-19")
+	LocalServiceSID, _       = SIDFromString("S-1-5-20")
 
 	AccountOperatorsSID, _ = SIDFromString("S-1-5-32-548")
 )

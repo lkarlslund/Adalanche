@@ -49,7 +49,7 @@ var (
 	PwnSeAssignPrimaryToken = engine.NewPwn("SeAssignPrimaryToken")
 	PwnSeCreateToken        = engine.NewPwn("SeCreateToken")
 	PwnSeDebug              = engine.NewPwn("SeDebug")
-	PwnSeImpersonate        = engine.NewPwn("SeImpersonate")
+	PwnSeImpersonate        = engine.NewPwn("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
 	PwnSeLoadDriver         = engine.NewPwn("SeLoadDriver")
 	PwnSeManageVolume       = engine.NewPwn("SeManageVolume")
 	PwnSeTakeOwnership      = engine.NewPwn("SeTakeOwnership")
@@ -402,6 +402,12 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 	ld.ao.Add(servicescontainer)
 	servicescontainer.ChildOf(computerobject)
 
+	localservicesgroup := ld.ao.AddNew(
+		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.LocalServiceSID),
+		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
+		engine.UniqueSource, uniquesource,
+	)
+
 	for _, service := range cinfo.Services {
 		serviceobject := engine.NewObject(
 			engine.IgnoreBlanks,
@@ -414,6 +420,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 		)
 		ld.ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
+		serviceobject.Pwns(localservicesgroup, engine.PwnMemberOfGroup)
 		computerobject.Pwns(serviceobject, PwnHosts)
 
 		if serviceaccountSID, err := windowssecurity.SIDFromString(service.AccountSID); err == nil && serviceaccountSID.Component(2) == 21 {
@@ -448,6 +455,11 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
+					if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID {
+						// if we have local admin it's already game over so don't map this
+						continue
+					}
+
 					o := ld.ao.AddNew(
 						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 					)
@@ -569,7 +581,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 			}
 
 			// Only domain users for now
-			if sid.Component(2) != 21 {
+			if sid.Component(2) != 21 && sid != windowssecurity.LocalServiceSID && sid != windowssecurity.NetworkServiceSID && sid != windowssecurity.ServicesSID {
 				continue
 			}
 
