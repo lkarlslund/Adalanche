@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -34,7 +35,7 @@ func Run(path string) (*Objects, error) {
 		progressbar.OptionThrottle(time.Second*1),
 	)
 
-	loaderobjects, err := Load(loaders, path, func(cur, max int) {
+	lo, err := Load(loaders, path, func(cur, max int) {
 		if max > 0 {
 			loadbar.ChangeMax(max)
 		} else if max < 0 {
@@ -51,74 +52,86 @@ func Run(path string) (*Objects, error) {
 	}
 	loadbar.Finish()
 
-	for _, lobj := range loaderobjects {
-		// Do preprocessing
-		prebar := progressbar.NewOptions(lobj.Objects.Len(),
-			progressbar.OptionSetDescription(fmt.Sprintf("Preprocessing %v ...", lobj.Loader.Name())),
-			progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-			progressbar.OptionOnCompletion(func() { fmt.Println() }),
-			progressbar.OptionThrottle(time.Second*1),
-		)
+	var preprocessWG sync.WaitGroup
+	for _, os := range lo {
+		preprocessWG.Add(1)
+		go func(lobj loaderobjects) {
+			// Do preprocessing
+			// prebar := progressbar.NewOptions(lobj.Objects.Len(),
+			// 	progressbar.OptionSetDescription(fmt.Sprintf("Preprocessing %v ...", lobj.Loader.Name())),
+			// 	progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
+			// 	progressbar.OptionOnCompletion(func() { fmt.Println() }),
+			// 	progressbar.OptionThrottle(time.Second*1),
+			// )
 
-		var loaderid LoaderID
-		for i, loader := range loaders {
-			if loader == lobj.Loader {
-				loaderid = LoaderID(i)
-				break
+			var loaderid LoaderID
+			for i, loader := range loaders {
+				if loader == lobj.Loader {
+					loaderid = LoaderID(i)
+					break
+				}
 			}
-		}
 
-		Process(lobj.Objects, func(cur, max int) {
-			prebar.ChangeMax(max)
-			prebar.Set(cur)
-		}, loaderid, BeforeMergeLow)
+			Process(lobj.Objects, func(cur, max int) {
+				// prebar.ChangeMax(max)
+				// prebar.Set(cur)
+			}, loaderid, BeforeMergeLow)
 
-		Process(lobj.Objects, func(cur, max int) {
-			prebar.ChangeMax(max)
-			prebar.Set(cur)
-		}, loaderid, BeforeMerge)
+			Process(lobj.Objects, func(cur, max int) {
+				// prebar.ChangeMax(max)
+				// prebar.Set(cur)
+			}, loaderid, BeforeMerge)
 
-		Process(lobj.Objects, func(cur, max int) {
-			prebar.ChangeMax(max)
-			prebar.Set(cur)
-		}, loaderid, BeforeMergeHigh)
+			Process(lobj.Objects, func(cur, max int) {
+				// prebar.ChangeMax(max)
+				// prebar.Set(cur)
+			}, loaderid, BeforeMergeHigh)
 
-		prebar.Finish()
+			// prebar.Finish()
+			preprocessWG.Done()
+		}(os)
 	}
+	preprocessWG.Wait()
 
 	// Analyze Pwn relationships
-	for _, lobj := range loaderobjects {
-		pwnbar := progressbar.NewOptions(lobj.Objects.Len(),
-			progressbar.OptionSetDescription(fmt.Sprintf("Analyzing %v ...", lobj.Loader.Name())),
-			progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-			progressbar.OptionOnCompletion(func() { fmt.Println() }),
-			progressbar.OptionThrottle(time.Second*1),
-		)
+	var analyzeWG sync.WaitGroup
+	for _, os := range lo {
+		analyzeWG.Add(1)
+		func(lobj loaderobjects) {
+			// pwnbar := progressbar.NewOptions(lobj.Objects.Len(),
+			// 	progressbar.OptionSetDescription(fmt.Sprintf("Analyzing %v ...", lobj.Loader.Name())),
+			// 	progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
+			// 	progressbar.OptionOnCompletion(func() { fmt.Println() }),
+			// 	progressbar.OptionThrottle(time.Second*1),
+			// )
 
-		var loaderid LoaderID
-		for i, loader := range loaders {
-			if loader == lobj.Loader {
-				loaderid = LoaderID(i)
-				break
+			var loaderid LoaderID
+			for i, loader := range loaders {
+				if loader == lobj.Loader {
+					loaderid = LoaderID(i)
+					break
+				}
 			}
-		}
 
-		Analyze(lobj.Objects, func(cur, max int) {
-			if max >= 0 {
-				pwnbar.ChangeMax(max)
-			}
-			if cur > 0 {
-				pwnbar.Set(cur)
-			} else {
-				pwnbar.Add(-cur)
-			}
-		}, loaderid)
-		pwnbar.Finish()
+			Analyze(lobj.Objects, func(cur, max int) {
+				// if max >= 0 {
+				// 	pwnbar.ChangeMax(max)
+				// }
+				// if cur > 0 {
+				// 	pwnbar.Set(cur)
+				// } else {
+				// 	pwnbar.Add(-cur)
+				// }
+			}, loaderid)
+			// pwnbar.Finish()
+			analyzeWG.Done()
+		}(os)
 	}
+	analyzeWG.Wait()
 
 	// Merging
-	objs := make([]*Objects, len(loaderobjects))
-	for i, lobj := range loaderobjects {
+	objs := make([]*Objects, len(lo))
+	for i, lobj := range lo {
 		objs[i] = lobj.Objects
 	}
 	ao, err := Merge(objs)
