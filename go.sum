@@ -474,6 +474,10 @@ github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+
 github.com/leodido/go-urn v1.2.0/go.mod h1:+8+nEpDfqqsY+g338gtMEUOtuK+4dEMhiQEgxpxOKII=
 github.com/leodido/go-urn v1.2.1 h1:BqpAaACuzVSgi/VLzGZIobT2z4v53pjosyNd9Yv6n/w=
 github.com/leodido/go-urn v1.2.1/go.mod h1:zt4jvISO2HfUBqxjfIshjdMTYS56ZS/qv49ictyFfxY=
+github.com/lkarlslund/binstruct v1.3.1-0.20220418023554-c35cc452c353 h1:EqSDYve4P9wgCk2mgoDuuOK+9b7eEpHAn7rtcSXC0jo=
+github.com/lkarlslund/binstruct v1.3.1-0.20220418023554-c35cc452c353/go.mod h1:md9fQkOXb+vqf3U+SVAsNfzLvKFK1Q+MJLj2v2sBj+4=
+github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136 h1:+Kk6n+RAKltnJ8ZAjkYZWUDtluMCuX34NZFXqhZzmnE=
+github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136/go.mod h1:md9fQkOXb+vqf3U+SVAsNfzLvKFK1Q+MJLj2v2sBj+4=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091 h1:6y0mbZnTDDZ8pOl3C/8W8j0a6OGuxNWxU07iZeBRpYg=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091/go.mod h1:JFCoCajhTrJw5YFNm/Xm0o+lt5jhY974icELnvnVFdc=
 github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29 h1:4fuGT7A0TbnV/70EOC04T8rMGkovrsgaqgZK2d2CKy0=
