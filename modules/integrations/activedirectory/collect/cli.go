@@ -230,7 +230,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if *collectgpos == "auto" || cp {
 			for _, ro := range rao {
 				if _, found := ro.Attributes["gPCFileSysPath"]; found {
-					gpostocollect = append(gpostocollect, &ro)
+					myro := ro
+					gpostocollect = append(gpostocollect, &myro)
 				}
 			}
 		}
@@ -518,6 +519,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 						log.Error().Msgf("Problem marshalling GPO information to %v: %v", gpodatafile, err)
 					}
 				}
+			} else {
+				log.Warn().Msgf("Skipping %v, not a GPO", object.Attributes["displayName"])
 			}
 		}
 	}
