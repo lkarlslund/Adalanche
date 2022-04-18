@@ -77,13 +77,13 @@ func Merge(aos []*Objects) (*Objects, error) {
 	)
 
 	// To ease anti-cross-the-beams on UniqueSource we temporarily group each source and combine them in the end
-	sourcemap := make(map[string]*Objects)
+	sourcemap := make(map[interface{}]*Objects)
 
 	nosourceobjects := NewObjects()
 
 	for _, mergeobject := range needsmerge {
 		if mergeobject.HasAttr(UniqueSource) {
-			us := mergeobject.OneAttrString(UniqueSource)
+			us := attributeValueToIndex(mergeobject.OneAttr(UniqueSource))
 			if sourcemap[us] == nil {
 				sourcemap[us] = NewObjects()
 			}
