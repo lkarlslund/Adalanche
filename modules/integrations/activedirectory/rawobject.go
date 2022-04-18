@@ -135,9 +135,8 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			}
 		case ObjectCategory:
 			attributevalue = engine.AttributeValueString(value)
-		case ObjectSid:
+		case ObjectSid, SIDHistory:
 			attributevalue = engine.AttributeValueSID(value)
-			fallthrough
 		default:
 			// Just use string encoding
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
