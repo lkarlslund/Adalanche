@@ -405,7 +405,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 	localservicesgroup := ld.ao.AddNew(
 		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.LocalServiceSID),
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
-		engine.UniqueSource, uniquesource,
+		engine.UniqueSource, cinfo.Machine.Name,
 	)
 
 	for _, service := range cinfo.Services {
@@ -455,7 +455,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
-					if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID {
+					if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
 						// if we have local admin it's already game over so don't map this
 						continue
 					}
@@ -493,7 +493,9 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 
 		if ownersid, err := windowssecurity.SIDFromString(service.ImageExecutableOwner); err == nil {
 			// Potential translation
-			// ownersid = MapSID(originalsid, localsid, ownersid)
+			if ownersid.Component(2) == 80 /* Service user */ {
+				continue
+			}
 
 			owner := ld.ao.AddNew(
 				activedirectory.ObjectSid, engine.AttributeValueSID(ownersid),
