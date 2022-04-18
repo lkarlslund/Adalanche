@@ -96,8 +96,8 @@ var pwnnames = make(map[string]PwnMethod)
 var pwnnums []*pwninfo
 
 type pwninfo struct {
-	name                         string
-	description                  string
+	Name                         string
+	Description                  string
 	tags                         []string
 	probability                  ProbabilityCalculatorFunction
 	multi                        bool // If true, this attribute can have multiple values
@@ -129,7 +129,7 @@ func NewPwn(name string) PwnMethod {
 	}
 
 	pwnnums = append(pwnnums, &pwninfo{
-		name:     name,
+		Name:     name,
 		defaultf: true,
 		defaultm: true,
 		defaultl: true,
@@ -144,7 +144,28 @@ func (p PwnMethod) String() string {
 	if int(p) >= len(pwnnums) {
 		return "NOT A PWN METHOD. DIVISION BY ZORRO ERROR."
 	}
-	return pwnnums[p].name
+	return pwnnums[p].Name
+}
+
+func (p PwnMethod) DefaultF() bool {
+	return pwnnums[p].defaultf
+}
+
+func (p PwnMethod) DefaultM() bool {
+	return pwnnums[p].defaultm
+}
+
+func (p PwnMethod) DefaultL() bool {
+	return pwnnums[p].defaultl
+}
+
+func (p PwnMethod) SetDefault(f, m, l bool) PwnMethod {
+	pwnmutex.Lock()
+	defer pwnmutex.Unlock()
+	pwnnums[p].defaultf = f
+	pwnnums[p].defaultm = m
+	pwnnums[p].defaultl = l
+	return p
 }
 
 func LookupPwnMethod(name string) PwnMethod {

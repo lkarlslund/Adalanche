@@ -3,13 +3,13 @@ package activedirectory
 import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
-	PwnCreateUser           = engine.NewPwn("CreateUser")
-	PwnCreateGroup          = engine.NewPwn("CreateGroup")
-	PwnCreateComputer       = engine.NewPwn("CreateComputer")
-	PwnCreateAnyObject      = engine.NewPwn("CreateAnyObject")
-	PwnDeleteChildrenTarget = engine.NewPwn("DeleteChildrenTarget")
-	PwnDeleteObject         = engine.NewPwn("DeleteObject")
-	PwnInheritsSecurity     = engine.NewPwn("InheritsSecurity")
+	PwnCreateUser           = engine.NewPwn("CreateUser").SetDefault(false, false, false)
+	PwnCreateGroup          = engine.NewPwn("CreateGroup").SetDefault(false, false, false)
+	PwnCreateComputer       = engine.NewPwn("CreateComputer").SetDefault(false, false, false)
+	PwnCreateAnyObject      = engine.NewPwn("CreateAnyObject").SetDefault(false, false, false)
+	PwnDeleteChildrenTarget = engine.NewPwn("DeleteChildrenTarget").SetDefault(false, false, false)
+	PwnDeleteObject         = engine.NewPwn("DeleteObject").SetDefault(false, false, false)
+	PwnInheritsSecurity     = engine.NewPwn("InheritsSecurity").SetDefault(false, false, false)
 	PwnACLContainsDeny      = engine.NewPwn("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return -1 })
 	PwnResetPassword        = engine.NewPwn("ResetPassword").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
@@ -17,7 +17,9 @@ var (
 		}
 		return 100
 	})
-	PwnReadPasswordId                       = engine.NewPwn("ReadPasswordId")
+	PwnReadPasswordId = engine.NewPwn("ReadPasswordId").SetDefault(false, false, false).RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		return 5
+	})
 	PwnOwns                                 = engine.NewPwn("Owns")
 	PwnGenericAll                           = engine.NewPwn("GenericAll")
 	PwnWriteAll                             = engine.NewPwn("WriteAll")

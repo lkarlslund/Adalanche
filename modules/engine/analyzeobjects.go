@@ -14,7 +14,7 @@ func (pm PwnMethod) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFu
 }
 
 func (pm PwnMethod) Describe(description string) PwnMethod {
-	pwnnums[pm].description = description
+	pwnnums[pm].Description = description
 	return pm
 }
 

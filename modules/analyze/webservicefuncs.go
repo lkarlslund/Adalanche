@@ -43,9 +43,9 @@ func analysisfuncs(ws *webservice) {
 			results.Methods = append(results.Methods, filterinfo{
 				Name:            method.String(),
 				Lookup:          method.String(),
-				DefaultEnabledF: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
-				DefaultEnabledM: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
-				DefaultEnabledL: !strings.HasPrefix(method.String(), "Create") && !strings.HasPrefix(method.String(), "Delete") && !strings.HasPrefix(method.String(), "Inherits"),
+				DefaultEnabledF: method.DefaultF(),
+				DefaultEnabledM: method.DefaultM(),
+				DefaultEnabledL: method.DefaultL(),
 			})
 		}
 
