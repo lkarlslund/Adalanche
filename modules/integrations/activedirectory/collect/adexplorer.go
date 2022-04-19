@@ -190,7 +190,11 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 			if err != nil {
 				return err
 			}
-			value = strconv.FormatInt(int64(b), 10)
+			if b == 0 {
+				value = "false"
+			} else {
+				value = "true"
+			}
 		case ADSTYPE_INTEGER:
 			v, err := r.ReadUint32()
 			if err != nil {
