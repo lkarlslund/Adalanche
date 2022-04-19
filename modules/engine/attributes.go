@@ -27,7 +27,8 @@ type attributeinfo struct {
 type AttributeType uint8
 
 const (
-	AttributeTypeString AttributeType = iota
+	AttributeTypeUnknown AttributeType = iota
+	AttributeTypeString
 	AttributeTypeInt
 	AttributeTypeFloat
 	AttributeTypeBool
@@ -141,39 +142,30 @@ func (a Attribute) String() string {
 }
 
 func (a Attribute) Type(t AttributeType) Attribute {
-	ai := attributenums[a]
-	ai.atype = t
-	attributenums[a] = ai
+	attributenums[a].atype = t
 	return a
 }
 
 func (a Attribute) Single() Attribute {
-	ai := attributenums[a]
-	ai.single = true
-	attributenums[a] = ai
+	attributenums[a].single = true
 	return a
 }
 
 func (a Attribute) IsSingle() bool {
-	ai := attributenums[a]
-	return ai.single
+	return attributenums[a].single
 }
 
 func (a Attribute) Unique() Attribute {
-	ai := attributenums[a]
-	ai.unique = true
-	attributenums[a] = ai
+	attributenums[a].unique = true
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
-	ai := attributenums[a]
-	return !ai.unique
+	return !attributenums[a].unique
 }
 
 func (a Attribute) IsUnique() bool {
-	ai := attributenums[a]
-	return ai.unique
+	return attributenums[a].unique
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")

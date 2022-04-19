@@ -80,6 +80,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		case WhenChanged, WhenCreated, DsCorePropagationData,
 			MsExchLastUpdateTime, MsExchPolicyLastAppliedTime, MsExchWhenMailboxCreated,
 			GWARTLastModified, SpaceLastComputed:
+
 			tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
 			tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
 			switch len(tvalue) {
@@ -133,23 +134,23 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
-		case ObjectCategory:
-			attributevalue = engine.AttributeValueString(value)
-		case ObjectSid, SIDHistory:
+		case ObjectSid, SIDHistory, SecurityIdentifier:
 			attributevalue = engine.AttributeValueSID(value)
 		default:
-			// Just use string encoding
-			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-				attributevalue = engine.AttributeValueInt(intval)
+			// AUTO CONVERSION
+
+			if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
+				// Lets try as a timestamp
+				tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
+				tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
+				if t, err := time.Parse("20060102150405", tvalue); err == nil {
+					attributevalue = engine.AttributeValueTime(t)
+				}
 			}
 			if attributevalue == nil {
-				// Lets try as a timestamp
-				if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
-					tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
-					tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
-					if t, err := time.Parse("20060102150405", tvalue); err == nil {
-						attributevalue = engine.AttributeValueTime(t)
-					}
+				// Integer
+				if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
+					attributevalue = engine.AttributeValueInt(intval)
 				}
 			}
 			if attributevalue == nil {
