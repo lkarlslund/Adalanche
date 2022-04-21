@@ -48,7 +48,7 @@ var mergeapprovers []mergeapproverinfo
 var attributenums []attributeinfo
 
 var (
-	NonExistingAttribute = NewAttribute("*NON EXISTING ATTRIBUTE*")
+	NonExistingAttribute = Attribute(-1)
 
 	DistinguishedName     = NewAttribute("distinguishedName").Single().Unique()
 	ObjectClass           = NewAttribute("objectClass")
@@ -98,7 +98,7 @@ var (
 	MetaLAPSInstalled           = NewAttribute("_haslaps")
 )
 
-type Attribute uint16
+type Attribute int16
 
 var attributemutex sync.RWMutex
 

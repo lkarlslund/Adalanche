@@ -630,7 +630,8 @@ func init() {
 func (o *Object) setFlex(flexinit ...interface{}) {
 	var ignoreblanks bool
 
-	var attribute Attribute
+	attribute := NonExistingAttribute
+
 	data := avsPool.Get().(AttributeValueSlice)
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
@@ -724,8 +725,11 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 		case NoValues:
 			// Ignore it
 		case Attribute:
-			if attribute != 0 && (!ignoreblanks || len(data) > 0) {
-				o.set(attribute, data)
+			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
+				newdata := make(AttributeValueSlice, len(data))
+				copy(newdata, data)
+				o.set(attribute, newdata)
+
 				data = data[:0]
 			}
 			attribute = v
@@ -733,8 +737,10 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			panic("SetFlex called with invalid type in object declaration")
 		}
 	}
-	if attribute != 0 && (!ignoreblanks || len(data) > 0) {
+	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
 		o.set(attribute, data)
+	}
+	if len(data) > 0 {
 		data = data[:0]
 	}
 	avsPool.Put(data)
