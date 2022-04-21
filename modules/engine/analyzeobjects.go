@@ -1,10 +1,14 @@
 package engine
 
 import (
+	"sort"
+
 	"github.com/rs/zerolog/log"
 )
 
 var PwnMemberOfGroup = NewPwn("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
+
+var SortBy Attribute
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
 
@@ -217,6 +221,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				// Add pwn target to graph for processing
 			} else {
 				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", opts.MaxOutgoingConnections, object.Label(), len(newconnectionsmap))
+				var added int
 				var groupcount int
 				for _, detectedmethods := range newconnectionsmap {
 					// We assume the number of groups are limited and add them anyway
@@ -224,9 +229,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 						groupcount++
 					}
 				}
+
 				if groupcount < opts.MaxOutgoingConnections {
 					// Add the groups, but not the rest
-					var addedanyway int
 					for pwnpair, detectedmethods := range newconnectionsmap {
 						// We assume the number of groups are limited and add them anyway
 						if detectedmethods.IsSet(PwnMemberOfGroup) {
@@ -234,12 +239,36 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
 								newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed
 							}
-							addedanyway++
+							added++
 						}
 					}
-					log.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", addedanyway, opts.MaxOutgoingConnections)
-					ri.canexpand = len(newconnectionsmap) - addedanyway
+					log.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", added, opts.MaxOutgoingConnections)
+
+					// Add some more to expansion limit hit objects if we know how
+					if SortBy != 0 {
+
+						// Find the most important ones that are not groups
+						var notadded []PwnPair
+						for pwnpair, _ := range newconnectionsmap {
+							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
+								notadded = append(notadded, pwnpair)
+							}
+						}
+
+						sort.Slice(notadded, func(i, j int) bool {
+							iv, _ := notadded[i].Target.AttrInt(SortBy)
+							jv, _ := notadded[j].Target.AttrInt(SortBy)
+							return iv > jv
+						})
+
+						for i := 0; i+added < opts.MaxOutgoingConnections; i++ {
+							newimplicatedobjects[notadded[i].Target] = struct{}{} // Add this as our best item
+						}
+					}
+
+					ri.canexpand = len(newconnectionsmap) - added
 				}
+
 			}
 
 			ri.processed = true
