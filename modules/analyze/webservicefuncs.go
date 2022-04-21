@@ -256,13 +256,11 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		includeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-			// Domain Admins and Enterprise Admins groups
 			return includequery.Evaluate(o)
 		})
 
 		if excludequery != nil {
 			excludeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-				// Domain Admins and Enterprise Admins groups
 				return excludequery.Evaluate(o)
 			})
 		}
