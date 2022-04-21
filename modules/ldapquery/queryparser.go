@@ -281,14 +281,14 @@ valueloop:
 	}
 
 	attribute := engine.A(attributename)
-	if attribute == 0 {
+	if attribute == engine.NonExistingAttribute {
 		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
 	}
 
 	var attribute2 engine.Attribute
 	if attributename2 != "" {
 		attribute2 = engine.A(attributename2)
-		if attribute2 == 0 {
+		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, fmt.Errorf("Unknown attribute %v", attributename2)
 		}
 	}
