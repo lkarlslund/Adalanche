@@ -56,8 +56,12 @@ type Object struct {
 
 	memberof          []*Object
 	memberofrecursive []*Object
-	id                uint32
-	guid              uuid.UUID
+
+	memberofsid          []windowssecurity.SID
+	memberofsidrecursive []windowssecurity.SID
+
+	id   uint32
+	guid uuid.UUID
 	// objectcategoryguid uuid.UUID
 	guidcached bool
 	sidcached  bool
@@ -241,8 +245,12 @@ func (o *Object) Absorb(source *Object) {
 	}
 
 	target.objecttype = 0 // Recalculate this
-	target.memberofrecursive = nil
-	target.membersrecursive = nil
+
+	target.memberofrecursive = nil // Clear cache
+	target.membersrecursive = nil  // Clear cache
+
+	target.memberofsid = nil          // Clear cache
+	target.memberofsidrecursive = nil // Clear cache
 }
 
 func (o *Object) AttributeValueMap() AttributeValueMap {
@@ -564,6 +572,10 @@ func (o *Object) recursemembers(members *map[*Object]struct{}) {
 func (o *Object) MemberOf(recursive bool) []*Object {
 	o.lock()
 	defer o.unlock()
+	return o.memberofr(recursive)
+}
+
+func (o *Object) memberofr(recursive bool) []*Object {
 	if !recursive || len(o.memberof) == 0 {
 		return o.memberof
 	}
@@ -600,6 +612,35 @@ func (o *Object) recursememberof(memberof *map[*Object]struct{}) bool {
 		}
 	}
 	return loop
+}
+
+func (o *Object) MemberOfSID(recursive bool) []windowssecurity.SID {
+	o.lock()
+	defer o.unlock()
+
+	if !recursive {
+		if o.memberofsid == nil {
+			o.memberofsid = make([]windowssecurity.SID, len(o.memberof))
+			for i, memberof := range o.memberof {
+				o.memberofsid[i] = memberof.SID()
+			}
+		}
+
+		return o.memberofsid
+	}
+
+	if o.memberofsidrecursive != nil {
+		return o.memberofsidrecursive
+	}
+
+	memberofrecursive := o.memberofr(true)
+	o.memberofsidrecursive = make([]windowssecurity.SID, len(memberofrecursive))
+
+	for i, memberof := range memberofrecursive {
+		o.memberofsidrecursive[i] = memberof.SID()
+	}
+
+	return o.memberofsidrecursive
 }
 
 // Wrapper for Set - easier to call
@@ -909,8 +950,8 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 }
 
 func (o *Object) SID() windowssecurity.SID {
-	o.lock()
 	if !o.sidcached {
+		o.lock()
 		o.sidcached = true
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
@@ -919,9 +960,9 @@ func (o *Object) SID() windowssecurity.SID {
 				}
 			}
 		}
+		o.unlock()
 	}
 	sid := o.sid
-	o.unlock()
 	return sid
 }
 

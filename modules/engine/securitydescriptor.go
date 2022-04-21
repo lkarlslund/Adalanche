@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -198,7 +199,21 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 			// See if a prior one denies it
 			for i := 0; i < index; i++ {
 				// Check SID first, this is very fast, then do detailed check later
-				if a.Entries[index].SID == a.Entries[i].SID && a.Entries[i].checkObjectClass(false, o, mask, g, ao) {
+				if a.Entries[i].Type != ACETYPE_ACCESS_DENIED && a.Entries[i].Type != ACETYPE_ACCESS_DENIED_OBJECT {
+					// this is not a DENY ACE, so we can skip it
+					continue
+				}
+
+				var sidmatch bool
+				checksid := a.Entries[index].SID
+				for _, sid := range o.MemberOfSID(true) {
+					if sid == checksid {
+						sidmatch = true
+						break
+					}
+				}
+
+				if sidmatch && a.Entries[i].checkObjectClass(false, o, mask, g, ao) {
 					if a.Entries[i].ObjectType != NullGUID {
 						if g == NullGUID {
 							// We tested for all properties / extended rights, but the DENY blocks some of these
@@ -219,7 +234,7 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 	return false // No allow match
 }
 
-var objectSecurityGUIDcacheLock sync.Mutex
+var objectSecurityGUIDcacheLock sync.RWMutex
 var objectSecurityGUIDcache = make(map[uuid.UUID]uuid.UUID)
 
 // Is the ACE something that allows or denies this type of GUID?
@@ -242,9 +257,12 @@ func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g u
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
 			if threadsafeobject != 0 {
-				objectSecurityGUIDcacheLock.Lock()
+				objectSecurityGUIDcacheLock.RLock()
 			}
 			cachedset, found := objectSecurityGUIDcache[g]
+			if threadsafeobject != 0 {
+				objectSecurityGUIDcacheLock.RUnlock()
+			}
 			if !found {
 				// Not in cache, let's populate it
 				if s, found := ao.Find(SchemaIDGUID, AttributeValueGUID(g)); found {
@@ -253,12 +271,16 @@ func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g u
 						if cachedset == NullGUID {
 							cachedset = UnknownGUID // Just to be sure
 						}
+
+						if threadsafeobject != 0 {
+							objectSecurityGUIDcacheLock.Lock()
+						}
 						objectSecurityGUIDcache[g] = cachedset
+						if threadsafeobject != 0 {
+							objectSecurityGUIDcacheLock.Unlock()
+						}
 					}
 				}
-			}
-			if threadsafeobject != 0 {
-				objectSecurityGUIDcacheLock.Unlock()
 			}
 			if a.ObjectType == cachedset {
 				typematch = true
@@ -443,6 +465,19 @@ type ACL struct {
 	containsdeny bool
 }
 
+func (a *ACL) Sort() {
+	sort.Slice(a.Entries, func(i, j int) bool {
+		if a.Entries[i].Flags&ACEFLAG_INHERITED_ACE == 0 && a.Entries[j].Flags&ACEFLAG_INHERITED_ACE != 0 {
+			return true // Move inherited ACEs to the end
+		}
+		if (a.Entries[i].Type == ACETYPE_ACCESS_DENIED || a.Entries[i].Type == ACETYPE_ACCESS_DENIED_OBJECT) &&
+			(a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED || a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
+			return true // Move allowed ACEs to the end
+		}
+		return false // We don't care otherwise
+	})
+}
+
 type ACE struct {
 	SID                 windowssecurity.SID
 	Mask                ACLPermissionMask
@@ -502,6 +537,7 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	}
 	if OffsetDACL > 0 {
 		result.DACL, err = ParseACL(data[OffsetDACL:])
+		result.DACL.Sort()
 		if err != nil {
 			return result, err
 		}
