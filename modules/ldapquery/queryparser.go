@@ -112,6 +112,9 @@ func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(s) == 0 {
+			return nil, nil, errors.New("Query should end with )")
+		}
 		// Strip )
 		return s[1:], orquery{subqueries}, nil
 	case '!':
@@ -119,12 +122,15 @@ func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(s) == 0 {
+			return nil, nil, errors.New("Query ends with exclamation mark")
+		}
 		return s[1:], notquery{query}, err
 	}
 
 	// parse one Attribute = Value pair
 	var modifier string
-	var attributename string
+	var attributename, attributename2 string
 
 	// Attribute name
 attributeloop:
@@ -140,10 +146,18 @@ attributeloop:
 			// Modifier
 			nextcolon := runes.Index(s[1:], []rune(":"))
 			if nextcolon == -1 {
-				return nil, nil, errors.New("Incompete query string detected (only one colon modifier)")
+				return nil, nil, errors.New("Incomplete query string detected (only one colon modifier)")
 			}
 			modifier = string(s[1 : nextcolon+1])
 			s = s[nextcolon+2:]
+
+			// "function call" modifier
+			if strings.Contains(modifier, "(") && strings.HasSuffix(modifier, ")") {
+				paran := strings.Index(modifier, "(")
+				attributename2 = string(modifier[paran+1 : len(modifier)-1])
+				modifier = string(modifier[:paran])
+			}
+
 			break attributeloop
 		case ')':
 			return nil, nil, errors.New("Unexpected closing parantesis")
@@ -271,6 +285,14 @@ valueloop:
 		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
 	}
 
+	var attribute2 engine.Attribute
+	if attributename2 != "" {
+		attribute2 = engine.A(attributename2)
+		if attribute2 == 0 {
+			return nil, nil, fmt.Errorf("Unknown attribute %v", attributename2)
+		}
+	}
+
 	var casesensitive bool
 
 	// Decide what to do
@@ -300,6 +322,21 @@ valueloop:
 			return s, sinceModifier{attribute, comparator, int64(timeinseconds)}, nil
 		}
 		return s, sinceModifier{attribute, comparator, valuenum}, nil
+	case "timediff":
+		if attribute2 == 0 {
+			return nil, nil, errors.New("timediff modifier requires two attributes")
+		}
+		if numok != nil {
+			// try to parse it as an duration
+			d, err := timespan.ParseTimespan(value)
+			timeinseconds := d.Duration.Seconds()
+			if err != nil {
+				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
+			}
+			return s, timediffModifier{attribute, attribute2, comparator, int64(timeinseconds)}, nil
+		}
+		return s, sinceModifier{attribute, comparator, valuenum}, nil
+
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
@@ -469,6 +506,47 @@ func (sm sinceModifier) Evaluate(o *engine.Object) bool {
 		}
 
 		if sm.c.Compare(t.Unix(), sm.value) {
+			return true
+		}
+	}
+	return false
+}
+
+type timediffModifier struct {
+	a, a2 engine.Attribute
+	c     comparatortype
+	value int64 // time in seconds, positive is in the past, negative in the future
+}
+
+func (td timediffModifier) Evaluate(o *engine.Object) bool {
+	val1s, found := o.Get(td.a)
+	if !found {
+		return false
+	}
+
+	val2s, found := o.Get(td.a2)
+	if !found {
+		return false
+	}
+
+	if val1s.Len() != val2s.Len() {
+		return false
+	}
+
+	val2slice := val2s.Slice()
+	for i, value1 := range val1s.Slice() {
+		t1, ok := value1.Raw().(time.Time)
+		if !ok {
+			continue
+		}
+
+		t2, ok2 := val2slice[i].Raw().(time.Time)
+		if !ok2 {
+			continue
+		}
+
+		diffsec := int64(t1.Sub(t2).Seconds())
+		if td.c.Compare(diffsec, td.value) {
 			return true
 		}
 	}
