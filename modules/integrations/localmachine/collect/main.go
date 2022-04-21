@@ -270,9 +270,11 @@ func Collect(outputpath string) error {
 	var scheduledtasksinfo taskmaster.RegisteredTaskCollection
 	ts, err := taskmaster.Connect()
 	if err == nil {
-		scheduledtasksinfo, _ = ts.GetRegisteredTasks()
-		defer scheduledtasksinfo.Release()
-		defer ts.Disconnect()
+		scheduledtasksinfo, err = ts.GetRegisteredTasks()
+		if err == nil {
+			scheduledtasksinfo.Release()
+		}
+		ts.Disconnect()
 	}
 
 	// GATHER INTERESTING STUFF FROM EVENT LOG
@@ -754,5 +756,6 @@ func Collect(outputpath string) error {
 		return fmt.Errorf("Problem writing to file %v: %v", outputfile, err)
 	}
 	log.Info().Msgf("Information collected to file %v", outputfile)
+
 	return nil
 }
