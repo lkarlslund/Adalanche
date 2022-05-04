@@ -309,19 +309,30 @@ func Execute(cmd *cobra.Command, args []string) error {
 			namingcontexts[context] = false
 		}
 
-		configContext := rd.Attributes["configurationNamingContext"][0]
-		namingcontexts[configContext] = true
+		var configContext string
+		if len(rd.Attributes["configurationNamingContext"]) > 0 {
+			configContext = rd.Attributes["configurationNamingContext"][0]
+			namingcontexts[configContext] = true
+		}
 
-		domainContext = rd.Attributes["defaultNamingContext"][0]
-		namingcontexts[domainContext] = true
+		if len(rd.Attributes["defaultNamingContext"]) > 0 {
+			domainContext = rd.Attributes["defaultNamingContext"][0]
+			namingcontexts[domainContext] = true
+		}
 
-		rootDomainContext := rd.Attributes["rootDomainNamingContext"][0]
-		namingcontexts[rootDomainContext] = true
+		var rootDomainContext string
+		if len(rd.Attributes["rootDomainNamingContext"]) > 0 {
+			rootDomainContext = rd.Attributes["rootDomainNamingContext"][0]
+			namingcontexts[rootDomainContext] = true
+		}
 
-		schemaContext := rd.Attributes["schemaNamingContext"][0]
-		namingcontexts[schemaContext] = true
+		var schemaContext string
+		if len(rd.Attributes["schemaNamingContext"]) > 0 {
+			schemaContext = rd.Attributes["schemaNamingContext"][0]
+			namingcontexts[schemaContext] = true
+		}
 
-		domainNetbios = util.ExtractNetbiosFromBase(rd.Attributes["defaultNamingContext"][0])
+		domainNetbios = util.ExtractNetbiosFromBase(domainContext)
 
 		var otherContexts []string
 		for context, used := range namingcontexts {
