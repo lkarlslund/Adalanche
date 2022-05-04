@@ -20,6 +20,49 @@ type Query interface {
 	Evaluate(o *engine.Object) bool
 }
 
+// Wraps one Attribute around a queryattribute interface
+type QueryOneAttribute struct {
+	a engine.Attribute
+	q QueryAttribute
+}
+
+func (qoa QueryOneAttribute) Evaluate(o *engine.Object) bool {
+	return qoa.q.Evaluate(qoa.a, o)
+}
+
+// Wraps one Attribute around a queryattribute interface
+type QueryMultipleAttributes struct {
+	a []engine.Attribute
+	q QueryAttribute
+}
+
+func (qma QueryMultipleAttributes) Evaluate(o *engine.Object) bool {
+	for _, a := range qma.a {
+		if qma.q.Evaluate(a, o) {
+			return true
+		}
+	}
+	return false
+}
+
+// Wraps any attribute around a queryattribute interface
+type QueryAnyAttribute struct {
+	q QueryAttribute
+}
+
+func (qaa QueryAnyAttribute) Evaluate(o *engine.Object) bool {
+	for a, _ := range o.AttributeValueMap() {
+		if qaa.q.Evaluate(a, o) {
+			return true
+		}
+	}
+	return false
+}
+
+type QueryAttribute interface {
+	Evaluate(a engine.Attribute, o *engine.Object) bool
+}
+
 type ObjectStrings interface {
 	Strings(o *engine.Object) []string
 }
@@ -236,7 +279,26 @@ valueloop:
 		return nil, nil, errors.New("Empty attribute name detected")
 	}
 
-	if attributename[0] == '_' {
+	var attributes []engine.Attribute
+
+	if strings.ContainsAny(attributename, "*?") {
+		if attributename == "*" {
+			// All attributes, don't add anything to the attribute list
+		} else {
+			gm, err := glob.Compile(attributename)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Invalid attribute glob match pattern '%v': %s", attributename, err)
+			}
+			for _, attr := range engine.Attributes() {
+				if gm.Match(attr.String()) {
+					attributes = append(attributes, attr)
+				}
+			}
+			if len(attributes) == 0 {
+				return nil, nil, fmt.Errorf("No attributes matched pattern '%v'", attributename)
+			}
+		}
+	} else if attributename[0] == '_' {
 		// Magic attributes, uuuuuh ....
 		switch attributename {
 		case "_id":
@@ -278,11 +340,12 @@ valueloop:
 			// default:
 			// 	return "", nil, fmt.Errorf("Unknown synthetic attribute %v", attributename)
 		}
-	}
-
-	attribute := engine.A(attributename)
-	if attribute == engine.NonExistingAttribute {
-		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
+	} else {
+		attribute := engine.A(attributename)
+		if attribute == engine.NonExistingAttribute {
+			return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
+		}
+		attributes = []engine.Attribute{attribute}
 	}
 
 	var attribute2 engine.Attribute
@@ -295,6 +358,23 @@ valueloop:
 
 	var casesensitive bool
 
+	var genwrapper func(aq QueryAttribute) Query
+
+	switch len(attributes) {
+	case 0:
+		genwrapper = func(aq QueryAttribute) Query {
+			return QueryAnyAttribute{aq}
+		}
+	case 1:
+		genwrapper = func(aq QueryAttribute) Query {
+			return QueryOneAttribute{attributes[0], aq}
+		}
+	default:
+		genwrapper = func(aq QueryAttribute) Query {
+			return QueryMultipleAttributes{attributes, aq}
+		}
+	}
+
 	// Decide what to do
 	switch modifier {
 	case "":
@@ -305,12 +385,12 @@ valueloop:
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, countModifier{attribute, comparator, valuenum}, nil
+		return s, genwrapper(countModifier{comparator, valuenum}), nil
 	case "len", "length":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, lengthModifier{attribute, comparator, valuenum}, nil
+		return s, genwrapper(lengthModifier{comparator, valuenum}), nil
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
@@ -319,9 +399,9 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, sinceModifier{attribute, comparator, int64(timeinseconds)}, nil
+			return s, genwrapper(sinceModifier{comparator, int64(timeinseconds)}), nil
 		}
-		return s, sinceModifier{attribute, comparator, valuenum}, nil
+		return s, genwrapper(sinceModifier{comparator, valuenum}), nil
 	case "timediff":
 		if attribute2 == 0 {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
@@ -333,23 +413,23 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, timediffModifier{attribute, attribute2, comparator, int64(timeinseconds)}, nil
+			return s, genwrapper(timediffModifier{attribute2, comparator, int64(timeinseconds)}), nil
 		}
-		return s, sinceModifier{attribute, comparator, valuenum}, nil
+		return s, genwrapper(sinceModifier{comparator, valuenum}), nil
 
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
-		return s, andModifier{attribute, valuenum}, nil
+		return s, genwrapper(andModifier{valuenum}), nil
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
-		return s, orModifier{attribute, valuenum}, nil
+		return s, genwrapper(orModifier{valuenum}), nil
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		return s, recursiveDNmatcher{attribute, value, ao}, nil
+		return s, genwrapper(recursiveDNmatcher{value, ao}), nil
 	default:
 		return nil, nil, errors.New("Unknown modifier " + modifier)
 	}
@@ -357,7 +437,7 @@ valueloop:
 	// string comparison
 	if comparator == CompareEquals {
 		if value == "*" {
-			return s, hasAttr(attribute), nil
+			return s, genwrapper(hasAttr{}), nil
 		}
 		if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
 			// regexp magic
@@ -369,7 +449,7 @@ valueloop:
 			if err != nil {
 				return nil, nil, err
 			}
-			return s, hasRegexpMatch{attribute, r}, nil
+			return s, genwrapper(hasRegexpMatch{r}), nil
 		}
 		if strings.ContainsAny(value, "?*") {
 			// glob magic
@@ -382,11 +462,11 @@ valueloop:
 				return nil, nil, err
 			}
 			if casesensitive {
-				return s, hasGlobMatch{attribute, true, g}, nil
+				return s, genwrapper(hasGlobMatch{true, g}), nil
 			}
-			return s, hasGlobMatch{attribute, false, g}, nil
+			return s, genwrapper(hasGlobMatch{false, g}), nil
 		}
-		return s, hasStringMatch{attribute, casesensitive, value}, nil
+		return s, genwrapper(hasStringMatch{casesensitive, value}), nil
 	}
 
 	// the other comparators require numeric value
@@ -394,7 +474,7 @@ valueloop:
 		return nil, nil, errors.New("Could not convert value to integer for numeric comparison")
 	}
 
-	return s, numericComparator{attribute, comparator, valuenum}, nil
+	return s, genwrapper(numericComparator{comparator, valuenum}), nil
 }
 
 func parseMultipleRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, error) {
@@ -449,33 +529,31 @@ func (q notquery) Evaluate(o *engine.Object) bool {
 }
 
 type countModifier struct {
-	a     engine.Attribute
 	c     comparatortype
 	value int64
 }
 
-func (a countModifier) Evaluate(o *engine.Object) bool {
-	vals, found := o.Get(a.a)
+func (cm countModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	vals, found := o.Get(a)
 	count := 0
 	if found {
 		count = vals.Len()
 	}
-	return a.c.Compare(int64(count), a.value)
+	return cm.c.Compare(int64(count), cm.value)
 }
 
 type lengthModifier struct {
-	a     engine.Attribute
 	c     comparatortype
 	value int64
 }
 
-func (a lengthModifier) Evaluate(o *engine.Object) bool {
-	vals, found := o.Get(a.a)
+func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	vals, found := o.Get(a)
 	if !found {
-		return a.c.Compare(0, a.value)
+		return lm.c.Compare(0, lm.value)
 	}
 	for _, value := range vals.StringSlice() {
-		if a.c.Compare(int64(len(value)), a.value) {
+		if lm.c.Compare(int64(len(value)), lm.value) {
 			return true
 		}
 	}
@@ -483,13 +561,12 @@ func (a lengthModifier) Evaluate(o *engine.Object) bool {
 }
 
 type sinceModifier struct {
-	a     engine.Attribute
 	c     comparatortype
 	value int64 // time in seconds, positive is in the past, negative in the future
 }
 
-func (sm sinceModifier) Evaluate(o *engine.Object) bool {
-	vals, found := o.Get(sm.a)
+func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	vals, found := o.Get(a)
 	if !found {
 		return false
 	}
@@ -513,13 +590,13 @@ func (sm sinceModifier) Evaluate(o *engine.Object) bool {
 }
 
 type timediffModifier struct {
-	a, a2 engine.Attribute
+	a2    engine.Attribute
 	c     comparatortype
 	value int64 // time in seconds, positive is in the past, negative in the future
 }
 
-func (td timediffModifier) Evaluate(o *engine.Object) bool {
-	val1s, found := o.Get(td.a)
+func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	val1s, found := o.Get(a)
 	if !found {
 		return false
 	}
@@ -554,25 +631,23 @@ func (td timediffModifier) Evaluate(o *engine.Object) bool {
 }
 
 type andModifier struct {
-	a     engine.Attribute
 	value int64
 }
 
-func (a andModifier) Evaluate(o *engine.Object) bool {
-	val, ok := o.AttrInt(a.a)
+func (am andModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
 	}
-	return (int64(val) & a.value) == a.value
+	return (int64(val) & am.value) == am.value
 }
 
 type orModifier struct {
-	a     engine.Attribute
 	value int64
 }
 
-func (om orModifier) Evaluate(o *engine.Object) bool {
-	val, ok := o.AttrInt(om.a)
+func (om orModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
 	}
@@ -580,16 +655,12 @@ func (om orModifier) Evaluate(o *engine.Object) bool {
 }
 
 type numericComparator struct {
-	a     engine.Attribute
 	c     comparatortype
 	value int64
 }
 
-func (nc numericComparator) Evaluate(o *engine.Object) bool {
-	val, _ := o.AttrInt(nc.a)
-	// if !ok {
-	// 	return false
-	// }
+func (nc numericComparator) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	val, _ := o.AttrInt(a)
 	return nc.c.Compare(val, nc.value)
 }
 
@@ -621,9 +692,9 @@ func (r random100) Evaluate(o *engine.Object) bool {
 	return r.c.Compare(rnd, r.v)
 }
 
-type hasAttr engine.Attribute
+type hasAttr struct{}
 
-func (a hasAttr) Evaluate(o *engine.Object) bool {
+func (ha hasAttr) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	vals, found := o.Get(engine.Attribute(a))
 	if !found {
 		return false
@@ -632,19 +703,18 @@ func (a hasAttr) Evaluate(o *engine.Object) bool {
 }
 
 type hasStringMatch struct {
-	a             engine.Attribute
 	casesensitive bool
 	m             string
 }
 
-func (a hasStringMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a.a) {
-		if !a.casesensitive {
-			if strings.EqualFold(a.m, value) {
+func (hsm hasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	for _, value := range o.AttrRendered(a) {
+		if !hsm.casesensitive {
+			if strings.EqualFold(hsm.m, value) {
 				return true
 			}
 		} else {
-			if a.m == value {
+			if hsm.m == value {
 				return true
 			}
 		}
@@ -653,19 +723,18 @@ func (a hasStringMatch) Evaluate(o *engine.Object) bool {
 }
 
 type hasGlobMatch struct {
-	a             engine.Attribute
 	casesensitive bool
 	m             glob.Glob
 }
 
-func (a hasGlobMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a.a) {
-		if !a.casesensitive {
-			if a.m.Match(strings.ToLower(value)) {
+func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	for _, value := range o.AttrRendered(a) {
+		if !hgm.casesensitive {
+			if hgm.m.Match(strings.ToLower(value)) {
 				return true
 			}
 		} else {
-			if a.m.Match(value) {
+			if hgm.m.Match(value) {
 				return true
 			}
 		}
@@ -674,13 +743,12 @@ func (a hasGlobMatch) Evaluate(o *engine.Object) bool {
 }
 
 type hasRegexpMatch struct {
-	a engine.Attribute
 	m *regexp.Regexp
 }
 
-func (a hasRegexpMatch) Evaluate(o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a.a) {
-		if a.m.MatchString(value) {
+func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	for _, value := range o.AttrRendered(a) {
+		if hrm.m.MatchString(value) {
 			return true
 		}
 	}
@@ -688,13 +756,12 @@ func (a hasRegexpMatch) Evaluate(o *engine.Object) bool {
 }
 
 type recursiveDNmatcher struct {
-	a  engine.Attribute
 	dn string
 	ao *engine.Objects
 }
 
-func (a recursiveDNmatcher) Evaluate(o *engine.Object) bool {
-	return recursiveDNmatchFunc(o, a.a, a.dn, 10, a.ao)
+func (rdn recursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	return recursiveDNmatchFunc(o, a, rdn.dn, 10, rdn.ao)
 }
 
 func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) bool {

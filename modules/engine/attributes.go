@@ -231,3 +231,13 @@ func A(name string) Attribute {
 func (a Attribute) IsMeta() bool {
 	return strings.HasPrefix(a.String(), "_")
 }
+
+func Attributes() []Attribute {
+	var results []Attribute
+	attributemutex.RLock()
+	for i := range attributenums {
+		results = append(results, Attribute(i))
+	}
+	attributemutex.RUnlock()
+	return results
+}

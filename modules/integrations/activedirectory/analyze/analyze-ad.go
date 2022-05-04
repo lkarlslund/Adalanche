@@ -59,6 +59,9 @@ var (
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
 	PwnPublishesCertificateTemplate = engine.NewPwn("PublishCertTmpl")
+
+	NetBIOSName = engine.NewAttribute("nETBIOSName")
+	NCName      = engine.NewAttribute("nCName")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -920,8 +923,7 @@ func init() {
 		}
 		var domains []domaininfo
 
-		results, found := ao.FindTwoMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"),
-			engine.IsCriticalSystemObject, engine.AttributeValueString("true"))
+		results, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("crossRef"))
 
 		if !found {
 			log.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
@@ -930,13 +932,18 @@ func init() {
 
 		for _, o := range results {
 			// Store domain -> netbios name in array for later
-			dn := o.DN()
-			if len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
-				domains = append(domains, domaininfo{
-					suffix: dn,
-					name:   strings.ToUpper(o.OneAttrString(engine.Name)),
-				})
+			dn := o.OneAttrString(NCName)
+			netbiosname := o.OneAttrString(NetBIOSName)
+
+			if dn == "" || netbiosname == "" {
+				log.Warn().Msgf("Cross reference object %v has no NCName or NetBIOSName", o.DN())
+				continue
 			}
+
+			domains = append(domains, domaininfo{
+				suffix: dn,
+				name:   netbiosname,
+			})
 		}
 
 		// Sort the domains so we match on longest first
@@ -947,14 +954,13 @@ func init() {
 
 		// Apply DownLevelLogonName to relevant objects
 		for _, o := range ao.Slice() {
-			samaccountname := o.OneAttrString(engine.SAMAccountName)
-			if samaccountname == "" {
+			if !o.HasAttr(engine.SAMAccountName) {
 				continue
 			}
 			dn := o.DN()
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
-					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+samaccountname))
+					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
 					break
 				}
 			}
