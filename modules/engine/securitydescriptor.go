@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -459,6 +460,10 @@ type SecurityDescriptor struct {
 	Control SecurityDescriptorControlFlag
 }
 
+func (sd *SecurityDescriptor) Equals(sd2 *SecurityDescriptor) bool {
+	return reflect.DeepEqual(sd, sd2)
+}
+
 type ACL struct {
 	Entries      []ACE
 	Revision     byte
@@ -468,13 +473,13 @@ type ACL struct {
 func (a *ACL) Sort() {
 	sort.Slice(a.Entries, func(i, j int) bool {
 		if a.Entries[i].Flags&ACEFLAG_INHERITED_ACE == 0 && a.Entries[j].Flags&ACEFLAG_INHERITED_ACE != 0 {
-			return true // Move inherited ACEs to the end
+			return true // NOT INHERITED should be before INHERITED
 		}
 		if (a.Entries[i].Type == ACETYPE_ACCESS_DENIED || a.Entries[i].Type == ACETYPE_ACCESS_DENIED_OBJECT) &&
 			(a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED || a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
-			return true // Move allowed ACEs to the end
+			return true // DENIED should be before ALLOWED
 		}
-		return false // We don't care otherwise
+		return false // It's fine
 	})
 }
 
@@ -537,7 +542,37 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	}
 	if OffsetDACL > 0 {
 		result.DACL, err = ParseACL(data[OffsetDACL:])
-		result.DACL.Sort()
+		if result.DACL.containsdeny {
+			/*			var debug bool
+						lastdeny := 0
+						firstallow := len(result.DACL.Entries) - 1
+
+						for i, ace := range result.DACL.Entries {
+							switch ace.Type {
+							case ACETYPE_ACCESS_ALLOWED, ACETYPE_ACCESS_ALLOWED_OBJECT:
+								if i < firstallow {
+									firstallow = i
+								}
+							case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
+								if i > lastdeny {
+									lastdeny = i
+								}
+							}
+						}
+						if lastdeny > firstallow {
+							debug = true
+						}
+						if debug {
+							log.Info().Msg("Before sorting:")
+							log.Info().Msg(result.DACL.String(nil))
+						}*/
+			result.DACL.Sort()
+			/*if debug {
+				log.Info().Msg("After sorting:")
+				log.Info().Msg(result.DACL.String(nil))
+				log.Info().Msg("SORT INFO DONE")
+			}*/
+		}
 		if err != nil {
 			return result, err
 		}

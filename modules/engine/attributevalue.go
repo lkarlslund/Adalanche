@@ -51,6 +51,11 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 		if btype {
 			return na == nb
 		}
+	case *Object:
+		nb, btype := braw.(*Object)
+		if btype {
+			return na == nb // Exact same object pointed to in memory
+		}
 	default:
 		// Fallback
 		return a.String() == b.String()

@@ -273,6 +273,13 @@ var cytostyle = [{
         "background-color": "lightgreen"
     }
 },
+    {
+        selector: 'node[type="GroupManagedServiceAccount"]',
+        style: {
+            "background-image": "icons/manage_accounts_black_24dp.svg",
+            "background-color": "lightgreen"
+        }
+    },
 {
     selector: 'node[type="ForeignSecurityPrincipal"]',
     style: {

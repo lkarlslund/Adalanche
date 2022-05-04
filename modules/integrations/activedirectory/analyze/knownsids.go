@@ -26,16 +26,16 @@ const (
 
 var (
 	groupTranslationTable = map[string]windowssecurity.SID{
-		strings.ToLower("Administrators"):  windowssecurity.SIDAdministrators, // EN
-		strings.ToLower("Administratoren"): windowssecurity.SIDAdministrators, // DE
-		strings.ToLower("Administrateurs"): windowssecurity.SIDAdministrators, // FR
-		strings.ToLower("Administradores"): windowssecurity.SIDAdministrators, // ES
-		strings.ToLower("Administratoren"): windowssecurity.SIDAdministrators, // NL
-		strings.ToLower("Administratorzy"): windowssecurity.SIDAdministrators, // PL
+		strings.ToLower("Administrators"):  windowssecurity.AdministratorsSID, // EN
+		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // DE
+		strings.ToLower("Administrateurs"): windowssecurity.AdministratorsSID, // FR
+		strings.ToLower("Administradores"): windowssecurity.AdministratorsSID, // ES
+		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // NL
+		strings.ToLower("Administratorzy"): windowssecurity.AdministratorsSID, // PL
 
-		strings.ToLower("Remote Desktop Users"): windowssecurity.SIDRemoteDesktopUsers, // DK
+		strings.ToLower("Remote Desktop Users"): windowssecurity.AdministratorsSID, // DK
 
-		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.SIDRemoteDesktopUsers, // DK
+		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.AdministratorsSID, // DK
 	}
 )
 
@@ -49,9 +49,7 @@ func TranslateLocalizedGroupToSID(groupname string) (windowssecurity.SID, error)
 func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
 	for _, result := range results {
-		if strings.Contains(result.DN(), "WellKnown") {
-			return result
-		}
+		return result
 	}
 	return nil
 }

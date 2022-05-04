@@ -57,7 +57,7 @@ var (
 	Name                  = NewAttribute("name").Single()
 	DisplayName           = NewAttribute("displayName").Single()
 	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Single()
-	Description           = NewAttribute("description").Single()
+	Description           = NewAttribute("description")
 	SAMAccountName        = NewAttribute("sAMAccountName").Single()
 	ObjectSid             = NewAttribute("objectSid").Single() // Strange yes, but in the final results there are multiple objects with the same SID
 	ObjectGUID            = NewAttribute("objectGUID").Single().Unique()
@@ -66,7 +66,9 @@ var (
 	RightsGUID            = NewAttribute("rightsGUID")
 	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 
-	WhenCreated = NewAttribute("whenCreated").Single()
+	WhenChanged = NewAttribute("whenChanged").Type(AttributeTypeTime) // Not replicated, so we're not marking it as "single"
+
+	WhenCreated = NewAttribute("whenCreated").Single().Type(AttributeTypeTime)
 
 	ObjectClassGUIDs       = NewAttribute("objectClassGUID")    // Used for caching the GUIDs, should belong in AD analyzer, but it's used in the SecurityDescritor mapping, so we're cheating a bit
 	ObjectCategoryGUID     = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
@@ -80,6 +82,7 @@ var (
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
 	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
+	DomainPart         = NewAttribute("domainPart")
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
 	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")

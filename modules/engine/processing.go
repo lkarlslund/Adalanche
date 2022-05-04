@@ -21,32 +21,9 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	log.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
 
-	globalobjects := NewObjects()
 	_ = biggest
-	// globalobjects := aos[biggest]
 
 	// log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
-
-	// After merge we don't need all the indexes
-	globalobjects.DropIndexes()
-
-	// Let's not change anything in the original objects
-	globalobjects.DefaultValues = nil
-
-	globalroot := NewObject(
-		Name, AttributeValueString("adalanche root node"),
-		ObjectCategorySimple, AttributeValueString("Root"),
-	)
-
-	if oldroot := globalobjects.Root(); oldroot != nil {
-		oldroot.ChildOf(globalroot)
-	}
-
-	globalobjects.SetRoot(globalroot)
-
-	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
-	orphancontainer.ChildOf(globalroot)
-	globalobjects.Add(orphancontainer)
 
 	// Find all the attributes that can be merged objects on
 	var mergeon []Attribute
@@ -56,15 +33,28 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 	}
 
-	var needsmerge []*Object
+	globalobjects := NewObjects()
+	globalroot := NewObject(
+		Name, AttributeValueString("adalanche root node"),
+		ObjectCategorySimple, AttributeValueString("Root"),
+	)
+	globalobjects.SetRoot(globalroot)
+	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
+	orphancontainer.ChildOf(globalroot)
+	globalobjects.Add(orphancontainer)
 
 	// Iterate over all the object collections
+	needsmerge := make(map[*Object]struct{})
+
 	for _, mergeobjects := range aos {
 		if mergeroot := mergeobjects.Root(); mergeroot != nil {
 			mergeroot.ChildOf(globalroot)
 		}
 
-		needsmerge = append(needsmerge, mergeobjects.Slice()...)
+		for _, o := range mergeobjects.Slice() {
+			needsmerge[o] = struct{}{}
+		}
+		// needsmerge = append(needsmerge, mergeobjects.Slice()...)
 	}
 
 	log.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
@@ -81,7 +71,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	nosourceobjects := NewObjects()
 
-	for _, mergeobject := range needsmerge {
+	for mergeobject, _ := range needsmerge {
 		if mergeobject.HasAttr(UniqueSource) {
 			us := attributeValueToIndex(mergeobject.OneAttr(UniqueSource))
 			if sourcemap[us] == nil {
@@ -95,7 +85,16 @@ func Merge(aos []*Objects) (*Objects, error) {
 	}
 
 	for _, usao := range sourcemap {
-		globalobjects.Add(usao.Slice()...)
+		for _, addobject := range usao.Slice() {
+			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
+			if addobject.HasAttr(DistinguishedName) {
+				if existing, exists := globalobjects.Find(DistinguishedName, addobject.OneAttr(DistinguishedName)); exists {
+					existing.Absorb(addobject)
+					continue
+				}
+			}
+			globalobjects.Add(addobject)
+		}
 	}
 
 	globalobjects.AddMerge(mergeon, nosourceobjects.Slice()...)

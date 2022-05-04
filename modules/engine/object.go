@@ -20,6 +20,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var adjustthreadsafe sync.Mutex
 var threadsafeobject int
 
 const threadbuckets = 1024
@@ -31,6 +32,7 @@ func init() {
 }
 
 func setThreadsafe(enable bool) {
+	adjustthreadsafe.Lock()
 	if enable {
 		threadsafeobject++
 	} else {
@@ -39,6 +41,7 @@ func setThreadsafe(enable bool) {
 	if threadsafeobject < 0 {
 		panic("threadsafeobject is negative")
 	}
+	adjustthreadsafe.Unlock()
 }
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -121,6 +124,10 @@ func (o *Object) runlock() {
 // Absorbs data and Pwn relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
 func (o *Object) Absorb(source *Object) {
+	if o == source {
+		log.Fatal().Msg("Can't absorb myself")
+	}
+
 	o.lock()
 	if source.lockbucket() != o.lockbucket() {
 		source.lock()
@@ -177,6 +184,7 @@ func (o *Object) Absorb(source *Object) {
 	for pwntarget, methods := range source.CanPwn {
 		target.CanPwn[pwntarget] = target.CanPwn[pwntarget].Merge(methods)
 		delete(source.CanPwn, pwntarget)
+
 		pwntarget.PwnableBy[target] = pwntarget.PwnableBy[target].Merge(methods)
 		delete(pwntarget.PwnableBy, source)
 	}
@@ -184,11 +192,12 @@ func (o *Object) Absorb(source *Object) {
 	for pwner, methods := range source.PwnableBy {
 		target.PwnableBy[pwner] = target.PwnableBy[pwner].Merge(methods)
 		delete(source.PwnableBy, pwner)
+
 		pwner.CanPwn[target] = pwner.CanPwn[target].Merge(methods)
 		delete(pwner.CanPwn, source)
 	}
 
-	if len(source.members) > 0 {
+	if len(target.members) > 0 {
 		members := make(map[*Object]struct{})
 		for _, member := range target.members {
 			members[member] = struct{}{}
@@ -211,7 +220,7 @@ func (o *Object) Absorb(source *Object) {
 		target.members = source.members
 	}
 
-	if len(source.memberof) > 0 {
+	if len(target.memberof) > 0 {
 		memberofgroups := make(map[*Object]struct{})
 		for _, memberof := range target.memberof {
 			memberofgroups[memberof] = struct{}{}
@@ -232,7 +241,13 @@ func (o *Object) Absorb(source *Object) {
 	}
 
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
-	if target.sdcache == nil && source.sdcache != nil {
+	if source.sdcache != nil && target.sdcache != nil {
+		// Both has a cache
+		if !source.sdcache.Equals(target.sdcache) {
+			// Different caches, so we need to merge them which is impossible
+			log.Warn().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
+		}
+	} else if target.sdcache == nil && source.sdcache != nil {
 		target.sdcache = source.sdcache
 	} else {
 		target.sdcache = nil
@@ -800,21 +815,30 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 
 	if a == DownLevelLogonName {
 		// There's been so many problems with DLLN that we're going to just check for these
-		strval := values.StringSlice()[0]
-		if strval == "," {
-			log.Warn().Msgf("Setting DownLevelLogonName to ',' is not allowed")
-		}
-		if strval == "" {
-			log.Warn().Msgf("Setting DownLevelLogonName to blank is not allowed")
-		}
-		if strings.HasPrefix(strval, "S-") {
-			log.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
-		}
 		if values.Len() != 1 {
 			log.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
 		}
-		if strings.HasSuffix(strval, "\\") {
-			panic("DownLevelLogon ends with \\")
+		for _, dlln := range values.StringSlice() {
+			if dlln == "," {
+				log.Fatal().Msgf("Setting DownLevelLogonName to ',' is not allowed")
+			}
+			if dlln == "" {
+				log.Fatal().Msgf("Setting DownLevelLogonName to blank is not allowed")
+			}
+			if strings.HasPrefix(dlln, "S-") {
+				log.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
+			}
+			if strings.HasSuffix(dlln, "\\") {
+				log.Fatal().Msgf("DownLevelLogonName %v ends with \\", dlln)
+			}
+
+			dotpos := strings.Index(dlln, ".")
+			if dotpos >= 0 {
+				backslashpos := strings.Index(dlln, "\\")
+				if dotpos < backslashpos {
+					log.Warn().Msgf("DownLevelLogonName contains dot in domain: %v", dlln)
+				}
+			}
 		}
 	}
 
@@ -918,6 +942,16 @@ func (o *Object) String(ao *Objects) string {
 	return result
 }
 
+// Dump the object to simple map type for debugging
+func (o *Object) ValueMap() map[string][]string {
+	result := make(map[string][]string)
+	for attr, values := range o.values {
+		result[attr.String()] = values.StringSlice()
+	}
+	return result
+}
+
+// Return parsed security descriptor
 func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 	if o.sdcache == nil {
 		return nil, errors.New("no security desciptor")
@@ -925,6 +959,7 @@ func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 	return o.sdcache, nil
 }
 
+// Parse and cache security descriptor
 func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	if len(rawsd) == 0 {
 		return errors.New("empty nTSecurityDescriptor attribute!?")
@@ -945,10 +980,12 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 		o.sdcache = &sd
 		securityDescriptorCache[cacheindex] = &sd
 	}
+
 	securitydescriptorcachemutex.Unlock()
 	return err
 }
 
+// Return the object's SID
 func (o *Object) SID() windowssecurity.SID {
 	if !o.sidcached {
 		o.lock()
@@ -966,6 +1003,7 @@ func (o *Object) SID() windowssecurity.SID {
 	return sid
 }
 
+// Return the object's GUID
 func (o *Object) GUID() uuid.UUID {
 	o.lock()
 	if !o.guidcached {
@@ -983,10 +1021,12 @@ func (o *Object) GUID() uuid.UUID {
 	return guid
 }
 
+// Register that this object can pwn another object using the given method
 func (o *Object) Pwns(target *Object, method PwnMethod) {
 	o.PwnsEx(target, method, false)
 }
 
+// Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
 func (o *Object) PwnsEx(target *Object, method PwnMethod, force bool) {
 	if !force {
 		if o == target { // SID check solves (some) dual-AD analysis problems
@@ -1015,23 +1055,6 @@ func (o *Object) PwnsEx(target *Object, method PwnMethod, force bool) {
 	target.PwnableBy.Set(o, method) // Add the reverse connection too
 	target.unlock()
 }
-
-/*
-func (o *Object) Dedup() {
-	o.DistinguishedName = stringdedup.S(o.DistinguishedName)
-	for key, values := range o.Attributes {
-		if key >= MAX_DEDUP {
-			continue
-		}
-		for index, str := range values {
-			if len(str) < 64 {
-				values[index] = stringdedup.S(str)
-			}
-		}
-		o.Attributes[key] = values
-	}
-}
-*/
 
 func (o *Object) ChildOf(parent *Object) {
 	o.lock()

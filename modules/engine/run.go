@@ -64,6 +64,8 @@ func Run(path string) (*Objects, error) {
 			// 	progressbar.OptionThrottle(time.Second*1),
 			// )
 
+			lobj.Objects.SetThreadsafe(true)
+
 			var loaderid LoaderID
 			for i, loader := range loaders {
 				if loader == lobj.Loader {
@@ -86,6 +88,8 @@ func Run(path string) (*Objects, error) {
 				// prebar.ChangeMax(max)
 				// prebar.Set(cur)
 			}, loaderid, BeforeMergeHigh)
+
+			lobj.Objects.SetThreadsafe(false)
 
 			// prebar.Finish()
 			preprocessWG.Done()

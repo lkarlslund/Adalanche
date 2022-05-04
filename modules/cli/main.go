@@ -90,7 +90,7 @@ func Run() error {
 
 		if *cpuprofiletimeout > 0 {
 			go func() {
-				time.Sleep(time.Second * (time.Duration(*cpuprofiletimeout)))
+				<-time.After(time.Second * (time.Duration(*cpuprofiletimeout)))
 				stopprofile <- true
 			}()
 		}

@@ -50,18 +50,10 @@ var (
 	ObjectGuidOU                 = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
-	// DAdministratorSID, _   = windowssecurity.SIDFromString("S-1-5-21domain-500")
-	DAdministratorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-544")
-	BackupOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-551")
-	// DomainAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21domain-512")
-	// DomainControllersSID, _         = windowssecurity.SIDFromString("S-1-5-21domain-516")
-	// EnterpriseAdminsSID, _          = windowssecurity.SIDFromString("S-1-5-21root domain-519")
-	// KrbtgtSID, _                    = windowssecurity.SIDFromString("S-1-5-21domain-502")
-	PrintOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-550")
-	// ReadOnlyDomainControllersSID, _ = windowssecurity.SIDFromString("S-1-5-21domain-521")
-	// SchemaAdminsSID, _              = windowssecurity.SIDFromString("S-1-5-21root domain-518")
-	ServerOperatorsSID, _ = windowssecurity.SIDFromString("S-1-5-32-549")
-
+	AdministratorsSID, _           = windowssecurity.SIDFromString("S-1-5-32-544")
+	BackupOperatorsSID, _          = windowssecurity.SIDFromString("S-1-5-32-551")
+	PrintOperatorsSID, _           = windowssecurity.SIDFromString("S-1-5-32-550")
+	ServerOperatorsSID, _          = windowssecurity.SIDFromString("S-1-5-32-549")
 	EnterpriseDomainControllers, _ = windowssecurity.SIDFromString("S-1-5-9")
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
@@ -84,7 +76,7 @@ func init() {
 		// 			return
 		// 		}
 		// 		if sd.Control&engine.CONTROLFLAG_DACL_PRESENT != 0 || len(sd.DACL.Entries) == 0 {
-		// 			results = append(results, ao.FindOrAddSID(acl.SID))
+		// 			results = append(results, ao.FindOrAddAdjacentSID(acl.SID, o))
 		// 		}
 
 		// 		return results
@@ -232,7 +224,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidUser, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateUser)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateUser)
 					}
 				}
 			},
@@ -251,7 +243,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidGroup, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateGroup)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateGroup)
 					}
 				}
 			},
@@ -270,7 +262,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidComputer, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateComputer)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateComputer)
 					}
 				}
 			},
@@ -289,7 +281,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCreateAnyObject)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateAnyObject)
 					}
 				}
 			},
@@ -305,7 +297,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DELETE, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDeleteObject)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDeleteObject)
 					}
 				}
 			},
@@ -322,7 +314,7 @@ func init() {
 					}
 					for index, acl := range sd.DACL.Entries {
 						if sd.DACL.AllowObjectClass(index, parent, engine.RIGHT_DS_DELETE_CHILD, o.ObjectCategoryGUID(ao), ao) {
-							ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDeleteChildrenTarget)
+							ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDeleteChildrenTarget)
 						}
 					}
 				}
@@ -350,7 +342,7 @@ func init() {
 				}
 				for _, acl := range sd.DACL.Entries {
 					if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnACLContainsDeny) // Not a probability of success, this is just an indicator
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnACLContainsDeny) // Not a probability of success, this is just an indicator
 					}
 				}
 			},
@@ -386,7 +378,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnGenericAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnGenericAll)
 					}
 				}
 			},
@@ -401,7 +393,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAll)
 					}
 				}
 			},
@@ -416,7 +408,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWritePropertyAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWritePropertyAll)
 					}
 				}
 			},
@@ -431,7 +423,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteExtendedAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteExtendedAll)
 					}
 				}
 			},
@@ -447,7 +439,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnTakeOwnership)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnTakeOwnership)
 					}
 				}
 			},
@@ -462,7 +454,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteDACL)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteDACL)
 					}
 				}
 			},
@@ -481,7 +473,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
 					}
 				}
 			},
@@ -491,7 +483,7 @@ func init() {
 			Description: "Indicator that a group or user can reset the password of an account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only users, computers and service accounts
-				if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeManagedServiceAccount {
+				if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
 					return
 				}
 				// Check who can reset the password
@@ -501,7 +493,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnResetPassword)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnResetPassword)
 					}
 				}
 			},
@@ -510,9 +502,10 @@ func init() {
 			Description: "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only managed service accounts
-				if o.Type() != engine.ObjectTypeManagedServiceAccount {
+				if o.Type() != engine.ObjectTypeManagedServiceAccount && o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
 					return
 				}
+
 				// Check who can reset the password
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
@@ -520,7 +513,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadPasswordId)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadPasswordId)
 					}
 				}
 			},
@@ -579,7 +572,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteSPN)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteSPN)
 					}
 				}
 			},
@@ -598,7 +591,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteValidatedSPN)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteValidatedSPN)
 					}
 				}
 			},
@@ -617,7 +610,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAllowedToAct) // Success rate?
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAllowedToAct) // Success rate?
 					}
 				}
 			},
@@ -637,7 +630,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMember)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMember)
 					}
 				}
 			},
@@ -657,7 +650,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddMemberGroupAttr)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMemberGroupAttr)
 					}
 				}
 			},
@@ -676,7 +669,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAddSelfMember)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddSelfMember)
 					}
 				}
 			},
@@ -691,7 +684,7 @@ func init() {
 					if err == nil {
 						for _, acl := range sd.DACL.Entries {
 							if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
-								ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadMSAPassword)
+								ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadMSAPassword)
 							}
 						}
 					}
@@ -712,7 +705,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteAltSecurityIdentities)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAltSecurityIdentities)
 					}
 				}
 			},
@@ -731,7 +724,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteProfilePath)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteProfilePath)
 					}
 				}
 			},
@@ -750,7 +743,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteScriptPath)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteScriptPath)
 					}
 				}
 			},
@@ -782,7 +775,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnWriteKeyCredentialLink)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteKeyCredentialLink)
 					}
 				}
 			},
@@ -811,7 +804,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnAllExtendedRights)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAllExtendedRights)
 					}
 				}
 			},
@@ -846,7 +839,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnCertificateEnroll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCertificateEnroll)
 					}
 				}
 			},
@@ -868,16 +861,16 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
 					}
 					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
-						ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
+						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
 					}
 				}
 
@@ -962,14 +955,42 @@ func init() {
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
 					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+samaccountname))
-					ao.ReindexObject(o)
 					break
 				}
 			}
 		}
+
+		ao.DropIndex(engine.DownLevelLogonName)
 	},
 		"applying DownLevelLogonName attribute",
-		engine.BeforeMerge)
+		engine.BeforeMergeLow)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Add domain part attribute from distinguished name to objects
+		for _, o := range ao.Slice() {
+			// Only objects with a DistinguishedName
+			if o.DN() == "" {
+				continue
+			}
+
+			parts := strings.Split(o.DN(), ",")
+			lastpart := -1
+
+			for i := len(parts) - 1; i >= 0; i-- {
+				part := parts[i]
+				if len(part) < 3 || !strings.EqualFold("dc=", part[:3]) {
+					break
+				}
+				lastpart = i
+			}
+
+			if lastpart != -1 {
+				o.SetValues(engine.DomainPart, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
+			}
+		}
+	},
+		"applying domain part attribute",
+		engine.BeforeMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
@@ -1067,7 +1088,7 @@ func init() {
 			if err != nil {
 				log.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
-			if _, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(binsid)); !found {
+			if fo := FindWellKnown(ao, binsid); fo == nil {
 				dn := "CN=" + name + ",CN=microsoft-builtin"
 				log.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 				ao.Add(engine.NewObject(
@@ -1107,32 +1128,7 @@ func init() {
 			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		administratorssid, _ := windowssecurity.SIDFromString("S-1-5-32-544")
-		administratorss, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(administratorssid))
-		if !found {
-			log.Fatal().Msgf("Could not locate Administrators, aborting - this should at least have been added during earlier preprocessing")
-		}
-		if len(administratorss) != 1 {
-			for _, o := range administratorss {
-				log.Info().Msgf("Administrators dump: %v", o.StringNoACL())
-			}
-		}
-		administrators := administratorss[0]
-
-		remotedesktopuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-555")
-		remotedesktopusers, _ := ao.Find(engine.ObjectSid, engine.AttributeValueSID(remotedesktopuserssid))
-		if remotedesktopusers == nil {
-			log.Fatal().Msgf("Could not locate Remote Desktop Users, aborting - this should at least have been added during earlier preprocessing")
-		}
-
-		distributeddcomuserssid, _ := windowssecurity.SIDFromString("S-1-5-32-562")
-		distributeddcomusers, _ := ao.Find(engine.ObjectSid, engine.AttributeValueSID(distributeddcomuserssid))
-		if distributeddcomusers == nil {
-			log.Fatal().Msgf("Could not locate Distributed COM Users, aborting - this should at least have been added during earlier preprocessing")
-		}
-
 		for _, object := range ao.Slice() {
-
 			processbar.Add(1)
 
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
@@ -1164,11 +1160,10 @@ func init() {
 					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 						objectcategoryguid = oto.Attr(activedirectory.SchemaIDGUID)
 					} else {
-						log.Debug().Msgf("%v", oto)
-						log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
+						log.Error().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
 					}
 				} else {
-					log.Fatal().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+					log.Error().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
 				}
 			}
 			object.Set(engine.ObjectCategoryGUID, objectcategoryguid)
@@ -1184,7 +1179,7 @@ func init() {
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
-			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
 				everyone.AddMember(object)
 				authenticatedusers.AddMember(object)
 			}
@@ -1237,9 +1232,31 @@ func init() {
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
-					administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
-					remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
-					distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
+					domainPart := object.OneAttr(engine.DomainPart)
+					if domainPart == nil {
+						log.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
+					}
+
+					if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
+						engine.DomainPart, domainPart); found {
+						administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
+					} else {
+						log.Warn().Msgf("Could not find Administrators group for %v", object.DN())
+					}
+
+					if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
+						engine.DomainPart, domainPart); found {
+						remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
+					} else {
+						log.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
+					}
+
+					if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
+						engine.DomainPart, domainPart); found {
+						distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
+					} else {
+						log.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
+					}
 				}
 			}
 
@@ -1290,7 +1307,7 @@ func init() {
 								}
 								for index, acl := range sd.DACL.Entries {
 									if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
-										ao.FindOrAddSID(acl.SID).Pwns(o, activedirectory.PwnReadLAPSPassword)
+										ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadLAPSPassword)
 									}
 								}
 							},
@@ -1324,36 +1341,25 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the DomainDNS objects, and find the domain object
-		var ourDomainDN string
-		var ourDomainSid windowssecurity.SID
-
 		for _, domaindns := range ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeDomainDNS && o.HasAttr(engine.ObjectSid)
 		}).Slice() {
-			if !ourDomainSid.IsNull() {
-				log.Fatal().Msg("Found multiple DomainDNS objects in same domain object group before merge, this is a failure")
-			}
-			ourDomainDN = domaindns.DN()
-			ourDomainSid = domaindns.SID()
-		}
+			// ourDomainDN := domaindns.DN()
+			ourDomainSid := domaindns.SID()
 
-		// Not Objects from AD, don't do anything
-		if ourDomainDN == "" {
-			return
-		}
-
-		for _, o := range ao.Slice() {
-			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) {
-				// An unknown SID, is it ours or from another domain?
-				if o.SID().StripRID() == ourDomainSid {
-					log.Warn().Msgf("Found a 'lost' local SID object %v, but not taking action (don't know where to place it). This will affect your analysis results, try dumping as Domain Admin!", o.SID())
-				} else {
-					log.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
-					o.SetFlex(
-						engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
-						engine.ObjectCategorySimple, "Foreign-Security-Principal",
-						engine.MetaDataSource, "Autogenerated",
-					)
+			for _, o := range ao.Slice() {
+				if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) {
+					// An unknown SID, is it ours or from another domain?
+					if o.SID().StripRID() == ourDomainSid {
+						log.Warn().Msgf("Found a 'lost' local SID object %v, but not taking action (don't know where to place it). This will affect your analysis results, try dumping as Domain Admin!", o.SID())
+					} else {
+						log.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
+						// o.SetFlex(
+						// 	engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
+						// 	engine.ObjectCategorySimple, "Foreign-Security-Principal",
+						// 	engine.MetaDataSource, "Autogenerated",
+						// )
+					}
 				}
 			}
 		}

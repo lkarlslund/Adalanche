@@ -19,6 +19,10 @@ import (
 
 var (
 	importcnf = analyze.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
+	importdel = analyze.Command.Flags().Bool("importdel", false, "Import DEL (deleted) objects (experimental)")
+
+	importhardened = analyze.Command.Flags().Bool("importhardened", false, "Import hardened objects (without objectclass attribute)")
+	warnhardened   = analyze.Command.Flags().Bool("warnhardened", false, "Warn about hardened objects (without objectclass attribute)")
 
 	adsource = engine.AttributeValueString("Active Directory dumps")
 	Loader   = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
@@ -30,11 +34,19 @@ type convertqueueitem struct {
 }
 
 type ADLoader struct {
-	importmutex      sync.Mutex
-	done             sync.WaitGroup
-	dco              map[string]*engine.Objects
+	importmutex sync.Mutex
+	done        sync.WaitGroup
+
+	// Deduplicator for DNs that are somehow imported twice
+	importeddns map[string]struct{}
+
+	shardobjects map[string]*engine.Objects
+
 	objectstoconvert chan convertqueueitem
-	importcnf        bool
+	importcnf        bool // Import CNF (conflict) objects (experimental)
+	importdel        bool // Import deleted objects (experimental)
+	warnhardened     bool // Warn about hardened objects
+	importhardened   bool // Import hardened objects
 }
 
 type domaininfo struct {
@@ -48,8 +60,14 @@ func (ld *ADLoader) Name() string {
 
 func (ld *ADLoader) Init() error {
 	ld.importcnf = *importcnf
+	ld.importdel = *importdel
 
-	ld.dco = make(map[string]*engine.Objects)
+	ld.warnhardened = *warnhardened
+	ld.importhardened = *importhardened
+
+	ld.importeddns = make(map[string]struct{})
+
+	ld.shardobjects = make(map[string]*engine.Objects)
 	ld.objectstoconvert = make(chan convertqueueitem, 8192)
 
 	// AD Objects
@@ -60,17 +78,38 @@ func (ld *ADLoader) Init() error {
 			for item := range ld.objectstoconvert {
 				o := item.object.ToObject()
 
+				index := strings.Index(o.DN(), ",DC=")
+				if index == -1 {
+					index = strings.Index(o.DN(), ",dc=")
+				}
+				if index == -1 {
+					log.Warn().Msgf("Object without distinguishedName detected. Ignoring!")
+					continue
+				}
+
 				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
 					continue // skip conflict object
 				}
 
+				if !ld.importdel && strings.Contains(o.DN(), "\\0ADEL:") {
+					continue // skip deleted object
+				}
+
 				if !o.HasAttr(engine.ObjectClass) {
-					if strings.Contains(o.DN(), ",CN=MicrosoftDNS,") {
-						log.Debug().Msgf("Hardened DNS object without objectclass detected: %v", o.DN())
-					} else {
-						log.Warn().Msgf("Hardened object without objectclass detected: %v. This *might* affect your analysis, depending on object.", o.DN())
+					if ld.warnhardened {
+						if strings.Contains(o.DN(), ",CN=MicrosoftDNS,") {
+							log.Debug().Msgf("Hardened DNS object without objectclass detected: %v", o.DN())
+						} else {
+							log.Warn().Msgf("Hardened object without objectclass detected: %v. This *might* affect your analysis, depending on object.", o.DN())
+						}
+					}
+					if !ld.importhardened {
+						continue
 					}
 				}
+
+				ao := ld.getShard(o.DN()[index:])
+				ao.FindOrAddObject(o)
 
 				item.ao.Add(o)
 			}
@@ -88,12 +127,12 @@ func (ld *ADLoader) getShard(path string) *engine.Objects {
 
 	var ao *engine.Objects
 	ld.importmutex.Lock()
-	ao = ld.dco[lookupshard]
+	ao = ld.shardobjects[lookupshard]
 	if ao == nil {
 		ao = engine.NewLoaderObjects(ld)
 		// ao.AddDefaultFlex(engine.UniqueSource, engine.AttributeValueString(shard))
 		ao.SetThreadsafe(true)
-		ld.dco[lookupshard] = ao
+		ld.shardobjects[lookupshard] = ao
 	}
 	ld.importmutex.Unlock()
 	return ao
@@ -154,7 +193,7 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	ld.done.Wait()
 
 	var aos []*engine.Objects
-	for _, ao := range ld.dco {
+	for _, ao := range ld.shardobjects {
 		// Replace shard path value with the NETBIOS domain name
 		// This allows merging with localmachine data for accounts that are in the same domain
 		domobj, found := ao.FindTwo(engine.ObjectClass, engine.AttributeValueString("domainDNS"),
@@ -171,7 +210,7 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		ao.SetThreadsafe(false)
 	}
 
-	ld.dco = make(map[string]*engine.Objects) // Clear from memory
+	ld.shardobjects = make(map[string]*engine.Objects) // Clear from memory
 
 	return aos, nil
 }
