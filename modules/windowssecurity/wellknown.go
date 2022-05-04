@@ -33,7 +33,7 @@ var (
 		"S-1-5-15":     "This Organization",
 		"S-1-5-17":     "This Organization",
 		"S-1-5-18":     "Local System",
-		"S-1-5-19":     "NT Authority",
+		"S-1-5-19":     "Local Service",
 		"S-1-5-2":      "Network",
 		"S-1-5-20":     "NT Authority",
 		"S-1-5-3":      "Batch",
@@ -80,9 +80,9 @@ var (
 		"S-1-5-90-0":  "Windows Manager - Windows Manager Group",
 	}
 
-	SIDAdministrators, _     = SIDFromString("S-1-5-32-544")
-	SIDRemoteDesktopUsers, _ = SIDFromString("S-1-5-32-555")
-	SIDDCOMUsers, _          = SIDFromString("S-1-5-32-562")
+	AdministratorsSID, _     = SIDFromString("S-1-5-32-544")
+	RemoteDesktopUsersSID, _ = SIDFromString("S-1-5-32-555")
+	DCOMUsersSID, _          = SIDFromString("S-1-5-32-562")
 
 	OwnerSID, _              = SIDFromString("S-1-3-4")
 	SystemSID, _             = SIDFromString("S-1-5-18")
@@ -90,7 +90,6 @@ var (
 	SelfSID, _               = SIDFromString("S-1-5-10")
 	AuthenticatedUsersSID, _ = SIDFromString("S-1-5-11")
 	EveryoneSID, _           = SIDFromString("S-1-1-0")
-	AdministratorsSID, _     = SIDFromString("S-1-5-32-544")
 	ServicesSID, _           = SIDFromString("S-1-5-6")
 	NetworkServiceSID, _     = SIDFromString("S-1-5-19")
 	LocalServiceSID, _       = SIDFromString("S-1-5-20")

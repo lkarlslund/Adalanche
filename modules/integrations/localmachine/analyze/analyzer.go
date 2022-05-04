@@ -156,7 +156,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 		computerobject.SetValues(localmachine.MACAddress, macaddrs...)
 	}
 
-	ld.ao.ReindexObject(computerobject) // We changed stuff after adding it
+	ld.ao.ReindexObject(computerobject, false) // We changed stuff after adding it
 
 	// Add local accounts as synthetic objects
 	userscontainer := engine.NewObject(activedirectory.Name, "Users")
@@ -278,11 +278,11 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 				switch {
 				case group.Name == "SMS Admins":
 					memberobject.Pwns(computerobject, PwnLocalSMSAdmins)
-				case groupsid == windowssecurity.SIDAdministrators:
+				case groupsid == windowssecurity.AdministratorsSID:
 					memberobject.Pwns(computerobject, PwnLocalAdminRights)
-				case groupsid == windowssecurity.SIDDCOMUsers:
+				case groupsid == windowssecurity.DCOMUsersSID:
 					memberobject.Pwns(computerobject, PwnLocalDCOMRights)
-				case groupsid == windowssecurity.SIDRemoteDesktopUsers:
+				case groupsid == windowssecurity.RemoteDesktopUsersSID:
 					memberobject.Pwns(computerobject, PwnLocalRDPRights)
 				}
 
