@@ -335,6 +335,10 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 }
 
 func (os *Objects) add(o *Object) {
+	if o.id == 0 {
+		log.Fatal().Msg("Objects must have a unique ID")
+	}
+
 	if _, found := os.asmap[o]; found {
 		log.Fatal().Msg("Object already exists in objects, so we can't add it")
 	}

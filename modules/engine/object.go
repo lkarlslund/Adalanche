@@ -240,6 +240,15 @@ func (o *Object) Absorb(source *Object) {
 		target.Adopt(child)
 	}
 
+	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
+	if source.parent != nil {
+		if target.parent == nil {
+			target.ChildOf(source.parent)
+		}
+		source.parent.RemoveChild(source)
+		source.parent = nil
+	}
+
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 	if source.sdcache != nil && target.sdcache != nil {
 		// Both has a cache
@@ -253,12 +262,6 @@ func (o *Object) Absorb(source *Object) {
 		target.sdcache = nil
 	}
 
-	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
-	if target.parent == nil && source.parent != nil {
-		source.parent.RemoveChild(source)
-		target.ChildOf(source.parent)
-	}
-
 	target.objecttype = 0 // Recalculate this
 
 	target.memberofrecursive = nil // Clear cache
@@ -266,6 +269,8 @@ func (o *Object) Absorb(source *Object) {
 
 	target.memberofsid = nil          // Clear cache
 	target.memberofsidrecursive = nil // Clear cache
+
+	source.id = 0 // Invalid object
 }
 
 func (o *Object) AttributeValueMap() AttributeValueMap {
@@ -1088,12 +1093,12 @@ func (o *Object) Adopt(child *Object) {
 func (o *Object) RemoveChild(child *Object) {
 	for i, curchild := range o.children {
 		if curchild == child {
-			if i < len(o.children)+1 {
-				// Not the last one, move things
-				copy(o.children[i:], o.children[i+1:])
+			if len(o.children) == 1 {
+				o.children = nil
+			} else {
+				o.children[i] = o.children[len(o.children)-1]
+				o.children = o.children[:len(o.children)-1]
 			}
-			// Remove last item
-			o.children = o.children[:len(o.children)-1]
 			return
 		}
 	}

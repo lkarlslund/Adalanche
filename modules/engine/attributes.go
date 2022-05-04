@@ -75,7 +75,7 @@ var (
 	IsCriticalSystemObject = NewAttribute("isCriticalSystemObject")
 
 	MetaDataSource = NewAttribute("_datasource")
-	UniqueSource   = NewAttribute("_source").Single()
+	UniqueSource   = NewAttribute("_source")
 
 	IPAddress          = NewAttribute("IPAddress")
 	Hostname           = NewAttribute("hostname").Merge()
