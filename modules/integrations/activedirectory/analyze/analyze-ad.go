@@ -1004,14 +1004,14 @@ func init() {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
 		}).Slice() {
 			// We found it - so we know it can change ACLs of some objects
-			rootdn := adminsdholder.OneAttrString(engine.DistinguishedName)[27:]
+			domainpart := adminsdholder.OneAttrString(engine.DomainPart)
 
 			// Are some groups excluded?
 			excluded_mask := 0
 
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+rootdn)); found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainpart)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
 					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
@@ -1019,8 +1019,13 @@ func init() {
 			}
 
 			for _, o := range ao.Filter(func(o *engine.Object) bool {
-				// Check if object is a user account
+				// Check if object is a group
 				if o.Type() != engine.ObjectTypeGroup {
+					return false
+				}
+
+				// Only this "local" AD (for multi domain analysis)
+				if o.OneAttrString(engine.DomainPart) != domainpart {
 					return false
 				}
 				return true
@@ -1028,11 +1033,6 @@ func init() {
 
 				grpsid := o.SID()
 				if grpsid.IsNull() {
-					continue
-				}
-
-				// Only this "local" AD (for multi domain analysis)
-				if !strings.HasSuffix(o.OneAttrString(engine.DistinguishedName), rootdn) {
 					continue
 				}
 
