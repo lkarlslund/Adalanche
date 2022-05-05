@@ -54,11 +54,11 @@ type Object struct {
 	sdcache          *SecurityDescriptor
 	sid              windowssecurity.SID
 	children         []*Object
-	members          []*Object
-	membersrecursive []*Object
+	members          map[*Object]struct{}
+	membersrecursive map[*Object]struct{}
 
-	memberof          []*Object
-	memberofrecursive []*Object
+	memberof          map[*Object]struct{}
+	memberofrecursive map[*Object]struct{}
 
 	memberofsid          []windowssecurity.SID
 	memberofsidrecursive []windowssecurity.SID
@@ -66,9 +66,10 @@ type Object struct {
 	id   uint32
 	guid uuid.UUID
 	// objectcategoryguid uuid.UUID
-	guidcached bool
-	sidcached  bool
-	objecttype ObjectType
+	guidcached  bool
+	sidcached   bool
+	invalidated bool
+	objecttype  ObjectType
 }
 
 type Connection struct {
@@ -100,6 +101,9 @@ func (o *Object) lockbucket() int {
 func (o *Object) lock() {
 	if threadsafeobject != 0 {
 		threadsafeobjectmutexes[o.lockbucket()].Lock()
+	}
+	if o.invalidated {
+		panic("object is invalidated")
 	}
 }
 
@@ -197,44 +201,37 @@ func (o *Object) Absorb(source *Object) {
 		delete(pwner.CanPwn, source)
 	}
 
-	if len(target.members) > 0 {
-		members := make(map[*Object]struct{})
-		for _, member := range target.members {
-			members[member] = struct{}{}
+	// For everyone that is a member of source, relink them to the target
+	if target.members == nil {
+		target.members = make(map[*Object]struct{})
+	}
+	for newmember := range source.members {
+		target.members[newmember] = struct{}{}
+		// delete(source.members, newmember) // Handled below by setting to nil
 
-			member.memberofrecursive = nil
-			member.membersrecursive = nil
-		}
+		// Relink the memberof attribute of the member and clear cache
+		delete(newmember.memberof, source)
+		newmember.memberof[target] = struct{}{}
+		newmember.memberofrecursive = nil
+	}
+	source.members = nil
+	source.membersrecursive = nil
 
-		for _, newmember := range source.members {
-			if _, found := members[newmember]; !found {
-				target.members = append(target.members, newmember)
-
-				newmember.memberofrecursive = nil
-				newmember.membersrecursive = nil
-			}
-		}
-		source.members = nil
-		source.membersrecursive = nil
-	} else {
-		target.members = source.members
+	if target.memberof == nil {
+		target.memberof = make(map[*Object]struct{})
 	}
 
-	if len(target.memberof) > 0 {
-		memberofgroups := make(map[*Object]struct{})
-		for _, memberof := range target.memberof {
-			memberofgroups[memberof] = struct{}{}
-		}
-		for _, newmemberof := range source.memberof {
-			if _, found := memberofgroups[newmemberof]; !found {
-				target.memberof = append(target.memberof, newmemberof)
-			}
-		}
-		source.memberof = nil
-		source.memberofrecursive = nil
-	} else {
-		target.memberof = source.memberof
+	for newmemberof := range source.memberof {
+		target.memberof[newmemberof] = struct{}{}
+		// delete(source.memberof, newmemberof) // handled below by setting to nil
+
+		// Relink the member attribute of the newmemberof
+		newmemberof.members[target] = struct{}{}
+		delete(newmemberof.members, source)
+		newmemberof.membersrecursive = nil
 	}
+	source.memberof = nil
+	source.memberofrecursive = nil
 
 	for _, child := range source.children {
 		target.Adopt(child)
@@ -270,7 +267,7 @@ func (o *Object) Absorb(source *Object) {
 	target.memberofsid = nil          // Clear cache
 	target.memberofsidrecursive = nil // Clear cache
 
-	source.id = 0 // Invalid object
+	source.invalidated = true // Invalid object
 }
 
 func (o *Object) AttributeValueMap() AttributeValueMap {
@@ -545,17 +542,20 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 
 func (o *Object) AddMember(member *Object) {
 	member.lock()
-	for _, mo := range member.memberof {
-		// Dupe elimination
-		if mo == o {
-			member.unlock()
-			return
-		}
+	if _, found := member.memberof[o]; found {
+		member.unlock()
+		return
 	}
-	member.memberof = append(member.memberof, o)
+	if member.memberof == nil {
+		member.memberof = make(map[*Object]struct{})
+	}
+	member.memberof[o] = struct{}{}
 	member.unlock()
 	o.lock()
-	o.members = append(o.members, member)
+	if o.members == nil {
+		o.members = make(map[*Object]struct{})
+	}
+	o.members[member] = struct{}{}
 	o.unlock()
 }
 
@@ -563,7 +563,7 @@ func (o *Object) Members(recursive bool) []*Object {
 	o.lock()
 	defer o.unlock()
 	if !recursive {
-		return o.members
+		return util.KeysToSlice(o.members)
 	}
 
 	members := make(map[*Object]struct{})
@@ -579,7 +579,7 @@ func (o *Object) Members(recursive bool) []*Object {
 }
 
 func (o *Object) recursemembers(members *map[*Object]struct{}) {
-	for _, directmember := range o.members {
+	for directmember := range o.members {
 		if _, found := (*members)[directmember]; found {
 			// endless loop, not today thanks
 			continue
@@ -597,30 +597,24 @@ func (o *Object) MemberOf(recursive bool) []*Object {
 
 func (o *Object) memberofr(recursive bool) []*Object {
 	if !recursive || len(o.memberof) == 0 {
-		return o.memberof
+		return util.KeysToSlice(o.memberof)
 	}
 
 	if o.memberofrecursive != nil {
-		return o.memberofrecursive
+		return util.KeysToSlice(o.memberofrecursive)
 	}
 
 	memberof := make(map[*Object]struct{})
 	o.recursememberof(&memberof)
 
-	memberofarray := make([]*Object, len(memberof))
-	var i int
-	for member := range memberof {
-		memberofarray[i] = member
-		i++
-	}
-	o.memberofrecursive = memberofarray
-	return memberofarray
+	o.memberofrecursive = memberof
+	return util.KeysToSlice(memberof)
 }
 
 // Recursive memberof, returns true if loop is detected
 func (o *Object) recursememberof(memberof *map[*Object]struct{}) bool {
 	var loop bool
-	for _, directmemberof := range o.memberof {
+	for directmemberof := range o.memberof {
 		if _, found := (*memberof)[directmemberof]; found {
 			// endless loop, not today thanks
 			loop = true
@@ -641,8 +635,10 @@ func (o *Object) MemberOfSID(recursive bool) []windowssecurity.SID {
 	if !recursive {
 		if o.memberofsid == nil {
 			o.memberofsid = make([]windowssecurity.SID, len(o.memberof))
-			for i, memberof := range o.memberof {
+			i := 0
+			for memberof := range o.memberof {
 				o.memberofsid[i] = memberof.SID()
+				i++
 			}
 		}
 
