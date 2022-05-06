@@ -795,7 +795,9 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 		}
 	}
 	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-		o.set(attribute, data)
+		newdata := make(AttributeValueSlice, len(data))
+		copy(newdata, data)
+		o.set(attribute, newdata)
 	}
 	if len(data) > 0 {
 		data = data[:0]
