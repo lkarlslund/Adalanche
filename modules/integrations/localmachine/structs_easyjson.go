@@ -2154,6 +2154,10 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			}
 		case "SCCMLastValidMP":
 			out.SCCMLastValidMP = string(in.String())
+		case "WUServer":
+			out.WUServer = string(in.String())
+		case "WUStatusServer":
+			out.WUStatusServer = string(in.String())
 		case "UACConsentPromptBehaviorAdmin":
 			out.UACConsentPromptBehaviorAdmin = uint64(in.Uint64())
 		case "UACEnableLUA":
@@ -2400,6 +2404,26 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString(prefix)
 		}
 		out.String(string(in.SCCMLastValidMP))
+	}
+	if in.WUServer != "" {
+		const prefix string = ",\"WUServer\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.WUServer))
+	}
+	if in.WUStatusServer != "" {
+		const prefix string = ",\"WUStatusServer\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.WUStatusServer))
 	}
 	if in.UACConsentPromptBehaviorAdmin != 0 {
 		const prefix string = ",\"UACConsentPromptBehaviorAdmin\":"

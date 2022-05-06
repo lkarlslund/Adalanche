@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -56,6 +57,9 @@ var (
 	PwnSeTcb                = engine.NewPwn("SeTcb")
 
 	PwnSIDCollision = engine.NewPwn("SIDCollision")
+
+	DNSHostname = engine.NewAttribute("dnsHostName")
+	PwnPatches  = engine.NewPwn("Patches")
 )
 
 func MapSID(original, new, input windowssecurity.SID) windowssecurity.SID {
@@ -90,9 +94,19 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 		computerobject = ld.ao.AddNew()
 	}
 
-	computerobject.SetValues(
+	computerobject.SetFlex(
+		engine.IgnoreBlanks,
 		activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 	)
+
+	if cinfo.Machine.WUServer != "" {
+		if u, err := url.Parse(cinfo.Machine.WUServer); err == nil {
+			wsusserver, _ := ld.ao.FindOrAdd(
+				DNSHostname, engine.AttributeValueString(u.Host),
+			)
+			wsusserver.Pwns(computerobject, PwnPatches)
+		}
+	}
 
 	var isdomaincontroller bool
 	if cinfo.Machine.ProductType != "" {

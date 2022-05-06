@@ -61,6 +61,9 @@ type Machine struct {
 
 	SCCMLastValidMP string `json:",omitempty"`
 
+	WUServer       string `json:",omitempty"`
+	WUStatusServer string `json:",omitempty"`
+
 	UACConsentPromptBehaviorAdmin    uint64 `json:",omitempty"`
 	UACEnableLUA                     uint64 `json:",omitempty"`
 	UACLocalAccountTokenFilterPolicy uint64 `json:",omitempty"`

@@ -195,6 +195,16 @@ func Collect(outputpath string) error {
 		machineinfo.SCCMLastValidMP, _, _ = ccmsetup_key.GetStringValue(`LastValidMP`)
 	}
 
+	// WSUS SETTINGS
+	wu_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Policies\Microsoft\Windows\WindupsUpdate`,
+		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err == nil {
+		defer wu_key.Close()
+		machineinfo.WUServer, _, _ = wu_key.GetStringValue(`WUServer`)
+		machineinfo.WUStatusServer, _, _ = wu_key.GetStringValue(`WUStatusServer`)
+	}
+
 	// UAC SETTINGS
 	polsys_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Policies\System`,
