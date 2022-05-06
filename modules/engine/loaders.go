@@ -10,8 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const PostProcessing LoaderID = -1
-
 type LoaderID int
 
 type Loader interface {

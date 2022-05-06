@@ -58,8 +58,10 @@ var (
 
 	PwnSIDCollision = engine.NewPwn("SIDCollision")
 
-	DNSHostname = engine.NewAttribute("dnsHostName")
-	PwnPatches  = engine.NewPwn("Patches")
+	DNSHostname        = engine.NewAttribute("dnsHostName")
+	PwnControlsUpdates = engine.NewPwn("ControlsUpdates")
+	WUServer           = engine.NewAttribute("wuServer")
+	SCCMServer         = engine.NewAttribute("sccmServer")
 )
 
 func MapSID(original, new, input windowssecurity.SID) windowssecurity.SID {
@@ -101,10 +103,19 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 
 	if cinfo.Machine.WUServer != "" {
 		if u, err := url.Parse(cinfo.Machine.WUServer); err == nil {
-			wsusserver, _ := ld.ao.FindOrAdd(
-				DNSHostname, engine.AttributeValueString(u.Host),
+			host, _, _ := strings.Cut(u.Host, ":")
+			computerobject.SetFlex(
+				WUServer, engine.AttributeValueString(host),
 			)
-			wsusserver.Pwns(computerobject, PwnPatches)
+		}
+	}
+
+	if cinfo.Machine.SCCMLastValidMP != "" {
+		if u, err := url.Parse(cinfo.Machine.SCCMLastValidMP); err == nil {
+			host, _, _ := strings.Cut(u.Host, ":")
+			computerobject.SetFlex(
+				SCCMServer, engine.AttributeValueString(host),
+			)
 		}
 	}
 

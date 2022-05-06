@@ -16,9 +16,9 @@ import (
 
 const loadername = "LocalMachine JSON file"
 
-func init() {
-	engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
-}
+var (
+	loader = engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
+)
 
 type LocalMachineLoader struct {
 	ao          *engine.Objects

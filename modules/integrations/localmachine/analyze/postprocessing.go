@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	engine.PostProcessing.AddProcessor(func(ao *engine.Objects) {
+	loader.AddProcessor(func(ao *engine.Objects) {
 		var warns int
 		ln := engine.AttributeValueString(loadername)
 		for _, o := range ao.Slice() {
