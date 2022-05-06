@@ -1500,4 +1500,58 @@ func init() {
 		engine.AfterMerge,
 	)
 
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, gpo := range ao.Filter(func(o *engine.Object) bool {
+			return o.Type() == engine.ObjectTypeGroupPolicyContainer
+		}).Slice() {
+			for group, methods := range gpo.PwnableBy {
+
+				groupname := group.OneAttrString(engine.SAMAccountName)
+				if strings.Contains(groupname, "%") {
+					// Lowercase for ease
+					groupname := strings.ToLower(groupname)
+
+					// It has some sort of % variable in it, let's go
+					for affected, amethods := range gpo.CanPwn {
+						if amethods.IsSet(activedirectory.PwnAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
+							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
+							if !found {
+								log.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
+								continue
+							}
+							computername = strings.TrimRight(computername, "$")
+
+							realgroup := groupname
+							realgroup = strings.Replace(realgroup, "%computername%", computername, -1)
+							realgroup = strings.Replace(realgroup, "%domainname%", netbiosdomain, -1)
+							realgroup = strings.Replace(realgroup, "%domain%", netbiosdomain, -1)
+
+							var targetgroups []*engine.Object
+
+							if !strings.Contains(realgroup, "\\") {
+								realgroup = netbiosdomain + "\\" + realgroup
+							}
+							targetgroups, _ = ao.FindMulti(
+								engine.DownLevelLogonName, engine.AttributeValueString(realgroup),
+							)
+
+							if len(targetgroups) == 0 {
+								log.Warn().Msgf("Could not find group %v", realgroup)
+							} else if len(targetgroups) == 1 {
+								for _, method := range methods.Methods() {
+									targetgroups[0].PwnsEx(affected, method, true)
+								}
+							} else {
+								log.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}, "Resolve expanding group names to real names from GPOs",
+		engine.AfterMerge,
+	)
+
 }
