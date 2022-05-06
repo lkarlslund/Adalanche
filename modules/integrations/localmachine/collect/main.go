@@ -197,7 +197,7 @@ func Collect(outputpath string) error {
 
 	// WSUS SETTINGS
 	wu_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Policies\Microsoft\Windows\WindupsUpdate`,
+		`SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate`,
 		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
 	if err == nil {
 		defer wu_key.Close()
