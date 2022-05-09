@@ -1501,6 +1501,7 @@ func init() {
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
+		var warnlines int
 		for _, gpo := range ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeGroupPolicyContainer
 		}).Slice() {
@@ -1536,7 +1537,10 @@ func init() {
 							)
 
 							if len(targetgroups) == 0 {
-								log.Warn().Msgf("Could not find group %v", realgroup)
+								if warnlines < 10 {
+									log.Warn().Msgf("Could not find group %v", realgroup)
+								}
+								warnlines++
 							} else if len(targetgroups) == 1 {
 								for _, method := range methods.Methods() {
 									targetgroups[0].PwnsEx(affected, method, true)
@@ -1550,6 +1554,10 @@ func init() {
 
 			}
 		}
+		if warnlines > 0 {
+			log.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
+		}
+
 	}, "Resolve expanding group names to real names from GPOs",
 		engine.AfterMerge,
 	)
