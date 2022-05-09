@@ -348,7 +348,7 @@ valueloop:
 		attributes = []engine.Attribute{attribute}
 	}
 
-	var attribute2 engine.Attribute
+	attribute2 := engine.NonExistingAttribute
 	if attributename2 != "" {
 		attribute2 = engine.A(attributename2)
 		if attribute2 == engine.NonExistingAttribute {
@@ -394,28 +394,34 @@ valueloop:
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
-			d, err := timespan.ParseTimespan(value)
-			timeinseconds := time.Time(timespan.Time(time.Now()).Add(d)).Unix()
+			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, genwrapper(sinceModifier{comparator, int64(timeinseconds)}), nil
+			return s, genwrapper(sinceModifier{comparator, duration}), nil
 		}
-		return s, genwrapper(sinceModifier{comparator, valuenum}), nil
+		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
+		if err != nil {
+			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
+		}
+		return s, genwrapper(sinceModifier{comparator, duration}), nil
 	case "timediff":
-		if attribute2 == 0 {
+		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
 		}
 		if numok != nil {
 			// try to parse it as an duration
-			d, err := timespan.ParseTimespan(value)
-			timeinseconds := d.Duration.Seconds()
+			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, genwrapper(timediffModifier{attribute2, comparator, int64(timeinseconds)}), nil
+			return s, genwrapper(timediffModifier{attribute2, comparator, duration}), nil
 		}
-		return s, genwrapper(sinceModifier{comparator, valuenum}), nil
+		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
+		if err != nil {
+			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
+		}
+		return s, genwrapper(timediffModifier{attribute2, comparator, duration}), nil
 
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
@@ -561,8 +567,8 @@ func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 }
 
 type sinceModifier struct {
-	c     comparatortype
-	value int64 // time in seconds, positive is in the past, negative in the future
+	c  comparatortype
+	ts *timespan.Timespan
 }
 
 func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -582,7 +588,7 @@ func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 			return false
 		}
 
-		if sm.c.Compare(t.Unix(), sm.value) {
+		if sm.c.Compare(sm.ts.From(t).Unix(), time.Now().Unix()) {
 			return true
 		}
 	}
@@ -590,9 +596,9 @@ func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 }
 
 type timediffModifier struct {
-	a2    engine.Attribute
-	c     comparatortype
-	value int64 // time in seconds, positive is in the past, negative in the future
+	a2 engine.Attribute
+	c  comparatortype
+	ts *timespan.Timespan
 }
 
 func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -622,8 +628,7 @@ func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 			continue
 		}
 
-		diffsec := int64(t1.Sub(t2).Seconds())
-		if td.c.Compare(diffsec, td.value) {
+		if td.c.Compare(t1.Unix(), td.ts.From(t2).Unix()) {
 			return true
 		}
 	}
