@@ -201,7 +201,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				}
 
 				if opts.ExcludeObjects != nil {
-					if _, found := opts.ExcludeObjects.Find(DistinguishedName, AttributeValueString(pwntarget.DN())); found {
+					if _, found := opts.ExcludeObjects.FindByID(pwntarget.ID()); found {
 						// skip excluded objects
 						// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
 						continue
