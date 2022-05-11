@@ -153,7 +153,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				}
 
 				if detectobjecttypes != nil {
-					if _, found := detectobjecttypes[object.Type()]; !found {
+					if _, found := detectobjecttypes[pwntarget.Type()]; !found {
 						// We're filtering on types, and it's not wanted
 						continue
 					}
