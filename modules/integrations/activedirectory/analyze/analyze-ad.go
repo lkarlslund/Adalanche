@@ -214,127 +214,6 @@ func init() {
 			},
 		},
 		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnCreateUser,
-			Description: "Permissions that lets someone to create a user object in a container",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit && o.Type() != engine.ObjectTypeBuiltinDomain {
-					return
-				}
-				sd, err := o.SecurityDescriptor()
-				if err != nil {
-					return
-				}
-				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidUser, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateUser)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnCreateGroup,
-			Description: "Permissions that lets someone to create a group object in a container",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
-					return
-				}
-				sd, err := o.SecurityDescriptor()
-				if err != nil {
-					return
-				}
-				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidGroup, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateGroup)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnCreateComputer,
-			Description: "Permissions that lets someone create a computer object in a container",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit && o.Type() != engine.ObjectTypeDomainDNS {
-					return
-				}
-				sd, err := o.SecurityDescriptor()
-				if err != nil {
-					return
-				}
-				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, ObjectGuidComputer, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateComputer)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnCreateAnyObject,
-			Description: "Permissions that lets someone create any kind of object in a container",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for containers and org units
-				if o.Type() != engine.ObjectTypeContainer && o.Type() != engine.ObjectTypeOrganizationalUnit {
-					return
-				}
-				sd, err := o.SecurityDescriptor()
-				if err != nil {
-					return
-				}
-				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CREATE_CHILD, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCreateAnyObject)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnDeleteObject,
-			Description: "Permissions that lets someone delete any kind of object in a container",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for containers and org units
-				sd, err := o.SecurityDescriptor()
-				if err != nil {
-					return
-				}
-				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DELETE, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDeleteObject)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnDeleteChildrenTarget,
-			Description: "Permissions that lets someone delete any kind of object in a container (via the DS_DELETE_CHILD permission)",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// If parent has DELETE CHILD, I can be deleted by some SID
-				if parent, found := ao.DistinguishedParent(o); found {
-					sd, err := parent.SecurityDescriptor()
-					if err != nil {
-						return
-					}
-					for index, acl := range sd.DACL.Entries {
-						if sd.DACL.AllowObjectClass(index, parent, engine.RIGHT_DS_DELETE_CHILD, o.ObjectCategoryGUID(ao), ao) {
-							ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDeleteChildrenTarget)
-						}
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnInheritsSecurity,
-			Description: "Indicator that object inherits security from the container it is within",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
-					if parentobject, found := ao.DistinguishedParent(o); found {
-						parentobject.Pwns(o, activedirectory.PwnInheritsSecurity)
-					}
-				}
-			},
-		},
-		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnACLContainsDeny,
 			Description: "Indicator for possible false positives, as the ACL contains DENY entries",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -1547,6 +1426,9 @@ func init() {
 								}
 							} else {
 								log.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
+								for _, targetgroup := range targetgroups {
+									log.Warn().Msgf("Target: %v", targetgroup.DN())
+								}
 							}
 						}
 					}
@@ -1561,5 +1443,4 @@ func init() {
 	}, "Resolve expanding group names to real names from GPOs",
 		engine.AfterMerge,
 	)
-
 }
