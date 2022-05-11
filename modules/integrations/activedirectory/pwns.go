@@ -3,15 +3,8 @@ package activedirectory
 import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
-	PwnCreateUser           = engine.NewPwn("CreateUser").SetDefault(false, false, false)
-	PwnCreateGroup          = engine.NewPwn("CreateGroup").SetDefault(false, false, false)
-	PwnCreateComputer       = engine.NewPwn("CreateComputer").SetDefault(false, false, false)
-	PwnCreateAnyObject      = engine.NewPwn("CreateAnyObject").SetDefault(false, false, false)
-	PwnDeleteChildrenTarget = engine.NewPwn("DeleteChildrenTarget").SetDefault(false, false, false)
-	PwnDeleteObject         = engine.NewPwn("DeleteObject").SetDefault(false, false, false)
-	PwnInheritsSecurity     = engine.NewPwn("InheritsSecurity").SetDefault(false, false, false)
-	PwnACLContainsDeny      = engine.NewPwn("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return -1 })
-	PwnResetPassword        = engine.NewPwn("ResetPassword").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+	PwnACLContainsDeny = engine.NewPwn("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return -1 })
+	PwnResetPassword   = engine.NewPwn("ResetPassword").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
 			return -1
 		}
