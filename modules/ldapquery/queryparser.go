@@ -448,9 +448,6 @@ valueloop:
 		if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
 			// regexp magic
 			pattern := value[1 : len(value)-1]
-			if !casesensitive {
-				pattern = strings.ToLower(pattern)
-			}
 			r, err := regexp.Compile(pattern)
 			if err != nil {
 				return nil, nil, err
