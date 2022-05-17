@@ -525,7 +525,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 					}
 					defer f.Close()
 
-					err = json.NewEncoder(f).Encode(gpoinfo)
+					encoder := json.NewEncoder(f)
+					encoder.SetIndent("", "  ")
+					err = encoder.Encode(gpoinfo)
 					if err != nil {
 						log.Error().Msgf("Problem marshalling GPO information to %v: %v", gpodatafile, err)
 					}
