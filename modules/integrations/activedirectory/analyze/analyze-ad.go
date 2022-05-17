@@ -66,6 +66,8 @@ var (
 
 var warnedgpos = make(map[string]struct{})
 
+var lapsguids []uuid.UUID
+
 func init() {
 	Loader.AddAnalyzers(
 
@@ -85,6 +87,38 @@ func init() {
 		// 		return results
 		// 	},
 		// },
+
+		engine.PwnAnalyzer{
+			// Method: activedirectory.PwnReadLAPSPassword,
+			Description: "Reading local admin passwords via LAPS",
+			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				// Only if we've picked up some LAPS attribute GUIDs
+				if len(lapsguids) == 0 {
+					return
+				}
+
+				// Only for computers
+				if o.Type() != engine.ObjectTypeComputer {
+					return
+				}
+				// ... that has LAPS installed
+				if o.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() == 0 {
+					return
+				}
+				// Analyze ACL
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return
+				}
+				for index, acl := range sd.DACL.Entries {
+					for _, objectGUID := range lapsguids {
+						if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
+							ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadLAPSPassword)
+						}
+					}
+				}
+			},
+		},
 
 		engine.PwnAnalyzer{
 			// Method: activedirectory.PwnComputerAffectedByGPO,
@@ -1172,31 +1206,8 @@ func init() {
 					// engine.AllSchemaAttributes[objectGUID] = object
 					switch object.OneAttrString(engine.Name) {
 					case "ms-Mcs-AdmPwd":
-						log.Info().Msg("Detected LAPS schema extension, adding extra analyzer")
-						Loader.AddAnalyzers(engine.PwnAnalyzer{
-							// Method: activedirectory.PwnReadLAPSPassword,
-							Description: "Reading local admin passwords via LAPS",
-							ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-								// Only for computers
-								if o.Type() != engine.ObjectTypeComputer {
-									return
-								}
-								// ... that has LAPS installed
-								if o.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() == 0 {
-									return
-								}
-								// Analyze ACL
-								sd, err := o.SecurityDescriptor()
-								if err != nil {
-									return
-								}
-								for index, acl := range sd.DACL.Entries {
-									if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
-										ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadLAPSPassword)
-									}
-								}
-							},
-						})
+						log.Info().Msg("Detected LAPS schema extension, adding this to LAPS analyzer")
+						lapsguids = append(lapsguids, objectGUID)
 					}
 				}
 			} /* else if object.HasAttrValue(engine.ObjectClass, "classSchema") {
