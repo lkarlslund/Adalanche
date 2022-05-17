@@ -49,7 +49,7 @@ var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	if ginfo.DomainDN != "" {
-		ao.AddDefaultFlex(engine.UniqueSource, ginfo.DomainDN)
+		ao.AddDefaultFlex(engine.DomainPart, ginfo.DomainDN)
 	}
 
 	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))

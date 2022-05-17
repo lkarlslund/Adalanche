@@ -215,7 +215,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		datapath = idp.Value.String()
 	}
 
-	var domainContext, domainNetbios string
 	var gpostocollect []*activedirectory.RawObject
 
 	if *adexplorerfile != "" {
@@ -224,16 +223,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		rao, err := DumpFromADExplorer(*adexplorerfile)
 		if err != nil {
 			return err
-		}
-
-		cp, _ := util.ParseBool(*collectgpos)
-		if *collectgpos == "auto" || cp {
-			for _, ro := range rao {
-				if _, found := ro.Attributes["gPCFileSysPath"]; found {
-					myro := ro
-					gpostocollect = append(gpostocollect, &myro)
-				}
-			}
 		}
 
 		var e *msgp.Writer
@@ -260,6 +249,16 @@ func Execute(cmd *cobra.Command, args []string) error {
 			err = ro.EncodeMsg(e)
 			if err != nil {
 				return fmt.Errorf("problem encoding LDAP object %v: %v", ro.DistinguishedName, err)
+			}
+		}
+
+		cp, _ := util.ParseBool(*collectgpos)
+		if *collectgpos == "auto" || cp {
+			for _, ro := range rao {
+				if _, found := ro.Attributes["gPCFileSysPath"]; found {
+					myro := ro
+					gpostocollect = append(gpostocollect, &myro)
+				}
 			}
 		}
 	} else {
@@ -302,6 +301,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
 		}
 
+		var domainContext string
+
 		rd := rootdse[0]
 
 		namingcontexts := map[string]bool{}
@@ -331,8 +332,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 			schemaContext = rd.Attributes["schemaNamingContext"][0]
 			namingcontexts[schemaContext] = true
 		}
-
-		domainNetbios = util.ExtractNetbiosFromBase(domainContext)
 
 		var otherContexts []string
 		for context, used := range namingcontexts {
@@ -441,6 +440,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 			// Let's check if it this is a GPO and then add som fake attributes to represent it
 			if gpfsp, found := object.Attributes["gPCFileSysPath"]; found {
 
+				domainPart := util.ExtractDomainPart(object.DistinguishedName)
+
 				gpodisplayname := object.Attributes["displayName"]
 				gpoguid := object.Attributes["name"]
 				originalpath := gpfsp[0]
@@ -468,8 +469,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 					gpoinfo.GPOinfo.GUID = gpuuid
 					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
-					gpoinfo.GPOinfo.DomainDN = domainContext
-					gpoinfo.GPOinfo.DomainNetbios = domainNetbios
+					gpoinfo.GPOinfo.DomainDN = domainPart
 
 					offset := len(gppath)
 					var filescollected int
