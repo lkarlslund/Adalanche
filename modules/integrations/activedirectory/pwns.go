@@ -13,15 +13,27 @@ var (
 	PwnReadPasswordId = engine.NewPwn("ReadPasswordId").SetDefault(false, false, false).RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		return 5
 	})
-	PwnOwns                                 = engine.NewPwn("Owns")
-	PwnGenericAll                           = engine.NewPwn("GenericAll")
-	PwnWriteAll                             = engine.NewPwn("WriteAll")
-	PwnWritePropertyAll                     = engine.NewPwn("WritePropertyAll")
-	PwnWriteExtendedAll                     = engine.NewPwn("ExtendedAll")
-	PwnTakeOwnership                        = engine.NewPwn("TakeOwnership")
-	PwnWriteDACL                            = engine.NewPwn("WriteDACL")
-	PwnWriteSPN                             = engine.NewPwn("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
-	PwnWriteValidatedSPN                    = engine.NewPwn("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
+	PwnOwns             = engine.NewPwn("Owns")
+	PwnGenericAll       = engine.NewPwn("GenericAll")
+	PwnWriteAll         = engine.NewPwn("WriteAll")
+	PwnWritePropertyAll = engine.NewPwn("WritePropertyAll")
+	PwnWriteExtendedAll = engine.NewPwn("ExtendedAll")
+	PwnTakeOwnership    = engine.NewPwn("TakeOwnership")
+	PwnWriteDACL        = engine.NewPwn("WriteDACL")
+	PwnWriteSPN         = engine.NewPwn("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
+			// Account is disabled
+			return 0
+		}
+		return 50
+	})
+	PwnWriteValidatedSPN = engine.NewPwn("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
+			// Account is disabled
+			return 0
+		}
+		return 50
+	})
 	PwnWriteAllowedToAct                    = engine.NewPwn("WriteAllowedToAct")
 	PwnAddMember                            = engine.NewPwn("AddMember")
 	PwnAddMemberGroupAttr                   = engine.NewPwn("AddMemberGroupAttr")
