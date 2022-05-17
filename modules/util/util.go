@@ -119,3 +119,19 @@ func ExtractNetbiosFromBase(dn string) string {
 	netbios, _, _ := strings.Cut(elements[0], "=")
 	return netbios
 }
+
+func ExtractDomainPart(dn string) string {
+	elements := strings.Split(dn, ",")
+	last := len(elements)
+	first := last // assume we have nothing
+
+	for i := len(elements) - 1; i >= 0; i-- {
+		if stringsplus.EqualFoldHasPrefix(elements[i], "dc=") {
+			first = i
+		} else {
+			break
+		}
+	}
+
+	return strings.Join(elements[first:last], ",")
+}
