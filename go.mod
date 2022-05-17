@@ -133,3 +133,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
+
+require github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0 // indirect
