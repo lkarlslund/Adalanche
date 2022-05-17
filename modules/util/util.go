@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/stringsplus"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
@@ -26,7 +27,7 @@ func cleanfilename(input string) string {
 	for _, chr := range normalized {
 		if legalMatch.MatchString(string(chr)) {
 			if chr == '*' || chr == '/' {
-				log.Fatal().Msgf("This isnt working")
+				log.Fatal().Msgf("This isn't working")
 			}
 			output += string(chr)
 		}
