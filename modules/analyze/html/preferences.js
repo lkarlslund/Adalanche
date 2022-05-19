@@ -10,7 +10,7 @@ function loadprefs() {
             prefs = data;
             // Apply all preferences
             $("[preference]").each(function () {
-                val = getpref($(this).attr("preference"), $(this).attr("defaultpref"))
+                val = getpref($(this).attr("preference"), $(this).data("defaultpref"))
                 if (val != null) {
                     if ($(this).attr("type") == "checkbox") {
                         $(this).prop("checked", val)
