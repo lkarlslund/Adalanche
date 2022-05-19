@@ -125,9 +125,13 @@ func (o *Object) runlock() {
 	}
 }
 
+func (o *Object) Absorb(source *Object) {
+	o.AbsorbEx(source, false)
+}
+
 // Absorbs data and Pwn relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
-func (o *Object) Absorb(source *Object) {
+func (o *Object) AbsorbEx(source *Object, fast bool) {
 	if o == source {
 		log.Fatal().Msg("Can't absorb myself")
 	}
@@ -140,49 +144,53 @@ func (o *Object) Absorb(source *Object) {
 	defer o.unlock()
 
 	target := o
-	for attr, values := range source.values {
-		var val AttributeValues
-		tval := target.attr(attr)
-		sval := values
 
-		if tval.Len() == 0 {
-			val = sval
-		} else if sval.Len() == 0 {
-			panic(fmt.Sprintf("Attribute %v with ZERO LENGTH data failure", attr.String()))
-		} else if tval.Len() == 1 && sval.Len() == 1 {
-			tvalue := tval.Slice()[0]
-			svalue := sval.Slice()[0]
+	// Fast mode does not merge values, it just relinks the source to the target
+	if !fast {
+		for attr, values := range source.values {
+			var val AttributeValues
+			tval := target.attr(attr)
+			sval := values
 
-			if CompareAttributeValues(tvalue, svalue) {
-				val = tval // They're the same, so pick any
+			if tval.Len() == 0 {
+				val = sval
+			} else if sval.Len() == 0 {
+				panic(fmt.Sprintf("Attribute %v with ZERO LENGTH data failure", attr.String()))
+			} else if tval.Len() == 1 && sval.Len() == 1 {
+				tvalue := tval.Slice()[0]
+				svalue := sval.Slice()[0]
+
+				if CompareAttributeValues(tvalue, svalue) {
+					val = tval // They're the same, so pick any
+				} else {
+					// They're not the same, join them
+					val = AttributeValueSlice{tvalue, svalue}
+				}
 			} else {
-				// They're not the same, join them
-				val = AttributeValueSlice{tvalue, svalue}
-			}
-		} else {
-			// One or more of them have more than one value, do it the hard way
-			tvalslice := tval.Slice()
-			svalslice := sval.Slice()
+				// One or more of them have more than one value, do it the hard way
+				tvalslice := tval.Slice()
+				svalslice := sval.Slice()
 
-			resultingvalues := make([]AttributeValue, tval.Len())
-			copy(resultingvalues, tvalslice)
+				resultingvalues := make([]AttributeValue, tval.Len())
+				copy(resultingvalues, tvalslice)
 
-			for _, svalue := range svalslice {
-				var alreadythere bool
-			compareloop:
-				for _, tvalue := range tvalslice {
-					if CompareAttributeValues(svalue, tvalue) { // Crap!!
-						alreadythere = true
-						break compareloop
+				for _, svalue := range svalslice {
+					var alreadythere bool
+				compareloop:
+					for _, tvalue := range tvalslice {
+						if CompareAttributeValues(svalue, tvalue) { // Crap!!
+							alreadythere = true
+							break compareloop
+						}
+					}
+					if !alreadythere {
+						resultingvalues = append(resultingvalues, svalue)
 					}
 				}
-				if !alreadythere {
-					resultingvalues = append(resultingvalues, svalue)
-				}
+				val = AttributeValueSlice(resultingvalues)
 			}
-			val = AttributeValueSlice(resultingvalues)
+			target.set(attr, val)
 		}
-		target.set(attr, val)
 	}
 
 	for pwntarget, methods := range source.CanPwn {
@@ -234,7 +242,7 @@ func (o *Object) Absorb(source *Object) {
 	source.memberofrecursive = nil
 
 	for _, child := range source.children {
-		target.Adopt(child)
+		target.adopt(child)
 	}
 
 	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
@@ -242,7 +250,7 @@ func (o *Object) Absorb(source *Object) {
 		if target.parent == nil {
 			target.ChildOf(source.parent)
 		}
-		source.parent.RemoveChild(source)
+		source.parent.removeChild(source)
 		source.parent = nil
 	}
 
@@ -472,7 +480,7 @@ func (o *Object) OneAttrString(attr Attribute) string {
 		return ""
 	}
 	if ao, ok := a.(AttributeValueOne); ok {
-		return ao.String()
+		return ao.Value.String()
 	}
 	if a.Len() == 1 {
 		log.Warn().Msg("Inefficient attribute storage - multival used for one value ...")
@@ -772,6 +780,8 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 				continue
 			}
 			data = append(data, v)
+		case AttributeValueOne:
+			data = append(data, v.Value)
 		case AttributeValueSlice:
 			for _, value := range v {
 				if ignoreblanks && value.IsZero() {
@@ -1082,13 +1092,24 @@ func (o *Object) Adopt(child *Object) {
 
 	child.lock()
 	if child.parent != nil {
-		child.parent.RemoveChild(child)
+		child.parent.lock()
+		child.parent.removeChild(child)
+		child.parent.unlock()
 	}
 	child.parent = o
 	child.unlock()
 }
 
-func (o *Object) RemoveChild(child *Object) {
+func (o *Object) adopt(child *Object) {
+	o.children = append(o.children, child)
+
+	if child.parent != nil {
+		child.parent.removeChild(child)
+	}
+	child.parent = o
+}
+
+func (o *Object) removeChild(child *Object) {
 	for i, curchild := range o.children {
 		if curchild == child {
 			if len(o.children) == 1 {

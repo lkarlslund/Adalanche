@@ -822,7 +822,7 @@ func init() {
 					o.ChildOf(ao.Root())
 					continue
 				}
-				log.Debug().Msgf("AD object %v has no parent :-(", o.Label())
+				log.Debug().Msgf("AD object %v (%v) has no parent :-(", o.Label(), o.DN())
 			}
 		}
 	},
@@ -1074,7 +1074,7 @@ func init() {
 			}
 
 			var objectcategoryguid engine.AttributeValues
-			objectcategoryguid = engine.AttributeValueOne{AttributeValue: engine.AttributeValueGUID(engine.UnknownGUID)}
+			objectcategoryguid = engine.AttributeValueSlice{engine.AttributeValueGUID(engine.UnknownGUID)}
 			typedn := object.OneAttr(engine.ObjectCategory)
 
 			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented

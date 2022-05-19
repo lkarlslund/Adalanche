@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine/collect"
 	"github.com/lkarlslund/adalanche/modules/version"
 	"github.com/mattn/go-colorable"
@@ -29,6 +32,14 @@ func Execute(cmd *cobra.Command, args []string) error {
 	} else {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		log.Info().Msg("Debug logging enabled")
+	}
+
+	// Ensure the data folder is available
+	if _, err := os.Stat(*datapath); os.IsNotExist(err) {
+		err = os.MkdirAll(*datapath, 0711)
+		if err != nil {
+			return fmt.Errorf("Could not create data folder %v: %v", datapath, err)
+		}
 	}
 
 	return collect.Collect(*datapath)

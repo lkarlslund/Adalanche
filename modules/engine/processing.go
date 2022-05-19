@@ -60,7 +60,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	log.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
 
 	pb := progressbar.NewOptions(len(needsmerge),
-		progressbar.OptionSetDescription("Merging objects ..."),
+		progressbar.OptionSetDescription("Merging objects from each unique source ..."),
 		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
 		progressbar.OptionOnCompletion(func() { fmt.Println() }),
 		progressbar.OptionThrottle(time.Second*1),
@@ -68,8 +68,8 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	// To ease anti-cross-the-beams on UniqueSource we temporarily group each source and combine them in the end
 	sourcemap := make(map[interface{}]*Objects)
-
-	nosourceobjects := NewObjects()
+	none := ""
+	sourcemap[none] = NewObjects()
 
 	for mergeobject, _ := range needsmerge {
 		if mergeobject.HasAttr(UniqueSource) {
@@ -79,25 +79,38 @@ func Merge(aos []*Objects) (*Objects, error) {
 			}
 			sourcemap[us].AddMerge(mergeon, mergeobject)
 		} else {
-			nosourceobjects.AddMerge(mergeon, mergeobject)
+			sourcemap[none].AddMerge(mergeon, mergeobject)
 		}
 		pb.Add(1)
 	}
 
+	pb.Finish()
+
+	var needsfinalization int
+	for _, sao := range sourcemap {
+		needsfinalization += sao.Len()
+	}
+
+	pb = progressbar.NewOptions(needsfinalization,
+		progressbar.OptionSetDescription("Finalizing merge ..."),
+		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
+		progressbar.OptionOnCompletion(func() { fmt.Println() }),
+		progressbar.OptionThrottle(time.Second*1),
+	)
+
 	for _, usao := range sourcemap {
 		for _, addobject := range usao.Slice() {
+			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 			if addobject.HasAttr(DistinguishedName) {
 				if existing, exists := globalobjects.Find(DistinguishedName, addobject.OneAttr(DistinguishedName)); exists {
-					existing.Absorb(addobject)
+					existing.AbsorbEx(addobject, true)
 					continue
 				}
 			}
 			globalobjects.Add(addobject)
 		}
 	}
-
-	globalobjects.AddMerge(mergeon, nosourceobjects.Slice()...)
 
 	pb.Finish()
 

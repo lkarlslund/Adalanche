@@ -76,16 +76,20 @@ func (ld *ADLoader) Init() error {
 		go func() {
 			// chunk := make([]*engine.Object, 0, 64)
 			for item := range ld.objectstoconvert {
-				o := item.object.ToObject()
+				if item.object.DistinguishedName == "" {
+					if dnc, found := item.object.Attributes["defaultNamingContext"]; found {
+						// There's a special place for people who do this
+						item.object.DistinguishedName = "cn=RootDSE," + dnc[0]
+						item.object.Attributes["objectClass"] = []string{"top", "rootdse"}
+					} else {
+						// We want the RootDSE KTHX, but ignore everything else
+						log.Warn().Msg("Empty DN, ignoring!")
+						continue
+					}
+				}
 
-				index := strings.Index(o.DN(), ",DC=")
-				if index == -1 {
-					index = strings.Index(o.DN(), ",dc=")
-				}
-				if index == -1 {
-					log.Warn().Msgf("Object without distinguishedName detected. Ignoring!")
-					continue
-				}
+				// Convert
+				o := item.object.ToObject()
 
 				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
 					continue // skip conflict object
@@ -107,9 +111,6 @@ func (ld *ADLoader) Init() error {
 						continue
 					}
 				}
-
-				ao := ld.getShard(o.DN()[index:])
-				ao.FindOrAddObject(o)
 
 				item.ao.Add(o)
 			}
@@ -193,17 +194,19 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	ld.done.Wait()
 
 	var aos []*engine.Objects
-	for _, ao := range ld.shardobjects {
-		// Replace shard path value with the NETBIOS domain name
-		// This allows merging with localmachine data for accounts that are in the same domain
-		domobj, found := ao.FindTwo(engine.ObjectClass, engine.AttributeValueString("domainDNS"),
-			engine.IsCriticalSystemObject, engine.AttributeValueString("true"))
+	for path, ao := range ld.shardobjects {
+		// Replace shard path value with the domain name the represents
+		rootdse, found := ao.Find(engine.ObjectClass, engine.AttributeValueString("rootdse"))
+		if !found {
+			log.Error().Msgf("RootDSE not found in %v", path)
+			continue
+		}
 
-		if found {
-			netbiosdomain := domobj.Attr(engine.Name)
-			for _, o := range ao.Slice() {
-				o.Set(engine.UniqueSource, netbiosdomain)
-			}
+		domain := rootdse.OneAttrString(engine.A("defaultNamingContext"))
+		domainval := engine.AttributeValueOne{Value: engine.AttributeValueString(domain)}
+
+		for _, o := range ao.Slice() {
+			o.Set(engine.UniqueSource, domainval)
 		}
 
 		aos = append(aos, ao)

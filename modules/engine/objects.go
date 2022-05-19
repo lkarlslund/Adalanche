@@ -20,9 +20,10 @@ type Objects struct {
 	asarray     []*Object
 	asmap       map[*Object]struct{}
 
-	indexlock FlexMutex
-	indexes   []*Index
-	idindex   map[uint32]*Object
+	indexlock    FlexMutex
+	indexes      []*Index
+	multiindexes map[uint32]*Index
+	idindex      map[uint32]*Object
 
 	typecount typestatistics
 }
@@ -75,6 +76,7 @@ func NewObjects() *Objects {
 	var os Objects
 	os.idindex = make(map[uint32]*Object)
 	os.asmap = make(map[*Object]struct{})
+	os.multiindexes = make(map[uint32]*Index)
 	return &os
 }
 
@@ -164,6 +166,54 @@ func (os *Objects) GetIndex(attribute Attribute) *Index {
 		return mi */
 }
 
+func (os *Objects) GetMultiIndex(attribute, attribute2 Attribute) *Index {
+	// Consistently map to the right index no matter what order they are called
+	if attribute < attribute2 {
+		attribute, attribute2 = attribute2, attribute
+	}
+
+	if attribute2 == NonExistingAttribute {
+		panic("Cannot create multi-index with non-existing attribute")
+	}
+
+	os.indexlock.RLock()
+
+	// No room for index for this attribute
+	indexkey := uint32(attribute)<<16 | uint32(attribute2)
+
+	index, found := os.multiindexes[indexkey]
+	if found {
+		os.indexlock.RUnlock()
+		return index
+	}
+
+	os.indexlock.RUnlock()
+	os.indexlock.Lock()
+
+	index, found = os.multiindexes[indexkey]
+	if found {
+		// Someone beat us to it
+		os.indexlock.Unlock()
+		return index
+	}
+
+	index = &Index{}
+
+	// Initialize index and add existing stuff
+	os.refreshMultiIndex(attribute, attribute2, index)
+
+	// Sync any locking stuff to the new index
+	for i := 0; i < int(os.objectmutex.enabled); i++ {
+		index.Enable()
+	}
+
+	os.multiindexes[indexkey] = index
+
+	os.indexlock.Unlock()
+
+	return index
+}
+
 func (os *Objects) refreshIndex(attribute Attribute, index *Index) {
 	index.Init()
 
@@ -178,6 +228,33 @@ func (os *Objects) refreshIndex(attribute Attribute, index *Index) {
 	}
 }
 
+type multiindexkey struct {
+	value1 interface{}
+	value2 interface{}
+}
+
+func (os *Objects) refreshMultiIndex(attribute, attribute2 Attribute, index *Index) {
+	index.Init()
+
+	// add all existing stuff to index
+	for _, o := range os.asarray {
+		if !o.HasAttr(attribute) || !o.HasAttr(attribute2) {
+			continue
+		}
+		values := o.Attr(attribute).Slice()
+		values2 := o.Attr(attribute2).Slice()
+		for _, value := range values {
+			key := attributeValueToIndex(value)
+			for _, value2 := range values2 {
+				key2 := attributeValueToIndex(value2)
+
+				// Add to index
+				index.Add(multiindexkey{key, key2}, o, false)
+			}
+		}
+	}
+}
+
 func (os *Objects) SetRoot(ro *Object) {
 	os.root = ro
 }
@@ -186,6 +263,7 @@ func (os *Objects) DropIndexes() {
 	// Clear all indexes
 	os.indexlock.Lock()
 	os.indexes = make([]*Index, 0)
+	os.multiindexes = make(map[uint32]*Index)
 	os.indexlock.Unlock()
 }
 
@@ -200,6 +278,8 @@ func (os *Objects) DropIndex(attribute Attribute) {
 
 func (os *Objects) ReindexObject(o *Object, isnew bool) {
 	os.indexlock.RLock()
+
+	// Single attribute indexes
 	for i, index := range os.indexes {
 		attribute := Attribute(i)
 		if index != nil {
@@ -220,6 +300,27 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 				}
 
 				index.Add(indexval, o, !isnew)
+			}
+		}
+	}
+
+	// Multi indexes
+	for i, index := range os.multiindexes {
+		attribute := Attribute((i >> 16) & 0xffff)
+		attribute2 := Attribute(i & 0xffff)
+
+		if !o.HasAttr(attribute) || !o.HasAttr(attribute2) {
+			continue
+		}
+
+		values := o.Attr(attribute).Slice()
+		values2 := o.Attr(attribute2).Slice()
+		for _, value := range values {
+			key := attributeValueToIndex(value)
+			for _, value2 := range values2 {
+				key2 := attributeValueToIndex(value2)
+
+				index.Add(multiindexkey{key, key2}, o, !isnew)
 			}
 		}
 	}
@@ -343,7 +444,6 @@ func (os *Objects) add(o *Object) {
 		log.Fatal().Msg("Object already exists in objects, so we can't add it")
 	}
 
-	// Add this to the iterator array
 	if os.DefaultValues != nil {
 		o.setFlex(os.DefaultValues...)
 	}
@@ -363,9 +463,9 @@ func (os *Objects) add(o *Object) {
 		panic("Tried to add same object twice")
 	}
 
+	// Add this to the iterator array and indexes
 	os.asarray = append(os.asarray, o)
 	os.asmap[o] = struct{}{}
-
 	os.idindex[o.ID()] = o
 
 	os.ReindexObject(o, true)
@@ -461,60 +561,55 @@ func (os *Objects) FindMultiOrAdd(attribute Attribute, value AttributeValue, add
 }
 
 func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Object) ([]*Object, bool) {
-	// If it's a string, lowercase it before adding to index, we do the same on lookups
-	lookup := attributeValueToIndex(value)
+	if attribute < attribute2 {
+		attribute, attribute2 = attribute2, attribute
+		value, value2 = value2, value
+	}
 
 	// Just lookup, no adding
 	if addifnotfound == nil {
-		results, found := os.GetIndex(attribute).Lookup(lookup)
-
-		// Multi attribute search
-		if found && attribute2 != NonExistingAttribute {
-			var results2 []*Object
-			for _, o := range results {
-				if o.HasAttrValue(attribute2, value2) {
-					results2 = append(results2, o)
-				}
-			}
-			return results2, len(results2) > 0
+		if attribute2 == NonExistingAttribute {
+			// Lookup by one attribute
+			matches, found := os.GetIndex(attribute).Lookup(attributeValueToIndex(value))
+			return matches, found
+		} else {
+			// Lookup by two attributes
+			matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{attributeValueToIndex(value), attributeValueToIndex(value2)})
+			return matches, found
 		}
-
-		return results, found
 	}
 
 	// Add if not found
 	os.objectmutex.Lock() // Prevent anyone from adding to objects while we're searching
 
-	results, found := os.GetIndex(attribute).Lookup(lookup)
-
-	// Multi attribute search
-	if found && attribute2 != NonExistingAttribute {
-		var results2 []*Object
-		for _, o := range results {
-			if o.HasAttrValue(attribute2, value2) {
-				results2 = append(results2, o)
-			}
-		}
-		results = results2
-		found = len(results2) > 0
-	}
-
-	if !found {
-		no := addifnotfound()
-		if no != nil {
-			if len(os.DefaultValues) > 0 {
-				no.SetFlex(os.DefaultValues...)
-			}
-			os.add(no)
+	if attribute2 == NonExistingAttribute {
+		// Lookup by one attribute
+		matches, found := os.GetIndex(attribute).Lookup(attributeValueToIndex(value))
+		if found {
 			os.objectmutex.Unlock()
-			return []*Object{no}, false
+			return matches, found
 		}
-		os.objectmutex.Unlock()
-		return nil, false
+	} else {
+		// Lookup by two attributes
+		matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{attributeValueToIndex(value), attributeValueToIndex(value2)})
+		if found {
+			os.objectmutex.Unlock()
+			return matches, found
+		}
 	}
 
+	// Create new object
+	no := addifnotfound()
+	if no != nil {
+		if len(os.DefaultValues) > 0 {
+			no.SetFlex(os.DefaultValues...)
+		}
+		os.add(no)
+		os.objectmutex.Unlock()
+		return []*Object{no}, false
+	}
 	os.objectmutex.Unlock()
-	return results, found
+	return nil, false
 }
 
 func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
@@ -624,6 +719,12 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 
 	os.add(no)
 
+	if no2 := os.FindAdjacentSID(s, r); no2 == nil {
+		os.ReindexObject(no, false)
+		os.FindAdjacentSID(s, r)
+		panic("Failed to find newly created object")
+	}
+
 	os.objectmutex.Unlock()
 
 	return no
@@ -635,15 +736,15 @@ func (os *Objects) FindAdjacentSID(s windowssecurity.SID, r *Object) *Object {
 
 	if r.HasAttr(DomainPart) {
 		// From outside, we need to find the domain part
-		if o, found := os.FindTwo(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
-			return o
+		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
+			return findMostLocal(o)
 		}
 	}
 
 	// From inside same source, that is easy
 	if r.HasAttr(UniqueSource) {
-		if o, found := os.FindTwo(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
-			return o
+		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
+			return findMostLocal(o)
 		}
 	}
 

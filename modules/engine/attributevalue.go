@@ -121,7 +121,7 @@ func (avs AttributeValueSlice) Len() int {
 }
 
 type AttributeValueOne struct {
-	AttributeValue
+	Value AttributeValue
 }
 
 func (avo AttributeValueOne) Len() int {
@@ -129,11 +129,11 @@ func (avo AttributeValueOne) Len() int {
 }
 
 func (avo AttributeValueOne) Slice() []AttributeValue {
-	return AttributeValueSlice{avo.AttributeValue}
+	return AttributeValueSlice{avo.Value}
 }
 
 func (avo AttributeValueOne) StringSlice() []string {
-	return []string{avo.AttributeValue.String()}
+	return []string{avo.Value.String()}
 }
 
 type AttributeValue interface {
