@@ -19,12 +19,12 @@ type RawObject struct {
 	Attributes        map[string][]string
 }
 
-func (r *RawObject) init() {
+func (r *RawObject) Init() {
 	r.DistinguishedName = ""
 	r.Attributes = make(map[string][]string)
 }
 
-func (r *RawObject) ToObject() *engine.Object {
+func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 	result := engine.NewObject(
 		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
@@ -32,7 +32,16 @@ func (r *RawObject) ToObject() *engine.Object {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
 			continue
 		}
-		attribute := engine.NewAttribute(name)
+
+		var attribute engine.Attribute
+		if onlyKnownAttributes {
+			attribute = engine.LookupAttribute(name)
+			if attribute == engine.NonExistingAttribute {
+				continue
+			}
+		} else {
+			attribute = engine.NewAttribute(name)
+		}
 
 		encodedvals := EncodeAttributeData(attribute, values)
 		if len(encodedvals) > 0 {
@@ -44,10 +53,7 @@ func (r *RawObject) ToObject() *engine.Object {
 }
 
 func (r *RawObject) IngestLDAP(source *ldap.Entry) error {
-	r.init()
-	// if len(source.Attributes) == 0 {
-	// 	return errors.New("No attributes in object, ignoring")
-	// }
+	r.Init()
 	r.DistinguishedName = source.DN
 	for _, attr := range source.Attributes {
 		r.Attributes[attr.Name] = attr.Values

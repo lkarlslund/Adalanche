@@ -24,8 +24,12 @@ var (
 	importhardened = analyze.Command.Flags().Bool("importhardened", false, "Import hardened objects (without objectclass attribute)")
 	warnhardened   = analyze.Command.Flags().Bool("warnhardened", false, "Warn about hardened objects (without objectclass attribute)")
 
+	limitattributes = analyze.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
+
 	adsource = engine.AttributeValueString("Active Directory dumps")
 	Loader   = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
+
+	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
 )
 
 type convertqueueitem struct {
@@ -88,8 +92,13 @@ func (ld *ADLoader) Init() error {
 					}
 				}
 
+				if category, found := item.object.Attributes["objectCategory"]; found && strings.HasPrefix(category[0], "CN=Foreign-Security-Principal") {
+					// We don't want to import this
+					// continue
+				}
+
 				// Convert
-				o := item.object.ToObject()
+				o := item.object.ToObject(*limitattributes)
 
 				if !ld.importcnf && strings.Contains(o.DN(), "\\0ACNF:") {
 					continue // skip conflict object
@@ -202,9 +211,10 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 			continue
 		}
 
-		domain := rootdse.OneAttrString(engine.A("defaultNamingContext"))
+		domain := rootdse.OneAttrString(defaultNamingContext)
 		domainval := engine.AttributeValueOne{Value: engine.AttributeValueString(domain)}
 
+		// Indicate from which domain we saw this
 		for _, o := range ao.Slice() {
 			o.Set(engine.UniqueSource, domainval)
 		}

@@ -670,111 +670,80 @@ func (os *Objects) FindOrAddSID(s windowssecurity.SID) *Object {
 }
 
 func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Object {
-	os.objectmutex.RLock() // Prevent anyone from adding to objects while we're searching
-	result := os.FindAdjacentSID(s, r)
-	if result != nil {
-		os.objectmutex.RUnlock()
-		return result
-	}
+	switch s.Component(2) {
+	case 21: // Full "domain" SID
+		result, _ := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
+			no := NewObject(
+				ObjectSid, AttributeValueSID(s),
+				MetaDataSource, "FindOrAddAdjacentSID",
+				IgnoreBlanks,
+				DomainPart, r.Attr(DomainPart),
+			)
+			if !r.SID().IsNull() {
+				if r.SID().StripRID() == s.StripRID() {
+					// Same domain ... hmm!
+				} else {
+					// Other domain, then it's a foreign principal
+					no.SetFlex(ObjectCategorySimple, "Foreign-Security-Principal")
+					if dp := r.OneAttrString(DomainPart); dp != "" {
+						no.SetFlex(DistinguishedName, "CN="+s.String()+",CN=ForeignSecurityPrincipals,"+dp)
+					}
+				}
+			}
+			return no
+		})
+		return result[0]
+	default:
+		if r.HasAttr(DomainPart) {
+			// From outside, we need to find the domain part
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
+				return o[0]
+			}
+		}
+		// From inside same source, that is easy
+		if r.HasAttr(UniqueSource) {
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
+				return o[0]
+			}
+		}
 
-	os.objectmutex.RUnlock()
-
-	os.objectmutex.Lock()
-
-	// Did someone beat us to it?
-	result = os.FindAdjacentSID(s, r)
-	if result != nil {
-		os.objectmutex.Unlock()
-		return result
 	}
 
 	// Not found, we have write lock so create it
-	no := NewObject(
-		IgnoreBlanks,
-		ObjectSid, AttributeValueSID(s),
-		DomainPart, r.Attr(DomainPart),
-		UniqueSource, r.Attr(UniqueSource),
-	)
+	no := NewObject(ObjectSid, AttributeValueSID(s))
 
-	// Is it part of our own domain?
-	if s.Component(2) == 21 {
-		// Improve performance perhaps ...
-		dp := r.OneAttr(DomainPart)
-
-		domain, _ := os.FindTwoMulti(
-			DistinguishedName, dp,
-			ObjectClass, AttributeValueString("domain"),
+	if s.Component(2) != 21 {
+		no.SetFlex(
+			IgnoreBlanks,
+			DomainPart, r.Attr(DomainPart),
+			UniqueSource, r.Attr(UniqueSource),
 		)
-
-		if len(domain) == 1 {
-			ds := domain[0].SID()
-
-			if s.StripRID() != ds {
-				// Foreign security principal
-				no.SetFlex(DistinguishedName, s.String()+",CN=ForeignSecurityPrincipals,"+dp.String(),
-					ObjectCategorySimple, "Foreign-Security-Principal")
-			}
-		}
 	}
 
-	os.add(no)
-
-	if no2 := os.FindAdjacentSID(s, r); no2 == nil {
-		os.ReindexObject(no, false)
-		os.FindAdjacentSID(s, r)
-		panic("Failed to find newly created object")
-	}
-
-	os.objectmutex.Unlock()
+	os.Add(no)
 
 	return no
 }
 
-func (os *Objects) FindAdjacentSID(s windowssecurity.SID, r *Object) *Object {
+/*
+func (os *Objects) findAdjacentSID(s windowssecurity.SID, r *Object) *Object {
 	// These are the "local" groups shared between DCs
 	// We need to find the right one, and we'll use the DomainPart for this
 
-	if r.HasAttr(DomainPart) {
-		// From outside, we need to find the domain part
-		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
-			return findMostLocal(o)
-		}
-	}
-
-	// From inside same source, that is easy
-	if r.HasAttr(UniqueSource) {
-		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
-			return findMostLocal(o)
-		}
-	}
-
-	// Are we looking for a SID in our own domain?
-	if r.HasAttr(ObjectSid) {
-		if s.StripRID() == r.SID().StripRID() {
-			// Same domain
-			if os, found := os.FindMulti(ObjectSid, AttributeValueSID(s)); found {
-				for _, o := range os {
-					if o.Type() != ObjectTypeForeignSecurityPrincipal {
-						return o
-					}
-				}
+	switch s.Component(2) {
+	case 21: // Full "domain" SID
+		return os.Find(s)
+	default:
+		if r.HasAttr(DomainPart) {
+			// From outside, we need to find the domain part
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
+				return findMostLocal(o)
 			}
-		} else {
-			// Other domain ... hmm
-			if os, found := os.FindMulti(ObjectSid, AttributeValueSID(s)); found {
-				if len(os) == 1 {
-					return os[0]
-				}
-				for _, o := range os {
-					if o.Type() != ObjectTypeForeignSecurityPrincipal {
-						return o
-					}
-					if strings.Contains(o.DN(), ",CN=WellKnown Security Principals,") {
-						return o
-					}
-				}
-				log.Warn().Msgf("Found multiple SIDs for %s, returning first found", s.String())
-				return os[0]
+		}
+		// From inside same source, that is easy
+		if r.HasAttr(UniqueSource) {
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
+				return findMostLocal(o)
 			}
 		}
 	}
@@ -782,6 +751,7 @@ func (os *Objects) FindAdjacentSID(s windowssecurity.SID, r *Object) *Object {
 	// Not found
 	return nil
 }
+*/
 
 func findMostLocal(os []*Object) *Object {
 	if len(os) == 0 {
