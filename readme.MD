@@ -107,7 +107,7 @@ This is dead simple - everything you've collected should be in the data director
 
 Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
 
-IMPORTANT: If you're doing multi forest analysis, place all AD object and GPO files for each forest in their own subfolder, so adalanche can figure out what to merge and what NOT to merge.
+IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
 
 These extensions are recognized:
 - .localmachine.json - Windows collector data

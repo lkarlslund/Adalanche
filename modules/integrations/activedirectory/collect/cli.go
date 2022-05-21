@@ -66,17 +66,17 @@ var (
 	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
 
-	// Local authmod as a byte
-	authmode byte
+	authmode AuthMode
 	tlsmode  TLSmode
 )
 
 func init() {
 	defaultmode := "ntlm"
 	if runtime.GOOS == "windows" {
-		defaultmode = "ntlmsspi"
+		defaultmode = "negotiate"
 	}
-	authmodeString = Command.Flags().String("authmode", defaultmode, "Bind mode: unauth, simple, md5, ntlm, ntlmpth (password is hash), ntlmsspi (integrated Windows)")
+
+	authmodeString = Command.Flags().String("authmode", defaultmode, "Bind mode: unauth/anonymous, basic/simple, digest/md5, ntlm, ntlmpth (password is hash), negotiate/sspi")
 
 	clicollect.Collect.AddCommand(Command)
 	Command.PreRunE = PreRun
@@ -96,21 +96,9 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown TLS mode %v", tlsmode)
 	}
 
-	switch strings.ToLower(*authmodeString) {
-	case "unauth":
-		authmode = 0
-	case "simple":
-		authmode = 1
-	case "md5":
-		authmode = 2
-	case "ntlm":
-		authmode = 3
-	case "ntlmpth":
-		authmode = 4
-	case "ntlmsspi":
-		authmode = 5
-	default:
-		return fmt.Errorf("unknown LDAP authentication mode %v", authmodeString)
+	authmode, err = AuthModeString(*authmodeString)
+	if err != nil {
+		return fmt.Errorf("unknown auth mode %v", authmode)
 	}
 
 	// AUTODETECTION
@@ -147,7 +135,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			if authmode != 5 && *user == "" {
+			if runtime.GOOS != "windows" && *user == "" {
 				// Auto-detect user
 				*user = os.Getenv("USERNAME")
 				if *user != "" {
@@ -165,26 +153,15 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
 
-	if authmode == 5 && *pass != "" {
-		return errors.New("You supplied a password, but authmode is set to NTMLSSPI (integrated authentication). Please change authmode or do not supply a password")
-	}
-
-	if authmode != 5 {
-		if *user == "" {
-			return errors.New("Missing username - please use '--username' parameter")
+	if *user == "" {
+		if *pass != "" {
+			return errors.New("You supplied a password, but not a username. Please provide a username or do not supply a password")
 		}
 
-		if authmode != 3 {
-			if *domain != "" && !strings.Contains(*user, "@") && !strings.Contains(*user, "\\") {
-				*user = *user + "@" + *domain
-				log.Info().Msgf("Username does not contain @ or \\, auto expanding it to %v", *user)
-			}
+		if runtime.GOOS != "windows" {
+			return errors.New("You need to supply a username and password for platforms other than Windows")
 		}
 	} else {
-		log.Info().Msg("Using integrated NTLM authentication")
-	}
-
-	if authmode != 5 {
 		if *pass == "" {
 			fmt.Printf("Please enter password for %v: ", *user)
 			passwd, err := term.ReadPassword(int(syscall.Stdin))
@@ -198,12 +175,12 @@ func PreRun(cmd *cobra.Command, args []string) error {
 			// A single ! indicates we want to use a blank password, so lets change it to that
 			*pass = ""
 		}
-	}
 
-	if authmode == 3 {
-		if *authdomain == "" {
-			return errors.New("Missing authdomain for NTLM - please use '--authdomain' parameter")
-		}
+		// if authmode == NTLM {
+		// 	if *authdomain == "" {
+		// 		return errors.New("Missing authdomain for NTLM - please use '--authdomain' parameter")
+		// 	}
+		// }
 	}
 
 	return nil
@@ -213,6 +190,14 @@ func Execute(cmd *cobra.Command, args []string) error {
 	datapath := "data"
 	if idp := cmd.InheritedFlags().Lookup("datapath"); idp != nil {
 		datapath = idp.Value.String()
+	}
+
+	// Should be moved to main prerun, but I can't figure it out right now
+	if _, err := os.Open(datapath); os.IsNotExist(err) {
+		err = os.MkdirAll(datapath, 0755)
+		if err != nil {
+			return err
+		}
 	}
 
 	var gpostocollect []*activedirectory.RawObject
@@ -263,10 +248,11 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Active Directory dump directly from AD controller
-		ad := AD{
+		options := LDAPOptions{
 			Domain:     *domain,
 			Server:     *server,
 			Port:       uint16(*port),
+			AuthMode:   authmode,
 			User:       *user,
 			Password:   *pass,
 			AuthDomain: *authdomain,
@@ -275,7 +261,11 @@ func Execute(cmd *cobra.Command, args []string) error {
 			Debug:      *ldapdebug,
 		}
 
-		err := ad.Connect(authmode)
+		var ad LDAPDumper
+
+		ad = CreateDumper(options)
+
+		err := ad.Connect()
 		if err != nil {
 			return errors.Wrap(err, "problem connecting to AD")
 		}
@@ -291,6 +281,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		log.Info().Msg("Probing RootDSE ...")
 		rootdse, err := ad.Dump(DumpOptions{
 			SearchBase:    "",
+			Query:         "(objectClass=*)",
 			Scope:         ldap.ScopeBaseObject,
 			ReturnObjects: true,
 		})
@@ -356,6 +347,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		do := DumpOptions{
 			Attributes:    attributes,
+			Query:         "(objectClass=*)",
 			Scope:         ldap.ScopeWholeSubtree,
 			NoSACL:        *nosacl,
 			ChunkSize:     *pagesize,

@@ -17,32 +17,13 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-//go:generate enumer -type=TLSmode -json
-
-type TLSmode byte
-
-const (
-	TLS TLSmode = iota
-	StartTLS
-	NoTLS
-)
-
 type AD struct {
-	Domain     string
-	Server     string
-	Port       uint16
-	User       string
-	Password   string
-	AuthDomain string
-	TLSMode    TLSmode
-	IgnoreCert bool
-
-	Debug bool
+	LDAPOptions
 
 	conn *ldap.Conn
 }
 
-func (ad *AD) Connect(authmode byte) error {
+func (ad *AD) Connect() error {
 	if ad.AuthDomain == "" {
 		ad.AuthDomain = ad.Domain
 	}
@@ -81,11 +62,11 @@ func (ad *AD) Connect(authmode byte) error {
 	ad.conn.Debug.Enable(ad.Debug)
 
 	var err error
-	switch authmode {
-	case 0:
+	switch ad.AuthMode {
+	case Anonymous:
 		log.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
 		err = ad.conn.UnauthenticatedBind(ad.User)
-	case 1:
+	case Basic:
 		if ad.Password == "" {
 			log.Debug().Msgf("Doing simple unauthenticated bind with user %s", ad.User)
 			err = ad.conn.UnauthenticatedBind(ad.User)
@@ -93,18 +74,20 @@ func (ad *AD) Connect(authmode byte) error {
 			log.Debug().Msgf("Doing simple bind with user %s", ad.User)
 			err = ad.conn.Bind(ad.User, ad.Password)
 		}
-	case 2:
-		log.Debug().Msgf("Doing MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
+	case Digest:
+		log.Debug().Msgf("Doing DIGEST-MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
-	case 3:
-		log.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
-		err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
-	case 4:
+	case NTLM:
+		if ad.User == "" {
+			log.Debug().Msgf("Doing integrated NTLM auth")
+			err = ad.conn.NTLMSSPIBind()
+		} else {
+			log.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
+			err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
+		}
+	case NTLMPTH:
 		log.Debug().Msgf("Doing NTLM hash auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
-	case 5:
-		log.Debug().Msgf("Doing integrated NTLM auth")
-		err = ad.conn.NTLMSSPIBind()
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
 	}
@@ -120,27 +103,14 @@ func (ad *AD) Disconnect() error {
 	return nil
 }
 
-type DumpOptions struct {
-	SearchBase string
-	Scope      int
-	Query      string
-	Attributes []string
-	NoSACL     bool
-	ChunkSize  int
-
-	OnObject      func(ro *activedirectory.RawObject) error
-	WriteToFile   string
-	ReturnObjects bool
-}
-
 func (ad *AD) RootDn() string {
 	return "dc=" + strings.Replace(ad.Domain, ".", ",dc=", -1)
 }
 
-func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
+func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	var e *msgp.Writer
-	if da.WriteToFile != "" {
-		outfile, err := os.Create(da.WriteToFile)
+	if do.WriteToFile != "" {
+		outfile, err := os.Create(do.WriteToFile)
 		if err != nil {
 			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
 		}
@@ -160,7 +130,7 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 	}
 
 	bar := progressbar.NewOptions(-1,
-		progressbar.OptionSetDescription("Dumping from "+da.SearchBase+" ..."),
+		progressbar.OptionSetDescription("Dumping from "+do.SearchBase+" ..."),
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowIts(),
 		progressbar.OptionSetItsString("objects"),
@@ -170,7 +140,7 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 
 	var controls []ldap.Control
 
-	if da.NoSACL {
+	if do.NoSACL {
 		sdcontrol := &ControlInteger{
 			ControlType:  "1.2.840.113556.1.4.801",
 			Criticality:  true,
@@ -179,23 +149,23 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 		controls = append(controls, sdcontrol)
 	}
 
-	if da.ChunkSize > 0 {
-		paging := ldap.NewControlPaging(uint32(da.ChunkSize))
+	if do.ChunkSize > 0 {
+		paging := ldap.NewControlPaging(uint32(do.ChunkSize))
 		controls = append(controls, paging)
 	}
 
-	if da.Query == "" {
-		da.Query = "(objectClass=*)"
+	if do.Query == "" {
+		do.Query = "(objectClass=*)"
 	}
 
-	var objects []*activedirectory.RawObject
+	var objects []activedirectory.RawObject
 
 	for {
 		request := ldap.NewSearchRequest(
-			da.SearchBase, // The base dn to search
-			da.Scope, ldap.NeverDerefAliases, 0, 0, false,
-			da.Query,      // The filter to apply
-			da.Attributes, // A list attributes to retrieve
+			do.SearchBase, // The base dn to search
+			do.Scope, ldap.NeverDerefAliases, 0, 0, false,
+			do.Query,      // The filter to apply
+			do.Attributes, // A list attributes to retrieve
 			controls,
 		)
 
@@ -206,7 +176,7 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 
 		// For a page of results, iterate through the reponse and pull the individual entries
 		for _, entry := range response.Entries {
-			newObject := &activedirectory.RawObject{}
+			newObject := activedirectory.RawObject{}
 			err = newObject.IngestLDAP(entry)
 			if err == nil {
 				if e != nil {
@@ -215,13 +185,19 @@ func (ad *AD) Dump(da DumpOptions) ([]*activedirectory.RawObject, error) {
 						return nil, fmt.Errorf("problem encoding LDAP object %v: %v", newObject.DistinguishedName, err)
 					}
 				}
-				if da.OnObject != nil {
-					err = da.OnObject(newObject)
+				if do.OnObject != nil {
+					err = do.OnObject(&newObject)
 					if err != nil {
 						return nil, err
 					}
 				}
-				if da.ReturnObjects {
+				if do.ReturnObjects {
+					// Grow one page at a time
+					if len(objects) == cap(objects) {
+						newobjects := make([]activedirectory.RawObject, len(objects), cap(objects)+do.ChunkSize)
+						copy(newobjects, objects)
+						objects = newobjects
+					}
 					objects = append(objects, newObject)
 				}
 				bar.Add(1)

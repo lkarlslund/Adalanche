@@ -191,9 +191,9 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 				return err
 			}
 			if b == 0 {
-				value = "false"
+				value = "0"
 			} else {
-				value = "true"
+				value = "1"
 			}
 		case ADSTYPE_INTEGER:
 			v, err := r.ReadUint32()

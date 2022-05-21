@@ -143,7 +143,16 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		case ObjectSid, SIDHistory, SecurityIdentifier:
 			attributevalue = engine.AttributeValueSID(value)
 		default:
-			// AUTO CONVERSION
+			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
+
+			// This undoes the wrong cast from ADexplorer conversions (sigh)
+			if value == "true" {
+				attributevalue = engine.AttributeValueInt(1)
+				break
+			} else if value == "false" {
+				attributevalue = engine.AttributeValueInt(0)
+				break
+			}
 
 			if strings.HasSuffix(value, "Z") { // "20171111074031.0Z"
 				// Lets try as a timestamp
@@ -151,18 +160,18 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
 					attributevalue = engine.AttributeValueTime(t)
+					break
 				}
 			}
-			if attributevalue == nil {
-				// Integer
-				if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-					attributevalue = engine.AttributeValueInt(intval)
-				}
+
+			// Integer
+			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
+				attributevalue = engine.AttributeValueInt(intval)
+				break
 			}
-			if attributevalue == nil {
-				// Just a string
-				attributevalue = engine.AttributeValueString(value)
-			}
+
+			// Just a string
+			attributevalue = engine.AttributeValueString(value)
 		}
 
 		if attributevalue != nil {
