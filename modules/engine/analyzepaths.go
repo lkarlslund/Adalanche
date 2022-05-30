@@ -178,7 +178,7 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 					continue
 				}
 
-				prob := detectedmethods.MaxProbabiltity(v.Object, target)
+				prob := detectedmethods.MaxProbability(v.Object, target)
 				if prob < minprobability {
 					// Skip entirely if too
 					continue
@@ -210,7 +210,7 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 	}
 
 	var result PwnGraph
-	result.Nodes = append(result.Nodes, GraphObject{
+	result.Nodes = append(result.Nodes, Node{
 		Object:    end,
 		Target:    true,
 		CanExpand: 0,
@@ -219,13 +219,13 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 	curnode := end
 	prenode := prev[end]
 	for {
-		result.Nodes = append(result.Nodes, GraphObject{
+		result.Nodes = append(result.Nodes, Node{
 			Object:    prenode,
 			Target:    false,
 			CanExpand: 0,
 		})
 		result.Connections = append(result.Connections,
-			PwnConnection{
+			Edge{
 				Source:          prenode,
 				Target:          curnode,
 				PwnMethodBitmap: prenode.CanPwn[curnode],

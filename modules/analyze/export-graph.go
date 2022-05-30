@@ -36,7 +36,7 @@ func ExportGraphViz(pg engine.PwnGraph, filename string) error {
 
 type MethodMap map[string]bool
 
-type CytoData map[string]interface{}
+type MapStringInterface map[string]interface{}
 
 type CytoGraph struct {
 	FormatVersion            string        `json:"format_version"`
@@ -55,8 +55,8 @@ type CytoGraphData struct {
 type CytoElements []CytoFlatElement
 
 type CytoFlatElement struct {
-	Data  CytoData `json:"data"`
-	Group string   `json:"group"` // nodes or edges
+	Group string             `json:"group"` // nodes or edges
+	Data  MapStringInterface `json:"data"`
 }
 
 func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error) {
@@ -94,21 +94,18 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 			Data: map[string]interface{}{
 				"id":    fmt.Sprintf("n%v", object.ID()),
 				"label": object.Label(),
-				// engine.DistinguishedName.String(): object.DN(),
-				// engine.Name.String():              object.OneAttrRendered(engine.Name),
-				// engine.DisplayName.String():       object.OneAttrRendered(engine.DisplayName),
-				// engine.Description.String():       object.OneAttrRendered(engine.Description),
-				// engine.ObjectSid.String():         object.SID().String(),
-				// engine.SAMAccountName.String():    object.OneAttrRendered(engine.SAMAccountName),
-				"type": object.Type().String(),
-			}}
+				"type":  object.Type().String(),
+			},
+		}
 
+		for key, value := range node.DynamicFields {
+			newnode.Data[key] = value
+		}
+
+		// FIXME, should go elsewhere
 		if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
 			newnode.Data["_disabled"] = true
 		}
-
-		// 	_workstation
-		// _server
 
 		// If we added empty junk, remove it again
 		for attr, value := range newnode.Data {
@@ -132,15 +129,20 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 	for _, connection := range pg.Connections {
 		edge := CytoFlatElement{
 			Group: "edges",
-			Data: CytoData{
+			Data: MapStringInterface{
 				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID(), connection.Target.ID()),
 				"source": fmt.Sprintf("n%v", connection.Source.ID()),
 				"target": fmt.Sprintf("n%v", connection.Target.ID()),
 			},
 		}
+
+		for key, value := range connection.DynamicFields {
+			edge.Data[key] = value
+		}
+
 		var maxprob engine.Probability
 		for _, method := range connection.Methods() {
-			prob := engine.CalculateProbability(connection.Source, connection.Target, method)
+			prob := method.Probability(connection.Source, connection.Target)
 			edge.Data["method_"+method.String()] = prob
 			if prob > maxprob {
 				maxprob = prob

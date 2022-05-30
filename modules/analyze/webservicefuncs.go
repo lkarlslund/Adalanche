@@ -350,6 +350,10 @@ func analysisfuncs(ws *webservice) {
 			pg = engine.AnalyzeObjects(opts)
 		}
 
+		for _, postprocessor := range engine.PostProcessors {
+			pg = postprocessor(pg)
+		}
+
 		clusters := pg.SCC()
 		for i, cluster := range clusters {
 			if len(cluster) == 1 {

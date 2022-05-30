@@ -2,28 +2,60 @@ package engine
 
 import "log"
 
-type GraphObject struct {
+type DynamicFields map[string]interface{}
+
+type PwnGraph struct {
+	Nodes       []Node
+	Connections []Edge // Connection to Methods map
+}
+
+type Node struct {
 	*Object
 	Target    bool
 	CanExpand int
+	DynamicFields
 }
 
-type PwnGraph struct {
-	Nodes       []GraphObject
-	Connections []PwnConnection // Connection to Methods map
+func (n *Node) Set(key string, value interface{}) {
+	if n.DynamicFields == nil {
+		n.DynamicFields = make(DynamicFields)
+	}
+	n.DynamicFields[key] = value
+}
+
+func (n *Node) Get(key string) interface{} {
+	if n.DynamicFields == nil {
+		return nil
+	}
+	return n.DynamicFields[key]
+}
+
+type Edge struct {
+	Source, Target *Object
+	PwnMethodBitmap
+	DynamicFields
+}
+
+func (e *Edge) Set(key string, value interface{}) {
+	if e.DynamicFields == nil {
+		e.DynamicFields = make(DynamicFields)
+	}
+	e.DynamicFields[key] = value
+}
+
+func (e *Edge) Get(key string) interface{} {
+	if e.DynamicFields == nil {
+		return nil
+	}
+	return e.DynamicFields[key]
 }
 
 type PwnPair struct {
 	Source, Target *Object
 }
 
-type PwnConnection struct {
-	Source, Target *Object
-	PwnMethodBitmap
-}
-
 func (pg *PwnGraph) Merge(npg PwnGraph) {
-	nodemap := make(map[*Object]GraphObject)
+	nodemap := make(map[*Object]Node)
 	for _, node := range pg.Nodes {
 		nodemap[node.Object] = node
 	}
@@ -65,17 +97,17 @@ func (pg *PwnGraph) Merge(npg PwnGraph) {
 		}
 	}
 
-	pg.Nodes = make([]GraphObject, len(nodemap))
+	pg.Nodes = make([]Node, len(nodemap))
 	i := 0
 	for _, node := range nodemap {
 		pg.Nodes[i] = node
 		i++
 	}
 
-	pg.Connections = make([]PwnConnection, len(pairmap))
+	pg.Connections = make([]Edge, len(pairmap))
 	i = 0
 	for connection, methods := range pairmap {
-		pg.Connections[i] = PwnConnection{
+		pg.Connections[i] = Edge{
 			Source:          connection.Source,
 			Target:          connection.Target,
 			PwnMethodBitmap: methods,
@@ -165,12 +197,12 @@ func transpose(graph [][]int) [][]int {
 //transpose transposes (reverses) a directed graph
 func (pg PwnGraph) Transpose() PwnGraph {
 	npg := PwnGraph{
-		Nodes:       make([]GraphObject, len(pg.Nodes)),
-		Connections: make([]PwnConnection, len(pg.Connections)),
+		Nodes:       make([]Node, len(pg.Nodes)),
+		Connections: make([]Edge, len(pg.Connections)),
 	}
 	copy(npg.Nodes, pg.Nodes)
 	for i, connection := range pg.Connections {
-		npg.Connections[i] = PwnConnection{
+		npg.Connections[i] = Edge{
 			Source:          connection.Target,
 			Target:          connection.Source,
 			PwnMethodBitmap: connection.PwnMethodBitmap,

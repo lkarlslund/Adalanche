@@ -22,8 +22,8 @@ func (pm PwnMethod) Describe(description string) PwnMethod {
 	return pm
 }
 
-func CalculateProbability(source, target *Object, method PwnMethod) Probability {
-	if f := pwnnums[method].probability; f != nil {
+func (pm PwnMethod) Probability(source, target *Object) Probability {
+	if f := pwnnums[pm].probability; f != nil {
 		return f(source, target)
 	}
 
@@ -61,6 +61,10 @@ type AnalyzeObjectsOptions struct {
 	MinProbability         Probability
 	PruneIslands           bool
 }
+
+type PostProcessorFunc func(pg PwnGraph) PwnGraph
+
+var PostProcessors []PostProcessorFunc
 
 func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	if opts.MethodsM.Count() == 0 {
@@ -341,10 +345,10 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	}
 
 	// Convert map to slice
-	pg.Connections = make([]PwnConnection, len(connectionsmap))
+	pg.Connections = make([]Edge, len(connectionsmap))
 	i := 0
 	for connection, methods := range connectionsmap {
-		nc := PwnConnection{
+		nc := Edge{
 			Source:          connection.Source,
 			Target:          connection.Target,
 			PwnMethodBitmap: methods,
@@ -356,7 +360,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		i++
 	}
 
-	pg.Nodes = make([]GraphObject, len(implicatedobjectsmap))
+	pg.Nodes = make([]Node, len(implicatedobjectsmap))
 	i = 0
 	for object, ri := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
