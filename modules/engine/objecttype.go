@@ -106,6 +106,10 @@ func (ot ObjectType) String() string {
 	return objecttypenums[ot].Name
 }
 
+func (ot ObjectType) Lookup() string {
+	return objecttypenums[ot].Lookup
+}
+
 func (ot ObjectType) SetDefault(p PriorityFML, enabled bool) ObjectType {
 	objecttypemutex.Lock()
 	defer objecttypemutex.Unlock()
