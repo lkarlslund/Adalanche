@@ -159,19 +159,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 					}
 				}
 
-				maxprobability := Probability(-128)
-				for i := 0; i < len(pwnnums); i++ {
-					if detectedmethods.IsSet(PwnMethod(i)) {
-						var probability Probability
-						if forward {
-							probability = CalculateProbability(pwntarget, object, PwnMethod(i))
-						} else {
-							probability = CalculateProbability(object, pwntarget, PwnMethod(i))
-						}
-						if probability > maxprobability {
-							maxprobability = probability
-						}
-					}
+				var maxprobability Probability
+				if forward {
+					maxprobability = detectedmethods.MaxProbability(pwntarget, object)
+				} else {
+					maxprobability = detectedmethods.MaxProbability(object, pwntarget)
 				}
 				if maxprobability < Probability(opts.MinProbability) {
 					// Too unlikeliy, so we skip it

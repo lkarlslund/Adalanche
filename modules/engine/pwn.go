@@ -20,6 +20,11 @@ const MAXPWNMETHODPOSSIBLE = PMBSIZE * 64
 type PwnMethodBitmap [PMBSIZE]uint64
 type Probability int8
 
+const (
+	MINPROBABILITY Probability = -1
+	MAXPROBABILITY Probability = 100
+)
+
 type PwnInfo struct {
 	Target      *Object
 	Method      PwnMethod
@@ -220,12 +225,12 @@ func (m PwnMethodBitmap) IsSet(method PwnMethod) bool {
 	return (m[method/64] & (1 << (method % 64))) != 0 // Uuuuh, nasty and unreadable
 }
 
-func (m PwnMethodBitmap) MaxProbabiltity(source, target *Object) Probability {
+func (m PwnMethodBitmap) MaxProbability(source, target *Object) Probability {
 	var max Probability
 	for i := 0; i < len(pwnnums); i++ {
 		if m.IsSet(PwnMethod(i)) {
-			prob := CalculateProbability(source, target, PwnMethod(i))
-			if prob == 100 {
+			prob := PwnMethod(i).Probability(source, target)
+			if prob == MAXPROBABILITY {
 				return prob
 			}
 			if prob > max {
