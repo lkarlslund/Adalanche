@@ -1072,12 +1072,12 @@ func init() {
 					}
 				}
 				if len(guids) > 0 {
-					object.Set(engine.ObjectClassGUIDs, engine.AttributeValueSlice(guids))
+					object.SetFlex(engine.ObjectClassGUIDs, guids)
 				}
 			}
 
 			var objectcategoryguid engine.AttributeValues
-			objectcategoryguid = engine.AttributeValueSlice{engine.AttributeValueGUID(engine.UnknownGUID)}
+			objectcategoryguid = engine.AttributeValueOne{engine.AttributeValueGUID(engine.UnknownGUID)}
 			typedn := object.OneAttr(engine.ObjectCategory)
 
 			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
