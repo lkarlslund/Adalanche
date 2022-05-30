@@ -114,12 +114,20 @@ func NewAttribute(name string) Attribute {
 		name = name[pos+1:]
 	}
 
-	// Lowercase it, everything is case insensitive
-	lowername := strings.ToLower(name)
-
 	attributemutex.RLock()
+	// Case sensitive lookup
+	if attribute, found := attributenames[name]; found {
+		attributemutex.RUnlock()
+		return attribute
+	}
+	// Lowercase it, do case insensitive lookup
+	lowername := strings.ToLower(name)
 	if attribute, found := attributenames[lowername]; found {
 		attributemutex.RUnlock()
+		// If we're here, we have a case insensitive match, but the case was different, so add that
+		attributemutex.Lock()
+		attributenames[name] = attribute
+		attributemutex.Unlock()
 		return attribute
 	}
 	attributemutex.RUnlock()
@@ -130,8 +138,9 @@ func NewAttribute(name string) Attribute {
 		return attribute
 	}
 
-	newindex := Attribute(len(attributenames))
+	newindex := Attribute(len(attributenums))
 	attributenames[lowername] = newindex
+	attributenames[name] = newindex
 	attributenums = append(attributenums, attributeinfo{
 		name: name,
 	})
