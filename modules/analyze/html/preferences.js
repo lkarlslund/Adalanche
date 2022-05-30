@@ -43,7 +43,7 @@ function saveprefs() {
 }
 
 function getpref(key, defvalue) {
-    value = prefs[key];
+    var value = prefs[key];
     if (value != null) {
         return value
     }

@@ -1,5 +1,5 @@
 function makePopper(ele) {
-    let ref = ele.popperRef(); // used only for positioning
+    var ref = ele.popperRef(); // used only for positioning
     ele.tippy = tippy(ref, {
         // tippy options:
         content: () => {
@@ -33,7 +33,7 @@ function setquery(
     if (methods) {
         // Clear all
         $('#pwnfilter > div > label .active').button('toggle');
-        marr = methods.split(' ');
+        var marr = methods.split(' ');
         if (marr.indexOf('default') > -1) {
             $('#pwnfilter > div > label > input [default]').button('toggle');
         }
@@ -69,31 +69,28 @@ function set_querymode(mode) {
     $('#querymode_sourcetarget').prop('checked', mode == 'sourcetarget');
 }
 
-function window_front(win) {
-    if (!win.hasClass('window-front')) {
-        $('#windows div').removeClass('window-front');
-        win.addClass('window-front');
-    }
-}
 
 function newwindow(id, title, content, height, width) {
-    mywindow = $(`#windows #window_${id}`);
-    itsnew = false;
+    // Other windows are not in from
+    $('#windows div').removeClass('window-front');
 
-    if (!height) {
-        height = 300
-    }
-    if (!width) {
-        width = 300
-    }
+    var mywindow = $(`#windows #window_${id}`);
+    var itsnew = false;
+
+    var maxheight = $(window).height() * 0.8;
+    var maxwidth = $(window).width() * 0.5;
 
     // add the new one
     if (mywindow.length == 0) {
         itsnew = true;
+        // `< div class="window d-inline-block position-absolute shadow p-5 bg-dark border pointer-events-auto container-fluid window-front" id="window_${id}">
 
         mywindow = $(
-            `<div class="window position-absolute shadow p-5 bg-dark border pointer-events-auto container-fluid" id="window_${id}">
-                <div id="wrapper">
+            `<div class="window d-inline-block position-absolute shadow bg-dark border pointer-events-auto window-front" style id="window_${id}">
+            <div class="s ui-resizable-handle ui-resizable-s"></div>
+            <div class="e ui-resizable-handle ui-resizable-e"></div>
+            <div class="se ui-resizable-handle ui-resizable-se ui-icon ui-icon-gripsmall-diagonal-se"></div>
+                <div id="wrapper" class="p-5 d-inline-block">
                     <div id='header' class='row mb-5'>
                         <div id="title" class="col"></div>
                         <div class="col-auto-1 no-wrap"><!-- button id="rollup" class="btn btn-primary btn-sm">_</button --> <button id="close" class="btn btn-primary btn-sm">X</button></div>
@@ -115,36 +112,43 @@ function newwindow(id, title, content, height, width) {
             $(this).parents('.window').remove();
         });
 
-        mywindow.mousedown(function () {
-            window_front(mywindow)
-        });
-
         mywindow.draggable({
             scroll: false,
             cancel: '#contents',
         });
-        
+
+
         mywindow.resizable({
             containment: '#windows',
+            handles: {
+                'se': '.se',
+                'e': '.e',
+                's': '.s',
+            },
             create: function (event, ui) { 
                 // ui has no data
             },
             resize: function (event, ui) {
-                console.log(event)
+                // console.log(event)
                 $('#contents', ui.element).width(ui.size.width-12);
                 $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-12);
             },
 
             // animate: true,
             // helper: "ui-resizable-helper",
-            // maxHeight: 50,
-            // maxWidth: 350,
+            maxHeight: maxheight,
+            maxWidth: maxwidth,
             minHeight: 150,
             minWidth: 200,
         });
 
-        mywindow.height(height);
-        mywindow.width(width);
+        if (height) {
+            mywindow.height(height);
+        }
+        if (width) {
+            mywindow.width(width);
+        }
+
     }
 
     $('#title', mywindow).html(title);
@@ -152,19 +156,34 @@ function newwindow(id, title, content, height, width) {
 
     if (itsnew) {
         $('#windows').append(mywindow);
+
+        if ($('#contents', mywindow).width() > maxwidth-12) {
+            $('#contents', mywindow).width(maxwidth-12);
+        }
+        if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-12) {
+            $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-12);
+        }
     }
 
     // Fix initial content height
-    console.log($('#header', mywindow).height())
-    $('#contents', mywindow).height(mywindow.height() - $('#header', mywindow).height() - 12);
+    // console.log($('#header', mywindow).height())
+    // $('#contents', mywindow).height(mywindow.height() - $('#header', mywindow).height() - 12);
 
-    window_front(mywindow);
+    // Bring to front on mouse down
+    mywindow.mousedown(function () {
+        var win = $(this);
+        if (!win.hasClass('window-front')) {
+            $('#windows div').removeClass('window-front');
+            win.addClass('window-front');
+        }
+    });
 }
 
 function analyze(e) {
     $('#status')
         .html(
-            `<span class="text-center">Analyzing</span>
+            `<div class="text-center">Analyzing</div>
+            <div class="p-10">
         <div class="sk-center sk-chase">
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
@@ -172,7 +191,8 @@ function analyze(e) {
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
-</div>`
+</div>
+            </div>`
         )
         .show();
 
@@ -199,7 +219,7 @@ function analyze(e) {
                 // Hide status
                 $('#status').hide();
 
-                info =
+                var info =
                     data.targets +
                     ' targets can ' +
                     (!data.reversed ? 'be reached via ' : 'reach ') +
@@ -207,7 +227,7 @@ function analyze(e) {
                     ' possible pwns ' +
                     (!data.reversed ? 'from' : 'to') +
                     ':<hr/>';
-                for (let objecttype in data.resulttypes) {
+                for (var objecttype in data.resulttypes) {
                     info += data.resulttypes[objecttype] + ' ' + objecttype + '<br>';
                 }
                 info += data.total + ' total objects in analysis';
@@ -256,6 +276,8 @@ $(function () {
         $('#optionswrap').animate({ width: 'toggle' }, 400);
     });
 
+    // autosize($('#querytext'));
+
     $('#explore').on('click', function () {
         newwindow(
             'explore',
@@ -294,7 +316,7 @@ $(function () {
                     dataType: "json",
                     success: function (data) {
                         // details = rendernode(data)
-                        details = renderdetails(data)
+                        var details = renderdetails(data)
                         newwindow("details_"+d.node.id, "Item details", details);
                     },
                     // error: function (xhr, status, error) {
@@ -423,13 +445,13 @@ $(function () {
                 buttons += '<tr class="pb-5">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle">` +
+                    `<td class="overflow-hidden font-size-12 align-middle" lookup="`+method.name+`">` +
                     method.name;
                 `</td>`;
 
                 buttons += '<td class="checkbox-button no-wrap">';
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="first" data-default=`+method.defaultenabled_f+` ` +
                     (method.defaultenabled_f ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
@@ -441,7 +463,7 @@ $(function () {
                     method.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="middle" data-default=` + method.defaultenabled_m +` ` +
                     (method.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
@@ -453,7 +475,7 @@ $(function () {
                     method.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="last" data-default=` + method.defaultenabled_l +` ` +
                     (method.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
@@ -479,13 +501,13 @@ $(function () {
                 buttons += '<tr class="pb-5">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle">` +
+                    `<td class="overflow-hidden font-size-12 align-middle" lookup="`+objecttype.name+`">` +
                     objecttype.name;
                 `</td>`;
                 buttons += '<td class="checkbox-button no-wrap pb-5">';
 
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="first" data-default=` + objecttype.defaultenabled_f +` ` +
                     (objecttype.defaultenabled_f ? 'checked' : '') +
                     ` id="` +
                     objecttype.lookup +
@@ -497,7 +519,7 @@ $(function () {
                     objecttype.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="middle" data-default=` + objecttype.defaultenabled_m +` `+
                     (objecttype.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
                     objecttype.lookup +
@@ -509,7 +531,7 @@ $(function () {
                     objecttype.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
-                    `<input type="checkbox" ` +
+                    `<input type="checkbox" data-column="last" data-default=` + objecttype.defaultenabled_l +` `+
                     (objecttype.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
                     objecttype.lookup +

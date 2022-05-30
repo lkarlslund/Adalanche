@@ -545,7 +545,7 @@ var cytostyle = [{
 ];
 
 function getGraphlayout(choice) {
-    layouttemplate = fcoselayout
+    var layouttemplate = fcoselayout
     switch (choice) {
         case "cose":
             layouttemplate = coselayout
@@ -567,10 +567,20 @@ function getGraphlayout(choice) {
             break
     }
 
-    layout = cy.layout(layouttemplate)
+    var layout = cy.layout(layouttemplate)
 
     layout.on("layoutstart", function (event) {
-        $("#status").html("Running graph layout").show()
+        $("#status").html(`<div>Running graph layout</div>
+            <div class= "p-10" >
+            <div class="sk-center sk-chase">
+                <div class="sk-chase-dot"></div>
+                <div class="sk-chase-dot"></div>
+                <div class="sk-chase-dot"></div>
+                <div class="sk-chase-dot"></div>
+                <div class="sk-chase-dot"></div>
+                <div class="sk-chase-dot"></div>
+            </div>
+            </div>`).show()
     })
     layout.on("layoutstop", function (event) {
         $("#status").hide()
@@ -581,8 +591,7 @@ function getGraphlayout(choice) {
 function nodelabel(ele) {
     switch ($("#graphlabels").val()) {
         case "normal":
-            label = ele.data("label");
-            return label
+            return ele.data("label");
         case "off":
             return "";
         case "anonymize":
@@ -598,8 +607,8 @@ function renderedge(ele) {
 }
 
 function rendermethods(methods) {
-    prob = edgeprobability(methods);
-    s = '<span class="badge badge-';
+    var prob = edgeprobability(methods);
+    var s = '<span class="badge badge-';
     if (prob < 33) {
         s += 'danger';
     } else if (prob < 67) {
@@ -617,7 +626,7 @@ function rendermethods(methods) {
 }
 
 function rendernode(ele) {
-    s = '<div>' + nodelabel(ele);
+    var s = '<div>' + nodelabel(ele);
     if (ele.data("engine.SAMAccountName")) s += ' (' + ele.data("engine.SAMAccountName") + ')';
     s += '</div>';
     if (ele.data("distinguishedName")) s += '<div>' + ele.data("distinguishedName") + '</div>';
@@ -626,7 +635,7 @@ function rendernode(ele) {
 
 // Object with values from AD and possibly other places
 function renderdetails(data) {
-    result = "<table>"
+    var result = "<table>"
     for (var attr in data.attributes) {
         result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
