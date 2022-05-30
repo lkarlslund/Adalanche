@@ -3,6 +3,7 @@ package activedirectory
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
