@@ -130,7 +130,7 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 
 		for _, lo := range los {
 			loaderproduced += lo.Len()
-			totalobjects += loaderproduced
+			totalobjects += lo.Len()
 			aos = append(aos, loaderobjects{loader, lo})
 		}
 		log.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
