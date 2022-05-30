@@ -69,6 +69,8 @@ github.com/Showmax/go-fqdn v1.0.0 h1:0rG5IbmVliNT5O19Mfuvna9LL7zlHyRfsSvBPZmF9tM
 github.com/Showmax/go-fqdn v1.0.0/go.mod h1:SfrFBzmDCtCGrnHhoDjuvFnKsWjEQX/Q9ARZvOrJAko=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
 github.com/StackExchange/wmi v1.2.0/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
+github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
+github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 h1:tcUuSvytlUEjm5D1qu7beKnaPf/uWtNXVutHxXqVJ6A=
 github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15/go.mod h1:EcuvbVuyyWyu+g4ACjKzyUypG60qSvorqC/hjByBEqY=
 github.com/absfs/fstesting v0.0.0-20180810212821-8b575cdeb80d h1:EVkAQkoP/iYX7WpkSgaSkHr5AgDdzxR06Hmy+bu4YpU=
