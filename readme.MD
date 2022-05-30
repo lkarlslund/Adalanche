@@ -308,13 +308,12 @@ Since this is a frequent question, here's a short list of things I know that dif
 
 | Feature | adalanche | BloodHound |
 | ------- | --------- | ---------- |
-| OS compatibility | Win/OSX/Linux | Win/Linux (OSX?) |
-| Prerequisites | None | Linux (optional but really not), Java, Python, Perl, Neo4J, Powershell (optional) |
-| Initial setup | None | Way too long for my taste |
+| OS compatibility | Win/OSX/Linux | Win/OSX/Linux |
+| Prerequisites | None | Python, Neo4J, .Net (SharpHound) |
+| Initial setup | None | See above |
 | GUI | Browser based | Electron based app |
 | Data Limitations | RAM bound | None |
-| Queries | LDAP syntax + options | Neo4J Cypher |
-| Flexibility | Fair | Everything Neo4J Offers |
+| Queries | Extended LDAP syntax + options | Neo4J Cypher |
 | Predefined queries | Yes | Yes |
 | Helping the world since | 2020 | 2016 |
 | Detected as malware | No* | Yes (false positive!) |
