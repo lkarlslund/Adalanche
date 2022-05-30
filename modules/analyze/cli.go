@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
+	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -45,125 +46,23 @@ func Execute(cmd *cobra.Command, args []string) error {
 	// After all this loading and merging, it's time to do release unused RAM
 	debug.FreeOSMemory()
 
-	/*
-		switch command {
-		case "schemagraph":
-			gv := gographviz.NewEscape()
-			gv.SetName("schema")
-			gv.SetDir(true)
-			// gv.AddSubGraph("schema", "attributes", nil)
-			// gv.AddSubGraph("schema", "classes", nil)
-			// gv.AddSubGraph("schema", "rights", nil)
-
-			log.Info().Msg("Exporting schema graph in Graphviz format ...")
-
-			output, err := os.Create("schemagraph.dot")
-			if err != nil {
-				log.Fatal().Msgf("Error opening output file: %v", err)
-			}
-
-			for _, object := range objs.Slice() {
-				switch object.Type() {
-				case engine.ObjectTypeAttributeSchema:
-					// gv.AddNode("schema", object.IDString(), map[string]string{"label": object.OneAttrString(LDAPDisplayName)})
-
-					// // Part of attribute set?
-					// if as := object.OneAttr(AttributeSecurityGUID); as != nil {
-					// 	if rg, found := engine.AllObjects.Find(RightsGUID, as); found {
-					// 		// _ = rg
-					// 		gv.AddEdge(object.IDString(), rg.IDString(), true, map[string]string{"label": "Part of"})
-					// 	}
-					// }
-
-					//
-				case engine.ObjectTypeClassSchema:
-					gv.AddNode("schema", object.IDString(), map[string]string{"label": object.OneAttrString(engine.LDAPDisplayName)})
-
-					// Possible superiors
-					for _, psup := range object.Attr(engine.PossSuperiors).Slice() {
-						if sup, found := objs.Find(engine.LDAPDisplayName, psup); found {
-							// _ = sup
-							gv.AddEdge(sup.IDString(), object.IDString(), true, map[string]string{"label": "Superior"})
-						}
-					}
-
-					// // Must contain
-					// for _, pcontain := range object.Attr(SystemMustContain).Slice() {
-					// 	if contain, found := engine.AllObjects.Find(LDAPDisplayName, pcontain); found {
-					// 		// _ = contain
-					// 		gv.AddEdge(object.IDString(), contain.IDString(), true, map[string]string{"label": "Must"})
-					// 	}
-					// }
-
-					// // May contain
-					// for _, pcontain := range object.Attr(SystemMayContain).Slice() {
-					// 	if contain, found := engine.AllObjects.Find(LDAPDisplayName, pcontain); found {
-					// 		// _ = contain
-					// 		gv.AddEdge(object.IDString(), contain.IDString(), true, map[string]string{"label": "May"})
-					// 	}
-					// }
-
-				case engine.ObjectTypeControlAccessRight:
-					gv.AddNode("schema", object.IDString(), map[string]string{"label": object.OneAttrString(engine.DisplayName)})
-				}
-			}
-			output.WriteString(gv.String())
-			output.Close()
-
-			log.Info().Msg("Done")
-		case "exportobjectsdebug":
-			log.Info().Msg("Finding most valuable assets ...")
-
-			output, err := os.Create("debug.txt")
-			if err != nil {
-				log.Fatal().Msgf("Error opening output file: %v", err)
-			}
-
-			for _, object := range objs.Slice() {
-				fmt.Fprintf(output, "Object:\n%v\n\n-----------------------------\n", object)
-			}
-			output.Close()
-
-			log.Info().Msg("Done")
-		case "export":
-			log.Info().Msg("Finding most valuable assets ...")
-			q, err := ldapquery.ParseQueryStrict(*analyzequery, objs)
-			if err != nil {
-				log.Fatal().Msgf("Error parsing LDAP query: %v", err)
-			}
-
-			includeobjects := objs.Filter(func(o *engine.Object) bool {
-				return q.Evaluate(o)
-			})
-
-			opts := engine.NewAnalyzeObjectsOptions()
-			opts.IncludeObjects = includeobjects
-			opts.Reverse = *exportinverted
-
-			resultgraph := engine.AnalyzeObjects(opts)
-
-			switch *exporttype {
-			case "graphviz":
-				err = ExportGraphViz(resultgraph, "adalanche-"+*domain+".dot")
-			case "cytoscapejs":
-				err = ExportCytoscapeJS(resultgraph, "adalanche-cytoscape-js-"+*domain+".json")
-			default:
-				log.Error().Msg("Unknown export format")
-				showUsage()
-			}
-			if err != nil {
-				log.Fatal().Msgf("Problem exporting graph: %v", err)
-			}
-
-			log.Info().Msg("Done")
-		case "analyze", "dump-analyze":
-		default:
-			log.Error().Msgf("Unknown command %v", flag.Arg(0))
-			showUsage()
-		}
-	*/
-
 	log.Info().Msgf("Processing done in %v", time.Since(starttime))
+
+	dedupStats := dedup.D.Statistics()
+
+	log.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
+	log.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
+	log.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
+	log.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
+	log.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
+	log.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
+
+	// Try to recover some memory
+	dedup.D.Flush()
+	objs.DropIndexes()
+
+	runtime.GC()
+	debug.FreeOSMemory()
 
 	err = WebService.Start(*bind, objs, *localhtml)
 	if err != nil {

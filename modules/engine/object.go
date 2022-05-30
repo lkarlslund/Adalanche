@@ -14,6 +14,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/lkarlslund/stringdedup"
@@ -483,7 +484,7 @@ func (o *Object) OneAttrString(attr Attribute) string {
 		return ao.Value.String()
 	}
 	if a.Len() == 1 {
-		log.Warn().Msg("Inefficient attribute storage - multival used for one value ...")
+		log.Warn().Msgf("Inefficient attribute storage for %v - multival used for one value ...", attr.String())
 		return a.Slice()[0].String()
 	}
 	log.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
@@ -675,7 +676,11 @@ func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
 	if len(values) == 0 {
 		panic(fmt.Sprintf("tried to set attribute %v to NO values", a.String()))
 	}
-	o.Set(a, AttributeValueSlice(values))
+	if len(values) == 1 {
+		o.Set(a, AttributeValueOne{values[0]})
+	} else {
+		o.Set(a, AttributeValueSlice(values))
+	}
 }
 
 func (o *Object) SetFlex(flexinit ...interface{}) {
@@ -698,6 +703,7 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 	attribute := NonExistingAttribute
 
 	data := avsPool.Get().(AttributeValueSlice)
+
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
 			ignoreblanks = true
@@ -782,6 +788,13 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			data = append(data, v)
 		case AttributeValueOne:
 			data = append(data, v.Value)
+		case []AttributeValue:
+			for _, value := range v {
+				if ignoreblanks && value.IsZero() {
+					continue
+				}
+				data = append(data, value)
+			}
 		case AttributeValueSlice:
 			for _, value := range v {
 				if ignoreblanks && value.IsZero() {
@@ -793,26 +806,30 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			// Ignore it
 		case Attribute:
 			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-				newdata := make(AttributeValueSlice, len(data))
-				copy(newdata, data)
-				o.set(attribute, newdata)
-
-				data = data[:0]
+				if len(data) == 1 {
+					o.set(attribute, AttributeValueOne{data[0]})
+				} else {
+					newdata := make(AttributeValueSlice, len(data))
+					copy(newdata, data)
+					o.set(attribute, newdata)
+				}
 			}
+			data = data[:0]
 			attribute = v
 		default:
 			panic("SetFlex called with invalid type in object declaration")
 		}
 	}
 	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-		newdata := make(AttributeValueSlice, len(data))
-		copy(newdata, data)
-		o.set(attribute, newdata)
+		if len(data) == 1 {
+			o.set(attribute, AttributeValueOne{data[0]})
+		} else {
+			newdata := make(AttributeValueSlice, len(data))
+			copy(newdata, data)
+			o.set(attribute, newdata)
+		}
 	}
-	if len(data) > 0 {
-		data = data[:0]
-	}
-	avsPool.Put(data)
+	avsPool.Put(data[:0])
 }
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
@@ -871,30 +888,38 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 	}
 
 	// Deduplication of values
-	valueslice := values.Slice()
-	for i, value := range valueslice {
-		switch avs := value.(type) {
+	switch vs := values.(type) {
+	case AttributeValueSlice:
+		if len(vs) == 1 {
+			log.Error().Msg("Wrong type")
+		}
+		for i, value := range vs {
+			switch avs := value.(type) {
+			case AttributeValueSID:
+				vs[i] = AttributeValueSID(dedup.D.S(string(avs)))
+			case AttributeValueString:
+				vs[i] = AttributeValueString(dedup.D.S(string(avs)))
+			case AttributeValueBlob:
+				vs[i] = AttributeValueBlob(dedup.D.S(string(avs)))
+			}
+		}
+	case AttributeValueOne:
+		switch avs := vs.Value.(type) {
+		case AttributeValueSID:
+			vs.Value = AttributeValueSID(dedup.D.S(string(avs)))
 		case AttributeValueString:
-			valueslice[i] = AttributeValueString(stringdedup.S(string(avs)))
+			vs.Value = AttributeValueString(dedup.D.S(string(avs)))
 		case AttributeValueBlob:
-			valueslice[i] = AttributeValueBlob(stringdedup.B([]byte(avs)))
+			vs.Value = AttributeValueBlob(dedup.D.S(string(avs)))
 		}
 	}
 
-	var av AttributeValues
-
-	if len(valueslice) == 1 {
-		av = AttributeValueOne{valueslice[0]}
-	} else {
-		av = AttributeValueSlice(valueslice)
-	}
-
-	if attributenums[a].onset != nil {
-		attributenums[a].onset(o, a, av)
-		o.values.Set(a, nil) // placeholder for iteration over attributes that are set
-	} else {
-		o.values.Set(a, av)
-	}
+	// if attributenums[a].onset != nil {
+	// 	attributenums[a].onset(o, a, av)
+	// 	o.values.Set(a, nil) // placeholder for iteration over attributes that are set
+	// } else {
+	o.values.Set(a, values)
+	// }
 }
 
 func (o *Object) Meta() map[string]string {

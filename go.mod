@@ -20,7 +20,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
-	github.com/lkarlslund/stringdedup v0.2.1
+	github.com/lkarlslund/stringdedup v0.5.0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-colorable v0.1.12
@@ -34,9 +34,6 @@ require (
 	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
-)
-
-require (
 	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 // indirect
@@ -132,9 +129,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
-)
-
-require (
+	github.com/aloknerurkar/gpool v0.0.0-20220411083022-1c09ad956d39 // indirect
 	github.com/dmarkham/enumer v1.5.5 // indirect
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0 // indirect
 	github.com/pascaldekloe/name v1.0.0 // indirect

@@ -175,7 +175,7 @@ func (as AttributeValueString) IsZero() bool {
 	return len(as) == 0
 }
 
-type AttributeValueBlob []byte
+type AttributeValueBlob string
 
 func (ab AttributeValueBlob) String() string {
 	return fmt.Sprintf("% x", []byte(ab))

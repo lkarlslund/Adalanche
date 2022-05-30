@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/lkarlslund/stringdedup"
+	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/rs/zerolog/log"
 )
 
@@ -38,7 +38,7 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
 	copy(sid, data[0:len(sid)])
-	return SID(stringdedup.S(string(sid))), data[len(sid):], nil
+	return SID(dedup.D.S(string(sid))), data[len(sid):], nil
 }
 
 func SIDFromString(input string) (SID, error) {
@@ -78,7 +78,7 @@ func SIDFromString(input string) (SID, error) {
 		}
 		binary.LittleEndian.PutUint32(sid[8+4*i:], uint32(subauthority))
 	}
-	return SID(stringdedup.S(string(sid))), nil
+	return SID(dedup.D.S(string(sid))), nil
 }
 
 func (sid SID) IsNull() bool {
