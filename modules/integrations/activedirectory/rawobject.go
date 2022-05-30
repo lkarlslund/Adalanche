@@ -44,8 +44,8 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 		}
 
 		encodedvals := EncodeAttributeData(attribute, values)
-		if len(encodedvals) > 0 {
-			result.SetValues(attribute, encodedvals...)
+		if encodedvals != nil {
+			result.Set(attribute, encodedvals)
 		}
 	}
 
@@ -61,12 +61,25 @@ func (r *RawObject) IngestLDAP(source *ldap.Entry) error {
 	return nil
 }
 
-func EncodeAttributeData(attribute engine.Attribute, values []string) engine.AttributeValueSlice {
-	avs := make(engine.AttributeValueSlice, len(values))
+// Performance hack
+var avsPool sync.Pool
+
+func init() {
+	avsPool.New = func() interface{} {
+		return make(engine.AttributeValueSlice, 0, 16)
+	}
+}
+
+func EncodeAttributeData(attribute engine.Attribute, values []string) engine.AttributeValues {
+	if len(values) == 0 {
+		return nil
+	}
+
+	avs := avsPool.Get().(engine.AttributeValueSlice)
 
 	var skipped int
 
-	for valindex, value := range values {
+	for _, value := range values {
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
@@ -175,10 +188,25 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		}
 
 		if attributevalue != nil {
-			avs[valindex-skipped] = attributevalue
+			avs = append(avs, attributevalue)
 		} else {
 			skipped++
 		}
 	}
-	return avs[:len(values)-skipped]
+
+	var result engine.AttributeValues
+
+	switch len(avs) {
+	case 0:
+		return nil
+	case 1:
+		result = engine.AttributeValueOne{avs[0]}
+	default:
+		new := make(engine.AttributeValueSlice, len(avs))
+		copy(new, avs)
+		result = new
+	}
+
+	avsPool.Put(avs[:0])
+	return result
 }
