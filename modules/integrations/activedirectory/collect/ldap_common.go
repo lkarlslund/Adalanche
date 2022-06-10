@@ -170,4 +170,8 @@ type LDAPDumper interface {
 	Dump(opts DumpOptions) ([]activedirectory.RawObject, error)
 }
 
-var CreateDumper func(opts LDAPOptions) LDAPDumper
+var CreateDumper = func(opts LDAPOptions) LDAPDumper {
+	return &AD{
+		LDAPOptions: opts,
+	}
+}
