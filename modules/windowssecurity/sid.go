@@ -33,12 +33,11 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return "", data, fmt.Errorf("SID revision must be 1 (dump %x ...)", data)
 	}
 	subauthoritycount := int(data[1])
-	var sid = make([]byte, 8+4*subauthoritycount)
 	if subauthoritycount > 15 {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
-	copy(sid, data[0:len(sid)])
-	return SID(dedup.D.S(string(sid))), data[len(sid):], nil
+	length := 8 + 4*subauthoritycount
+	return SID(dedup.D.BS(data[0:length])), data[length:], nil
 }
 
 func SIDFromString(input string) (SID, error) {
