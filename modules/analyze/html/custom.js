@@ -82,7 +82,7 @@ function newwindow(id, title, content, height, width) {
 
     // add the new one
     if (mywindow.length == 0) {
-        itsnew = true;
+       itsnew = true;
         // `< div class="window d-inline-block position-absolute shadow p-5 bg-dark border pointer-events-auto container-fluid window-front" id="window_${id}">
 
         mywindow = $(
@@ -148,7 +148,6 @@ function newwindow(id, title, content, height, width) {
         if (width) {
             mywindow.width(width);
         }
-
     }
 
     $('#title', mywindow).html(title);
@@ -177,6 +176,8 @@ function newwindow(id, title, content, height, width) {
             win.addClass('window-front');
         }
     });
+
+    return itsnew;
 }
 
 function analyze(e) {
