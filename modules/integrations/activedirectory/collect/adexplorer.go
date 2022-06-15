@@ -1,17 +1,25 @@
 package collect
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
+	"unsafe"
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/binstruct"
+	"github.com/pierrec/lz4/v4"
+	"github.com/rs/zerolog/log"
+	"github.com/schollz/progressbar/v3"
+	"github.com/tinylib/msgp/msgp"
 )
 
 type ADEXAttributeType uint32
@@ -86,27 +94,28 @@ func (o *ADEXObject) SkipData(r binstruct.Reader) error {
 	return err
 }
 
-func (o *ADEXObject) GetValues(r *binstruct.Decoder, attr []ADEXProperty, offsetcache map[int64][]string) (map[string][]string, error) {
+func (o *ADEXObject) GetValues(r binstruct.Reader, attr []ADEXProperty, offsetcache map[int64][]string) (map[string][]string, error) {
 	results := make(map[string][]string)
 	for _, e := range o.Entries {
 		a := attr[e.Attribute]
 
-		if cachedvalues, found := offsetcache[int64(o.Position)+int64(e.Offset)]; found {
+		abspos := int64(o.Position) + int64(e.Offset)
+		if cachedvalues, found := offsetcache[abspos]; found {
 			results[string(a.Name)] = cachedvalues
 			continue
 		}
 
 		ad := AttributeDecoder{
 			attributeType: ADEXAttributeType(a.Encoding),
-			position:      int64(o.Position) + int64(e.Offset),
+			position:      abspos,
 		}
-		err := r.Decode(&ad)
+		err := r.Unmarshal(&ad)
 		if err != nil {
 			return nil, err
 		}
 
 		// Save to the cache
-		offsetcache[int64(o.Position)+int64(e.Offset)] = ad.results
+		offsetcache[abspos] = ad.results
 
 		// Add to the result
 		results[string(a.Name)] = ad.results
@@ -191,9 +200,9 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 				return err
 			}
 			if b == 0 {
-				value = "0"
+				value = "TRUE"
 			} else {
-				value = "1"
+				value = "FALSE"
 			}
 		case ADSTYPE_INTEGER:
 			v, err := r.ReadUint32()
@@ -330,20 +339,26 @@ func (wsl *WStringLength) BinaryDecode(r binstruct.Reader) error {
 		return nil
 	}
 
-	data := make([]uint16, int(length)/2, int(length)/2)
-
-	for i := range data {
-		data[i], err = r.ReadUint16()
-		if err != nil {
-			return err
-		}
+	_, data, err := r.ReadBytes(int(length))
+	if err != nil {
+		return err
 	}
 
-	if data[len(data)-1] == 0 {
+	if len(data) > 0 && data[len(data)-1] == 0 {
 		data = data[:len(data)-1]
 	}
 
-	result := WStringLength(string(utf16.Decode(data)))
+	// Get the slice header
+	header := *(*reflect.SliceHeader)(unsafe.Pointer(&data))
+
+	// The length and capacity of the slice are different.
+	header.Len /= 2
+	header.Cap /= 2
+
+	// Convert slice header to an []int32
+	udata := *(*[]uint16)(unsafe.Pointer(&header))
+
+	result := WStringLength(string(utf16.Decode(udata)))
 	*wsl = result
 
 	return nil
@@ -358,9 +373,14 @@ func (w Wstring) String() string {
 type WCstring string
 
 func (wc *WCstring) BinaryDecode(r binstruct.Reader) error {
-	buffer := make([]uint16, 0, 64)
-
+	var buffer []uint16
 	for {
+		if len(buffer) == cap(buffer) {
+			newBuffer := make([]uint16, len(buffer), len(buffer)+64)
+			copy(newBuffer, buffer)
+			buffer = newBuffer
+		}
+
 		c, err := r.ReadUint16()
 		if err != nil {
 			return err
@@ -405,18 +425,44 @@ type AttributeValueData struct {
 	LocalOffsets []uint32 `bin:"len:Count"`
 }
 
-func DumpFromADExplorer(path string) ([]activedirectory.RawObject, error) {
-	raw, err := os.Open(path)
-	if err != nil {
-		return nil, err
+type ADExplorerDumper struct {
+	path        string
+	performance bool
+
+	rawfile *os.File
+}
+
+func (adex *ADExplorerDumper) Connect() error {
+	var err error
+	adex.rawfile, err = os.Open(adex.path)
+	return err
+}
+
+func (adex *ADExplorerDumper) Disconnect() error {
+	return adex.rawfile.Close()
+}
+
+func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	var dec binstruct.Reader
+
+	// Ordinary reader or in-memory reader for way better performance due to excessive seeks
+	if !adex.performance {
+		dec = binstruct.NewReader(adex.rawfile, binary.LittleEndian, false)
+	} else {
+		log.Info().Msg("Loading raw AD Explorer snapshot into memory")
+		adexplorerbytes, err := ioutil.ReadAll(adex.rawfile)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading ADExplorer file: %v", err)
+		}
+		bufreader := bytes.NewReader(adexplorerbytes)
+		dec = binstruct.NewReader(bufreader, binary.LittleEndian, false)
 	}
 
 	// Header
-
-	dec := binstruct.NewDecoder(raw, binary.LittleEndian)
-
+	log.Info().Msg("Reading header (takes a while) ...")
 	var header ADEXHeader
-	err = dec.Decode(&header)
+	err := dec.Unmarshal(&header)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode header: %v", err)
 	}
@@ -429,24 +475,75 @@ func DumpFromADExplorer(path string) ([]activedirectory.RawObject, error) {
 		return nil, fmt.Errorf("Invalid AD Explorer data file marker: %v", header.Version)
 	}
 
-	ao := make([]activedirectory.RawObject, header.ObjectCount)
+	var e *msgp.Writer
+	if do.WriteToFile != "" {
+		outfile, err := os.Create(do.WriteToFile)
+		if err != nil {
+			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
+		}
+		defer outfile.Close()
+
+		boutfile := lz4.NewWriter(outfile)
+		lz4options := []lz4.Option{
+			lz4.BlockChecksumOption(true),
+			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
+			lz4.ChecksumOption(true),
+			lz4.CompressionLevelOption(lz4.Level9),
+			lz4.ConcurrencyOption(-1),
+		}
+		boutfile.Apply(lz4options...)
+		defer boutfile.Close()
+		e = msgp.NewWriter(boutfile)
+	}
+
+	bar := progressbar.NewOptions(int(header.ObjectCount),
+		progressbar.OptionSetDescription("Converting objects from AD Explorer snapshot ..."),
+		progressbar.OptionShowCount(),
+		progressbar.OptionShowIts(),
+		progressbar.OptionSetItsString("objects"),
+		progressbar.OptionOnCompletion(func() { fmt.Println() }),
+		progressbar.OptionThrottle(time.Second*1),
+	)
+
+	var objects []activedirectory.RawObject
+
+	if do.ReturnObjects {
+		objects = make([]activedirectory.RawObject, header.ObjectCount)
+	}
 
 	offsetcache := make(map[int64][]string)
 
 	for i, ado := range header.Objects {
-		var ro activedirectory.RawObject
-		ro.Attributes = make(map[string][]string)
-
-		values, err := ado.GetValues(dec, header.Properties.Props, offsetcache)
+		var item activedirectory.RawObject
+		item.Attributes, err = ado.GetValues(dec, header.Properties.Props, offsetcache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get values for object %d: %v", i, err)
 		}
 
-		ro.Attributes = values
-		ro.DistinguishedName = ro.Attributes["distinguishedName"][0]
+		item.DistinguishedName = item.Attributes["distinguishedName"][0]
 
-		ao[i] = ro
+		if e != nil {
+			err = item.EncodeMsg(e)
+			if err != nil {
+				return nil, fmt.Errorf("problem encoding LDAP object %v: %v", item.DistinguishedName, err)
+			}
+		}
+
+		if do.OnObject != nil {
+			do.OnObject(&item)
+		}
+
+		if do.ReturnObjects {
+			objects[i] = item
+		}
+
+		bar.Add(1)
 	}
 
-	return ao, nil
+	bar.Finish()
+	if e != nil {
+		e.Flush()
+	}
+
+	return objects, err
 }

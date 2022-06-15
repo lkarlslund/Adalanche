@@ -154,17 +154,15 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
-		case ObjectSid, SIDHistory, SecurityIdentifier:
+		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			attributevalue = engine.AttributeValueSID(value)
 		default:
 			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
-
-			// This undoes the wrong cast from ADexplorer conversions (sigh)
-			if value == "true" {
-				attributevalue = engine.AttributeValueInt(1)
+			if value == "true" || value == "TRUE" {
+				attributevalue = engine.AttributeValueBool(true)
 				break
-			} else if value == "false" {
-				attributevalue = engine.AttributeValueInt(0)
+			} else if value == "false" || value == "FALSE" {
+				attributevalue = engine.AttributeValueBool(true)
 				break
 			}
 

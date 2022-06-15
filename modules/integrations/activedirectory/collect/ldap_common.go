@@ -9,14 +9,14 @@ type AuthMode byte
 const (
 	Anonymous AuthMode = iota
 	Basic
-	Negotiate
-	NTLM
-	SSPI
 	Digest
+	NTLM
 	NTLMPTH
+	Negotiate
 
 	MD5    = Digest
 	Unauth = Anonymous
+	Simple = Basic
 )
 
 type TLSmode byte
@@ -150,6 +150,8 @@ type LDAPOptions struct {
 	Debug bool
 }
 
+type objectCallbackFunc func(ro *activedirectory.RawObject) error
+
 type DumpOptions struct {
 	SearchBase string
 	Scope      int
@@ -158,7 +160,7 @@ type DumpOptions struct {
 	NoSACL     bool
 	ChunkSize  int
 
-	OnObject      func(ro *activedirectory.RawObject) error
+	OnObject      objectCallbackFunc
 	WriteToFile   string
 	ReturnObjects bool
 }

@@ -54,7 +54,8 @@ var (
 	LDAPDisplayName            = engine.NewAttribute("lDAPDisplayName").Tag("AD") // Attribute-Schema
 	Description                = engine.NewAttribute("description").Tag("AD")
 	SAMAccountName             = engine.NewAttribute("sAMAccountName").Tag("AD")
-	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").Merge().Type(engine.AttributeTypeSID)
+	ObjectSid                  = engine.NewAttribute("objectSid").Tag("AD").Merge().Single().Type(engine.AttributeTypeSID)
+	CreatorSID                 = engine.NewAttribute("mS-DS-CreatorSID").Tag("AD").Single().Type(engine.AttributeTypeSID)
 
 	ObjectGUID                  = engine.NewAttribute("objectGUID").Tag("AD").Merge()
 	PwdLastSet                  = engine.NewAttribute("pwdLastSet").Tag("AD").Type(engine.AttributeTypeTime)

@@ -12,9 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/pierrec/lz4/v4"
 	"github.com/pkg/errors"
-	"github.com/tinylib/msgp/msgp"
 
 	"github.com/Showmax/go-fqdn"
 	"github.com/gofrs/uuid"
@@ -37,7 +35,8 @@ var (
 
 	autodetect = Command.Flags().Bool("autodetect", true, "Try to autodetect as much as we can, this will use environment variables and DNS to make this easy")
 
-	adexplorerfile = Command.Flags().String("adexplorerfile", "", "Import AD objects from SysInternals ADexplorer dump")
+	adexplorerfile  = Command.Flags().String("adexplorerfile", "", "Import AD objects from SysInternals ADexplorer dump")
+	adexplorerboost = Command.Flags().Bool("adexplorerboost", true, "Boost ADexplorer performance by using loading the binary file into RAM before decoding it")
 
 	server = Command.Flags().String("server", "", "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
 	port   = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
@@ -51,8 +50,6 @@ var (
 
 	ldapdebug = Command.Flags().Bool("ldapdebug", false, "Enable LDAP debugging")
 
-	authmodeString *string
-
 	authdomain      = Command.Flags().String("authdomain", "", "domain for authentication, if using ntlm auth")
 	attributesparam = Command.Flags().String("attributes", "*", "Comma seperated list of attributes to get, * = all, or a comma seperated list of attribute names (expert)")
 
@@ -65,18 +62,13 @@ var (
 	collectobjects       = Command.Flags().String("objects", "auto", "Collect Active Directory Objects (users, groups etc)")
 	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
+	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, ntlm, ntlmpth (password is hash), negotiate/sspi")
 
 	authmode AuthMode
 	tlsmode  TLSmode
 )
 
 func init() {
-	defaultmode := "ntlm"
-	if runtime.GOOS == "windows" {
-		defaultmode = "negotiate"
-	}
-
-	authmodeString = Command.Flags().String("authmode", defaultmode, "Bind mode: unauth/anonymous, basic/simple, digest/md5, ntlm, ntlmpth (password is hash), negotiate/sspi")
 
 	clicollect.Collect.AddCommand(Command)
 	Command.PreRunE = PreRun
@@ -96,7 +88,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown TLS mode %v", tlsmode)
 	}
 
-	authmode, err = AuthModeString(*authmodeString)
+	authmode, err = AuthModeString(*AuthmodeString)
 	if err != nil {
 		return fmt.Errorf("unknown auth mode %v", authmode)
 	}
@@ -204,48 +196,40 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	if *adexplorerfile != "" {
 		// Active Directory Explorer file
-		log.Info().Msgf("Reading AD explorer file %v", *adexplorerfile)
-		rao, err := DumpFromADExplorer(*adexplorerfile)
+		log.Info().Msgf("Collecting objects from AD Explorer snapshot %v ...", *adexplorerfile)
+
+		ad := ADExplorerDumper{
+			path:        *adexplorerfile,
+			performance: *adexplorerboost,
+		}
+
+		err := ad.Connect()
 		if err != nil {
 			return err
 		}
 
-		var e *msgp.Writer
-
-		outfile, err := os.Create(filepath.Join(datapath, filepath.Base(*adexplorerfile)+".objects.msgp.lz4"))
-		if err != nil {
-			return fmt.Errorf("problem opening domain cache file: %v", err)
-		}
-		defer outfile.Close()
-
-		boutfile := lz4.NewWriter(outfile)
-		lz4options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
-			lz4.ChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Level9),
-			lz4.ConcurrencyOption(-1),
-		}
-		boutfile.Apply(lz4options...)
-		defer boutfile.Close()
-		e = msgp.NewWriter(boutfile)
-
-		for _, ro := range rao {
-			err = ro.EncodeMsg(e)
-			if err != nil {
-				return fmt.Errorf("problem encoding LDAP object %v: %v", ro.DistinguishedName, err)
-			}
+		do := DumpOptions{
+			ReturnObjects: false,
+			WriteToFile:   filepath.Join(datapath, filepath.Base(*adexplorerfile)+".objects.msgp.lz4"),
 		}
 
 		cp, _ := util.ParseBool(*collectgpos)
 		if *collectgpos == "auto" || cp {
-			for _, ro := range rao {
+			do.OnObject = func(ro *activedirectory.RawObject) error {
 				if _, found := ro.Attributes["gPCFileSysPath"]; found {
-					myro := ro
-					gpostocollect = append(gpostocollect, &myro)
+					gpostocollect = append(gpostocollect, ro)
 				}
+				return nil
 			}
 		}
+
+		_, err = ad.Dump(do)
+		if err != nil {
+			os.Remove(do.WriteToFile)
+			return fmt.Errorf("problem collecting Active Directory objects: %v", err)
+		}
+
+		ad.Disconnect()
 	} else {
 		// Active Directory dump directly from AD controller
 		options := LDAPOptions{
