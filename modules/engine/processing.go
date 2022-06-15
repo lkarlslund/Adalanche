@@ -98,13 +98,15 @@ func Merge(aos []*Objects) (*Objects, error) {
 		progressbar.OptionThrottle(time.Second*1),
 	)
 
+	// We're grabbing the index directly for faster processing here
+	dnindex := globalobjects.GetIndex(DistinguishedName)
 	for _, usao := range sourcemap {
 		for _, addobject := range usao.Slice() {
 			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
-			if addobject.HasAttr(DistinguishedName) {
-				if existing, exists := globalobjects.Find(DistinguishedName, addobject.OneAttr(DistinguishedName)); exists {
-					existing.AbsorbEx(addobject, true)
+			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
+				if existing, exists := dnindex.Lookup(attributeValueToIndex(dn)); exists {
+					existing[0].AbsorbEx(addobject, true)
 					continue
 				}
 			}
