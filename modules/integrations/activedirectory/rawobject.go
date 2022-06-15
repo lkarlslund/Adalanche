@@ -119,7 +119,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			default:
 				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
 			}
-		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID:
+		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
 			case 16:
 				guid, err := uuid.FromBytes([]byte(value))
@@ -132,19 +132,10 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			case 36:
 				guid, err := uuid.FromString(value)
 				if err == nil {
-					guid = util.SwapUUIDEndianess(guid) // Unsure if this is needed
 					attributevalue = engine.AttributeValueGUID(guid)
 				} else {
 					log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
 				}
-			}
-		case RightsGUID:
-			guid, err := uuid.FromString(value)
-			if err == nil {
-				guid = util.SwapUUIDEndianess(guid)
-				attributevalue = engine.AttributeValueGUID(guid)
-			} else {
-				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectGUID:
 			guid, err := uuid.FromBytes([]byte(value))
