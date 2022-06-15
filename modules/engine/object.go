@@ -48,13 +48,14 @@ func setThreadsafe(enable bool) {
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
-	values           AttributeValueMap
-	PwnableBy        PwnConnections
-	CanPwn           PwnConnections
-	parent           *Object
-	sdcache          *SecurityDescriptor
-	sid              windowssecurity.SID
-	children         []*Object
+	values    AttributeValueMap
+	PwnableBy PwnConnections
+	CanPwn    PwnConnections
+	parent    *Object
+	sdcache   *SecurityDescriptor
+	sid       windowssecurity.SID
+	children  []*Object
+
 	members          map[*Object]struct{}
 	membersrecursive map[*Object]struct{}
 
@@ -71,11 +72,6 @@ type Object struct {
 	sidcached   bool
 	invalidated bool
 	objecttype  ObjectType
-}
-
-type Connection struct {
-	Target *Object
-	Means  string
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
@@ -532,6 +528,16 @@ func (o *Object) AttrInt(attr Attribute) (int64, bool) {
 	return v, ok
 }
 
+func (o *Object) AttrTime(attr Attribute) (time.Time, bool) {
+	v, ok := o.OneAttrRaw(attr).(time.Time)
+	return v, ok
+}
+
+func (o *Object) AttrBool(attr Attribute) (bool, bool) {
+	v, ok := o.OneAttrRaw(attr).(bool)
+	return v, ok
+}
+
 func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, switch to auto-time formatting
 	v, ok := o.AttrInt(attr)
 	if !ok {
@@ -638,34 +644,48 @@ func (o *Object) recursememberof(memberof *map[*Object]struct{}) bool {
 }
 
 func (o *Object) MemberOfSID(recursive bool) []windowssecurity.SID {
-	o.lock()
-	defer o.unlock()
-
+	o.rlock()
 	if !recursive {
-		if o.memberofsid == nil {
-			o.memberofsid = make([]windowssecurity.SID, len(o.memberof))
+		mos := o.memberofsid
+		if mos == nil {
+			o.runlock()
+			memberofsid := make([]windowssecurity.SID, len(o.memberof))
 			i := 0
 			for memberof := range o.memberof {
-				o.memberofsid[i] = memberof.SID()
+				memberofsid[i] = memberof.SID()
 				i++
 			}
+			o.lock()
+			o.memberofsid = memberofsid
+			o.unlock()
+
+			return memberofsid
 		}
 
-		return o.memberofsid
+		o.runlock()
+		return mos
 	}
 
-	if o.memberofsidrecursive != nil {
-		return o.memberofsidrecursive
+	mosr := o.memberofsidrecursive
+	if mosr != nil {
+		o.runlock()
+		return mosr
 	}
 
 	memberofrecursive := o.memberofr(true)
-	o.memberofsidrecursive = make([]windowssecurity.SID, len(memberofrecursive))
+	o.runlock()
+
+	mosr = make([]windowssecurity.SID, len(memberofrecursive))
 
 	for i, memberof := range memberofrecursive {
-		o.memberofsidrecursive[i] = memberof.SID()
+		mosr[i] = memberof.SID()
 	}
 
-	return o.memberofsidrecursive
+	o.lock()
+	o.memberofsidrecursive = mosr
+	o.unlock()
+
+	return mosr
 }
 
 // Wrapper for Set - easier to call
