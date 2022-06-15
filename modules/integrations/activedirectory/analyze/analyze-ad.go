@@ -288,6 +288,10 @@ func init() {
 			// Method: activedirectory.PwnGenericAll,
 			Description: "Indicator that someone has full permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -303,6 +307,10 @@ func init() {
 			// Method: activedirectory.PwnWriteAll,
 			Description: "Indicator that someone can write to all attributes and do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -318,6 +326,10 @@ func init() {
 			// Method: activedirectory.PwnWritePropertyAll,
 			Description: "Indicator that someone can write to all attributes of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -333,6 +345,10 @@ func init() {
 			// Method: activedirectory.PwnWriteExtendedAll,
 			Description: "Indicator that someone do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -349,6 +365,10 @@ func init() {
 			// Method: activedirectory.PwnTakeOwnership,
 			Description: "Indicator that someone is allowed to take ownership of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -364,6 +384,10 @@ func init() {
 			// Method: activedirectory.PwnWriteDACL,
 			Description: "Indicator that someone can change permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -713,7 +737,10 @@ func init() {
 			// Method: activedirectory.PwnAllExtendedRights,
 			Description: "Indicates that you have all extended rights",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// It's a group
+				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+					return
+				}
+
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
