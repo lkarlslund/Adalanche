@@ -6,7 +6,7 @@ import (
 
 var (
 	securitydescriptorcachemutex sync.RWMutex
-	securityDescriptorCache      = make(map[uint32]*SecurityDescriptor)
+	securityDescriptorCache      = make(map[uint64]*SecurityDescriptor)
 
 	// AllRights           = make(map[uuid.UUID]*Object) // Extented-Rights from Configuration - rightsGUID -> object
 	// AllSchemaClasses    = make(map[uuid.UUID]*Object) // schemaIdGUID -> object

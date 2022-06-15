@@ -1004,7 +1004,7 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	}
 
 	securitydescriptorcachemutex.RLock()
-	cacheindex := xxhash.Checksum32(rawsd)
+	cacheindex := xxhash.Checksum64(rawsd)
 	if sd, found := securityDescriptorCache[cacheindex]; found {
 		securitydescriptorcachemutex.RUnlock()
 		o.sdcache = sd
