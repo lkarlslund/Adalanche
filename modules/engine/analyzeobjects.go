@@ -207,7 +207,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
 			}
 
-			if opts.MaxOutgoingConnections == 0 || len(newconnectionsmap) < opts.MaxOutgoingConnections {
+			if opts.MaxOutgoingConnections == -1 || len(newconnectionsmap) < opts.MaxOutgoingConnections {
 				for pwnpair, detectedmethods := range newconnectionsmap {
 					connectionsmap[pwnpair] = detectedmethods
 					if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
