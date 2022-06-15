@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -198,19 +198,36 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 	if a.Entries[index].checkObjectClass(true, o, mask, g, ao) {
 		if a.containsdeny {
 			// See if a prior one denies it
-			for i := 0; i < index; i++ {
+			checksid := a.Entries[index].SID
+
+			i := 0
+			for i < index {
 				// Check SID first, this is very fast, then do detailed check later
 				if a.Entries[i].Type != ACETYPE_ACCESS_DENIED && a.Entries[i].Type != ACETYPE_ACCESS_DENIED_OBJECT {
 					// this is not a DENY ACE, so we can skip it
-					continue
+					if i < a.firstinheriteddeny {
+						// we've been processing direct DENY, but there are some inherited
+						i = a.firstinheriteddeny
+						continue
+					}
+
+					break
 				}
 
 				var sidmatch bool
-				checksid := a.Entries[index].SID
-				for _, sid := range o.MemberOfSID(true) {
-					if sid == checksid {
-						sidmatch = true
-						break
+				currentsid := a.Entries[i].SID
+				if currentsid == checksid {
+					sidmatch = true
+				} else {
+					// This will never work for cross domain trust objects, sigh
+					so, found := ao.Find(ObjectSid, AttributeValueSID(currentsid))
+					if found {
+						for _, sid := range so.MemberOfSID(true) {
+							if sid == currentsid {
+								sidmatch = true
+								break
+							}
+						}
 					}
 				}
 
@@ -226,8 +243,10 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 							// log.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
 							return false
 						}
+
 					}
 				}
+				i++
 			}
 		}
 		return true // No deny match
@@ -235,8 +254,7 @@ func (a ACL) AllowObjectClass(index int, o *Object, mask ACLPermissionMask, g uu
 	return false // No allow match
 }
 
-var objectSecurityGUIDcacheLock sync.RWMutex
-var objectSecurityGUIDcache = make(map[uuid.UUID]uuid.UUID)
+var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
 
 // Is the ACE something that allows or denies this type of GUID?
 func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g uuid.UUID, ao *Objects) bool {
@@ -257,31 +275,19 @@ func (a ACE) checkObjectClass(allow bool, o *Object, mask ACLPermissionMask, g u
 		typematch := a.ObjectType == g
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
-			if threadsafeobject != 0 {
-				objectSecurityGUIDcacheLock.RLock()
-			}
-			cachedset, found := objectSecurityGUIDcache[g]
-			if threadsafeobject != 0 {
-				objectSecurityGUIDcacheLock.RUnlock()
-			}
+			cachedset, found := objectSecurityGUIDcache.Load(g)
 			if !found {
 				// Not in cache, let's populate it
+				cachedset = UnknownGUID // Assume failure
 				if s, found := ao.Find(SchemaIDGUID, AttributeValueGUID(g)); found {
 					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
 						cachedset = set
 						if cachedset == NullGUID {
-							cachedset = UnknownGUID // Just to be sure
-						}
-
-						if threadsafeobject != 0 {
-							objectSecurityGUIDcacheLock.Lock()
-						}
-						objectSecurityGUIDcache[g] = cachedset
-						if threadsafeobject != 0 {
-							objectSecurityGUIDcacheLock.Unlock()
+							cachedset = UnknownGUID
 						}
 					}
 				}
+				objectSecurityGUIDcache.Store(g, cachedset)
 			}
 			if a.ObjectType == cachedset {
 				typematch = true
@@ -465,21 +471,16 @@ func (sd *SecurityDescriptor) Equals(sd2 *SecurityDescriptor) bool {
 }
 
 type ACL struct {
-	Entries      []ACE
-	Revision     byte
-	containsdeny bool
+	Entries  []ACE
+	Revision byte
+
+	containsdeny       bool
+	firstinheriteddeny int
 }
 
 func (a *ACL) Sort() {
-	sort.Slice(a.Entries, func(i, j int) bool {
-		if a.Entries[i].Flags&ACEFLAG_INHERITED_ACE == 0 && a.Entries[j].Flags&ACEFLAG_INHERITED_ACE != 0 {
-			return true // NOT INHERITED should be before INHERITED
-		}
-		if (a.Entries[i].Type == ACETYPE_ACCESS_DENIED || a.Entries[i].Type == ACETYPE_ACCESS_DENIED_OBJECT) &&
-			(a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED || a.Entries[j].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
-			return true // DENIED should be before ALLOWED
-		}
-		return false // It's fine
+	sort.SliceStable(a.Entries, func(i, j int) bool {
+		return a.Entries[i].SortVal() < a.Entries[j].SortVal()
 	})
 }
 
@@ -491,6 +492,17 @@ type ACE struct {
 	ObjectType          uuid.UUID
 	ACEFlags            byte
 	Type                byte
+}
+
+func (a ACE) SortVal() byte {
+	var result byte
+	if a.Flags&ACEFLAG_INHERITED_ACE != 0 {
+		result += 2
+	}
+	if a.Type == ACETYPE_ACCESS_ALLOWED || a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
+		result += 1
+	}
+	return result
 }
 
 func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
@@ -543,35 +555,14 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	if OffsetDACL > 0 {
 		result.DACL, err = ParseACL(data[OffsetDACL:])
 		if result.DACL.containsdeny {
-			/*			var debug bool
-						lastdeny := 0
-						firstallow := len(result.DACL.Entries) - 1
-
-						for i, ace := range result.DACL.Entries {
-							switch ace.Type {
-							case ACETYPE_ACCESS_ALLOWED, ACETYPE_ACCESS_ALLOWED_OBJECT:
-								if i < firstallow {
-									firstallow = i
-								}
-							case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
-								if i > lastdeny {
-									lastdeny = i
-								}
-							}
-						}
-						if lastdeny > firstallow {
-							debug = true
-						}
-						if debug {
-							log.Info().Msg("Before sorting:")
-							log.Info().Msg(result.DACL.String(nil))
-						}*/
 			result.DACL.Sort()
-			/*if debug {
-				log.Info().Msg("After sorting:")
-				log.Info().Msg(result.DACL.String(nil))
-				log.Info().Msg("SORT INFO DONE")
-			}*/
+			result.DACL.firstinheriteddeny = -1
+			for i := range result.DACL.Entries {
+				if result.DACL.Entries[i].Flags&ACEFLAG_INHERITED_ACE != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_DENIED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_DENIED_OBJECT) {
+					result.DACL.firstinheriteddeny = i
+					break
+				}
+			}
 		}
 		if err != nil {
 			return result, err
