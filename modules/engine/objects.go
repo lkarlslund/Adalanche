@@ -17,13 +17,16 @@ type Objects struct {
 	DefaultValues []interface{}
 
 	objectmutex FlexMutex
-	asarray     []*Object
-	asmap       map[*Object]struct{}
 
-	indexlock    FlexMutex
+	asarray []*Object // All objects in this collection, returned by .Slice()
+	asmap   map[*Object]struct{}
+
+	indexlock FlexMutex
+
 	indexes      []*Index
-	multiindexes map[uint32]*Index
-	idindex      map[uint32]*Object
+	multiindexes map[uint32]*Index // Indexes for multiple attributes (lower attr < 16 || higher attr)
+
+	idindex map[uint32]int // Offset into asarray
 
 	typecount typestatistics
 }
@@ -74,7 +77,7 @@ func (i *Index) AsMap() map[interface{}][]*Object {
 
 func NewObjects() *Objects {
 	var os Objects
-	os.idindex = make(map[uint32]*Object)
+	os.idindex = make(map[uint32]int)
 	os.asmap = make(map[*Object]struct{})
 	os.multiindexes = make(map[uint32]*Index)
 	return &os
@@ -465,8 +468,8 @@ func (os *Objects) add(o *Object) {
 
 	// Add this to the iterator array and indexes
 	os.asarray = append(os.asarray, o)
+	os.idindex[o.ID()] = len(os.asarray) - 1
 	os.asmap[o] = struct{}{}
-	os.idindex[o.ID()] = o
 
 	os.ReindexObject(o, true)
 
@@ -499,7 +502,11 @@ func (os *Objects) Len() int {
 
 func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
 	os.objectmutex.RLock()
-	o, found = os.idindex[id]
+	index, idfound := os.idindex[id]
+	if idfound {
+		o = os.asarray[index]
+		found = true
+	}
 	os.objectmutex.RUnlock()
 	return
 }
