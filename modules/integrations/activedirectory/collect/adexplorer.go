@@ -227,11 +227,7 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 			return fmt.Errorf("unhandled attribute type %v", ad.attributeType)
 		}
 
-		if value != "" {
-			ad.results[i] = value
-		} else {
-			return fmt.Errorf("no results for attribute type %v", ad.attributeType)
-		}
+		ad.results[i] = value
 	}
 
 	return nil
