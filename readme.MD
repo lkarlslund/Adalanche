@@ -1,6 +1,6 @@
-# adalanche: Active Directory ACL Visualizer and Explorer
+# Adalanche: Active Directory ACL Visualizer and Explorer
 
-*adalanche* gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
+*Adalanche* gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
 ## I Can Haz Domain Admin?
 
@@ -8,23 +8,23 @@ Active Directory security is notoriously difficult. Small organizations generall
 
 ### Download
 
-adalanche is an all-in-one binary - it collects information from Active Directory or from local Windows machines and can the analyze the collected data. If you're only doing AD analysis, just grab the binary for your preferred platform. Later you can deploy the dedicated collector .exe for your Windows member machines via a GPO or other orchestration and get even more insight.
+Adalanche is an all-in-one binary - it collects information from Active Directory or from local Windows machines and can the analyze the collected data. If you're only doing AD analysis, just grab the binary for your preferred platform. Later you can deploy the dedicated collector .exe for your Windows member machines via a GPO or other orchestration and get even more insight.
 
-Download either the latest release or the build of the latest commit from [Releases](https://github.com/lkarlslund/adalanche/releases). Usually running with the latest commit is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
+Download either the latest release or the build of the latest commit from [Releases](https://github.com/lkarlslund/Adalanche/releases). Usually running with the latest commit is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
 
 ### Build it yourself
 
 If you prefer full control, you can roll your own:
 
 - Install go 1.18
-- <code>git clone https://github.com/lkarlslund/adalanche</code>
-- <code>cd adalanche-master</code>
+- <code>git clone https://github.com/lkarlslund/Adalanche</code>
+- <code>cd Adalanche-master</code>
 - Windows: <code>build.cmd</code>
 - Linux/OSX: <code>./build.sh</code>
 
 ## First run - full auto
 
-If you're running adalanche on a Windows domain joined machine should just work *without any parameters*, as adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
+If you're running Adalanche on a Windows domain joined machine should just work *without any parameters*, as Adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
 
 For more advanced use (recommended) first collect, with proper options. All your data files (are belong to us), and will end up in the data subfolder (or use <code>--datapath dir</code> to use an alternative folder).
 
@@ -35,29 +35,29 @@ See program options for other possibilities (help or command --help).
 ### Active Directory
 The primary source of data is from Active Directory, and is intiated with this command:
 
-<code>adalanche collect activedirectory [--options ...]</code>
+<code>Adalanche collect activedirectory [--options ...]</code>
 
-If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
+If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if Adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
 
 LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "--ignorecert" switch, or change protocol to LDAP with <code>--tlsmode NoTLS --port 389</code> options.
 
 Example to create data files file for contoso.local coming from your Linux pwnage box using TLS port 636, ignoring certs and using NTLM auth:
 
-<code>adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
+<code>Adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
 
 From domain joined Windows member using current user:
 
-<code>adalanche collect activedirectory</code>
+<code>Adalanche collect activedirectory</code>
 
 From domain joined Windows machine using other credentials than logged in:
 
-<code>adalanche collect activedirectory --authmode ntlm --username joe --password Hunter42</code>
+<code>Adalanche collect activedirectory --authmode ntlm --username joe --password Hunter42</code>
 
-There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
+There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing Adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
 
 ### LDAP RESULT CODE 49
 
-*There is a limitation in the LDAP library that adalanche uses, which can result in this error: "LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
+*There is a limitation in the LDAP library that Adalanche uses, which can result in this error: "LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
 
 This is usually "Channel Binding" or "Signing" requirements for SSL enabled connections over LDAP, as part of Microsofts hardening efforts on making LDAP more secure. 
 
@@ -67,21 +67,21 @@ Here are suggested alternative solutions:
 
 Use this command:
 
-<code>adalanche collect activedirectory --port 389 --tlsmode NoTLS</code>
+<code>Adalanche collect activedirectory --port 389 --tlsmode NoTLS</code>
 
 #### Dump data using SysInternals AD Explorer
 
-The SysInternals AD Explorer (adexplorer64.exe) is an enhanced GUI application that allows you to poke around in all objects and see all attributes. It leverages the Windows LDAP library (just like Users & Computers etc.) This supports both "Channel Binding" and "Signing" for LDAP transport. It also has a handy "snapshot" feature, that allows you do dump the entire AD into a proprietary file, which adalanche can ingest as an alternative to talking directly to LDAP.
+The SysInternals AD Explorer (adexplorer64.exe) is an enhanced GUI application that allows you to poke around in all objects and see all attributes. It leverages the Windows LDAP library (just like Users & Computers etc.) This supports both "Channel Binding" and "Signing" for LDAP transport. It also has a handy "snapshot" feature, that allows you do dump the entire AD into a proprietary file, which Adalanche can ingest as an alternative to talking directly to LDAP.
 
 The procedure for using AD Explorer as a data source is:
 
 - Launch 'adexplorer64.exe'
 - Connect to your domain, for simple setups you can just leave all fields blank and press connect
 - Choose File | Create snapshot ... and save the file somewhere. There is no progress indicator, so just have patience
-- Run adalanche to collect Active Directory object and GPO data:
-<code>adalanche collect activedirectory --adexplorerfile=yoursavedfile.bin</code>
+- Run Adalanche to collect Active Directory object and GPO data:
+<code>Adalanche collect activedirectory --adexplorerfile=yoursavedfile.bin</code>
 
-You will then have compressed AD data and GPO data in your datapath like a normal collection run. You can delete the AD Explorer data file now, as this is converted into adalanche native format.
+You will then have compressed AD data and GPO data in your datapath like a normal collection run. You can delete the AD Explorer data file now, as this is converted into Adalanche native format.
 
 ## Gathering Local Machine data (Windows)
 
@@ -89,15 +89,15 @@ For Windows systems that are members of your Active Directory domain (or standal
 
 The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
 
-<code>adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
+<code>Adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
 
-You can run the local machine collector from the adalanche binary too, but this is only included in the 64-bit Windows build:
+You can run the local machine collector from the Adalanche binary too, but this is only included in the 64-bit Windows build:
 
-<code>adalanche collect localmachine [--options ...]</code>
+<code>Adalanche collect localmachine [--options ...]</code>
 
 Please remember to secure your collection repository UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
 
-The files will automatically be imported into adalanche when you run it, if they're part of your datapath (in a subfolder or just copied in - whatever works for you)
+The files will automatically be imported into Adalanche when you run it, if they're part of your datapath (in a subfolder or just copied in - whatever works for you)
 
 This will give you insight into who uses what systems, service accounts that are domain users, autoadminlogins, who are local admins, who can RDP into systems and more fun stuff later on :-)
 
@@ -105,9 +105,9 @@ This will give you insight into who uses what systems, service accounts that are
 
 This is dead simple - everything you've collected should be in the data directory, either in the main folder or in subfolders. 
 
-Whatever resides there and adalanche understands is automatically loaded, correlated and used. It's totally magic.
+Whatever resides there and Adalanche understands is automatically loaded, correlated and used. It's totally magic.
 
-IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
+IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so Adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>Adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
 
 These extensions are recognized:
 - .localmachine.json - Windows collector data
@@ -116,15 +116,15 @@ These extensions are recognized:
 
 Highly advanced command line to analyze and launch your browser:
 
-<code>adalanche analyze</code>
+<code>Adalanche analyze</code>
 
-There are some options here as well - try <code>adalanche analyze --help</code>
+There are some options here as well - try <code>Adalanche analyze --help</code>
 
 ### User Interface
 
 <img src="readme-images/welcome.png" width="80%">
 
-When launched, you'll see some statistics on what's loaded into memory and how many edges are detected between objects. Don't worry, adalanche can handle millions of objects and edges, if you have enough RAM ;)
+When launched, you'll see some statistics on what's loaded into memory and how many edges are detected between objects. Don't worry, Adalanche can handle millions of objects and edges, if you have enough RAM ;)
 
 The pre-loaded query allows you to see who can pwn "Administrators", "Domain Admins" and "Enterprise Admins". Query targets are marked with RED. 
 
@@ -134,18 +134,18 @@ Depending on whether you're over or underwhelmed by the resutls, you can do adju
 
 #### Pre-defined searches
 
-To ease the learning experience, there are a number of sample quieries built into 'adalanche'. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
+To ease the learning experience, there are a number of sample quieries built into 'Adalanche'. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
 
 #### Analysis Options
 
 <img src="readme-images/analysis-options.png" width="50%">
 
 Mode allows you to switch between:
-- In normal mode you select targets, and adalanche figures out who can reach these targets (most common search)
-- In reverse mode you select targets, and adalanche figures out what impact they have (What can "Domain Users" do?)
+- In normal mode you select targets, and Adalanche figures out who can reach these targets (most common search)
+- In reverse mode you select targets, and Adalanche figures out what impact they have (What can "Domain Users" do?)
 - The SrcTgt mode consists of TWO queries separated by commas, and it allows you to do a path search from the source(s) to the target(s). You target selection should be limited to no more than 5 of each, as the query results in S*T searches to be run in the engine.
 
-If your query returns more than 1000 objects, adalanche will reject the query, because it has the potential to crash your browser. Using the "Force too much data" allows you to override this, and depending on your browser and computer, you might get away with more data. On my setup using Firefox, 2500 objects is unproblematic, but much more is possible but requires a lot of patience for the graph lauout to run.
+If your query returns more than 1000 objects, Adalanche will reject the query, because it has the potential to crash your browser. Using the "Force too much data" allows you to override this, and depending on your browser and computer, you might get away with more data. On my setup using Firefox, 2500 objects is unproblematic, but much more is possible but requires a lot of patience for the graph lauout to run.
 
 Remember, you might get too many results. Limit the selection of targets with (&(attribute=something)(_limit=10)) to just get the first 10 targets (see LDAP queries below)
 
@@ -186,7 +186,7 @@ Selects all objects with objectClass attribute set to person as targets, but wil
 
 ### Operational theory
 
-*adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
+*Adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
 
 If you collect GPOs I recommend using a Domain Admin, as GPOs are often restricted to apply only to certain computers, and regular users can't read the files. This will limit the results that could have been gathered from GPOs.
 
@@ -298,15 +298,15 @@ You can also pick any object on the graph, and to a normal or reverse search fro
 ## Current limitations
 
 - A large AD with 500.000 objects results in a file approximately 250MB in size
-- adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
+- Adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
 - There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome!
-- There is an unsolved challenge with services that require multiple ACLs to pass (for instance Cert servers only lets members of "Users that can enroll" group use enrollment, while the Certificate Template lets "Domain Users" enroll - this looks like "Domain Users" can enroll to adalanche). The same problem arises with fileshares, so this analysis is not done yet.
+- There is an unsolved challenge with services that require multiple ACLs to pass (for instance Cert servers only lets members of "Users that can enroll" group use enrollment, while the Certificate Template lets "Domain Users" enroll - this looks like "Domain Users" can enroll to Adalanche). The same problem arises with fileshares, so this analysis is not done yet.
 
 ## Frequently Asked Question: How does this compare to BloodHound?
 
-Since this is a frequent question, here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and haven't used it all while doing adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
+Since this is a frequent question, here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and haven't used it all while doing Adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
 
-| Feature | adalanche | BloodHound |
+| Feature | Adalanche | BloodHound |
 | ------- | --------- | ---------- |
 | OS compatibility | Win/OSX/Linux | Win/OSX/Linux |
 | Prerequisites | None | Python, Neo4J, .Net (SharpHound) |
