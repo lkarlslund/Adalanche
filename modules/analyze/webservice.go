@@ -14,8 +14,8 @@ import (
 	"github.com/gorilla/mux"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
 )
 
 //go:embed html/*
@@ -98,7 +98,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 			// Override embedded HTML if asked to
 			if stat, err := os.Stat(html); err == nil && stat.IsDir() {
 				// Use local files if they exist
-				log.Info().Msgf("Adding local HTML folder %v", html)
+				ui.Info().Msgf("Adding local HTML folder %v", html)
 				if osf, err := osfs.NewFS(); err == nil {
 					err = osf.Chdir(html)
 					if err != nil {
@@ -112,7 +112,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 					w.AddFS(http.FS(overrideassets))
 				}
 			} else {
-				log.Fatal().Msgf("Could not add local HTML folder %v, failure: %v", html, err)
+				ui.Fatal().Msgf("Could not add local HTML folder %v, failure: %v", html, err)
 			}
 		}
 	}
@@ -120,7 +120,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 	w.Router.Path("/").HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		indexfile, err := w.UnionFS.Open("index.html")
 		if err != nil {
-			log.Fatal().Msgf("Could not open index.html: %v", err)
+			ui.Fatal().Msgf("Could not open index.html: %v", err)
 		}
 		rawindex, _ := ioutil.ReadAll(indexfile)
 		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
@@ -135,11 +135,25 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 
 	go func() {
 		if err := w.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Msgf("Problem launching webservice listener: %s", err)
+			ui.Fatal().Msgf("Problem launching webservice listener: %s", err)
 		}
 	}()
 
-	log.Info().Msgf("Listening - navigate to %v ... (ctrl-c or similar to quit)", bind)
+	ui.Info().Msgf("Listening - navigate to %v ... (ctrl-c or similar to quit)", bind)
 
 	return nil
+}
+
+func (w *webservice) ServeTemplate(rw http.ResponseWriter, req *http.Request, path string, data any) {
+	templatefile, err := w.UnionFS.Open(path)
+	if err != nil {
+		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
+	}
+	rawtemplate, _ := ioutil.ReadAll(templatefile)
+	template, err := template.New(path).Parse(string(rawtemplate))
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	template.Execute(rw, data)
 }

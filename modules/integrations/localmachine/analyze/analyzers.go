@@ -2,7 +2,7 @@ package analyze
 
 import (
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 func init() {
@@ -26,7 +26,7 @@ func init() {
 							nil,
 						)
 						if !found {
-							log.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.DN())
+							ui.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.DN())
 							continue
 						}
 						for _, server := range servers {

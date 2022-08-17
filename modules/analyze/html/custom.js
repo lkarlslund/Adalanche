@@ -134,8 +134,6 @@ function newwindow(id, title, content, height, width) {
                 $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-12);
             },
 
-            // animate: true,
-            // helper: "ui-resizable-helper",
             maxHeight: maxheight,
             maxWidth: maxwidth,
             minHeight: 150,
@@ -156,17 +154,16 @@ function newwindow(id, title, content, height, width) {
     if (itsnew) {
         $('#windows').append(mywindow);
 
+        // Fix initial content size
+        
         if ($('#contents', mywindow).width() > maxwidth-12) {
             $('#contents', mywindow).width(maxwidth-12);
         }
+
         if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-12) {
             $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-12);
         }
     }
-
-    // Fix initial content height
-    // console.log($('#header', mywindow).height())
-    // $('#contents', mywindow).height(mywindow.height() - $('#header', mywindow).height() - 12);
 
     // Bring to front on mouse down
     mywindow.mousedown(function () {

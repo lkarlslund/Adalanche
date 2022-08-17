@@ -2956,8 +2956,6 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.Collector = string(in.String())
 		case "Version":
 			out.Version = string(in.String())
-		case "BuildDate":
-			out.BuildDate = string(in.String())
 		case "Commit":
 			out.Commit = string(in.String())
 		case "Collected":
@@ -3191,11 +3189,6 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		const prefix string = ",\"Version\":"
 		out.RawString(prefix)
 		out.String(string(in.Version))
-	}
-	{
-		const prefix string = ",\"BuildDate\":"
-		out.RawString(prefix)
-		out.String(string(in.BuildDate))
 	}
 	{
 		const prefix string = ",\"Commit\":"

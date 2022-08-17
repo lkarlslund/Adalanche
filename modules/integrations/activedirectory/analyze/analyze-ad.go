@@ -2,7 +2,6 @@ package analyze
 
 import (
 	"encoding/binary"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 )
 
 // Interesting permissions on AD
@@ -58,7 +57,7 @@ var (
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
-	PwnPublishesCertificateTemplate = engine.NewPwn("PublishCertTmpl")
+	PwnPublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl")
 
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
@@ -72,7 +71,7 @@ func init() {
 	Loader.AddAnalyzers(
 
 		// It's a Unicorn, dang ...
-		// engine.PwnAnalyzer{
+		// engine.EdgeAnalyzer{
 		// 	Method: activedirectory.PwnNullDACL,
 		// 	ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 		// 		var results []*engine.Object
@@ -88,7 +87,7 @@ func init() {
 		// 	},
 		// },
 
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnReadLAPSPassword,
 			Description: "Reading local admin passwords via LAPS",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -102,7 +101,7 @@ func init() {
 					return
 				}
 				// ... that has LAPS installed
-				if o.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() == 0 {
+				if !o.HasAttr(activedirectory.MSmcsAdmPwdExpirationTime) {
 					return
 				}
 				// Analyze ACL
@@ -120,104 +119,7 @@ func init() {
 			},
 		},
 
-		engine.PwnAnalyzer{
-			// Method: activedirectory.PwnComputerAffectedByGPO,
-			Description: "Computers affected by a GPO",
-			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				// Only for computers, you can't really pwn users this way
-				if o.Type() != engine.ObjectTypeComputer {
-					return
-				}
-				// Find all perent containers with GP links
-				var hasparent bool
-				p := o
-
-				// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/5c7ecdad-469f-4b30-94b3-450b7fff868f
-				allowEnforcedGPOsOnly := false
-				for {
-					newparent := p.Parent()
-					var foundparent bool
-					if newparent != nil && newparent.DN() != "" && strings.HasSuffix(p.DN(), newparent.DN()) {
-						p = newparent
-						foundparent = true
-					}
-					if !foundparent {
-						// Fall back to old slow method of looking at DNs
-						p, hasparent = ao.DistinguishedParent(p)
-						if !hasparent {
-							break
-						}
-					}
-
-					var gpcachelinks engine.AttributeValues
-					var found bool
-					if gpcachelinks, found = p.Get(GPLinkCache); !found {
-						// the hard way
-						gpcachelinks = engine.NoValues{} // We assume there is nothing
-
-						gplinks := strings.Trim(p.OneAttrString(activedirectory.GPLink), " ")
-						if len(gplinks) != 0 {
-							// log.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
-							if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
-								log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
-							} else {
-								links := strings.Split(gplinks[1:len(gplinks)-1], "][")
-
-								var collecteddata engine.AttributeValueSlice
-								for _, link := range links {
-									linkinfo := strings.Split(link, ";")
-									if len(linkinfo) != 2 {
-										log.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
-										continue
-									}
-									linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
-
-									gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
-									if !found {
-										if _, warned := warnedgpos[linkedgpodn]; !warned {
-											warnedgpos[linkedgpodn] = struct{}{}
-											log.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
-										}
-									} else {
-										linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
-										collecteddata = append(collecteddata, engine.AttributeValueObject{
-											Object: gpo,
-										}, engine.AttributeValueInt(linktype))
-									}
-								}
-								gpcachelinks = collecteddata
-							}
-						}
-						p.Set(GPLinkCache, gpcachelinks)
-					}
-
-					// cached or generated - pairwise pointer to gpo object and int
-					gplinkslice := gpcachelinks.Slice()
-					for i := 0; i < gpcachelinks.Len(); i += 2 {
-						gpo := gplinkslice[i].Raw().(*engine.Object)
-						gpLinkOptions := gplinkslice[i+1].Raw().(int64)
-						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
-						if gpLinkOptions&0x01 != 0 {
-							// GPO link is disabled
-							continue
-						}
-						if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
-							// Enforcement required, but this is not an enforced GPO
-							continue
-						}
-						gpo.Pwns(o, activedirectory.PwnAffectedByGPO)
-					}
-
-					gpoptions := p.OneAttrString(activedirectory.GPOptions)
-					if gpoptions == "1" {
-						// inheritance is blocked, so let's not forget that when moving up
-						allowEnforcedGPOsOnly = true
-					}
-				}
-			},
-		},
-
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnGPOMachineConfigPartOfGPO,
 			Description: "Machine configurations that are part of a GPO",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -232,7 +134,7 @@ func init() {
 				p.Pwns(o, activedirectory.PartOfGPO)
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnGPOUserConfigPartOfGPO,
 			Description: "User configurations that are part of a GPO",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -247,7 +149,7 @@ func init() {
 				p.Pwns(o, activedirectory.PartOfGPO)
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnACLContainsDeny,
 			Description: "Indicator for possible false positives, as the ACL contains DENY entries",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -263,7 +165,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnOwns,
 			Description: "Indicator that someone owns an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -284,7 +186,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnGenericAll,
 			Description: "Indicator that someone has full permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -303,7 +205,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteAll,
 			Description: "Indicator that someone can write to all attributes and do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -322,7 +224,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWritePropertyAll,
 			Description: "Indicator that someone can write to all attributes of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -341,7 +243,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteExtendedAll,
 			Description: "Indicator that someone do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -361,7 +263,7 @@ func init() {
 			},
 		},
 		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnTakeOwnership,
 			Description: "Indicator that someone is allowed to take ownership of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -380,7 +282,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteDACL,
 			Description: "Indicator that someone can change permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -399,7 +301,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method:      activedirectory.PwnWriteAttributeSecurityGUID,
 			Description: `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`,
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -418,7 +320,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnResetPassword,
 			Description: "Indicator that a group or user can reset the password of an account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -438,7 +340,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			Description: "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only managed service accounts
@@ -458,7 +360,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnHasSPN,
 			Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -471,7 +373,7 @@ func init() {
 
 					AuthenticatedUsers, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID))
 					if !found {
-						log.Error().Msgf("Could not locate Authenticated Users")
+						ui.Error().Msgf("Could not locate Authenticated Users")
 						return
 					}
 					AuthenticatedUsers[0].Pwns(o, activedirectory.PwnHasSPN)
@@ -479,7 +381,7 @@ func init() {
 			},
 		},
 
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnHasSPN,
 			Description: "Indicator that a user has \"don't require preauth\" and can be kerberoasted",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -490,7 +392,7 @@ func init() {
 				if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
 					everyone, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID))
 					if !found {
-						log.Error().Msgf("Could not locate Everyone")
+						ui.Error().Msgf("Could not locate Everyone")
 						return
 					}
 					everyone[0].Pwns(o, activedirectory.PwnDontReqPreauth)
@@ -498,7 +400,7 @@ func init() {
 			},
 		},
 
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteSPN, // Same GUID as Validated writes, just a different permission (?)
 			Description: "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -517,7 +419,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteValidatedSPN,
 			Description: "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -536,7 +438,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method:      activedirectory.PwnWriteAllowedToAct,
 			Description: `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`,
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -555,7 +457,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnAddMember,
 			Description: "Permission to add a member to a group",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -575,7 +477,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnAddMemberGroupAttr,
 			Description: "Permission to add a member to a group (via attribute set)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -595,7 +497,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			Description: "Permission to add yourself to a group",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for groups
@@ -614,7 +516,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnReadMSAPassword,
 			Description: "Allows someone to read a password of a managed service account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -631,7 +533,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method:      activedirectory.PwnWriteAltSecurityIdentities,
 			Description: "Allows an attacker to define a certificate that can be used to authenticate as the user",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -650,7 +552,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method:      activedirectory.PwnWriteProfilePath,
 			Description: "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -669,7 +571,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method:      activedirectory.PwnWriteScriptPath,
 			Description: "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -688,7 +590,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnHasMSA,
 			Description: "Indicates that the object has a service account in use",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -700,7 +602,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnWriteKeyCredentialLink,
 			Description: "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -720,7 +622,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnSIDHistoryEquality,
 			Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -733,7 +635,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			// Method: activedirectory.PwnAllExtendedRights,
 			Description: "Indicates that you have all extended rights",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
@@ -752,7 +654,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			Description: "Certificate service publishes Certificate Template",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypePKIEnrollmentService {
@@ -770,7 +672,7 @@ func init() {
 				}
 			},
 		},
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			Description: "Permission to enroll into a certificate template",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeCertificateTemplate {
@@ -788,7 +690,7 @@ func init() {
 			},
 		},
 
-		engine.PwnAnalyzer{
+		engine.EdgeAnalyzer{
 			Description: "Permissions on DomainDNS objects leading to DCsync attacks",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeDomainDNS {
@@ -849,7 +751,7 @@ func init() {
 					o.ChildOf(ao.Root())
 					continue
 				}
-				log.Debug().Msgf("AD object %v (%v) has no parent :-(", o.Label(), o.DN())
+				ui.Debug().Msgf("AD object %v (%v) has no parent :-(", o.Label(), o.DN())
 			}
 		}
 	},
@@ -866,7 +768,7 @@ func init() {
 		results, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("crossRef"))
 
 		if !found {
-			log.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
+			ui.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
 			return
 		}
 
@@ -876,7 +778,7 @@ func init() {
 			netbiosname := o.OneAttrString(NetBIOSName)
 
 			if dn == "" || netbiosname == "" {
-				log.Warn().Msgf("Cross reference object %v has no NCName or NetBIOSName", o.DN())
+				// Some crossref objects have no NCName or NetBIOSName, skip them
 				continue
 			}
 
@@ -884,6 +786,11 @@ func init() {
 				suffix: dn,
 				name:   netbiosname,
 			})
+		}
+
+		if len(domains) == 0 {
+			ui.Error().Msg("No NCName to NetBIOSName mapping found, can't apply DownLevelLogonName to objects")
+			return
 		}
 
 		// Sort the domains so we match on longest first
@@ -1016,7 +923,7 @@ func init() {
 
 				// Only domain groups
 				if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
-					log.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
+					ui.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
 					continue
 				}
 
@@ -1039,11 +946,11 @@ func init() {
 		for sid, name := range windowssecurity.KnownSIDs {
 			binsid, err := windowssecurity.SIDFromString(sid)
 			if err != nil {
-				log.Fatal().Msgf("Problem parsing SID %v", sid)
+				ui.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
 			if fo := FindWellKnown(ao, binsid); fo == nil {
 				dn := "CN=" + name + ",CN=microsoft-builtin"
-				log.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
+				ui.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 				ao.Add(engine.NewObject(
 					engine.DistinguishedName, engine.AttributeValueString(dn),
 					engine.Name, engine.AttributeValueString(name),
@@ -1060,30 +967,30 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Generate member of chains
-		processbar := progressbar.NewOptions(int(len(ao.Slice())),
-			progressbar.OptionSetDescription("Processing objects..."),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowIts(),
-			progressbar.OptionSetItsString("objects"),
-			progressbar.OptionOnCompletion(func() { fmt.Println() }),
-			progressbar.OptionThrottle(time.Second*1),
-		)
-
 		everyonesid, _ := windowssecurity.SIDFromString("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
 		if everyone == nil {
-			log.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
+			ui.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
 		authenticateduserssid, _ := windowssecurity.SIDFromString("S-1-5-11")
 		authenticatedusers := FindWellKnown(ao, authenticateduserssid)
 		if authenticatedusers == nil {
-			log.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
+			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		for _, object := range ao.Slice() {
-			processbar.Add(1)
+		domaindns, found := FindDomain(ao)
+		if !found {
+			ui.Fatal().Msgf("Could not locate DomainDNS in collection, aborting")
+		}
+		domaindn := domaindns.OneAttrString(engine.DistinguishedName)
+		domainsuffix := util.ExtractDomainPart(domaindn)
+		TrustMap.Store(TrustPair{
+			Source: domainsuffix,
+			Target: "",
+		}, TrustInfo{})
 
+		for _, object := range ao.Slice() {
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
 			objectclasses := object.Attr(engine.ObjectClass).Slice()
 			if len(objectclasses) > 0 {
@@ -1091,8 +998,8 @@ func init() {
 				for _, class := range objectclasses {
 					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
 						if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); !ok {
-							log.Debug().Msgf("%v", oto)
-							log.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
+							ui.Debug().Msgf("%v", oto)
+							ui.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 						} else {
 							guids = append(guids, oto.OneAttr(activedirectory.SchemaIDGUID))
 						}
@@ -1113,10 +1020,10 @@ func init() {
 					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 						objectcategoryguid = oto.Attr(activedirectory.SchemaIDGUID)
 					} else {
-						log.Error().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
+						ui.Error().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
 					}
 				} else {
-					log.Error().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+					ui.Error().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
 				}
 			}
 			object.Set(engine.ObjectCategoryGUID, objectcategoryguid)
@@ -1160,7 +1067,7 @@ func init() {
 					object.SetValues(engine.MetaConstrainedDelegation, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_NOT_DELEGATED != 0 {
-					log.Debug().Msgf("%v has can't be used as delegation", object.DN())
+					ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
 				}
 				if uac&engine.UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
 					object.SetValues(engine.MetaWorkstation, engine.AttributeValueInt(1))
@@ -1187,28 +1094,28 @@ func init() {
 					// Domain Controller
 					domainPart := object.OneAttr(engine.DomainPart)
 					if domainPart == nil {
-						log.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
+						ui.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
 					}
 
 					if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
 						engine.DomainPart, domainPart); found {
 						administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
 					} else {
-						log.Warn().Msgf("Could not find Administrators group for %v", object.DN())
+						ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 					}
 
 					if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
 						engine.DomainPart, domainPart); found {
 						remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
 					} else {
-						log.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
+						ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 					}
 
 					if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
 						engine.DomainPart, domainPart); found {
 						distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
 					} else {
-						log.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
+						ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
 					}
 				}
 			}
@@ -1227,11 +1134,23 @@ func init() {
 				case 3:
 					direction = "bidirectional"
 				}
+
 				attr, _ := object.AttrInt(activedirectory.TrustAttributes)
-				log.Info().Msgf("Domain has a %v trust with %v", direction, object.OneAttr(activedirectory.TrustPartner))
+
+				partner := object.OneAttrString(activedirectory.TrustPartner)
+
+				ui.Info().Msgf("Domain %v has a %v trust with %v", util.ExtractDomainPart(domaindn), direction, partner)
+
 				if dir&2 != 0 && attr&0x08 != 0 && attr&0x40 != 0 {
-					log.Info().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
+					ui.Info().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
 				}
+
+				TrustMap.Store(TrustPair{
+					Source: domainsuffix,
+					Target: partner,
+				}, TrustInfo{
+					Direction: TrustDirection(dir),
+				})
 			}
 
 			if object.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
@@ -1240,18 +1159,17 @@ func init() {
 					// engine.AllSchemaAttributes[objectGUID] = object
 					switch object.OneAttrString(engine.Name) {
 					case "ms-Mcs-AdmPwd":
-						log.Info().Msg("Detected LAPS schema extension, adding this to LAPS analyzer")
+						ui.Info().Msg("Detected LAPS schema extension, adding this to LAPS analyzer")
 						lapsguids = append(lapsguids, objectGUID)
 					}
 				}
 			} /* else if object.HasAttrValue(engine.ObjectClass, "classSchema") {
 				if u, ok := object.OneAttrRaw(engine.SchemaIDGUID).(uuid.UUID); ok {
-					// log.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
+					// ui.Debug().Msgf("Adding schema class %v %v", u, object.OneAttr(Name))
 					engine.AllSchemaClasses[u] = object
 				}
 			}*/
 		}
-		processbar.Finish()
 	},
 		"Active Directory objects and metadata",
 		engine.BeforeMerge)
@@ -1276,7 +1194,7 @@ func init() {
 		domaindnsobjects, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
 
 		if !found {
-			log.Error().Msg("Could not find any domainDNS objects")
+			ui.Error().Msg("Could not find any domainDNS objects")
 		}
 
 		for _, domaindnsobject := range domaindnsobjects {
@@ -1297,9 +1215,9 @@ func init() {
 				}
 
 				if o.SID().StripRID() == ourDomainSid {
-					log.Warn().Msgf("Found a 'lost' local SID object %v, but not taking action (don't know where to place it). This will affect your analysis results, try dumping as Domain Admin!", o.SID())
+					ui.Debug().Msgf("Found a 'dangling' local SID object %v. This is either a SID from a deleted object (most likely) or hardened objects that are not readable with the account used to dump data.", o.SID())
 				} else {
-					log.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
+					ui.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
 					o.SetFlex(
 						engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
 						engine.ObjectCategorySimple, "Foreign-Security-Principal",
@@ -1313,9 +1231,119 @@ func init() {
 		engine.AfterMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, o := range ao.Slice() {
+			// Only for computers, you can't really pwn users this way
+			if o.Type() != engine.ObjectTypeComputer {
+				return
+			}
+			// Find all perent containers with GP links
+			var hasparent bool
+			p := o
+
+			// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/5c7ecdad-469f-4b30-94b3-450b7fff868f
+			allowEnforcedGPOsOnly := false
+			for {
+				newparent := p.Parent()
+				var foundparent bool
+				if newparent != nil && newparent.DN() != "" && strings.HasSuffix(p.DN(), newparent.DN()) {
+					p = newparent
+					foundparent = true
+				}
+				if !foundparent {
+					// Fall back to old slow method of looking at DNs
+					p, hasparent = ao.DistinguishedParent(p)
+					if !hasparent {
+						break
+					}
+				}
+
+				var gpcachelinks engine.AttributeValues
+				var found bool
+				if gpcachelinks, found = p.Get(GPLinkCache); !found {
+					// the hard way
+					gpcachelinks = engine.NoValues{} // We assume there is nothing
+
+					gplinks := strings.Trim(p.OneAttrString(activedirectory.GPLink), " ")
+					if len(gplinks) != 0 {
+						// ui.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
+						if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
+							ui.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+						} else {
+							links := strings.Split(gplinks[1:len(gplinks)-1], "][")
+
+							var collecteddata engine.AttributeValueSlice
+							for _, link := range links {
+								linkinfo := strings.Split(link, ";")
+								if len(linkinfo) != 2 {
+									ui.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+									continue
+								}
+								linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
+
+								gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
+								if !found {
+									if _, warned := warnedgpos[linkedgpodn]; !warned {
+										warnedgpos[linkedgpodn] = struct{}{}
+										ui.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+									}
+								} else {
+									linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
+									collecteddata = append(collecteddata, engine.AttributeValueObject{
+										Object: gpo,
+									}, engine.AttributeValueInt(linktype))
+								}
+							}
+							gpcachelinks = collecteddata
+						}
+					}
+					p.Set(GPLinkCache, gpcachelinks)
+				}
+
+				// cached or generated - pairwise pointer to gpo object and int
+				gplinkslice := gpcachelinks.Slice()
+				for i := 0; i < gpcachelinks.Len(); i += 2 {
+					gpo := gplinkslice[i].Raw().(*engine.Object)
+					gpLinkOptions := gplinkslice[i+1].Raw().(int64)
+					// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+					if gpLinkOptions&0x01 != 0 {
+						// GPO link is disabled
+						continue
+					}
+					if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
+						// Enforcement required, but this is not an enforced GPO
+						continue
+					}
+					gpo.Pwns(o, activedirectory.PwnAffectedByGPO)
+				}
+
+				gpoptions := p.OneAttrString(activedirectory.GPOptions)
+				if gpoptions == "1" {
+					// inheritance is blocked, so let's not forget that when moving up
+					allowEnforcedGPOsOnly = true
+				}
+			}
+		}
+	},
+		"Computers affected by a GPO",
+		engine.AfterMergeLow,
+	)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, o := range ao.Slice() {
+			if o.HasAttr(engine.ObjectSid) && !o.HasAttr(engine.DisplayName) {
+				if name, found := windowssecurity.KnownSIDs[o.SID().String()]; found {
+					o.SetFlex(engine.DisplayName, name)
+				}
+			}
+		}
+	},
+		"Adding displayName to Well-Known SID objects that are missing them",
+		engine.AfterMergeLow)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
 		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
 		if !found {
-			log.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
+			ui.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
 			return
 		}
 
@@ -1359,9 +1387,9 @@ func init() {
 						if c, err := windowssecurity.SIDFromString(stringsid); err == nil {
 							sid = engine.AttributeValueSID(c)
 						}
-						log.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), memberof)
+						ui.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), memberof)
 					} else {
-						log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group. Your analysis will be degraded, try dumping with Domain Admin rights.", object.DN(), memberof)
+						ui.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group. Your analysis will be degraded, try dumping with Domain Admin rights.", object.DN(), memberof)
 					}
 					group = engine.NewObject(
 						engine.IgnoreBlanks,
@@ -1390,9 +1418,9 @@ func init() {
 							sid = engine.AttributeValueSID(c)
 							category = "Foreign-Security-Principal"
 						}
-						log.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), member)
+						ui.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), member)
 					} else {
-						log.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group. Your analysis will be degraded, try dumping with Domain Admin rights.", object.DN(), member)
+						ui.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group. Your analysis will be degraded, try dumping with Domain Admin rights.", object.DN(), member)
 					}
 					memberobject = engine.NewObject(
 						engine.IgnoreBlanks,
@@ -1421,7 +1449,7 @@ func init() {
 		}).Slice() {
 			sid := foreign.SID()
 			if sid.IsNull() {
-				log.Error().Msgf("Found a foreign security principal with no SID %v", foreign.Label())
+				ui.Error().Msgf("Found a foreign security principal with no SID %v", foreign.Label())
 				continue
 			}
 			if sid.Component(2) == 21 {
@@ -1433,7 +1461,7 @@ func init() {
 					}
 				}
 			} else {
-				log.Warn().Msgf("Found a foreign security principal %v with an non type 21 SID %v", foreign.DN(), sid.String())
+				ui.Warn().Msgf("Found a foreign security principal %v with an non type 21 SID %v", foreign.DN(), sid.String())
 			}
 		}
 	}, "Link foreign security principals to their native objects",
@@ -1457,7 +1485,7 @@ func init() {
 						if amethods.IsSet(activedirectory.PwnAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
 							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
 							if !found {
-								log.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
+								ui.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
 								continue
 							}
 							computername = strings.TrimRight(computername, "$")
@@ -1478,7 +1506,7 @@ func init() {
 
 							if len(targetgroups) == 0 {
 								if warnlines < 10 {
-									log.Warn().Msgf("Could not find group %v", realgroup)
+									ui.Warn().Msgf("Could not find group %v", realgroup)
 								}
 								warnlines++
 							} else if len(targetgroups) == 1 {
@@ -1486,9 +1514,9 @@ func init() {
 									targetgroups[0].PwnsEx(affected, method, true)
 								}
 							} else {
-								log.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
+								ui.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
 								for _, targetgroup := range targetgroups {
-									log.Warn().Msgf("Target: %v", targetgroup.DN())
+									ui.Warn().Msgf("Target: %v", targetgroup.DN())
 								}
 							}
 						}
@@ -1498,7 +1526,7 @@ func init() {
 			}
 		}
 		if warnlines > 0 {
-			log.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
+			ui.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
 		}
 
 	}, "Resolve expanding group names to real names from GPOs",

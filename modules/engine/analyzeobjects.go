@@ -3,27 +3,27 @@ package engine
 import (
 	"sort"
 
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-var PwnMemberOfGroup = NewPwn("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
+var PwnMemberOfGroup = NewEdge("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
 
 var SortBy Attribute
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
 
-func (pm PwnMethod) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) PwnMethod {
-	pwnnums[pm].probability = doCalc
+func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
+	edgeInfos[pm].probability = doCalc
 	return pm
 }
 
-func (pm PwnMethod) Describe(description string) PwnMethod {
-	pwnnums[pm].Description = description
+func (pm Edge) Describe(description string) Edge {
+	edgeInfos[pm].Description = description
 	return pm
 }
 
-func (pm PwnMethod) Probability(source, target *Object) Probability {
-	if f := pwnnums[pm].probability; f != nil {
+func (pm Edge) Probability(source, target *Object) Probability {
+	if f := edgeInfos[pm].probability; f != nil {
 		return f(source, target)
 	}
 
@@ -33,9 +33,9 @@ func (pm PwnMethod) Probability(source, target *Object) Probability {
 
 func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 	return AnalyzeObjectsOptions{
-		MethodsF:               AllPwnMethods,
-		MethodsM:               AllPwnMethods,
-		MethodsL:               AllPwnMethods,
+		MethodsF:               AllEdgeMethods,
+		MethodsM:               AllEdgeMethods,
+		MethodsL:               AllEdgeMethods,
 		Reverse:                false,
 		MaxDepth:               99,
 		MaxOutgoingConnections: -1,
@@ -50,9 +50,9 @@ type AnalyzeObjectsOptions struct {
 	ObjectTypesF           []ObjectType
 	ObjectTypesM           []ObjectType
 	ObjectTypesL           []ObjectType
-	MethodsL               PwnMethodBitmap
-	MethodsM               PwnMethodBitmap
-	MethodsF               PwnMethodBitmap
+	MethodsL               EdgeBitmap
+	MethodsM               EdgeBitmap
+	MethodsF               EdgeBitmap
 	MaxDepth               int
 	MaxOutgoingConnections int
 	Reverse                bool
@@ -62,11 +62,11 @@ type AnalyzeObjectsOptions struct {
 	PruneIslands           bool
 }
 
-type PostProcessorFunc func(pg PwnGraph) PwnGraph
+type PostProcessorFunc func(pg Graph) Graph
 
 var PostProcessors []PostProcessorFunc
 
-func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
+func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 	if opts.MethodsM.Count() == 0 {
 		opts.MethodsM = opts.MethodsF
 	}
@@ -87,7 +87,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		canexpand  int
 	}
 
-	connectionsmap := make(map[PwnPair]PwnMethodBitmap)  // Pwn Connection between objects
+	connectionsmap := make(map[ObjectPair]EdgeBitmap)    // Pwn Connection between objects
 	implicatedobjectsmap := make(map[*Object]*roundinfo) // Object -> Processed in round n
 
 	// Direction to search, forward = who can pwn interestingobjects, !forward = who can interstingobjects pwn
@@ -125,7 +125,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 			}
 		}
 
-		log.Debug().Msgf("Processing round %v with %v total objects and %v connections", processinground, len(implicatedobjectsmap), len(connectionsmap))
+		ui.Debug().Msgf("Processing round %v with %v total objects and %v connections", processinground, len(implicatedobjectsmap), len(connectionsmap))
 		newimplicatedobjects := make(map[*Object]struct{})
 
 		for object, ri := range implicatedobjectsmap {
@@ -133,9 +133,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				continue
 			}
 
-			newconnectionsmap := make(map[PwnPair]PwnMethodBitmap) // Pwn Connection between objects
+			newconnectionsmap := make(map[ObjectPair]EdgeBitmap) // Pwn Connection between objects
 
-			var pwnlist PwnConnections
+			var pwnlist EdgeConnections
 			if forward {
 				pwnlist = object.PwnableBy
 			} else {
@@ -199,12 +199,12 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				if opts.ExcludeObjects != nil {
 					if _, found := opts.ExcludeObjects.FindByID(pwntarget.ID()); found {
 						// skip excluded objects
-						// log.Debug().Msgf("Excluding target %v", pwntarget.DN())
+						// ui.Debug().Msgf("Excluding target %v", pwntarget.DN())
 						continue
 					}
 				}
 
-				newconnectionsmap[PwnPair{Source: object, Target: pwntarget}] = detectedmethods
+				newconnectionsmap[ObjectPair{Source: object, Target: pwntarget}] = detectedmethods
 			}
 
 			if opts.MaxOutgoingConnections == -1 || len(newconnectionsmap) < opts.MaxOutgoingConnections {
@@ -216,7 +216,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 				}
 				// Add pwn target to graph for processing
 			} else {
-				log.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", opts.MaxOutgoingConnections, object.Label(), len(newconnectionsmap))
+				ui.Debug().Msgf("Outgoing expansion limit hit %v for object %v, there was %v connections", opts.MaxOutgoingConnections, object.Label(), len(newconnectionsmap))
 				var added int
 				var groupcount int
 				for _, detectedmethods := range newconnectionsmap {
@@ -238,13 +238,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 							added++
 						}
 					}
-					log.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", added, opts.MaxOutgoingConnections)
+					ui.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", added, opts.MaxOutgoingConnections)
 
 					// Add some more to expansion limit hit objects if we know how
 					if SortBy != 0 {
 
 						// Find the most important ones that are not groups
-						var notadded []PwnPair
+						var notadded []ObjectPair
 						for pwnpair, _ := range newconnectionsmap {
 							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
 								notadded = append(notadded, pwnpair)
@@ -270,7 +270,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 			ri.processed = true
 			// We're done processing this
 		}
-		log.Debug().Msgf("Processing round %v yielded %v new objects", processinground, len(newimplicatedobjects))
+		ui.Debug().Msgf("Processing round %v yielded %v new objects", processinground, len(newimplicatedobjects))
 		if len(newimplicatedobjects) == 0 {
 			// Nothing more to do
 			break
@@ -345,13 +345,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 	}
 
 	// Convert map to slice
-	pg.Connections = make([]Edge, len(connectionsmap))
+	pg.Connections = make([]GraphEdge, len(connectionsmap))
 	i := 0
 	for connection, methods := range connectionsmap {
-		nc := Edge{
-			Source:          connection.Source,
-			Target:          connection.Target,
-			PwnMethodBitmap: methods,
+		nc := GraphEdge{
+			Source:     connection.Source,
+			Target:     connection.Target,
+			EdgeBitmap: methods,
 		}
 		if forward {
 			nc.Source, nc.Target = nc.Target, nc.Source // swap 'em to get arrows pointing correctly
@@ -360,7 +360,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg PwnGraph) {
 		i++
 	}
 
-	pg.Nodes = make([]Node, len(implicatedobjectsmap))
+	pg.Nodes = make([]GraphNode, len(implicatedobjectsmap))
 	i = 0
 	for object, ri := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object

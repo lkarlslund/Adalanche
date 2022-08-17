@@ -9,9 +9,9 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/mailru/easyjson"
-	"github.com/rs/zerolog/log"
 )
 
 const loadername = "LocalMachine JSON file"
@@ -44,21 +44,21 @@ func (ld *LocalMachineLoader) Init() error {
 			for path := range ld.infostoadd {
 				raw, err := ioutil.ReadFile(path)
 				if err != nil {
-					log.Warn().Msgf("Problem reading data from JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", path, err)
 					continue
 				}
 
 				var cinfo localmachine.Info
 				err = easyjson.Unmarshal(raw, &cinfo)
 				if err != nil {
-					log.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
 					continue
 				}
 
 				// ld.infoaddmutex.Lock()
 				err = ld.ImportCollectorInfo(cinfo)
 				if err != nil {
-					log.Warn().Msgf("Problem importing collector info: %v", err)
+					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
 				}
 

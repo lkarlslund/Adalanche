@@ -1,11 +1,7 @@
 package engine
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 func Merge(aos []*Objects) (*Objects, error) {
@@ -19,11 +15,11 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 	}
 
-	log.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
+	ui.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
 
 	_ = biggest
 
-	// log.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
+	// ui.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
 
 	// Find all the attributes that can be merged objects on
 	var mergeon []Attribute
@@ -57,14 +53,9 @@ func Merge(aos []*Objects) (*Objects, error) {
 		// needsmerge = append(needsmerge, mergeobjects.Slice()...)
 	}
 
-	log.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
+	ui.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
 
-	pb := progressbar.NewOptions(len(needsmerge),
-		progressbar.OptionSetDescription("Merging objects from each unique source ..."),
-		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	pb := ui.ProgressBar("Merging objects from each unique source ...", len(needsmerge))
 
 	// To ease anti-cross-the-beams on UniqueSource we temporarily group each source and combine them in the end
 	sourcemap := make(map[interface{}]*Objects)
@@ -91,16 +82,15 @@ func Merge(aos []*Objects) (*Objects, error) {
 		needsfinalization += sao.Len()
 	}
 
-	pb = progressbar.NewOptions(needsfinalization,
-		progressbar.OptionSetDescription("Finalizing merge ..."),
-		progressbar.OptionShowCount(), progressbar.OptionShowIts(), progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	pb = ui.ProgressBar("Finalizing merge ...", needsfinalization)
 
 	// We're grabbing the index directly for faster processing here
 	dnindex := globalobjects.GetIndex(DistinguishedName)
-	for _, usao := range sourcemap {
+
+	for us, usao := range sourcemap {
+		if us == none {
+			continue // not these, we'll try to merge at the very end
+		}
 		for _, addobject := range usao.Slice() {
 			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
@@ -114,10 +104,22 @@ func Merge(aos []*Objects) (*Objects, error) {
 		}
 	}
 
+	for _, addobject := range sourcemap[none].Slice() {
+		pb.Add(1)
+		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
+		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
+			if existing, exists := dnindex.Lookup(attributeValueToIndex(dn)); exists {
+				existing[0].AbsorbEx(addobject, true)
+				continue
+			}
+		}
+		globalobjects.AddMerge(mergeon, addobject)
+	}
+
 	pb.Finish()
 
 	aftermergetotalobjects := len(globalobjects.Slice())
-	log.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
+	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
 
 	var orphans int
 	processed := make(map[uint32]struct{})
@@ -125,7 +127,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	processobject = func(o *Object) {
 		if _, done := processed[o.ID()]; !done {
 			if _, found := globalobjects.FindByID(o.ID()); !found {
-				log.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
+				ui.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
 				globalobjects.Add(o)
 			}
 			processed[o.ID()] = struct{}{}
@@ -142,7 +144,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 		processobject(object)
 	}
 	if orphans > 0 {
-		log.Warn().Msgf("Detected %v orphan objects in final results", orphans)
+		ui.Warn().Msgf("Detected %v orphan objects in final results", orphans)
 	}
 
 	return globalobjects, nil

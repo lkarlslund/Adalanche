@@ -10,8 +10,8 @@ import (
 	"github.com/go-ini/ini"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -23,16 +23,16 @@ var (
 	BinarySize      = engine.NewAttribute("binarySize").Single()
 	ExposedPassword = engine.NewAttribute("exposedPassword")
 
-	PwnExposesPassword       = engine.NewPwn("ExposesPassword")
-	PwnContainsSensitiveData = engine.NewPwn("ContainsSensitiveData")
-	PwnReadSensitiveData     = engine.NewPwn("ReadSensitiveData")
-	PwnOwns                  = engine.NewPwn("Owns")
-	PwnFSPartOfGPO           = engine.NewPwn("FSPartOfGPO")
-	PwnFileCreate            = engine.NewPwn("FileCreate")
-	PwnDirCreate             = engine.NewPwn("DirCreate")
-	PwnFileWrite             = engine.NewPwn("FileWrite")
-	PwnTakeOwnership         = engine.NewPwn("FileTakeOwnership")
-	PwnModifyDACL            = engine.NewPwn("FileModifyDACL")
+	PwnExposesPassword       = engine.NewEdge("ExposesPassword")
+	PwnContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
+	PwnReadSensitiveData     = engine.NewEdge("ReadSensitiveData")
+	PwnOwns                  = engine.NewEdge("Owns")
+	PwnFSPartOfGPO           = engine.NewEdge("FSPartOfGPO")
+	PwnFileCreate            = engine.NewEdge("FileCreate")
+	PwnDirCreate             = engine.NewEdge("DirCreate")
+	PwnFileWrite             = engine.NewEdge("FileWrite")
+	PwnTakeOwnership         = engine.NewEdge("FileTakeOwnership")
+	PwnModifyDACL            = engine.NewEdge("FileModifyDACL")
 )
 
 func init() {
@@ -133,28 +133,28 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 			// FIXME: Handle other formats, adding something to catch this here
 			if strings.Contains(line, "cpassword=") && !strings.Contains(line, "cpassword=\"\"") {
-				log.Debug().Msgf("Found cpassword in %s", item.RelativePath)
-				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Debug().Msgf("Found cpassword in %s", item.RelativePath)
+				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
 				unhandledpass = true
 			}
 			for _, match := range cpasswordusername.FindAllStringSubmatch(line, -1) {
-				log.Debug().Msgf("Found password in %s", item.RelativePath)
-				log.Debug().Msgf("Password: %v", match)
-				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Debug().Msgf("Found password in %s", item.RelativePath)
+				ui.Debug().Msgf("Password: %v", match)
+				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
 				exposed = append(exposed, struct{ Username, Password string }{match[cpasswordusername.SubexpIndex("username")], match[cpasswordusername.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			for _, match := range usernamecpassword.FindAllStringSubmatch(line, -1) {
-				log.Debug().Msgf("Found username in %s", item.RelativePath)
-				log.Debug().Msgf("Password: %v", match)
-				log.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Debug().Msgf("Found username in %s", item.RelativePath)
+				ui.Debug().Msgf("Password: %v", match)
+				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
 				exposed = append(exposed, struct{ Username, Password string }{match[usernamecpassword.SubexpIndex("username")], match[usernamecpassword.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			if unhandledpass {
-				log.Error().Msgf("Unhandled password in %s", item.RelativePath)
-				log.Error().Msgf("GPO Dump\n%s", item.Contents)
-				log.Panic().Msg("Please submit bugreport on Github with redacted account name and redacted password")
+				ui.Error().Msgf("Unhandled password in %s", item.RelativePath)
+				ui.Error().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Fatal().Msg("Please submit bugreport on Github with redacted account name and redacted password")
 			}
 		}
 		for _, e := range exposed {
@@ -224,17 +224,17 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					case "S-1-5-32-555":
 						member.Pwns(gpoobject, activedirectory.PwnLocalRDPRights)
 					case "":
-						log.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
+						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
 				} else {
-					log.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
+					ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
 				}
 			}
 
 			// Description: "Indicates that a GPO deploys a scheduled task which is running from an UNC path (FIXME, not done yet!)",
 		case "/machine/preferences/scheduledtasks/scheduledtasks.xml":
 			for _, task := range GPOparseScheduledTasks(string(item.Contents)) {
-				log.Warn().Msgf("Scheduled task: %v ... FIXME!", task)
+				ui.Warn().Msgf("Scheduled task: %v ... FIXME!", task)
 			}
 		// Description: "Detects startup or shutdown scripts from GPOs",
 		case "/machine/scripts/scripts.ini":
@@ -252,7 +252,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			}, utf8)
 
 			if err != nil {
-				log.Warn().Msgf("Problem loading GPO ini file SCRIPTS.INI from %v: %v", ginfo.Path, err)
+				ui.Warn().Msgf("Problem loading GPO ini file SCRIPTS.INI from %v: %v", ginfo.Path, err)
 			}
 
 			scriptnum := 0
@@ -435,7 +435,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					membersid = ""
 					translatedsid, err := TranslateLocalizedGroupToSID(membername)
 					if err != nil {
-						log.Info().Msgf("GPO GptTmplInf Memberof non-SID member %v translation gave no results, assuming it's a custom name: %v", membername, err)
+						ui.Info().Msgf("GPO GptTmplInf Memberof non-SID member %v translation gave no results, assuming it's a custom name: %v", membername, err)
 					} else {
 						membersid = translatedsid.String()
 					}
@@ -452,7 +452,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						groupsid = ""
 						translatedsid, err := TranslateLocalizedGroupToSID(groupname)
 						if err != nil {
-							log.Info().Msgf("GPO GptTmplInf Memberof non-SID group %v translation gave no results (PLEASE CONTRIBUTE): %v", groupname, err)
+							ui.Info().Msgf("GPO GptTmplInf Memberof non-SID group %v translation gave no results (PLEASE CONTRIBUTE): %v", groupname, err)
 						} else {
 							groupsid = translatedsid.String()
 						}
@@ -478,7 +478,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					groupsid = ""
 					translatedsid, err := TranslateLocalizedGroupToSID(groupname)
 					if err != nil {
-						log.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v translation failed (PLEASE CONTRIBUTE): %v", groupname, err)
+						ui.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v translation failed (PLEASE CONTRIBUTE): %v", groupname, err)
 					} else {
 						groupsid = translatedsid.String()
 					}
@@ -494,7 +494,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						membersid = ""
 						translatedsid, err := TranslateLocalizedGroupToSID(membername)
 						if err != nil {
-							log.Warn().Msgf("GPO GptTmplInf Memberof non-SID member %v translation failed (PLEASE CONTRIBUTE): %v", membername, err)
+							ui.Warn().Msgf("GPO GptTmplInf Memberof non-SID member %v translation failed (PLEASE CONTRIBUTE): %v", membername, err)
 						} else {
 							membersid = translatedsid.String()
 						}

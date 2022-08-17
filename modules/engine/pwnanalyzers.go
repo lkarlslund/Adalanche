@@ -4,60 +4,54 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 var (
-	pwnAnalyzers = map[LoaderID][]PwnAnalyzer{}
+	loaderAnalyzers = map[LoaderID][]EdgeAnalyzer{}
 )
 
-func (l LoaderID) AddAnalyzers(pa ...PwnAnalyzer) {
-	pwnAnalyzers[l] = append(pwnAnalyzers[l], pa...)
+func (l LoaderID) AddAnalyzers(pa ...EdgeAnalyzer) {
+	loaderAnalyzers[l] = append(loaderAnalyzers[l], pa...)
 }
 
-func Analyze(ao *Objects, cb ProgressCallbackFunc, l LoaderID) {
-	objectslice := ao.Slice()
-	max := len(objectslice) * len(pwnAnalyzers)
-	div := max / 1000
-	if div == 0 {
-		// Division by Zero, no thanks
-		div = 1
+func (l LoaderID) Analyze(ao *Objects, cb ProgressCallbackFunc) {
+	if len(loaderAnalyzers[l]) == 0 {
+		return
 	}
+
+	objectslice := ao.Slice()
+	max := ao.Len() * len(loaderAnalyzers[l])
 	cb(0, max)
 
-	timings := make([]time.Time, len(pwnAnalyzers[l]))
+	timings := make([]time.Time, len(loaderAnalyzers[l]))
 
 	ao.SetThreadsafe(true)
 
 	starttime := time.Now()
 	var wait sync.WaitGroup
 
-	for i, an := range pwnAnalyzers[l] {
+	for i, an := range loaderAnalyzers[l] {
 		wait.Add(1)
-		go func(li int, lan PwnAnalyzer) {
-			cur := 0
+		go func(li int, lan EdgeAnalyzer) {
 			for _, o := range objectslice {
 				lan.ObjectAnalyzer(o, ao)
-				cur++
-				if cur%div == 0 {
-					cb(-1000, -1)
-				}
+				cb(-1, 0)
 			}
 			timings[li] = time.Now()
-			cb(-cur%div, -1) // Add the final items to progressbar
 			wait.Done()
 		}(i, an)
 	}
 	wait.Wait()
-	cb(max, max)
+
 	endtime := time.Now()
 
 	ao.SetThreadsafe(false)
 
-	for i := range pwnAnalyzers[l] {
-		log.Info().Msgf("Elapsed %vms for analysis %v", timings[i].Sub(starttime).Milliseconds(), pwnAnalyzers[l][i].Description)
+	for i := range loaderAnalyzers[l] {
+		ui.Debug().Msgf("Elapsed %vms for analysis %v", timings[i].Sub(starttime).Milliseconds(), loaderAnalyzers[l][i].Description)
 	}
-	log.Info().Msgf("Total elapsed %vms for analysis", endtime.Sub(starttime).Milliseconds())
+	ui.Info().Msgf("Total elapsed %vms for %v analysis runs on %v objects", endtime.Sub(starttime).Milliseconds(), len(loaderAnalyzers[l]), len(objectslice))
 }
 
 type ProgressCallbackFunc func(progress int, totalprogress int)
@@ -73,6 +67,7 @@ const (
 	AfterMergeLow
 	AfterMerge
 	AfterMergeHigh
+	AfterMergeFinal
 )
 
 type ppfInfo struct {
@@ -94,15 +89,26 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 }
 
 func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessPriority) error {
-	for _, processor := range registeredProcessors {
-		if processor.loader == l && processor.priority == priority {
-			if priority < AfterMergeLow {
-				log.Info().Msgf("Preprocessing %v ...", processor.description)
-			} else {
-				log.Info().Msgf("Postprocessing %v ...", processor.description)
-			}
-			processor.pf(ao)
+	var priorityProcessors []ppfInfo
+	for _, potentialProcessor := range registeredProcessors {
+		if potentialProcessor.loader == l && potentialProcessor.priority == priority {
+			priorityProcessors = append(priorityProcessors, potentialProcessor)
 		}
 	}
+
+	total := len(priorityProcessors) * ao.Len()
+
+	if total == 0 {
+		return nil
+	}
+
+	// We need to process this many objects
+	cb(0, total)
+
+	for _, processor := range priorityProcessors {
+		processor.pf(ao)
+		cb(-ao.Len(), 0)
+	}
+
 	return nil // FIXME
 }

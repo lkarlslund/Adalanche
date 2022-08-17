@@ -36,12 +36,14 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/spf13/cobra v1.3.0
 	github.com/tinylib/msgp v1.1.6
-	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7
+	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 )
 
 require (
+	atomicgo.dev/cursor v0.1.1 // indirect
+	atomicgo.dev/keyboard v0.2.8 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
@@ -49,6 +51,7 @@ require (
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166 // indirect
+	github.com/containerd/console v1.0.3 // indirect
 	github.com/crewjam/rfc5424 v0.1.0 // indirect
 	github.com/dmarkham/enumer v1.5.5 // indirect
 	github.com/elastic/beats v7.6.2+incompatible // indirect
@@ -66,6 +69,7 @@ require (
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 // indirect
 	github.com/google/renameio v0.1.0 // indirect; DONT CHANGE FROM v0.1.0
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/gookit/color v1.5.0 // indirect
 	github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20210819104631-275770b98743 // indirect
@@ -73,6 +77,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
@@ -84,6 +89,7 @@ require (
 	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
+	github.com/pterm/pterm v0.12.45 // indirect
 	github.com/rickb777/plural v1.2.2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/scjalliance/comshim v0.0.0-20190308082608-cf06d2532c4e // indirect
@@ -91,8 +97,9 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
+	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect

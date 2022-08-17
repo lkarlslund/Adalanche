@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ func init() {
 
 func Execute(cmd *cobra.Command, args []string) error {
 	if autoquick {
-		log.Info().Msg("No arguments provided, activating 'quick' mode: will do automatic collection from Active Directory, and then analyze. Use command line options to change this behaviour.")
+		ui.Info().Msg("No arguments provided, activating 'quick' mode: will do automatic collection from Active Directory, and then analyze. Use command line options to change this behaviour.")
 	}
 
 	cli.Root.SetArgs([]string{"collect", "activedirectory"})

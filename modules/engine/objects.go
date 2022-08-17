@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 )
 
 var idcounter uint32 // Unique ID +1 to assign to Object added to this collection if it's zero
@@ -295,9 +295,9 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 				if isnew && unique {
 					existing, dupe := index.Lookup(indexval)
 					if dupe && existing[0] != o {
-						log.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing[0].Label())
-						log.Debug().Msgf("NEW DN: %v", o.DN())
-						log.Debug().Msgf("EXISTING DN: %v", existing[0].DN())
+						ui.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing[0].Label())
+						ui.Debug().Msgf("NEW DN: %v", o.DN())
+						ui.Debug().Msgf("EXISTING DN: %v", existing[0].DN())
 						continue
 					}
 				}
@@ -378,7 +378,7 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 	os.objectmutex.RLock()
 	if _, found := os.asmap[o]; found {
-		log.Fatal().Msg("Object already exists in objects, so we can't merge it")
+		ui.Fatal().Msg("Object already exists in objects, so we can't merge it")
 	}
 	os.objectmutex.RUnlock()
 
@@ -396,10 +396,10 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
 								if !CompareAttributeValues(values.Slice()[0], mergetarget.Attr(attr).Slice()[0]) {
 									// Conflicting attribute values, we can't merge these
-									log.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
+									ui.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
 									// if attr == WhenCreated {
-									// 	log.Debug().Msgf("Object details: %v", o.StringNoACL())
-									// 	log.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
+									// 	ui.Debug().Msgf("Object details: %v", o.StringNoACL())
+									// 	ui.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
 									// }
 									continue targetloop
 								}
@@ -410,22 +410,22 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							switch err {
 							case ErrDontMerge:
 								// if !strings.HasPrefix(mfi.name, "QUIET") {
-								// 	log.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
+								// 	ui.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
 								// }
 
 								continue targetloop
 							case ErrMergeOnThis, nil:
 								// Let the code below do the merge
 							default:
-								log.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
+								ui.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
 							}
 							if res != nil {
 								// Custom merge - how do we handle this?
-								log.Fatal().Msgf("Custom merge function not supported yet")
+								ui.Fatal().Msgf("Custom merge function not supported yet")
 								return false
 							}
 						}
-						// log.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
+						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 
 						mergetarget.Absorb(o)
 						os.ReindexObject(mergetarget, false)
@@ -440,11 +440,11 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 
 func (os *Objects) add(o *Object) {
 	if o.id == 0 {
-		log.Fatal().Msg("Objects must have a unique ID")
+		ui.Fatal().Msg("Objects must have a unique ID")
 	}
 
 	if _, found := os.asmap[o]; found {
-		log.Fatal().Msg("Object already exists in objects, so we can't add it")
+		ui.Fatal().Msg("Object already exists in objects, so we can't add it")
 	}
 
 	if os.DefaultValues != nil {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
 
 	"github.com/Showmax/go-fqdn"
@@ -22,7 +23,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	ldap "github.com/lkarlslund/ldap/v3"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -99,20 +99,20 @@ func PreRun(cmd *cobra.Command, args []string) error {
 
 			// We only need to auto-detect the domain if the server is not supplied
 			if *domain == "" {
-				log.Info().Msg("No domain supplied, auto-detecting")
+				ui.Info().Msg("No domain supplied, auto-detecting")
 				*domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
 				if *domain == "" {
 					// That didn't work, lets try something else
 					f, err := fqdn.FqdnHostname()
 					if err == nil && strings.Contains(f, ".") {
-						log.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
+						ui.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
 						*domain = strings.ToLower(f[strings.Index(f, ".")+1:])
 					}
 				}
 				if *domain == "" {
 					return errors.New("Domain auto-detection failed")
 				} else {
-					log.Info().Msgf("Auto-detected domain as %v", *domain)
+					ui.Info().Msgf("Auto-detected domain as %v", *domain)
 				}
 			}
 
@@ -121,7 +121,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				cname, servers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
 				if err == nil && cname != "" && len(servers) != 0 {
 					*server = strings.TrimRight(servers[0].Target, ".")
-					log.Info().Msgf("AD controller detected as: %v", *server)
+					ui.Info().Msgf("AD controller detected as: %v", *server)
 				} else {
 					return errors.New("AD controller auto-detection failed, use '--server' parameter")
 				}
@@ -131,7 +131,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				// Auto-detect user
 				*user = os.Getenv("USERNAME")
 				if *user != "" {
-					log.Info().Msgf("Auto-detected username as %v", *user)
+					ui.Info().Msgf("Auto-detected username as %v", *user)
 				} else {
 					return errors.New("Username autodetection failed - please use '--username' parameter")
 				}
@@ -196,7 +196,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	if *adexplorerfile != "" {
 		// Active Directory Explorer file
-		log.Info().Msgf("Collecting objects from AD Explorer snapshot %v ...", *adexplorerfile)
+		ui.Info().Msgf("Collecting objects from AD Explorer snapshot %v ...", *adexplorerfile)
 
 		ad := ADExplorerDumper{
 			path:        *adexplorerfile,
@@ -262,7 +262,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 			attributes = strings.Split(*attributesparam, ",")
 		}
 
-		log.Info().Msg("Probing RootDSE ...")
+		ui.Info().Msg("Probing RootDSE ...")
 		rootdse, err := ad.Dump(DumpOptions{
 			SearchBase:    "",
 			Query:         "(objectClass=*)",
@@ -315,7 +315,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		log.Info().Msg("Saving RootDSE ...")
+		ui.Info().Msg("Saving RootDSE ...")
 		_, err = ad.Dump(DumpOptions{
 			SearchBase:  "",
 			Scope:       ldap.ScopeBaseObject,
@@ -326,7 +326,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(rootdse) != 1 {
-			log.Error().Msgf("Expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
+			ui.Error().Msgf("Expected 1 Active Directory RootDSE object, but got %v", len(rootdse))
 		}
 
 		do := DumpOptions{
@@ -340,7 +340,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ := util.ParseBool(*collectschema)
 		if (*collectschema == "auto" && schemaContext != "") || cs {
-			log.Info().Msg("Collecting schema objects ...")
+			ui.Info().Msg("Collecting schema objects ...")
 			do.SearchBase = schemaContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 			_, err = ad.Dump(do)
@@ -352,7 +352,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectconfiguration)
 		if (*collectconfiguration == "auto" && configContext != "") || cs {
-			log.Info().Msg("Collecting configuration objects ...")
+			ui.Info().Msg("Collecting configuration objects ...")
 			do.SearchBase = configContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 			_, err = ad.Dump(do)
@@ -364,9 +364,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectother)
 		if (*collectother == "auto" && len(otherContexts) > 0) || cs {
-			log.Info().Msg("Collecting other objects ...")
+			ui.Info().Msg("Collecting other objects ...")
 			for _, context := range otherContexts {
-				log.Info().Msgf("Collecting from base DN %v ...", context)
+				ui.Info().Msgf("Collecting from base DN %v ...", context)
 				do.SearchBase = context
 				do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 				_, err = ad.Dump(do)
@@ -379,7 +379,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectobjects)
 		if (*collectobjects == "auto" && domainContext != "") || cs {
-			log.Info().Msg("Collecting main AD objects ...")
+			ui.Info().Msg("Collecting main AD objects ...")
 			do.SearchBase = domainContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 
@@ -408,9 +408,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	cp, _ := util.ParseBool(*collectgpos)
 	if *collectgpos == "auto" || cp {
-		log.Debug().Msg("Collecting GPO files ...")
+		ui.Debug().Msg("Collecting GPO files ...")
 		if *gpopath != "" {
-			log.Warn().Msg("Disabling GPO file ACL detection on overridden GPO path")
+			ui.Warn().Msg("Disabling GPO file ACL detection on overridden GPO path")
 		}
 		for _, object := range gpostocollect {
 			// Let's check if it this is a GPO and then add som fake attributes to represent it
@@ -425,17 +425,17 @@ func Execute(cmd *cobra.Command, args []string) error {
 				gppath := originalpath
 				if *gpopath != "" {
 					if len(gpoguid) != 1 {
-						log.Warn().Msgf("GPO %v GUID not readable, skipping", gpodisplayname)
+						ui.Warn().Msgf("GPO %v GUID not readable, skipping", gpodisplayname)
 						continue
 					}
 
 					gppath = filepath.Join(*gpopath, gpoguid[0])
 				}
-				log.Info().Msgf("Collecting group policy files from %v ...", gppath)
+				ui.Info().Msgf("Collecting group policy files from %v ...", gppath)
 
 				_, err := os.Stat(gppath)
 				if err != nil {
-					log.Warn().Msg("Can't access path, aborting this GPO ...")
+					ui.Warn().Msg("Can't access path, aborting this GPO ...")
 				} else {
 					gpoinfo := activedirectory.GPOdump{
 						Common: basedata.GetCommonData(),
@@ -473,7 +473,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 								fileinfo.OwnerSID = owner
 								fileinfo.DACL = dacl
 							} else {
-								log.Warn().Msgf("Problem getting %v DACL: %v", curpath, err)
+								ui.Warn().Msgf("Problem getting %v DACL: %v", curpath, err)
 							}
 						}
 						if !d.IsDir() {
@@ -483,7 +483,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 							if err == nil {
 								fileinfo.Contents = rawfile
 							} else {
-								log.Warn().Msgf("Problem getting %v contents: %v", curpath, err)
+								ui.Warn().Msgf("Problem getting %v contents: %v", curpath, err)
 							}
 						}
 						gpoinfo.GPOinfo.Files = append(gpoinfo.GPOinfo.Files, fileinfo)
@@ -491,13 +491,13 @@ func Execute(cmd *cobra.Command, args []string) error {
 					})
 
 					if filescollected == 0 {
-						log.Warn().Msgf("No files found/accessible in %v", gppath)
+						ui.Warn().Msgf("No files found/accessible in %v", gppath)
 					}
 
 					gpodatafile := filepath.Join(datapath, gpoguid[0]+".gpodata.json")
 					f, err := os.Create(gpodatafile)
 					if err != nil {
-						log.Error().Msgf("Problem writing GPO information to %v: %v")
+						ui.Error().Msgf("Problem writing GPO information to %v: %v")
 					}
 					defer f.Close()
 
@@ -505,11 +505,11 @@ func Execute(cmd *cobra.Command, args []string) error {
 					encoder.SetIndent("", "  ")
 					err = encoder.Encode(gpoinfo)
 					if err != nil {
-						log.Error().Msgf("Problem marshalling GPO information to %v: %v", gpodatafile, err)
+						ui.Error().Msgf("Problem marshalling GPO information to %v: %v", gpodatafile, err)
 					}
 				}
 			} else {
-				log.Warn().Msgf("Skipping %v, not a GPO", object.Attributes["displayName"])
+				ui.Warn().Msgf("Skipping %v, not a GPO", object.Attributes["displayName"])
 			}
 		}
 	}

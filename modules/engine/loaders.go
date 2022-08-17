@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 type LoaderID int
@@ -25,6 +25,10 @@ type Loader interface {
 
 	// Close signals that no more files are coming
 	Close() ([]*Objects, error)
+}
+
+type LoaderEstimator interface {
+	Estimate(path string, cb ProgressCallbackFunc) error
 }
 
 var (
@@ -63,7 +67,7 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 		return nil, fmt.Errorf("%v is no a directory", path)
 	}
 
-	log.Info().Msgf("Scanning for data files from %v ...", path)
+	ui.Info().Msgf("Scanning for data files from %v ...", path)
 	type fs struct {
 		filename string
 		size     int64
@@ -79,16 +83,26 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 		}
 		return nil
 	})
-	log.Info().Msgf("Will process %v files", len(files))
+	ui.Info().Msgf("Will process %v files", len(files))
 
 	// Sort by biggest files first
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].size > files[j].size
 	})
 
-	log.Debug().Msg("Processing files with the biggest files first")
+	ui.Debug().Msg("Processing files with the biggest files first")
 
-	cb(0, len(files))
+	ui.Debug().Msg("Estimating data to process")
+	for _, file := range files {
+		for _, loader := range loaders {
+			if le, ok := loader.(LoaderEstimator); ok {
+				le.Estimate(file.filename, cb)
+			} else {
+				// Regular, just add the file as something to process
+				cb(0, -1)
+			}
+		}
+	}
 
 	var skipped int
 	for _, file := range files {
@@ -102,7 +116,7 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 			case ErrUninterested:
 				// loop, and try next loader
 			default:
-				log.Error().Msgf("Error from loader %v: %v", loader.Name(), fileerr)
+				ui.Error().Msgf("Error from loader %v: %v", loader.Name(), fileerr)
 				// return fileerr
 			}
 		}
@@ -116,7 +130,7 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 	var globalerr error
 	var totalobjects int
 
-	log.Info().Msgf("Loaded %v files, skipped %v files", len(files)-skipped, skipped)
+	ui.Info().Msgf("Loaded %v files, skipped %v files", len(files)-skipped, skipped)
 
 	var aos []loaderobjects
 
@@ -133,9 +147,9 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 			totalobjects += lo.Len()
 			aos = append(aos, loaderobjects{loader, lo})
 		}
-		log.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
+		ui.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
 	}
-	log.Info().Msgf("We produced a total of %v objects from %v", totalobjects, path)
+	ui.Info().Msgf("We produced a total of %v objects from %v", totalobjects, path)
 
 	return aos, globalerr
 }

@@ -143,7 +143,7 @@ func (q queue) Empty() bool {
 	return len(q.items) == 0
 }
 
-func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitmap, minprobability Probability, iterations int) PwnGraph {
+func AnalyzePaths(start, end *Object, obs *Objects, lookformethods EdgeBitmap, minprobability Probability, iterations int) Graph {
 	visited := make(map[*Object]struct{})
 	dist := make(map[*Object]uint32)
 	prev := make(map[*Object]*Object)
@@ -206,11 +206,11 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 
 	if prev[end] == nil {
 		// No results
-		return PwnGraph{}
+		return Graph{}
 	}
 
-	var result PwnGraph
-	result.Nodes = append(result.Nodes, Node{
+	var result Graph
+	result.Nodes = append(result.Nodes, GraphNode{
 		Object:    end,
 		Target:    true,
 		CanExpand: 0,
@@ -219,16 +219,16 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods PwnMethodBitm
 	curnode := end
 	prenode := prev[end]
 	for {
-		result.Nodes = append(result.Nodes, Node{
+		result.Nodes = append(result.Nodes, GraphNode{
 			Object:    prenode,
 			Target:    false,
 			CanExpand: 0,
 		})
 		result.Connections = append(result.Connections,
-			Edge{
-				Source:          prenode,
-				Target:          curnode,
-				PwnMethodBitmap: prenode.CanPwn[curnode],
+			GraphEdge{
+				Source:     prenode,
+				Target:     curnode,
+				EdgeBitmap: prenode.CanPwn[curnode],
 			})
 		if prenode == start {
 			break

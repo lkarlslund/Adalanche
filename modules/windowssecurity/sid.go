@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/lkarlslund/adalanche/modules/dedup"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 type SID string
@@ -149,7 +149,7 @@ func (sid SID) Component(n int) uint64 {
 
 func (sid SID) StripRID() SID {
 	if len(sid) < 12 {
-		log.Error().Msgf("SID %s is too short to strip RID", sid)
+		ui.Error().Msgf("SID %s is too short to strip RID", sid)
 		return ""
 	}
 	newsid := make([]byte, len(sid)-4)

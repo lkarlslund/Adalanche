@@ -5,10 +5,8 @@ import (
 	"os"
 
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine/collect"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/version"
-	"github.com/mattn/go-colorable"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +17,9 @@ import (
 var (
 	wrapcollector = &cobra.Command{}
 	datapath      = wrapcollector.Flags().String("outputpath", "", "Dump output JSON file in this folder")
-	debuglogging  = wrapcollector.Flags().Bool("debug", false, "Debug logging")
+	loglevel      = wrapcollector.Flags().String("loglevel", "info", "Console log level")
+	logfile       = wrapcollector.Flags().String("logfile", "", "Log file")
+	logfilelevel  = wrapcollector.Flags().String("logfilelevel", "info", "Log file log level")
 )
 
 func init() {
@@ -27,11 +27,20 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	if !*debuglogging {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	ll, err := ui.LogLevelString(*loglevel)
+	if err != nil {
+		ui.Error().Msgf("Invalid log level: %v - use one of: %v", *loglevel, ui.LogLevelStrings())
 	} else {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-		log.Info().Msg("Debug logging enabled")
+		ui.SetDefaultLoglevel(ll)
+	}
+
+	if *logfile != "" {
+		ll, err = ui.LogLevelString(*logfilelevel)
+		if err != nil {
+			ui.Error().Msgf("Invalid log file log level: %v - use one of: %v", *logfilelevel, ui.LogLevelStrings())
+		} else {
+			ui.SetLogFile(*logfile, ll)
+		}
 	}
 
 	// Ensure the data folder is available
@@ -46,15 +55,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:        colorable.NewColorableStdout(),
-		TimeFormat: "15:04:05.06",
-	})
-
-	log.Info().Msg(version.VersionString())
+	ui.Info().Msg(version.VersionString())
 
 	err := wrapcollector.Execute()
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to execute")
+		ui.Error().Err(err).Msg("Failed to execute")
 	}
 }

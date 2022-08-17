@@ -1,76 +1,76 @@
 package engine
 
-import "log"
+import "github.com/lkarlslund/adalanche/modules/ui"
 
 type DynamicFields map[string]interface{}
 
-type PwnGraph struct {
-	Nodes       []Node
-	Connections []Edge // Connection to Methods map
+type Graph struct {
+	Nodes       []GraphNode
+	Connections []GraphEdge // Connection to Methods map
 }
 
-type Node struct {
+type GraphNode struct {
 	*Object
 	Target    bool
 	CanExpand int
 	DynamicFields
 }
 
-func (n *Node) Set(key string, value interface{}) {
+func (n *GraphNode) Set(key string, value interface{}) {
 	if n.DynamicFields == nil {
 		n.DynamicFields = make(DynamicFields)
 	}
 	n.DynamicFields[key] = value
 }
 
-func (n *Node) Get(key string) interface{} {
+func (n *GraphNode) Get(key string) interface{} {
 	if n.DynamicFields == nil {
 		return nil
 	}
 	return n.DynamicFields[key]
 }
 
-type Edge struct {
+type GraphEdge struct {
 	Source, Target *Object
-	PwnMethodBitmap
+	EdgeBitmap
 	DynamicFields
 }
 
-func (e *Edge) Set(key string, value interface{}) {
+func (e *GraphEdge) Set(key string, value interface{}) {
 	if e.DynamicFields == nil {
 		e.DynamicFields = make(DynamicFields)
 	}
 	e.DynamicFields[key] = value
 }
 
-func (e *Edge) Get(key string) interface{} {
+func (e *GraphEdge) Get(key string) interface{} {
 	if e.DynamicFields == nil {
 		return nil
 	}
 	return e.DynamicFields[key]
 }
 
-type PwnPair struct {
+type ObjectPair struct {
 	Source, Target *Object
 }
 
-func (pg *PwnGraph) Merge(npg PwnGraph) {
-	nodemap := make(map[*Object]Node)
+func (pg *Graph) Merge(npg Graph) {
+	nodemap := make(map[*Object]GraphNode)
 	for _, node := range pg.Nodes {
 		nodemap[node.Object] = node
 	}
 
 	if len(nodemap) != len(pg.Nodes) {
-		log.Panic("Nodes not equal")
+		ui.Fatal().Msg("Nodes not equal")
 	}
 
-	pairmap := make(map[PwnPair]PwnMethodBitmap)
+	pairmap := make(map[ObjectPair]EdgeBitmap)
 	for _, connection := range pg.Connections {
-		pairmap[PwnPair{connection.Source, connection.Target}] = connection.PwnMethodBitmap
+		pairmap[ObjectPair{connection.Source, connection.Target}] = connection.EdgeBitmap
 	}
 
 	if len(pairmap) != len(pg.Connections) {
-		log.Panic("Connections not equal")
+		ui.Fatal().Msg("Connections not equal")
 	}
 
 	for _, node := range npg.Nodes {
@@ -89,34 +89,34 @@ func (pg *PwnGraph) Merge(npg PwnGraph) {
 	}
 
 	for _, connection := range npg.Connections {
-		if e, ok := pairmap[PwnPair{connection.Source, connection.Target}]; ok {
-			e.Merge(connection.PwnMethodBitmap)
-			pairmap[PwnPair{connection.Source, connection.Target}] = e
+		if e, ok := pairmap[ObjectPair{connection.Source, connection.Target}]; ok {
+			e.Merge(connection.EdgeBitmap)
+			pairmap[ObjectPair{connection.Source, connection.Target}] = e
 		} else {
-			pairmap[PwnPair{connection.Source, connection.Target}] = connection.PwnMethodBitmap
+			pairmap[ObjectPair{connection.Source, connection.Target}] = connection.EdgeBitmap
 		}
 	}
 
-	pg.Nodes = make([]Node, len(nodemap))
+	pg.Nodes = make([]GraphNode, len(nodemap))
 	i := 0
 	for _, node := range nodemap {
 		pg.Nodes[i] = node
 		i++
 	}
 
-	pg.Connections = make([]Edge, len(pairmap))
+	pg.Connections = make([]GraphEdge, len(pairmap))
 	i = 0
 	for connection, methods := range pairmap {
-		pg.Connections[i] = Edge{
-			Source:          connection.Source,
-			Target:          connection.Target,
-			PwnMethodBitmap: methods,
+		pg.Connections[i] = GraphEdge{
+			Source:     connection.Source,
+			Target:     connection.Target,
+			EdgeBitmap: methods,
 		}
 		i++
 	}
 }
 
-func (pg PwnGraph) SCC() [][]*Object {
+func (pg Graph) SCC() [][]*Object {
 	offsetmap := make(map[*Object]int)
 	for i, o := range pg.Nodes {
 		offsetmap[o.Object] = i
@@ -195,17 +195,17 @@ func transpose(graph [][]int) [][]int {
 }
 
 //transpose transposes (reverses) a directed graph
-func (pg PwnGraph) Transpose() PwnGraph {
-	npg := PwnGraph{
-		Nodes:       make([]Node, len(pg.Nodes)),
-		Connections: make([]Edge, len(pg.Connections)),
+func (pg Graph) Transpose() Graph {
+	npg := Graph{
+		Nodes:       make([]GraphNode, len(pg.Nodes)),
+		Connections: make([]GraphEdge, len(pg.Connections)),
 	}
 	copy(npg.Nodes, pg.Nodes)
 	for i, connection := range pg.Connections {
-		npg.Connections[i] = Edge{
-			Source:          connection.Target,
-			Target:          connection.Source,
-			PwnMethodBitmap: connection.PwnMethodBitmap,
+		npg.Connections[i] = GraphEdge{
+			Source:     connection.Target,
+			Target:     connection.Source,
+			EdgeBitmap: connection.EdgeBitmap,
 		}
 	}
 	return npg

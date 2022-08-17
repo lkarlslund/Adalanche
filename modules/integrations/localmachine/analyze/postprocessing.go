@@ -3,7 +3,7 @@ package analyze
 import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 func init() {
@@ -14,11 +14,11 @@ func init() {
 			if o.HasAttrValue(engine.MetaDataSource, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
 					if len(o.CanPwn) == 0 && len(o.PwnableBy) == 0 {
-						log.Debug().Msgf("Object has no graph connections: %v", o.Label())
+						ui.Debug().Msgf("Object has no graph connections: %v", o.Label())
 					}
 					warns++
-					if warns > 500 {
-						log.Debug().Msg("Stopping warnings about graph connections, too much output")
+					if warns > 100 {
+						ui.Debug().Msg("Stopping warnings about graph connections, too much output")
 						break
 					}
 				}

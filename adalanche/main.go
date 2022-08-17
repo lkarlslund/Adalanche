@@ -8,14 +8,14 @@ import (
 	_ "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/collect"
 	_ "github.com/lkarlslund/adalanche/modules/integrations/localmachine/analyze"
 	_ "github.com/lkarlslund/adalanche/modules/quickmode"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 func main() {
 	err := cli.Run()
 
 	if err != nil {
-		log.Error().Msg(err.Error())
+		ui.Error().Msg(err.Error())
 		os.Exit(1)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 var attributenames = make(map[string]Attribute)
@@ -20,6 +20,7 @@ type attributeinfo struct {
 	single bool // If true, this attribute can not have multiple values
 	unique bool // Doing a Find on this attribute will return multiple results
 	merge  bool // If true, objects can be merged on this attribute
+	hidden bool // If true this does not show up in the list of attributes
 	onset  AttributeSetFunc
 	onget  AttributeGetFunc
 }
@@ -108,7 +109,7 @@ var attributemutex sync.RWMutex
 func NewAttribute(name string) Attribute {
 	if name[len(name)-1] >= '0' && name[len(name)-1] <= '9' && strings.Index(name, ";") != -1 {
 		if !strings.HasPrefix(name, "member;") {
-			log.Debug().Msgf("Incomplete data detected in attribute %v", name)
+			ui.Debug().Msgf("Incomplete data detected in attribute %v", name)
 		}
 		pos := strings.Index(name, ";")
 		name = name[pos+1:]
@@ -150,6 +151,9 @@ func NewAttribute(name string) Attribute {
 }
 
 func (a Attribute) String() string {
+	if a == -1 {
+		return "N/A"
+	}
 	return attributenums[a].name
 }
 
@@ -178,6 +182,15 @@ func (a Attribute) IsNonUnique() bool {
 
 func (a Attribute) IsUnique() bool {
 	return attributenums[a].unique
+}
+
+func (a Attribute) Hidden() Attribute {
+	attributenums[a].hidden = true
+	return a
+}
+
+func (a Attribute) IsHidden() bool {
+	return attributenums[a].hidden
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")

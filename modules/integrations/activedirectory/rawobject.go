@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	ldap "github.com/lkarlslund/ldap/v3"
-	"github.com/rs/zerolog/log"
 )
 
 //go:generate msgp
@@ -88,14 +88,14 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			// Just use string encoding
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
 				if attribute == PwdLastSet && intval == 0 {
-					// log.Warn().Msg("PwdLastSet is 0")
+					// ui.Warn().Msg("PwdLastSet is 0")
 					attributevalue = engine.AttributeValueInt(intval)
 				} else {
 					t := util.FiletimeToTime(uint64(intval))
 					attributevalue = engine.AttributeValueTime(t)
 				}
 			} else {
-				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
+				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
 			}
 		case WhenChanged, WhenCreated, DsCorePropagationData,
 			MsExchLastUpdateTime, MsExchPolicyLastAppliedTime, MsExchWhenMailboxCreated,
@@ -108,16 +108,16 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
 					attributevalue = engine.AttributeValueTime(t)
 				} else {
-					log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
+					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
 			case 12:
 				if t, err := time.Parse("060102150405", tvalue); err == nil {
 					attributevalue = engine.AttributeValueTime(t)
 				} else {
-					log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
+					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
 			default:
-				log.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
+				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
@@ -127,14 +127,14 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 					guid = util.SwapUUIDEndianess(guid)
 					attributevalue = engine.AttributeValueGUID(guid)
 				} else {
-					log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
+					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 				}
 			case 36:
 				guid, err := uuid.FromString(value)
 				if err == nil {
 					attributevalue = engine.AttributeValueGUID(guid)
 				} else {
-					log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
+					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
 				}
 			}
 		case ObjectGUID:
@@ -143,7 +143,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				// 	guid = SwapUUIDEndianess(guid)
 				attributevalue = engine.AttributeValueGUID(guid)
 			} else {
-				log.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
+				ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			attributevalue = engine.AttributeValueSID(value)

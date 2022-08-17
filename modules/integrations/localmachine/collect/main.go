@@ -21,10 +21,10 @@ import (
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/version"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	winapi "github.com/lkarlslund/go-win64api"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -57,7 +57,7 @@ func Collect(outputpath string) error {
 	}
 
 	if !is64Bit && os64Bit {
-		log.Debug().Msgf("Running as 32-bit on 64-bit system")
+		ui.Debug().Msgf("Running as 32-bit on 64-bit system")
 	}
 
 	// MACHINE
@@ -91,7 +91,7 @@ func Collect(outputpath string) error {
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		log.Warn().Msgf("Problem getting network adapter information: %v", err)
+		ui.Warn().Msgf("Problem getting network adapter information: %v", err)
 	} else {
 		for _, iface := range interfaces {
 			addrs, _ := iface.Addrs()
@@ -287,7 +287,7 @@ func Collect(outputpath string) error {
 		ts.Disconnect()
 	}
 
-	// GATHER INTERESTING STUFF FROM EVENT LOG
+	// GATHER INTERESTING STUFF FROM EVENT ui
 
 	// chn, _ := wineventlog.Channels()
 	// for _, channel := range chn {
@@ -437,7 +437,7 @@ func Collect(outputpath string) error {
 
 	var availabilityinfo localmachine.Availability
 	var laststart, laststop time.Time
-	laststart = laststart.Add(time.Minute) // First hit in event log might be a shutdown event, so we just assume it was powered on ages ago
+	laststart = laststart.Add(time.Minute) // First hit in event ui might be a shutdown event, so we just assume it was powered on ages ago
 	if err == nil {
 		for {
 			events, _, _, err := elog.Read()
@@ -465,7 +465,7 @@ func Collect(outputpath string) error {
 											laststop = st
 											// Might be an interval ...
 											if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
-												// log.Info().Msgf("%v -> %v", laststart, laststop)
+												// ui.Info().Msgf("%v -> %v", laststart, laststop)
 												registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
 												laststart = time.Time{}
 												laststop = time.Time{}
@@ -480,35 +480,35 @@ func Collect(outputpath string) error {
 								}
 
 								laststart = t
-								// log.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
-								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+								// ui.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
+								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
 							}
 						case "12": // Startup
 							if providername == "Microsoft-Windows-Kernel-General" {
 								laststart = t
-								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
 							}
 						case "13": // Shutdown
 							if providername == "Microsoft-Windows-Kernel-General" {
 								laststop = t
-								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
 							}
 						case "42": // Sleep
 							if providername == "Microsoft-Windows-Kernel-Power" {
 								laststop = t
-								// log.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
-								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+								// ui.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
+								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
 							}
 						case "6008": // Unexpected shutdown
 							if providername == "Eventlog" {
 								laststop = t
-								// log.Info().Msgf("%v %v %v", t, providername, eventid)
+								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
 							}
 						}
 					}
 
 					if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
-						// log.Info().Msgf("%v -> %v", laststart, laststop)
+						// ui.Info().Msgf("%v -> %v", laststart, laststop)
 						registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
 						laststart = time.Time{}
 						laststop = time.Time{}
@@ -522,7 +522,7 @@ func Collect(outputpath string) error {
 			registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
 		}
 	}
-	// log.Info().Msgf("%v %v %v", timeonmonth, timeonweek, timeonday)
+	// ui.Info().Msgf("%v %v %v", timeonmonth, timeonweek, timeonday)
 	availabilityinfo = localmachine.Availability{
 		Day:   uint64(timeonday.Minutes()),
 		Week:  uint64(timeonweek.Minutes()),
@@ -554,7 +554,7 @@ func Collect(outputpath string) error {
 					_, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
 
 					// if strings.HasSuffix(imagepath, "locator.exe") {
-					// 	log.Info().Msg("Jackpot!")
+					// 	ui.Info().Msg("Jackpot!")
 					// }
 
 					// let's see if we can grab a DACL
@@ -586,7 +586,7 @@ func Collect(outputpath string) error {
 							trypath := imagepath
 							for {
 								statpath := resolvepath(trypath)
-								log.Debug().Msgf("Trying %v -> %v", trypath, statpath)
+								ui.Debug().Msgf("Trying %v -> %v", trypath, statpath)
 								if _, err = os.Stat(statpath); err == nil {
 									executable = trypath
 									break
@@ -601,7 +601,7 @@ func Collect(outputpath string) error {
 								}
 							}
 						}
-						log.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
+						ui.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
 						executable = resolvepath(executable)
 						imageexecutable = executable
 						if executable != "" {
@@ -610,10 +610,10 @@ func Collect(outputpath string) error {
 								imagepathowner = ownersid.String()
 								imagepathdacl = dacl
 							} else {
-								log.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
+								ui.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
 							}
 						} else {
-							log.Warn().Msgf("Could not resolve executable %v", imagepath)
+							ui.Warn().Msgf("Could not resolve executable %v", imagepath)
 						}
 					}
 
@@ -707,17 +707,16 @@ func Collect(outputpath string) error {
 					AssignedSIDs: sidstrings,
 				})
 			} else if err != STATUS_NO_MORE_ENTRIES && err != NO_MORE_DATA_IS_AVAILABLE {
-				log.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
+				ui.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
 			}
 		}
 		LsaClose(*pol)
 	} else {
-		log.Warn().Msgf("Could not open LSA policy: %v", err)
+		ui.Warn().Msgf("Could not open LSA policy: %v", err)
 	}
 	info := localmachine.Info{
 		Common: basedata.Common{
 			Collector: "collector",
-			BuildDate: version.Builddate,
 			Commit:    version.Commit,
 			Collected: time.Now(),
 		},
@@ -747,7 +746,7 @@ func Collect(outputpath string) error {
 	}
 
 	if outputpath == "" {
-		log.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
+		ui.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
 		outputpath = "."
 	}
 
@@ -765,7 +764,7 @@ func Collect(outputpath string) error {
 	if err != nil {
 		return fmt.Errorf("Problem writing to file %v: %v", outputfile, err)
 	}
-	log.Info().Msgf("Information collected to file %v", outputfile)
+	ui.Info().Msgf("Information collected to file %v", outputfile)
 
 	return nil
 }

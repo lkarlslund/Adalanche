@@ -213,7 +213,7 @@ var randomlayout = {
     name: 'random'
 }
 
-var cytostyle = [{
+cytostyle = [{
     selector: "node",
     style: {
         label: function (ele) { return nodelabel(ele); },

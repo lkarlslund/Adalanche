@@ -11,7 +11,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/version"
 )
 
-func ExportGraphViz(pg engine.PwnGraph, filename string) error {
+func ExportGraphViz(pg engine.Graph, filename string) error {
 	df, _ := os.Create(filename)
 	defer df.Close()
 
@@ -59,7 +59,7 @@ type CytoFlatElement struct {
 	Data  MapStringInterface `json:"data"`
 }
 
-func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error) {
+func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
 		GeneratedBy:              version.ProgramVersionShort(),
@@ -158,7 +158,7 @@ func GenerateCytoscapeJS(pg engine.PwnGraph, alldetails bool) (CytoGraph, error)
 	return g, nil
 }
 
-func ExportCytoscapeJS(pg engine.PwnGraph, filename string) error {
+func ExportCytoscapeJS(pg engine.Graph, filename string) error {
 	g, err := GenerateCytoscapeJS(pg, false)
 	if err != nil {
 		return err

@@ -9,8 +9,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -21,45 +21,45 @@ var (
 	ServiceStart            = engine.NewAttribute("serviceStart")
 	ServiceType             = engine.NewAttribute("serviceType")
 
-	PwnLocalAdminRights             = engine.NewPwn("AdminRights")
-	PwnLocalRDPRights               = engine.NewPwn("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
-	PwnLocalDCOMRights              = engine.NewPwn("DCOMRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
-	PwnLocalSMSAdmins               = engine.NewPwn("SMSAdmins").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
-	PwnLocalSessionLastDay          = engine.NewPwn("SessionLastDay").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 80 })
-	PwnLocalSessionLastWeek         = engine.NewPwn("SessionLastWeek").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 55 })
-	PwnLocalSessionLastMonth        = engine.NewPwn("SessionLastMonth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
-	PwnHasServiceAccountCredentials = engine.NewPwn("SvcAccntCreds")
-	PwnHasAutoAdminLogonCredentials = engine.NewPwn("AutoAdminLogonCreds")
-	PwnRunsExecutable               = engine.NewPwn("RunsExecutable")
-	PwnHosts                        = engine.NewPwn("Hosts")
-	PwnRunsAs                       = engine.NewPwn("RunsAs")
-	PwnExecuted                     = engine.NewPwn("Executed")
-	PwnFileOwner                    = engine.NewPwn("FileOwner")
-	PwnFileTakeOwnership            = engine.NewPwn("FileTakeOwnership")
-	PwnFileWrite                    = engine.NewPwn("FileWrite")
-	PwnFileRead                     = engine.NewPwn("FileRead")
-	PwnFileModifyDACL               = engine.NewPwn("FileModifyDACL")
-	PwnFileShare                    = engine.NewPwn("FileShare")
-	PwnRegistryWrite                = engine.NewPwn("RegistryWrite")
-	PwnRegistryModifyDACL           = engine.NewPwn("RegistryModifyDACL")
+	PwnLocalAdminRights             = engine.NewEdge("AdminRights")
+	PwnLocalRDPRights               = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
+	PwnLocalDCOMRights              = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
+	PwnLocalSMSAdmins               = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
+	PwnLocalSessionLastDay          = engine.NewEdge("SessionLastDay").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 80 })
+	PwnLocalSessionLastWeek         = engine.NewEdge("SessionLastWeek").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 55 })
+	PwnLocalSessionLastMonth        = engine.NewEdge("SessionLastMonth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
+	PwnHasServiceAccountCredentials = engine.NewEdge("SvcAccntCreds")
+	PwnHasAutoAdminLogonCredentials = engine.NewEdge("AutoAdminLogonCreds")
+	PwnRunsExecutable               = engine.NewEdge("RunsExecutable")
+	PwnHosts                        = engine.NewEdge("Hosts")
+	PwnRunsAs                       = engine.NewEdge("RunsAs")
+	PwnExecuted                     = engine.NewEdge("Executed")
+	PwnFileOwner                    = engine.NewEdge("FileOwner")
+	PwnFileTakeOwnership            = engine.NewEdge("FileTakeOwnership")
+	PwnFileWrite                    = engine.NewEdge("FileWrite")
+	PwnFileRead                     = engine.NewEdge("FileRead")
+	PwnFileModifyDACL               = engine.NewEdge("FileModifyDACL")
+	PwnFileShare                    = engine.NewEdge("FileShare")
+	PwnRegistryWrite                = engine.NewEdge("RegistryWrite")
+	PwnRegistryModifyDACL           = engine.NewEdge("RegistryModifyDACL")
 
-	PwnSeBackupPrivilege        = engine.NewPwn("SeBackupPrivilege")
-	PwnSeRestorePrivilege       = engine.NewPwn("SeRestorePrivilege")
-	PwnSeTakeOwnershipPrivilege = engine.NewPwn("SeTakeOwnershipPrivilege")
+	PwnSeBackupPrivilege        = engine.NewEdge("SeBackupPrivilege")
+	PwnSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")
+	PwnSeTakeOwnershipPrivilege = engine.NewEdge("SeTakeOwnershipPrivilege")
 
-	PwnSeAssignPrimaryToken = engine.NewPwn("SeAssignPrimaryToken")
-	PwnSeCreateToken        = engine.NewPwn("SeCreateToken")
-	PwnSeDebug              = engine.NewPwn("SeDebug")
-	PwnSeImpersonate        = engine.NewPwn("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
-	PwnSeLoadDriver         = engine.NewPwn("SeLoadDriver")
-	PwnSeManageVolume       = engine.NewPwn("SeManageVolume")
-	PwnSeTakeOwnership      = engine.NewPwn("SeTakeOwnership")
-	PwnSeTcb                = engine.NewPwn("SeTcb")
+	PwnSeAssignPrimaryToken = engine.NewEdge("SeAssignPrimaryToken")
+	PwnSeCreateToken        = engine.NewEdge("SeCreateToken")
+	PwnSeDebug              = engine.NewEdge("SeDebug")
+	PwnSeImpersonate        = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
+	PwnSeLoadDriver         = engine.NewEdge("SeLoadDriver")
+	PwnSeManageVolume       = engine.NewEdge("SeManageVolume")
+	PwnSeTakeOwnership      = engine.NewEdge("SeTakeOwnership")
+	PwnSeTcb                = engine.NewEdge("SeTcb")
 
-	PwnSIDCollision = engine.NewPwn("SIDCollision")
+	PwnSIDCollision = engine.NewEdge("SIDCollision")
 
 	DNSHostname        = engine.NewAttribute("dnsHostName")
-	PwnControlsUpdates = engine.NewPwn("ControlsUpdates")
+	PwnControlsUpdates = engine.NewEdge("ControlsUpdates")
 	WUServer           = engine.NewAttribute("wuServer")
 	SCCMServer         = engine.NewAttribute("sccmServer")
 )
@@ -226,7 +226,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 				)
 				user.ChildOf(userscontainer)
 			} else {
-				log.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
+				ui.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
 			}
 		}
 
@@ -248,7 +248,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 			)
 
 			if err != nil && group.Name != "SMS Admins" {
-				log.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
+				ui.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
 				continue
 			}
 			for _, member := range group.Members {
@@ -256,14 +256,14 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 				if member.SID != "" {
 					membersid, err = windowssecurity.SIDFromString(member.SID)
 					if err != nil {
-						log.Warn().Msgf("Can't convert local group member SID %v: %v", member.SID, err)
+						ui.Warn().Msgf("Can't convert local group member SID %v: %v", member.SID, err)
 						continue
 					}
 				} else {
 					// Some members show up with the SID in the name field FML
 					membersid, err = windowssecurity.SIDFromString(member.Name)
 					if err != nil {
-						log.Info().Msgf("Fallback SID translation on %v failed: %v", member.Name, err)
+						ui.Info().Msgf("Fallback SID translation on %v failed: %v", member.Name, err)
 						continue
 					}
 				}
@@ -273,7 +273,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 				}
 
 				if membersid.Components() != 7 {
-					log.Warn().Msgf("Malformed SID from collector: %v, skipping member entry entirely", membersid.String())
+					ui.Warn().Msgf("Malformed SID from collector: %v, skipping member entry entirely", membersid.String())
 					continue
 				}
 
@@ -323,7 +323,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 	for _, login := range cinfo.LoginPopularity.Day {
 		usersid, err := windowssecurity.SIDFromString(login.SID)
 		if err != nil {
-			log.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
+			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
 		}
 		if usersid.Component(2) != 21 {
@@ -353,7 +353,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 	for _, login := range cinfo.LoginPopularity.Week {
 		usersid, err := windowssecurity.SIDFromString(login.SID)
 		if err != nil {
-			log.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
+			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
 		}
 		if usersid.Component(2) != 21 {
@@ -382,7 +382,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 	for _, login := range cinfo.LoginPopularity.Month {
 		usersid, err := windowssecurity.SIDFromString(login.SID)
 		if err != nil {
-			log.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
+			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
 		}
 		if usersid.Component(2) != 21 {
@@ -557,7 +557,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 					}
 				}
 			}
-			// log.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
+			// ui.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
 		}
 	}
 
@@ -574,7 +574,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 
 	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
 	for _, pi := range cinfo.Privileges {
-		var pwn engine.PwnMethod
+		var pwn engine.Edge
 		switch pi.Name {
 		case "SeBackupPrivilege":
 			pwn = PwnSeBackupPrivilege
@@ -603,7 +603,7 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 		for _, sidstring := range pi.AssignedSIDs {
 			sid, err := windowssecurity.SIDFromString(sidstring)
 			if err != nil {
-				log.Error().Msgf("Invalid SID %v: %v", sidstring, err)
+				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
 				continue
 			}
 
@@ -651,10 +651,10 @@ func (ld *LocalMachineLoader) ImportCollectorInfo(cinfo localmachine.Info) error
 
 			if sd, err := engine.ParseSecurityDescriptor(share.DACL); err == nil {
 				// if !sd.Owner.IsNull() {
-				// 	log.Warn().Msgf("Share %v has owner set to %v", share.Name, sd.Owner)
+				// 	ui.Warn().Msgf("Share %v has owner set to %v", share.Name, sd.Owner)
 				// }
 				// if !sd.Group.IsNull() {
-				// 	log.Warn().Msgf("Share %v has group set to %v", share.Name, sd.Group)
+				// 	ui.Warn().Msgf("Share %v has group set to %v", share.Name, sd.Group)
 				// }
 				for _, entry := range sd.DACL.Entries {
 					entrysid := entry.SID

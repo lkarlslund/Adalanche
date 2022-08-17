@@ -1,126 +1,32 @@
-package ldapquery
+package query
 
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gobwas/glob"
 	"github.com/gobwas/glob/util/runes"
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	timespan "github.com/lkarlslund/time-timespan"
 )
 
-type Query interface {
-	Evaluate(o *engine.Object) bool
-}
-
-// Wraps one Attribute around a queryattribute interface
-type QueryOneAttribute struct {
-	a engine.Attribute
-	q QueryAttribute
-}
-
-func (qoa QueryOneAttribute) Evaluate(o *engine.Object) bool {
-	return qoa.q.Evaluate(qoa.a, o)
-}
-
-// Wraps one Attribute around a queryattribute interface
-type QueryMultipleAttributes struct {
-	a []engine.Attribute
-	q QueryAttribute
-}
-
-func (qma QueryMultipleAttributes) Evaluate(o *engine.Object) bool {
-	for _, a := range qma.a {
-		if qma.q.Evaluate(a, o) {
-			return true
-		}
-	}
-	return false
-}
-
-// Wraps any attribute around a queryattribute interface
-type QueryAnyAttribute struct {
-	q QueryAttribute
-}
-
-func (qaa QueryAnyAttribute) Evaluate(o *engine.Object) bool {
-	for a, _ := range o.AttributeValueMap() {
-		if qaa.q.Evaluate(a, o) {
-			return true
-		}
-	}
-	return false
-}
-
-type QueryAttribute interface {
-	Evaluate(a engine.Attribute, o *engine.Object) bool
-}
-
-type ObjectStrings interface {
-	Strings(o *engine.Object) []string
-}
-
-type ObjectInt interface {
-	Int(o *engine.Object) (int64, bool)
-}
-
-type comparatortype byte
-
-const (
-	CompareEquals comparatortype = iota
-	CompareLessThan
-	CompareLessThanEqual
-	CompareGreaterThan
-	CompareGreaterThanEqual
-)
-
-func (c comparatortype) Compare(a, b int64) bool {
-	switch c {
-	case CompareEquals:
-		return a == b
-	case CompareLessThan:
-		return a < b
-	case CompareLessThanEqual:
-		return a <= b
-	case CompareGreaterThan:
-		return a > b
-	case CompareGreaterThanEqual:
-		return a >= b
-	}
-	return false // I hope not
-}
-
-type LowerStringAttribute engine.Attribute
-
-func (a LowerStringAttribute) Strings(o *engine.Object) []string {
-	l := o.AttrRendered(engine.Attribute(a))
-	for i, s := range l {
-		l[i] = strings.ToLower(s)
-	}
-	return l
-}
-
-func ParseQueryStrict(s string, ao *engine.Objects) (Query, error) {
-	s, query, err := ParseQuery(s, ao)
+func ParseLDAPQueryStrict(s string, ao *engine.Objects) (Query, error) {
+	s, query, err := ParseLDAPQuery(s, ao)
 	if err == nil && s != "" {
 		return nil, fmt.Errorf("Extra data after query parsing: %v", s)
 	}
 	return query, err
 }
 
-func ParseQuery(s string, ao *engine.Objects) (string, Query, error) {
-	qs, q, err := parseRuneQuery([]rune(s), ao)
+func ParseLDAPQuery(s string, ao *engine.Objects) (string, Query, error) {
+	qs, q, err := parseLDAPRuneQuery([]rune(s), ao)
 	return string(qs), q, err
 }
 
-func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
+func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 	if len(s) < 5 {
 		return nil, nil, errors.New("Query string too short")
 	}
@@ -134,7 +40,7 @@ func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 	var err error
 	switch s[0] {
 	case '(': // double wrapped query?
-		s, query, err = parseRuneQuery(s, ao)
+		s, query, err = parseLDAPRuneQuery(s, ao)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -144,14 +50,14 @@ func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 		// Strip )
 		return s[1:], query, nil
 	case '&':
-		s, subqueries, err = parseMultipleRuneQueries(s[1:], ao)
+		s, subqueries, err = parseMultipleLDAPRuneQueries(s[1:], ao)
 		if err != nil {
 			return nil, nil, err
 		}
 		// Strip )
 		return s[1:], andquery{subqueries}, nil
 	case '|':
-		s, subqueries, err = parseMultipleRuneQueries(s[1:], ao)
+		s, subqueries, err = parseMultipleLDAPRuneQueries(s[1:], ao)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -161,7 +67,7 @@ func parseRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 		// Strip )
 		return s[1:], orquery{subqueries}, nil
 	case '!':
-		s, query, err = parseRuneQuery(s[1:], ao)
+		s, query, err = parseLDAPRuneQuery(s[1:], ao)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -322,17 +228,17 @@ valueloop:
 			commapos := strings.Index(pwnmethod, ",")
 			if commapos != -1 {
 				pwnmethod = value[:commapos]
-				target, err = ParseQueryStrict(value[commapos+1:], ao)
+				target, err = ParseLDAPQueryStrict(value[commapos+1:], ao)
 				if err != nil {
 					return nil, nil, fmt.Errorf("Could not parse sub-query: %v", err)
 				}
 			}
-			var method engine.PwnMethod
+			var method engine.Edge
 			if pwnmethod == "*" {
-				method = engine.AnyPwnMethod
+				method = engine.AnyEdgeType
 			} else {
-				method = engine.P(pwnmethod)
-				if method == engine.NonExistingPwnMethod {
+				method = engine.E(pwnmethod)
+				if method == engine.NonExistingEdgeType {
 					return nil, nil, fmt.Errorf("Could not convert value %v to pwn method", pwnmethod)
 				}
 			}
@@ -371,7 +277,7 @@ valueloop:
 		}
 	default:
 		genwrapper = func(aq QueryAttribute) Query {
-			return QueryMultipleAttributes{attributes, aq}
+			return QueryMultipleAttributes{attributename, attributes, aq}
 		}
 	}
 
@@ -465,9 +371,9 @@ valueloop:
 				return nil, nil, err
 			}
 			if casesensitive {
-				return s, genwrapper(hasGlobMatch{true, g}), nil
+				return s, genwrapper(hasGlobMatch{true, pattern, g}), nil
 			}
-			return s, genwrapper(hasGlobMatch{false, g}), nil
+			return s, genwrapper(hasGlobMatch{false, pattern, g}), nil
 		}
 		return s, genwrapper(hasStringMatch{casesensitive, value}), nil
 	}
@@ -480,12 +386,12 @@ valueloop:
 	return s, genwrapper(numericComparator{comparator, valuenum}), nil
 }
 
-func parseMultipleRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, error) {
+func parseMultipleLDAPRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, error) {
 	var result []Query
 	for len(s) > 0 && s[0] == '(' {
 		var query Query
 		var err error
-		s, query, err = parseRuneQuery(s, ao)
+		s, query, err = parseLDAPRuneQuery(s, ao)
 		if err != nil {
 			return s, nil, err
 		}
@@ -495,313 +401,4 @@ func parseMultipleRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, er
 		return nil, nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", s)
 	}
 	return s, result, nil
-}
-
-type andquery struct {
-	subitems []Query
-}
-
-func (q andquery) Evaluate(o *engine.Object) bool {
-	for _, query := range q.subitems {
-		if !query.Evaluate(o) {
-			return false
-		}
-	}
-	return true
-}
-
-type orquery struct {
-	subitems []Query
-}
-
-func (q orquery) Evaluate(o *engine.Object) bool {
-	for _, query := range q.subitems {
-		if query.Evaluate(o) {
-			return true
-		}
-	}
-	return false
-}
-
-type notquery struct {
-	subitem Query
-}
-
-func (q notquery) Evaluate(o *engine.Object) bool {
-	return !q.subitem.Evaluate(o)
-}
-
-type countModifier struct {
-	c     comparatortype
-	value int64
-}
-
-func (cm countModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	vals, found := o.Get(a)
-	count := 0
-	if found {
-		count = vals.Len()
-	}
-	return cm.c.Compare(int64(count), cm.value)
-}
-
-type lengthModifier struct {
-	c     comparatortype
-	value int64
-}
-
-func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	vals, found := o.Get(a)
-	if !found {
-		return lm.c.Compare(0, lm.value)
-	}
-	for _, value := range vals.StringSlice() {
-		if lm.c.Compare(int64(len(value)), lm.value) {
-			return true
-		}
-	}
-	return false
-}
-
-type sinceModifier struct {
-	c  comparatortype
-	ts *timespan.Timespan
-}
-
-func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	vals, found := o.Get(a)
-	if !found {
-		return false
-	}
-
-	for _, value := range vals.Slice() {
-		// Time in AD is either a
-
-		raw := value.Raw()
-
-		t, ok := raw.(time.Time)
-
-		if !ok {
-			return false
-		}
-
-		if sm.c.Compare(sm.ts.From(t).Unix(), time.Now().Unix()) {
-			return true
-		}
-	}
-	return false
-}
-
-type timediffModifier struct {
-	a2 engine.Attribute
-	c  comparatortype
-	ts *timespan.Timespan
-}
-
-func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	val1s, found := o.Get(a)
-	if !found {
-		return false
-	}
-
-	val2s, found := o.Get(td.a2)
-	if !found {
-		return false
-	}
-
-	if val1s.Len() != val2s.Len() {
-		return false
-	}
-
-	val2slice := val2s.Slice()
-	for i, value1 := range val1s.Slice() {
-		t1, ok := value1.Raw().(time.Time)
-		if !ok {
-			continue
-		}
-
-		t2, ok2 := val2slice[i].Raw().(time.Time)
-		if !ok2 {
-			continue
-		}
-
-		if td.c.Compare(t1.Unix(), td.ts.From(t2).Unix()) {
-			return true
-		}
-	}
-	return false
-}
-
-type andModifier struct {
-	value int64
-}
-
-func (am andModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	val, ok := o.AttrInt(a)
-	if !ok {
-		return false
-	}
-	return (int64(val) & am.value) == am.value
-}
-
-type orModifier struct {
-	value int64
-}
-
-func (om orModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	val, ok := o.AttrInt(a)
-	if !ok {
-		return false
-	}
-	return int64(val)&om.value != 0
-}
-
-type numericComparator struct {
-	c     comparatortype
-	value int64
-}
-
-func (nc numericComparator) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	val, _ := o.AttrInt(a)
-	return nc.c.Compare(val, nc.value)
-}
-
-type id struct {
-	c     comparatortype
-	idval int64
-}
-
-func (i *id) Evaluate(o *engine.Object) bool {
-	return i.c.Compare(int64(o.ID()), i.idval)
-}
-
-type limit struct {
-	counter int64
-}
-
-func (l *limit) Evaluate(o *engine.Object) bool {
-	l.counter--
-	return l.counter >= 0
-}
-
-type random100 struct {
-	c comparatortype
-	v int64
-}
-
-func (r random100) Evaluate(o *engine.Object) bool {
-	rnd := rand.Int63n(100)
-	return r.c.Compare(rnd, r.v)
-}
-
-type hasAttr struct{}
-
-func (ha hasAttr) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	vals, found := o.Get(engine.Attribute(a))
-	if !found {
-		return false
-	}
-	return vals.Len() > 0
-}
-
-type hasStringMatch struct {
-	casesensitive bool
-	m             string
-}
-
-func (hsm hasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
-		if !hsm.casesensitive {
-			if strings.EqualFold(hsm.m, value) {
-				return true
-			}
-		} else {
-			if hsm.m == value {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-type hasGlobMatch struct {
-	casesensitive bool
-	m             glob.Glob
-}
-
-func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
-		if !hgm.casesensitive {
-			if hgm.m.Match(strings.ToLower(value)) {
-				return true
-			}
-		} else {
-			if hgm.m.Match(value) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-type hasRegexpMatch struct {
-	m *regexp.Regexp
-}
-
-func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
-		if hrm.m.MatchString(value) {
-			return true
-		}
-	}
-	return false
-}
-
-type recursiveDNmatcher struct {
-	dn string
-	ao *engine.Objects
-}
-
-func (rdn recursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	return recursiveDNmatchFunc(o, a, rdn.dn, 10, rdn.ao)
-}
-
-func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) bool {
-	// Just to prevent loops
-	if maxdepth == 0 {
-		return false
-	}
-	// Check all attribute values for match or ancestry
-	for _, value := range o.AttrRendered(a) {
-		// We're at the end
-		if strings.EqualFold(value, dn) {
-			return true
-		}
-		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value)); found {
-			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
-		}
-	}
-	return false
-}
-
-type pwnquery struct {
-	canpwn bool
-	method engine.PwnMethod
-	target Query
-}
-
-func (p pwnquery) Evaluate(o *engine.Object) bool {
-	items := o.CanPwn
-	if !p.canpwn {
-		items = o.PwnableBy
-	}
-	for pwntarget, pwnmethod := range items {
-		if (p.method == engine.AnyPwnMethod && pwnmethod.Count() != 0) || pwnmethod.IsSet(p.method) {
-			if p.target == nil || p.target.Evaluate(pwntarget) {
-				return true
-			}
-		}
-	}
-	return false
 }

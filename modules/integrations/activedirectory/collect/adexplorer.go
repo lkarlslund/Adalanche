@@ -15,10 +15,9 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/binstruct"
 	"github.com/pierrec/lz4/v4"
-	"github.com/rs/zerolog/log"
-	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -445,7 +444,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 	if !adex.performance {
 		dec = binstruct.NewReader(adex.rawfile, binary.LittleEndian, false)
 	} else {
-		log.Info().Msg("Loading raw AD Explorer snapshot into memory")
+		ui.Info().Msg("Loading raw AD Explorer snapshot into memory")
 		adexplorerbytes, err := ioutil.ReadAll(adex.rawfile)
 		if err != nil {
 			return nil, fmt.Errorf("Error reading ADExplorer file: %v", err)
@@ -455,7 +454,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 	}
 
 	// Header
-	log.Info().Msg("Reading header (takes a while) ...")
+	ui.Info().Msg("Reading header (takes a while) ...")
 	var header ADEXHeader
 	err := dec.Unmarshal(&header)
 
@@ -492,14 +491,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		e = msgp.NewWriter(boutfile)
 	}
 
-	bar := progressbar.NewOptions(int(header.ObjectCount),
-		progressbar.OptionSetDescription("Converting objects from AD Explorer snapshot ..."),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	bar := ui.ProgressBar("Converting objects from AD Explorer snapshot", int(header.ObjectCount))
 
 	var objects []activedirectory.RawObject
 

@@ -1,10 +1,11 @@
 package version
 
-import "strings"
+import (
+	"strings"
+)
 
 var (
-	Program    = "adalanche"
-	Builddate  = ""
+	Program    = "Adalanche Open Source"
 	Commit     = ""
 	Version    = ""
 	Copyright  = "(c) 2020-2022 Lars Karlslund"
@@ -12,13 +13,13 @@ var (
 )
 
 func ProgramVersionShort() string {
-	return Program + " " + VersionStringShort()
+	return strings.Trim(Program+" "+VersionStringShort(), " ")
 }
 
 func VersionStringShort() string {
 	result := ""
 	if Version != "" {
-		result += " " + Version
+		result += Version
 		if strings.Contains(Version, "-") {
 			result += " (non-release)"
 		}
@@ -26,15 +27,15 @@ func VersionStringShort() string {
 	if Commit != "" && !strings.Contains(Version, Commit) {
 		result += " (commit " + Commit + ")"
 	}
+	if result == "" {
+		result = "(unknown build)"
+	}
 	return result
 }
 
 func VersionString() string {
 	result := ProgramVersionShort()
 
-	if Builddate != "" {
-		result += " built " + Builddate
-	}
 	result += ", " + Copyright + ", " + Disclaimer
 	return result
 }

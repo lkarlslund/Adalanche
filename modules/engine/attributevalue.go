@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 )
 
 func CompareAttributeValues(a, b AttributeValue) bool {
@@ -108,7 +108,7 @@ func (avs AttributeValueSlice) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
 		if avs[i] == nil {
-			log.Warn().Msg("Encountered NIL value")
+			ui.Warn().Msg("Encountered NIL value")
 		} else {
 			result[i] = avs[i].String()
 		}

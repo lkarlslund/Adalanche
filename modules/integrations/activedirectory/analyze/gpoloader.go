@@ -10,8 +10,8 @@ import (
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
-	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -41,14 +41,14 @@ func (ld *GPOLoader) Init() error {
 			for path := range ld.gpofiletoprocess {
 				raw, err := ioutil.ReadFile(path)
 				if err != nil {
-					log.Warn().Msgf("Problem reading data from GPO JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem reading data from GPO JSON file %v: %v", path, err)
 					continue
 				}
 
 				var ginfo activedirectory.GPOdump
 				err = json.Unmarshal(raw, &ginfo)
 				if err != nil {
-					log.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
 					continue
 				}
 
@@ -82,7 +82,7 @@ func (ld *GPOLoader) Init() error {
 
 				err = ImportGPOInfo(ginfo, thisao)
 				if err != nil {
-					log.Warn().Msgf("Problem importing GPO: %v", err)
+					ui.Warn().Msgf("Problem importing GPO: %v", err)
 					continue
 				}
 			}

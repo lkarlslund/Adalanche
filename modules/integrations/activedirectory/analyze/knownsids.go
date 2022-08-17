@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -52,4 +53,27 @@ func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 		return result
 	}
 	return nil
+}
+
+func FindDomain(ao *engine.Objects) (*engine.Object, bool) {
+	var domainval *engine.Object
+	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
+	if !found {
+		return nil, false
+	}
+	for _, domain := range domaindns {
+		if domain.HasAttr(engine.ObjectSid) {
+			if domainval != nil {
+				ui.Warn().Msgf("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+				return nil, false
+			}
+			domainval = domain
+		}
+	}
+	if domainval == nil {
+		ui.Warn().Msgf("Could not find domainDNS in object shard collection, giving up")
+		return nil, false
+	}
+
+	return domainval, true
 }

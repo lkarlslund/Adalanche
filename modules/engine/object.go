@@ -15,10 +15,10 @@ import (
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/dedup"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/lkarlslund/stringdedup"
-	"github.com/rs/zerolog/log"
 )
 
 var adjustthreadsafe sync.Mutex
@@ -49,8 +49,8 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 
 type Object struct {
 	values    AttributeValueMap
-	PwnableBy PwnConnections
-	CanPwn    PwnConnections
+	PwnableBy EdgeConnections
+	CanPwn    EdgeConnections
 	parent    *Object
 	sdcache   *SecurityDescriptor
 	sid       windowssecurity.SID
@@ -130,7 +130,7 @@ func (o *Object) Absorb(source *Object) {
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
 func (o *Object) AbsorbEx(source *Object, fast bool) {
 	if o == source {
-		log.Fatal().Msg("Can't absorb myself")
+		ui.Fatal().Msg("Can't absorb myself")
 	}
 
 	o.lock()
@@ -256,7 +256,7 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		// Both has a cache
 		if !source.sdcache.Equals(target.sdcache) {
 			// Different caches, so we need to merge them which is impossible
-			log.Warn().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
+			ui.Warn().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
 		}
 	} else if target.sdcache == nil && source.sdcache != nil {
 		target.sdcache = source.sdcache
@@ -359,6 +359,24 @@ func (o *Object) Label() string {
 		}
 	}
 	return fmt.Sprintf("OBJ %v", o)
+}
+
+var primaryidattrs = []Attribute{
+	DistinguishedName,
+	ObjectGUID,
+	ObjectSid, // Danger, Will Robinson
+}
+
+func (o *Object) PrimaryID() (Attribute, AttributeValue) {
+	for _, attr := range primaryidattrs {
+		if o.HasAttr(attr) {
+			val := o.OneAttr(attr)
+			if val != nil {
+				return attr, val
+			}
+		}
+	}
+	return NonExistingAttribute, AttributeValueString("N/A")
 }
 
 func (o *Object) Type() ObjectType {
@@ -480,10 +498,10 @@ func (o *Object) OneAttrString(attr Attribute) string {
 		return ao.Value.String()
 	}
 	if a.Len() == 1 {
-		log.Warn().Msgf("Inefficient attribute storage for %v - multival used for one value ...", attr.String())
+		ui.Warn().Msgf("Inefficient attribute storage for %v - multival used for one value ...", attr.String())
 		return a.Slice()[0].String()
 	}
-	log.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
+	ui.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
 	return ""
 }
 
@@ -551,7 +569,7 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 		return time.Time{}, false
 	}
 	t := util.FiletimeToTime(uint64(v))
-	// log.Debug().Msgf("Converted %v to %v", v, t)
+	// ui.Debug().Msgf("Converted %v to %v", v, t)
 	return t, true
 }
 
@@ -854,39 +872,45 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
 	o.lock()
-	defer o.unlock()
 	o.set(a, values)
+	o.unlock()
+}
+
+func (o *Object) Clear(a Attribute) {
+	o.lock()
+	o.values.Clear(a)
+	o.unlock()
 }
 
 func (o *Object) set(a Attribute, values AttributeValues) {
 	if a.IsSingle() && values.Len() > 1 {
-		log.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
+		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
 	}
 
 	if a == DownLevelLogonName {
 		// There's been so many problems with DLLN that we're going to just check for these
 		if values.Len() != 1 {
-			log.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
+			ui.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
 		}
 		for _, dlln := range values.StringSlice() {
 			if dlln == "," {
-				log.Fatal().Msgf("Setting DownLevelLogonName to ',' is not allowed")
+				ui.Fatal().Msgf("Setting DownLevelLogonName to ',' is not allowed")
 			}
 			if dlln == "" {
-				log.Fatal().Msgf("Setting DownLevelLogonName to blank is not allowed")
+				ui.Fatal().Msgf("Setting DownLevelLogonName to blank is not allowed")
 			}
 			if strings.HasPrefix(dlln, "S-") {
-				log.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
+				ui.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
 			}
 			if strings.HasSuffix(dlln, "\\") {
-				log.Fatal().Msgf("DownLevelLogonName %v ends with \\", dlln)
+				ui.Fatal().Msgf("DownLevelLogonName %v ends with \\", dlln)
 			}
 
 			dotpos := strings.Index(dlln, ".")
 			if dotpos >= 0 {
 				backslashpos := strings.Index(dlln, "\\")
 				if dotpos < backslashpos {
-					log.Warn().Msgf("DownLevelLogonName contains dot in domain: %v", dlln)
+					ui.Warn().Msgf("DownLevelLogonName contains dot in domain: %v", dlln)
 				}
 			}
 		}
@@ -901,7 +925,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 	if a == NTSecurityDescriptor {
 		for _, sd := range values.Slice() {
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {
-				log.Error().Msgf("Problem parsing security descriptor for %v: %v", o.DN(), err)
+				ui.Error().Msgf("Problem parsing security descriptor for %v: %v", o.DN(), err)
 			}
 		}
 		return // We dont store the raw version, just the decoded one, KTHX
@@ -911,7 +935,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 	switch vs := values.(type) {
 	case AttributeValueSlice:
 		if len(vs) == 1 {
-			log.Error().Msg("Wrong type")
+			ui.Error().Msg("Wrong type")
 		}
 		for i, value := range vs {
 			switch avs := value.(type) {
@@ -958,12 +982,12 @@ func (o *Object) init() {
 		o.values = NewAttributeValueMap()
 	}
 	if o.CanPwn == nil || o.PwnableBy == nil {
-		o.CanPwn = make(PwnConnections)
-		o.PwnableBy = make(PwnConnections)
+		o.CanPwn = make(EdgeConnections)
+		o.PwnableBy = make(EdgeConnections)
 	}
 }
 
-func (o *Object) StringNoACL() string {
+func (o *Object) String() string {
 	var result string
 	result += "OBJECT " + o.DN() + "\n"
 	for attr, values := range o.AttributeValueMap() {
@@ -988,8 +1012,8 @@ func (o *Object) StringNoACL() string {
 	return result
 }
 
-func (o *Object) String(ao *Objects) string {
-	result := o.StringNoACL()
+func (o *Object) StringACL(ao *Objects) string {
+	result := o.String()
 
 	sd, err := o.SecurityDescriptor()
 	if err == nil {
@@ -1080,12 +1104,12 @@ func (o *Object) GUID() uuid.UUID {
 }
 
 // Register that this object can pwn another object using the given method
-func (o *Object) Pwns(target *Object, method PwnMethod) {
+func (o *Object) Pwns(target *Object, method Edge) {
 	o.PwnsEx(target, method, false)
 }
 
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (o *Object) PwnsEx(target *Object, method PwnMethod, force bool) {
+func (o *Object) PwnsEx(target *Object, method Edge, force bool) {
 	if !force {
 		if o == target { // SID check solves (some) dual-AD analysis problems
 			// We don't care about self owns
@@ -1119,7 +1143,7 @@ func (o *Object) ChildOf(parent *Object) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
 		o.unlock()
-		log.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		o.lock()
 		// panic("objects can only have one parent")
 	}

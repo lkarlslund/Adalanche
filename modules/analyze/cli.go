@@ -10,7 +10,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/rs/zerolog/log"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,16 +46,16 @@ func Execute(cmd *cobra.Command, args []string) error {
 	// After all this loading and merging, it's time to do release unused RAM
 	debug.FreeOSMemory()
 
-	log.Info().Msgf("Processing done in %v", time.Since(starttime))
+	ui.Info().Msgf("Processing done in %v", time.Since(starttime))
 
 	dedupStats := dedup.D.Statistics()
 
-	log.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
-	log.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
-	log.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
-	log.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
-	log.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
-	log.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
+	ui.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
+	ui.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
+	ui.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
+	ui.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
+	ui.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
+	ui.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
 
 	// Try to recover some memory
 	dedup.D.Flush()
@@ -84,7 +84,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 			err = fmt.Errorf("unsupported platform")
 		}
 		if err != nil {
-			log.Warn().Msgf("Problem launching browser: %v", err)
+			ui.Warn().Msgf("Problem launching browser: %v", err)
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,11 +15,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/lkarlslund/adalanche/modules/ldapquery"
+	"github.com/lkarlslund/adalanche/modules/query"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/version"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/rs/zerolog/log"
 )
 
 func analysisfuncs(ws *webservice) {
@@ -39,14 +40,16 @@ func analysisfuncs(ws *webservice) {
 		}
 		var results returnobject
 
-		for _, method := range engine.AllPwnMethodsSlice() {
-			results.Methods = append(results.Methods, filterinfo{
-				Name:            method.String(),
-				Lookup:          method.String(),
-				DefaultEnabledF: method.DefaultF(),
-				DefaultEnabledM: method.DefaultM(),
-				DefaultEnabledL: method.DefaultL(),
-			})
+		for _, method := range engine.AllEdgesSlice() {
+			if !method.IsHidden() {
+				results.Methods = append(results.Methods, filterinfo{
+					Name:            method.String(),
+					Lookup:          method.String(),
+					DefaultEnabledF: method.DefaultF(),
+					DefaultEnabledM: method.DefaultM(),
+					DefaultEnabledL: method.DefaultL(),
+				})
+			}
 		}
 
 		for _, objecttype := range engine.ObjectTypes() {
@@ -65,7 +68,7 @@ func analysisfuncs(ws *webservice) {
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
 	ws.Router.HandleFunc("/validatequery", func(w http.ResponseWriter, r *http.Request) {
-		rest, _, err := ldapquery.ParseQuery(r.URL.Query().Get("query"), ws.Objs)
+		rest, _, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -77,7 +80,7 @@ func analysisfuncs(ws *webservice) {
 				w.Write([]byte("Expecting comma as a seperator before exclude query"))
 				return
 			}
-			if _, err := ldapquery.ParseQueryStrict(rest[1:], ws.Objs); err != nil {
+			if _, err := query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
 				w.WriteHeader(400) // bad request
 				w.Write([]byte(err.Error()))
 				return
@@ -126,7 +129,7 @@ func analysisfuncs(ws *webservice) {
 
 		if r.FormValue("format") == "objectdump" {
 			w.WriteHeader(200)
-			w.Write([]byte(o.String(ws.Objs)))
+			w.Write([]byte(o.StringACL(ws.Objs)))
 			return
 		}
 
@@ -145,7 +148,9 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		for attr, values := range o.AttributeValueMap() {
-			od.Attributes[attr.String()] = values.StringSlice()
+			slice := values.StringSlice()
+			sort.StringSlice(slice).Sort()
+			od.Attributes[attr.String()] = slice
 		}
 
 		if r.FormValue("format") == "json" {
@@ -190,9 +195,9 @@ func analysisfuncs(ws *webservice) {
 
 		prune, _ := util.ParseBool(vars["prune"])
 
-		query := vars["query"]
-		if query == "" {
-			query = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+		querystr := vars["query"]
+		if querystr == "" {
+			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
 
 		maxdepth := 99
@@ -207,7 +212,7 @@ func analysisfuncs(ws *webservice) {
 
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
-		maxoutgoing := 500
+		maxoutgoing := -1
 		if maxoutgoingval, err := strconv.Atoi(vars["maxoutgoing"]); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
@@ -219,11 +224,11 @@ func analysisfuncs(ws *webservice) {
 		var includeobjects *engine.Objects
 		var excludeobjects *engine.Objects
 
-		var excludequery ldapquery.Query
+		var excludequery query.Query
 
 		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
 		if expanddn := vars["expanddn"]; expanddn != "" {
-			query = `(distinguishedName=` + expanddn + `)`
+			querystr = `(distinguishedName=` + expanddn + `)`
 			maxoutgoing = 0
 			maxdepth = 1
 			force = true
@@ -236,7 +241,7 @@ func analysisfuncs(ws *webservice) {
 						}*/
 		}
 
-		rest, includequery, err := ldapquery.ParseQuery(query, ws.Objs)
+		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -248,7 +253,7 @@ func analysisfuncs(ws *webservice) {
 				encoder.Encode(fmt.Sprintf("Error parsing ldap query: %v", err))
 				return
 			}
-			if excludequery, err = ldapquery.ParseQueryStrict(rest[1:], ws.Objs); err != nil {
+			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
 				w.WriteHeader(400) // bad request
 				encoder.Encode(fmt.Sprintf("Error parsing ldap query: %v", err))
 				return
@@ -265,8 +270,8 @@ func analysisfuncs(ws *webservice) {
 			})
 		}
 
-		// var methods engine.PwnMethodBitmap
-		var methods_f, methods_m, methods_l engine.PwnMethodBitmap
+		// var methods engine.EdgeBitmap
+		var methods_f, methods_m, methods_l engine.EdgeBitmap
 		var objecttypes_f, objecttypes_m, objecttypes_l []engine.ObjectType
 		for potentialfilter := range vars {
 			if len(potentialfilter) < 7 {
@@ -275,8 +280,8 @@ func analysisfuncs(ws *webservice) {
 			if strings.HasPrefix(potentialfilter, "pwn_") {
 				prefix := potentialfilter[4 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
-				method := engine.P(prefix)
-				if method == engine.NonExistingPwnMethod {
+				method := engine.E(prefix)
+				if method == engine.NonExistingEdgeType {
 					continue
 				}
 				switch suffix {
@@ -310,12 +315,12 @@ func analysisfuncs(ws *webservice) {
 		// Are we using the new format FML? The just choose the old format methods for FML
 		if methods_f.Count() == 0 && methods_m.Count() == 0 && methods_l.Count() == 0 {
 			// Spread the choices to FML
-			methods_f = engine.AllPwnMethods
-			methods_m = engine.AllPwnMethods
-			methods_l = engine.AllPwnMethods
+			methods_f = engine.AllEdgeMethods
+			methods_m = engine.AllEdgeMethods
+			methods_l = engine.AllEdgeMethods
 		}
 
-		var pg engine.PwnGraph
+		var pg engine.Graph
 		if mode == "sourcetarget" {
 			if includeobjects.Len() == 0 || excludeobjects == nil || excludeobjects.Len() == 0 {
 				fmt.Fprintf(w, "You must use two queries (source and target), seperated by commas. Each must return at least one object.")
@@ -359,9 +364,9 @@ func analysisfuncs(ws *webservice) {
 			if len(cluster) == 1 {
 				continue
 			}
-			log.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
+			ui.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
 			for _, member := range cluster {
-				log.Debug().Msgf("%v", member.DN())
+				ui.Debug().Msgf("%v", member.DN())
 			}
 		}
 
@@ -458,9 +463,9 @@ func analysisfuncs(ws *webservice) {
 		}
 		reverse := (mode != "normal")
 
-		query := uq.Get("query")
-		if query == "" {
-			query = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+		querystr := uq.Get("query")
+		if querystr == "" {
+			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
 
 		maxdepth := 99
@@ -468,7 +473,7 @@ func analysisfuncs(ws *webservice) {
 			maxdepth = maxdepthval
 		}
 
-		maxoutgoing := 0
+		maxoutgoing := -1
 		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
@@ -481,9 +486,9 @@ func analysisfuncs(ws *webservice) {
 		var includeobjects *engine.Objects
 		var excludeobjects *engine.Objects
 
-		var excludequery ldapquery.Query
+		var excludequery query.Query
 
-		rest, includequery, err := ldapquery.ParseQuery(r.URL.Query().Get("query"), ws.Objs)
+		rest, includequery, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -495,7 +500,7 @@ func analysisfuncs(ws *webservice) {
 				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
 				return
 			}
-			if excludequery, err = ldapquery.ParseQueryStrict(rest[1:], ws.Objs); err != nil {
+			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
 				w.WriteHeader(400) // bad request
 				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
 				return
@@ -514,9 +519,9 @@ func analysisfuncs(ws *webservice) {
 			})
 		}
 
-		var selectedmethods []engine.PwnMethod
+		var selectedmethods []engine.Edge
 		for potentialmethod, values := range uq {
-			if method := engine.P(potentialmethod); method != engine.NonExistingPwnMethod {
+			if method := engine.E(potentialmethod); method != engine.NonExistingEdgeType {
 				enabled, _ := util.ParseBool(values[0])
 				if len(values) == 1 && enabled {
 					selectedmethods = append(selectedmethods, method)
@@ -525,10 +530,10 @@ func analysisfuncs(ws *webservice) {
 		}
 		// If everything is deselected, select everything
 		if len(selectedmethods) == 0 {
-			selectedmethods = engine.AllPwnMethodsSlice()
+			selectedmethods = engine.AllEdgesSlice()
 		}
 
-		var methods engine.PwnMethodBitmap
+		var methods engine.EdgeBitmap
 		for _, m := range selectedmethods {
 			methods = methods.Set(m)
 		}
@@ -638,11 +643,11 @@ func analysisfuncs(ws *webservice) {
 
 	ws.Router.HandleFunc("/query/objects/{query}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		query := vars["query"]
+		querystr := vars["query"]
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 
-		rest, includequery, err := ldapquery.ParseQuery(query, ws.Objs)
+		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -676,11 +681,11 @@ func analysisfuncs(ws *webservice) {
 	})
 	ws.Router.HandleFunc("/query/details/{query}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		query := vars["query"]
+		querystr := vars["query"]
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 
-		rest, includequery, err := ldapquery.ParseQuery(query, ws.Objs)
+		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -738,7 +743,7 @@ func analysisfuncs(ws *webservice) {
 				created, _ := object.AttrTimestamp(activedirectory.WhenCreated)
 				changed, _ := object.AttrTimestamp(activedirectory.WhenChanged)
 
-				// log.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
+				// ui.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
 
 				if lastlogin.After(lastlogints) {
 					lastlogints = lastlogin
@@ -770,7 +775,7 @@ func analysisfuncs(ws *webservice) {
 				}
 
 				// if uac&UAC_NOT_DELEGATED != 0 {
-				// 	log.Debug().Msgf("%v has can't be used as delegation", object.DN())
+				// 	ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
 				// }
 
 				result = append(result, i)
@@ -846,7 +851,6 @@ func analysisfuncs(ws *webservice) {
 		result.Adalanche["program"] = version.Program
 		result.Adalanche["version"] = version.Version
 		result.Adalanche["commit"] = version.Commit
-		result.Adalanche["builddate"] = version.Builddate
 
 		result.Statistics = make(map[string]int)
 
@@ -875,7 +879,7 @@ func analysisfuncs(ws *webservice) {
 	var prefs Prefs
 	err := prefs.Load()
 	if err != nil {
-		log.Warn().Msgf("Problem loading preferences: %v", err)
+		ui.Warn().Msgf("Problem loading preferences: %v", err)
 	}
 
 	ws.Router.HandleFunc("/preferences", func(w http.ResponseWriter, r *http.Request) {

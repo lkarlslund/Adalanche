@@ -10,10 +10,8 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/version"
-	"github.com/mattn/go-colorable"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +23,10 @@ var (
 		SilenceUsage:  true,
 	}
 
-	debuglogging      = Root.PersistentFlags().Bool("debug", false, "Enable debug logging")
+	loglevel     = Root.PersistentFlags().String("loglevel", "info", "Console log level")
+	logfile      = Root.PersistentFlags().String("logfile", "", "File to log to")
+	logfilelevel = Root.PersistentFlags().String("logfilelevel", "info", "Log file log level")
+
 	embeddedprofiler  = Root.PersistentFlags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
 	cpuprofile        = Root.PersistentFlags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
 	cpuprofiletimeout = Root.PersistentFlags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
@@ -36,7 +37,7 @@ var (
 		Use:   "version",
 		Short: "Show adalanche version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Info().Msg(version.ProgramVersionShort())
+			ui.Info().Msg(version.ProgramVersionShort())
 			return nil
 		},
 	}
@@ -57,18 +58,29 @@ func Run() error {
 	Root.SetArgs(args)
 	Root.ParseFlags(args)
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:        colorable.NewColorableStdout(),
-		TimeFormat: "15:04:05.06",
-	})
+	ll, err := ui.LogLevelString(*loglevel)
+	if err != nil {
+		ui.Error().Msgf("Invalid log level: %v - use one of: %v", *loglevel, ui.LogLevelStrings())
+	} else {
+		ui.SetDefaultLoglevel(ll)
+	}
 
-	log.Info().Msg(version.VersionString())
+	if *logfile != "" {
+		ll, err = ui.LogLevelString(*logfilelevel)
+		if err != nil {
+			ui.Error().Msgf("Invalid log file log level: %v - use one of: %v", *logfilelevel, ui.LogLevelStrings())
+		} else {
+			ui.SetLogFile(*logfile, ll)
+		}
+	}
+
+	ui.Info().Msg(version.VersionString())
 
 	if *embeddedprofiler {
 		go func() {
 			err := http.ListenAndServe("localhost:6060", nil)
 			if err != nil {
-				log.Error().Msgf("Profiling listener failed: %v", err)
+				ui.Error().Msgf("Profiling listener failed: %v", err)
 			}
 		}()
 	}
@@ -96,14 +108,6 @@ func Run() error {
 		}
 	}
 
-	if !*debuglogging {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-		log.Debug().Msg("Debug logging enabled")
-	}
-
-	// We do lots of allocations when importing stuff, so lets set this aggressively
 	debug.SetGCPercent(10)
 
 	// Ensure the data folder is available
@@ -114,12 +118,12 @@ func Run() error {
 		}
 	}
 
-	err := Root.Execute()
+	err = Root.Execute()
 
 	stopprofile <- true
 
 	if err == nil {
-		log.Info().Msgf("Terminating successfully")
+		ui.Info().Msgf("Terminating successfully")
 	}
 
 	return err

@@ -10,9 +10,9 @@ import (
 
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/pierrec/lz4/v4"
-	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -64,29 +64,29 @@ func (ad *AD) Connect() error {
 	var err error
 	switch ad.AuthMode {
 	case Anonymous:
-		log.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
+		ui.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
 		err = ad.conn.UnauthenticatedBind(ad.User)
 	case Basic:
 		if ad.Password == "" {
-			log.Debug().Msgf("Doing simple unauthenticated bind with user %s", ad.User)
+			ui.Debug().Msgf("Doing simple unauthenticated bind with user %s", ad.User)
 			err = ad.conn.UnauthenticatedBind(ad.User)
 		} else {
-			log.Debug().Msgf("Doing simple bind with user %s", ad.User)
+			ui.Debug().Msgf("Doing simple bind with user %s", ad.User)
 			err = ad.conn.Bind(ad.User, ad.Password)
 		}
 	case Digest:
-		log.Debug().Msgf("Doing DIGEST-MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
+		ui.Debug().Msgf("Doing DIGEST-MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
 	case NTLM:
 		if ad.User == "" {
-			log.Debug().Msgf("Doing integrated NTLM auth")
+			ui.Debug().Msgf("Doing integrated NTLM auth")
 			err = ad.conn.NTLMSSPIBind()
 		} else {
-			log.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
+			ui.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
 			err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
 		}
 	case NTLMPTH:
-		log.Debug().Msgf("Doing NTLM hash auth with user %s from domain %s", ad.User, ad.AuthDomain)
+		ui.Debug().Msgf("Doing NTLM hash auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)

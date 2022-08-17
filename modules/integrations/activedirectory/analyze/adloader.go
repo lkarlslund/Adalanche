@@ -12,8 +12,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pierrec/lz4/v4"
-	"github.com/rs/zerolog/log"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -26,7 +26,7 @@ var (
 
 	limitattributes = analyze.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
 
-	adsource = engine.AttributeValueString("Active Directory dumps")
+	adsource = engine.AttributeValueString("Active Directory")
 	Loader   = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
 
 	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
@@ -87,7 +87,7 @@ func (ld *ADLoader) Init() error {
 						item.object.Attributes["objectClass"] = []string{"top", "rootdse"}
 					} else {
 						// We want the RootDSE KTHX, but ignore everything else
-						log.Warn().Msg("Empty DN, ignoring!")
+						ui.Warn().Msg("Empty DN, ignoring!")
 						continue
 					}
 				}
@@ -111,9 +111,9 @@ func (ld *ADLoader) Init() error {
 				if !o.HasAttr(engine.ObjectClass) {
 					if ld.warnhardened {
 						if strings.Contains(o.DN(), ",CN=MicrosoftDNS,") {
-							log.Debug().Msgf("Hardened DNS object without objectclass detected: %v", o.DN())
+							ui.Debug().Msgf("Hardened DNS object without objectclass detected: %v", o.DN())
 						} else {
-							log.Warn().Msgf("Hardened object without objectclass detected: %v. This *might* affect your analysis, depending on object.", o.DN())
+							ui.Warn().Msgf("Hardened object without objectclass detected: %v. This *might* affect your analysis, depending on object.", o.DN())
 						}
 					}
 					if !ld.importhardened {
@@ -214,19 +214,19 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		} else {
 			domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
 			if !found {
-				log.Fatal().Msgf("Could not find RootDSE or domainDNS in '%v'", path)
+				ui.Fatal().Msgf("Could not find RootDSE or domainDNS in '%v'", path)
 			}
 			for _, domain := range domaindns {
 				if domain.HasAttr(engine.ObjectSid) {
 					dn := domain.OneAttrString(engine.DistinguishedName)
 					if domainval != nil {
-						log.Fatal().Msgf("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+						ui.Fatal().Msgf("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 					}
 					domainval = engine.AttributeValueOne{Value: engine.AttributeValueString(dn)}
 				}
 			}
 			if domainval == nil {
-				log.Fatal().Msgf("Could not find domainDNS in object shard collection, giving up")
+				ui.Fatal().Msgf("Could not find domainDNS in object shard collection, giving up")
 			}
 		}
 
