@@ -257,7 +257,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 							return iv > jv
 						})
 
-						for i := 0; i+added < opts.MaxOutgoingConnections; i++ {
+						for i := 0; i+added < opts.MaxOutgoingConnections && i < len(notadded); i++ {
 							newimplicatedobjects[notadded[i].Target] = struct{}{} // Add this as our best item
 						}
 					}
