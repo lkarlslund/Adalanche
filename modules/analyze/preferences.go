@@ -2,7 +2,9 @@ package analyze
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
+	"os"
 	"sync"
 )
 
@@ -18,6 +20,9 @@ func (p *Prefs) Load() error {
 	p.data = make(map[string]interface{})
 
 	rawprefs, err := ioutil.ReadFile("preferences.json")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
