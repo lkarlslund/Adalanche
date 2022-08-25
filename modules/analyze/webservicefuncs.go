@@ -40,14 +40,14 @@ func analysisfuncs(ws *webservice) {
 		}
 		var results returnobject
 
-		for _, method := range engine.AllEdgesSlice() {
-			if !method.IsHidden() {
+		for _, edge := range engine.AllEdgesSlice() {
+			if !edge.IsHidden() {
 				results.Methods = append(results.Methods, filterinfo{
-					Name:            method.String(),
-					Lookup:          method.String(),
-					DefaultEnabledF: method.DefaultF(),
-					DefaultEnabledM: method.DefaultM(),
-					DefaultEnabledL: method.DefaultL(),
+					Name:            edge.String(),
+					Lookup:          edge.String(),
+					DefaultEnabledF: edge.DefaultF(),
+					DefaultEnabledM: edge.DefaultM(),
+					DefaultEnabledL: edge.DefaultL(),
 				})
 			}
 		}
@@ -358,18 +358,18 @@ func analysisfuncs(ws *webservice) {
 		for _, postprocessor := range engine.PostProcessors {
 			pg = postprocessor(pg)
 		}
-
-		clusters := pg.SCC()
-		for i, cluster := range clusters {
-			if len(cluster) == 1 {
-				continue
+		/*
+			clusters := pg.SCC()
+			for i, cluster := range clusters {
+				if len(cluster) == 1 {
+					continue
+				}
+				ui.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
+				for _, member := range cluster {
+					ui.Debug().Msgf("%v", member.DN())
+				}
 			}
-			ui.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
-			for _, member := range cluster {
-				ui.Debug().Msgf("%v", member.DN())
-			}
-		}
-
+		*/
 		var targets int
 
 		var objecttypes [256]int
