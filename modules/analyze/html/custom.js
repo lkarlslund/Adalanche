@@ -146,6 +146,14 @@ function newwindow(id, title, content, height, width) {
         if (width) {
             mywindow.width(width);
         }
+
+        if (mywindow.height() > maxheight) {
+            mywindow.height(maxheight)
+        }
+        if (mywindow.width() > maxwidth) {
+            mywindow.width(maxwidth)
+        }
+
     }
 
     $('#title', mywindow).html(title);
