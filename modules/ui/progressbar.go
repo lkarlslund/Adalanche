@@ -130,7 +130,7 @@ func (pb *progressBar) update() {
 	}
 
 	var bar string
-	if pb.total > 0 {
+	if pb.total > 0 && barCurrentLength > 0 {
 		bar = pb.barStyle.Sprint(strings.Repeat(pb.barCharacter, barCurrentLength)+pb.lastCharacter) + barFiller
 	} else {
 		bar = ""
