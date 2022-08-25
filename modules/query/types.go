@@ -300,7 +300,7 @@ func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 			return false
 		}
 
-		if sm.c.Compare(sm.ts.From(t).Unix(), time.Now().Unix()) {
+		if sm.c.Compare(t.Unix(), sm.ts.From(time.Now()).Unix()) {
 			return true
 		}
 	}
