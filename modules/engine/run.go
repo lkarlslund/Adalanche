@@ -152,10 +152,11 @@ func Run(path string) (*Objects, error) {
 	}
 	ao, err := Merge(objs)
 
+	ao.SetThreadsafe(true)
+
 	// Do global post-processing
-
-	for i := range loaders {
-		pb := ui.ProgressBar("Postprocessing merged objects (low)", 0)
+	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
+		pb := ui.ProgressBar(fmt.Sprintf("Postprocessing merged objects (%v)", priority.String()), 0)
 		Process(ao, func(cur, max int) {
 			if max > 0 {
 				pb.ChangeMax(max)
@@ -165,48 +166,11 @@ func Run(path string) (*Objects, error) {
 			} else {
 				pb.Add(-cur)
 			}
-		}, LoaderID(i), AfterMergeLow)
-		pb.Finish()
-
-		pb = ui.ProgressBar("Postprocessing merged objects (medium)", 0)
-		Process(ao, func(cur, max int) {
-			if max > 0 {
-				pb.ChangeMax(max)
-			}
-			if cur > 0 {
-				pb.Set(cur)
-			} else {
-				pb.Add(-cur)
-			}
-		}, LoaderID(i), AfterMerge)
-		pb.Finish()
-
-		pb = ui.ProgressBar("Postprocessing merged objects (high)", 0)
-		Process(ao, func(cur, max int) {
-			if max > 0 {
-				pb.ChangeMax(max)
-			}
-			if cur > 0 {
-				pb.Set(cur)
-			} else {
-				pb.Add(-cur)
-			}
-		}, LoaderID(i), AfterMergeHigh)
-		pb.Finish()
-
-		pb = ui.ProgressBar("Postprocessing merged objects (final)", 0)
-		Process(ao, func(cur, max int) {
-			if max > 0 {
-				pb.ChangeMax(max)
-			}
-			if cur > 0 {
-				pb.Set(cur)
-			} else {
-				pb.Add(-cur)
-			}
-		}, LoaderID(i), AfterMergeFinal)
+		}, -1, priority)
 		pb.Finish()
 	}
+
+	ao.SetThreadsafe(false)
 
 	var statarray []string
 	for stat, count := range ao.Statistics() {

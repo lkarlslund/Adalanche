@@ -135,5 +135,10 @@ func ExtractDomainPart(dn string) string {
 		}
 	}
 
-	return strings.Join(elements[first:last], ",")
+	return strings.ToLower(strings.Join(elements[first:last], ","))
+}
+
+func DomainSuffixToDomainPart(domain string) string {
+	parts := strings.Split(domain, ".")
+	return strings.ToLower("dc=" + strings.Join(parts, ",dc="))
 }

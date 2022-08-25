@@ -7,6 +7,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
+//go:generate go run github.com/dmarkham/enumer -type=ProcessPriority -output enums.go
+
 var (
 	loaderAnalyzers = map[LoaderID][]EdgeAnalyzer{}
 )
@@ -88,11 +90,14 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 	})
 }
 
+// LoaderID = wildcard
 func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessPriority) error {
 	var priorityProcessors []ppfInfo
 	for _, potentialProcessor := range registeredProcessors {
-		if potentialProcessor.loader == l && potentialProcessor.priority == priority {
-			priorityProcessors = append(priorityProcessors, potentialProcessor)
+		if potentialProcessor.loader == l || l == -1 {
+			if potentialProcessor.priority == priority {
+				priorityProcessors = append(priorityProcessors, potentialProcessor)
+			}
 		}
 	}
 
@@ -105,10 +110,17 @@ func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessP
 	// We need to process this many objects
 	cb(0, total)
 
+	var wg sync.WaitGroup
+
 	for _, processor := range priorityProcessors {
-		processor.pf(ao)
-		cb(-ao.Len(), 0)
+		wg.Add(1)
+		go func(ppf ppfInfo) {
+			ppf.pf(ao)
+			cb(-ao.Len(), 0)
+			wg.Done()
+		}(processor)
 	}
+	wg.Wait()
 
 	return nil // FIXME
 }

@@ -984,7 +984,7 @@ func init() {
 			ui.Fatal().Msgf("Could not locate DomainDNS in collection, aborting")
 		}
 		domaindn := domaindns.OneAttrString(engine.DistinguishedName)
-		domainsuffix := util.ExtractDomainPart(domaindn)
+		domainsuffix := strings.ToLower(util.ExtractDomainPart(domaindn))
 		TrustMap.Store(TrustPair{
 			Source: domainsuffix,
 			Target: "",
@@ -1147,7 +1147,7 @@ func init() {
 
 				TrustMap.Store(TrustPair{
 					Source: domainsuffix,
-					Target: partner,
+					Target: util.DomainSuffixToDomainPart(partner),
 				}, TrustInfo{
 					Direction: TrustDirection(dir),
 				})

@@ -241,12 +241,25 @@ type PwnMethodsAndProbabilities struct {
 
 type EdgeConnections map[*Object]EdgeBitmap //sAndProbabilities
 
+var globalEdgeConnectionsLock sync.Mutex // Ugly but it will do
+
 func (ec EdgeConnections) StringMap() map[string]string {
 	result := make(map[string]string)
 	for o, eb := range ec {
 		result[o.String()] = eb.JoinedString()
 	}
 	return result
+}
+
+// Thread safe range
+func (ec EdgeConnections) Range(rf func(*Object, EdgeBitmap) bool) {
+	globalEdgeConnectionsLock.Lock()
+	for o, eb := range ec {
+		if !rf(o, eb) {
+			break
+		}
+	}
+	globalEdgeConnectionsLock.Unlock()
 }
 
 func (m EdgeBitmap) IsSet(method Edge) bool {
