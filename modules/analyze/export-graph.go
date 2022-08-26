@@ -65,8 +65,8 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 		GeneratedBy:              version.ProgramVersionShort(),
 		TargetCytoscapeJSVersion: "~3.0",
 		Data: CytoGraphData{
-			SharedName: "adalanche analysis data",
-			Name:       "adalanche analysis data",
+			SharedName: "Adalanche analysis data",
+			Name:       "Adalanche analysis data",
 		},
 	}
 

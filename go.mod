@@ -1,6 +1,6 @@
 module github.com/lkarlslund/adalanche
 
-go 1.18
+go 1.19
 
 require (
 	github.com/Microsoft/go-winio v0.5.2
@@ -23,7 +23,7 @@ require (
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/ldap/v3 v3.2.4-0.20210621153959-85555023df29
-	github.com/lkarlslund/stringdedup v0.6.0
+	github.com/lkarlslund/stringdedup v0.6.2
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mailru/easyjson v0.7.7
