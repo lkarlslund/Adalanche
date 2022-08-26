@@ -23,15 +23,15 @@ type ACLPermissionMask uint32
 const (
 	CONTROLFLAG_OWNER_DEFAULTED     SecurityDescriptorControlFlag = 0x0001
 	CONTROLFLAG_GROUP_DEFAULTED     SecurityDescriptorControlFlag = 0x0002
-	CONTROLFLAG_DACL_PRESENT                                      = 0x0004
-	CONTROLFLAG_DACL_DEFAULTED                                    = 0x0008
-	CONTROLFLAG_SACL_PRESENT                                      = 0x0010
-	CONTROLFLAG_SACL_DEFAULTED                                    = 0x0020
-	CONTROLFLAG_DACL_AUTO_INHERITED                               = 0x0400
-	CONTROLFLAG_SACL_AUTO_INHERITED                               = 0x0800
-	CONTROLFLAG_DACL_PROTECTED                                    = 0x1000
-	CONTROLFLAG_SACL_PROTECTED                                    = 0x2000
-	CONTROLFLAG_SELF_RELATIVE                                     = 0x8000
+	CONTROLFLAG_DACL_PRESENT        SecurityDescriptorControlFlag = 0x0004
+	CONTROLFLAG_DACL_DEFAULTED      SecurityDescriptorControlFlag = 0x0008
+	CONTROLFLAG_SACL_PRESENT        SecurityDescriptorControlFlag = 0x0010
+	CONTROLFLAG_SACL_DEFAULTED      SecurityDescriptorControlFlag = 0x0020
+	CONTROLFLAG_DACL_AUTO_INHERITED SecurityDescriptorControlFlag = 0x0400
+	CONTROLFLAG_SACL_AUTO_INHERITED SecurityDescriptorControlFlag = 0x0800
+	CONTROLFLAG_DACL_PROTECTED      SecurityDescriptorControlFlag = 0x1000
+	CONTROLFLAG_SACL_PROTECTED      SecurityDescriptorControlFlag = 0x2000
+	CONTROLFLAG_SELF_RELATIVE       SecurityDescriptorControlFlag = 0x8000
 
 	// ACE.Type
 	ACETYPE_ACCESS_ALLOWED        = 0x00
