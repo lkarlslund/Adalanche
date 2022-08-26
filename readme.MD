@@ -16,10 +16,10 @@ Download either the latest release or the build of the latest commit from [Relea
 
 If you prefer full control, you can roll your own on any supported platform (Windows, MacOS, Linux):
 
-- Install go 1.19 and PowerShell 7
-- <code>git clone https://github.com/lkarlslund/Adalanche</code>
-- <code>cd Adalanche-master</code>
-  <code>./build.ps1</code>
+- Prerequisites: Go 1.19, PowerShell 7, git
+- <code>git clone https://github.com/lkarlslund/Adalanche Adalanche</code>
+- <code>cd Adalanche</code>
+- <code>./build.ps1</code>
 
 Resulting binaries are available in the 'binaries' subfolder.
 
