@@ -1,6 +1,5 @@
 ﻿.vscode
-# Locally built executables
 __debug_bin*
-adalanche-*
 *.json
 data
+binaries/*

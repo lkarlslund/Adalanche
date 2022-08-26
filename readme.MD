@@ -14,13 +14,14 @@ Download either the latest release or the build of the latest commit from [Relea
 
 ### Build it yourself
 
-If you prefer full control, you can roll your own:
+If you prefer full control, you can roll your own on any supported platform (Windows, MacOS, Linux):
 
-- Install go 1.19
+- Install go 1.19 and PowerShell 7
 - <code>git clone https://github.com/lkarlslund/Adalanche</code>
 - <code>cd Adalanche-master</code>
-- Windows: <code>build.cmd</code>
-- Linux/OSX: <code>./build.sh</code>
+  <code>./build.ps1</code>
+
+Resulting binaries are available in the 'binaries' subfolder.
 
 ## First run - full auto
 

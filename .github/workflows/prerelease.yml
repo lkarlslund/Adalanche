@@ -18,13 +18,14 @@ jobs:
         go-version: 1.19
 
     - name: Build
-      run: ./build.sh
+      run: ./build.ps1
+      shell: pwsh
 
     - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
         name: Binaries
-        path: adalanche-*
+        path: binaries/*
 
     - uses: "marvinpinto/action-automatic-releases@latest"
       with:
@@ -33,4 +34,4 @@ jobs:
         prerelease: true
         title: "Development Build"
         files: |
-          adalanche-*
+          binaries/*
