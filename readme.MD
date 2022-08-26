@@ -16,7 +16,7 @@ Download either the latest release or the build of the latest commit from [Relea
 
 If you prefer full control, you can roll your own:
 
-- Install go 1.18
+- Install go 1.19
 - <code>git clone https://github.com/lkarlslund/Adalanche</code>
 - <code>cd Adalanche-master</code>
 - Windows: <code>build.cmd</code>
