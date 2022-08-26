@@ -267,7 +267,7 @@ func (m EdgeBitmap) IsSet(method Edge) bool {
 }
 
 func (m EdgeBitmap) MaxProbability(source, target *Object) Probability {
-	var max Probability
+	max := MINPROBABILITY
 	for i := 0; i < len(edgeInfos); i++ {
 		if m.IsSet(Edge(i)) {
 			prob := Edge(i).Probability(source, target)
