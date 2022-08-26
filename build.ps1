@@ -29,8 +29,6 @@ function BuildVariants {
 
 Set-Location $PSScriptRoot
 
-$BUILDDATE = Get-Date -Format "yyyyMMdd"
-
 $COMMIT = git rev-parse --short HEAD
 $VERSION = git describe --tags --exclude latest
 $DIRTYFILES = git status --porcelain
@@ -39,7 +37,7 @@ if ("$DIRTYFILES" -ne "") {
   $VERSION = "$VERSION-local-changes"
 }
 
-$LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Program=adalanche -X github.com/lkarlslund/adalanche/modules/version.Builddate=$BUILDDATE -X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
+$LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 
 # Release
 BuildVariants -ldflags "$LDFLAGS -s"
