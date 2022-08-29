@@ -1,6 +1,7 @@
-# Adalanche: Active Directory ACL Visualizer and Explorer
+# <img src="modules/analyze/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="48px"><img src="modules/analyze/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="48px"> Adalanche
+*Active Directory ACL Visualizer and Explorer*
 
-*Adalanche* gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
+Adalanche gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
 ## I Can Haz Domain Admin?
 
@@ -36,7 +37,7 @@ See program options for other possibilities (help or command --help).
 ### Active Directory
 The primary source of data is from Active Directory, and is intiated with this command:
 
-<code>Adalanche collect activedirectory [--options ...]</code>
+<code>adalanche collect activedirectory [--options ...]</code>
 
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if Adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
 
@@ -44,15 +45,15 @@ LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up
 
 Example to create data files file for contoso.local coming from your Linux pwnage box using TLS port 636, ignoring certs and using NTLM auth:
 
-<code>Adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
+<code>adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
 
 From domain joined Windows member using current user:
 
-<code>Adalanche collect activedirectory</code>
+<code>adalanche collect activedirectory</code>
 
 From domain joined Windows machine using other credentials than logged in:
 
-<code>Adalanche collect activedirectory --authmode ntlm --username joe --password Hunter42</code>
+<code>adalanche collect activedirectory --authmode ntlm --username joe --password Hunter42</code>
 
 There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing Adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
 
@@ -68,7 +69,7 @@ Here are suggested alternative solutions:
 
 Use this command:
 
-<code>Adalanche collect activedirectory --port 389 --tlsmode NoTLS</code>
+<code>adalanche collect activedirectory --port 389 --tlsmode NoTLS</code>
 
 #### Dump data using SysInternals AD Explorer
 
@@ -80,7 +81,7 @@ The procedure for using AD Explorer as a data source is:
 - Connect to your domain, for simple setups you can just leave all fields blank and press connect
 - Choose File | Create snapshot ... and save the file somewhere. There is no progress indicator, so just have patience
 - Run Adalanche to collect Active Directory object and GPO data:
-<code>Adalanche collect activedirectory --adexplorerfile=yoursavedfile.bin</code>
+<code>adalanche collect activedirectory --adexplorerfile=yoursavedfile.bin</code>
 
 You will then have compressed AD data and GPO data in your datapath like a normal collection run. You can delete the AD Explorer data file now, as this is converted into Adalanche native format.
 
@@ -90,11 +91,11 @@ For Windows systems that are members of your Active Directory domain (or standal
 
 The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
 
-<code>Adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
+<code>adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
 
 You can run the local machine collector from the Adalanche binary too, but this is only included in the 64-bit Windows build:
 
-<code>Adalanche collect localmachine [--options ...]</code>
+<code>adalanche collect localmachine [--options ...]</code>
 
 Please remember to secure your collection repository UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
 
@@ -108,7 +109,7 @@ This is dead simple - everything you've collected should be in the data director
 
 Whatever resides there and Adalanche understands is automatically loaded, correlated and used. It's totally magic.
 
-IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so Adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>Adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
+IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so Adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
 
 These extensions are recognized:
 - .localmachine.json - Windows collector data
@@ -117,9 +118,9 @@ These extensions are recognized:
 
 Highly advanced command line to analyze and launch your browser:
 
-<code>Adalanche analyze</code>
+<code>adalanche analyze</code>
 
-There are some options here as well - try <code>Adalanche analyze --help</code>
+There are some options here as well - try <code>adalanche analyze --help</code>
 
 ### User Interface
 

@@ -387,7 +387,7 @@ $(function () {
         url: 'statistics',
         dataType: 'json',
         success: function (data) {
-            statustext = "<div class='text-center'><h2>" + data.adalanche.program + "</h2><b>" +
+            statustext = "<div class='text-center pt-10'><img height=128 src='icons/adalanche-logo.svg'></div><div class='text-center'><h2>" + data.adalanche.program + "</h2><b>" +
                 data.adalanche.shortversion +
                 '</b><p>' +
                 data.statistics.Total +
