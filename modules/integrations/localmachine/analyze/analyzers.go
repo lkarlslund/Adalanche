@@ -20,13 +20,12 @@ func init() {
 					}
 
 					for _, host := range hosts {
-						servers, found := ao.FindTwoMultiOrAdd(
+						servers, found := ao.FindTwoMulti(
 							DNSHostname, engine.AttributeValueString(host),
 							engine.ObjectClass, engine.AttributeValueString("computer"),
-							nil,
 						)
 						if !found {
-							ui.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.DN())
+							ui.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.Label())
 							continue
 						}
 						for _, server := range servers {

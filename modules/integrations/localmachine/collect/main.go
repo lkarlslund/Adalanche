@@ -128,7 +128,7 @@ func Collect() (localmachine.Info, error) {
 			interfaceinfo = append(interfaceinfo, localmachine.NetworkInterfaceInfo{
 				Name:       iface.Name,
 				MACAddress: iface.HardwareAddr.String(),
-				Flags:      iface.Flags,
+				Flags:      uint(iface.Flags),
 				Addresses:  addrstrings,
 			})
 		}
@@ -714,9 +714,31 @@ func Collect() (localmachine.Info, error) {
 		groupsinfo = append(groupsinfo, grp)
 	}
 
-	softwareinfo, _ := winapi.InstalledSoftwareList()
+	dumpedsoftwareinfo, _ := winapi.InstalledSoftwareList()
+	var softwareinfo []localmachine.Software
+	if len(dumpedsoftwareinfo) > 0 {
+		softwareinfo = make([]localmachine.Software, len(dumpedsoftwareinfo))
+		for i, sw := range dumpedsoftwareinfo {
+			softwareinfo[i] = localmachine.Software{
+				DisplayName:     sw.DisplayName,
+				DisplayVersion:  sw.DisplayVersion,
+				Arch:            sw.Arch,
+				Publisher:       sw.Publisher,
+				InstallDate:     sw.InstallDate,
+				EstimatedSize:   sw.EstimatedSize,
+				Contact:         sw.Contact,
+				HelpLink:        sw.HelpLink,
+				InstallSource:   sw.InstallSource,
+				InstallLocation: sw.InstallLocation,
+				UninstallString: sw.UninstallString,
+				VersionMajor:    sw.VersionMajor,
+				VersionMinor:    sw.VersionMinor,
+			}
+		}
+	}
 
-	hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
+	// Fix this if we need the data later on
+	// hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
 
 	var privilegesinfo localmachine.Privileges
 	pol, err := LsaOpenPolicy("", _POLICY_LOOKUP_NAMES|_POLICY_VIEW_LOCAL_INFORMATION)
@@ -746,14 +768,14 @@ func Collect() (localmachine.Info, error) {
 			Commit:    version.Commit,
 			Collected: time.Now(),
 		},
-		Machine:  machineinfo,
-		Hardware: hwinfo,
+		Machine: machineinfo,
+		// Hardware: hwinfo,
 		Network: localmachine.NetworkInformation{
 			InternetConnectivity: TestInternet(),
 			NetworkInterfaces:    interfaceinfo,
 		},
-		OperatingSystem: osinfo,
-		Memory:          meminfo,
+		// OperatingSystem: osinfo,
+		// Memory:          meminfo,
 		Availability:    availabilityinfo,
 		LoginPopularity: logininfo,
 		Users:           usersinfo,

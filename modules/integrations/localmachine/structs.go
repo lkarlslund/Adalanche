@@ -1,35 +1,33 @@
 package localmachine
 
 //go:generate easyjson -all structs.go
+//go:generate msgp
 
 import (
-	"net"
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/basedata"
-	"github.com/lkarlslund/go-win64api/shared"
-	"github.com/rickb777/date/period"
 )
 
 type Info struct {
 	basedata.Common
 
-	Machine         Machine                `json:",omitempty"`
-	Hardware        shared.Hardware        `json:",omitempty"`
-	Network         NetworkInformation     `json:",omitempty"`
-	OperatingSystem shared.OperatingSystem `json:",omitempty"`
-	Memory          shared.Memory          `json:",omitempty"`
+	Machine Machine `json:",omitempty"`
+	// Hardware        shared.Hardware        `json:",omitempty"`
+	Network NetworkInformation `json:",omitempty"`
+	// OperatingSystem shared.OperatingSystem `json:",omitempty"`
+	// Memory          shared.Memory          `json:",omitempty"`
 
 	Availability    Availability    `json:",omitempty"`
 	LoginPopularity LoginPopularity `json:",omitempty"`
 
-	Users      Users             `json:",omitempty"`
-	Groups     Groups            `json:",omitempty"`
-	Shares     Shares            `json:",omitempty"`
-	Services   Services          `json:",omitempty"`
-	Software   []shared.Software `json:",omitempty"`
-	Tasks      []RegisteredTask  `json:",omitempty"`
-	Privileges Privileges        `json:",omitempty"`
+	Users      Users            `json:",omitempty"`
+	Groups     Groups           `json:",omitempty"`
+	Shares     Shares           `json:",omitempty"`
+	Services   Services         `json:",omitempty"`
+	Software   []Software       `json:",omitempty"`
+	Tasks      []RegisteredTask `json:",omitempty"`
+	Privileges Privileges       `json:",omitempty"`
 }
 
 type Machine struct {
@@ -120,6 +118,22 @@ type Service struct {
 	AccountSID string `json:",omitempty"`
 }
 
+type Software struct {
+	DisplayName     string    `json:"displayName"`
+	DisplayVersion  string    `json:"displayVersion"`
+	Arch            string    `json:"arch"`
+	Publisher       string    `json:"publisher"`
+	InstallDate     time.Time `json:"installDate"`
+	EstimatedSize   uint64    `json:"estimatedSize"`
+	Contact         string    `json:"Contact"`
+	HelpLink        string    `json:"HelpLink"`
+	InstallSource   string    `json:"InstallSource"`
+	InstallLocation string    `json:"InstallLocation"`
+	UninstallString string    `json:"UninstallString"`
+	VersionMajor    uint64    `json:"VersionMajor"`
+	VersionMinor    uint64    `json:"VersionMinor"`
+}
+
 type Users []User
 type User struct {
 	Name                 string    `json:",omitempty"`
@@ -161,10 +175,10 @@ type NetworkInformation struct {
 }
 type NetworkInterfaceInfo struct {
 	// Hardware   net.Interface
-	Name       string    `json:",omitempty"`
-	MACAddress string    `json:",omitempty"`
-	Flags      net.Flags `json:",omitempty"`
-	Addresses  []string  `json:",omitempty"`
+	Name       string   `json:",omitempty"`
+	MACAddress string   `json:",omitempty"`
+	Flags      uint     `json:",omitempty"`
+	Addresses  []string `json:",omitempty"`
 }
 
 type RegisteredTask struct {
@@ -220,19 +234,19 @@ type RegistrationInfo struct {
 }
 
 type TaskSettings struct {
-	AllowDemandStart          bool          `json:",omitempty"`
-	AllowHardTerminate        bool          `json:",omitempty"`
-	DeleteExpiredTaskAfter    string        `json:",omitempty"`
-	DontStartOnBatteries      bool          `json:",omitempty"`
-	Enabled                   bool          `json:",omitempty"`
-	TimeLimit                 period.Period `json:",omitempty"`
-	Hidden                    bool          `json:",omitempty"`
-	Priority                  uint          `json:",omitempty"`
-	RestartCount              uint          `json:",omitempty"`
-	RestartInterval           period.Period `json:",omitempty"`
-	RunOnlyIfIdle             bool          `json:",omitempty"`
-	RunOnlyIfNetworkAvailable bool          `json:",omitempty"`
-	StartWhenAvailable        bool          `json:",omitempty"`
-	StopIfGoingOnBatteries    bool          `json:",omitempty"`
-	WakeToRun                 bool          `json:",omitempty"`
+	AllowDemandStart          bool   `json:",omitempty"`
+	AllowHardTerminate        bool   `json:",omitempty"`
+	DeleteExpiredTaskAfter    string `json:",omitempty"`
+	DontStartOnBatteries      bool   `json:",omitempty"`
+	Enabled                   bool   `json:",omitempty"`
+	TimeLimit                 string `json:",omitempty"`
+	Hidden                    bool   `json:",omitempty"`
+	Priority                  uint   `json:",omitempty"`
+	RestartCount              uint   `json:",omitempty"`
+	RestartInterval           string `json:",omitempty"`
+	RunOnlyIfIdle             bool   `json:",omitempty"`
+	RunOnlyIfNetworkAvailable bool   `json:",omitempty"`
+	StartWhenAvailable        bool   `json:",omitempty"`
+	StopIfGoingOnBatteries    bool   `json:",omitempty"`
+	WakeToRun                 bool   `json:",omitempty"`
 }

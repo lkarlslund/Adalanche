@@ -24,7 +24,7 @@ type LocalMachineLoader struct {
 	ao          *engine.Objects
 	done        sync.WaitGroup
 	mutex       sync.Mutex
-	machinesids map[windowssecurity.SID][]*engine.Object
+	machinesids map[string][]*engine.Object
 	infostoadd  chan string
 }
 
@@ -35,7 +35,7 @@ func (ld *LocalMachineLoader) Name() string {
 func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
 	ld.ao.SetThreadsafe(true)
-	ld.machinesids = make(map[windowssecurity.SID][]*engine.Object)
+	ld.machinesids = make(map[string][]*engine.Object)
 	ld.infostoadd = make(chan string, 128)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -56,10 +56,16 @@ func (ld *LocalMachineLoader) Init() error {
 				}
 
 				// ld.infoaddmutex.Lock()
-				err = ld.ImportCollectorInfo(cinfo)
+				computerobject, err := ImportCollectorInfo(ld.ao, cinfo)
 				if err != nil {
 					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
+				}
+
+				if cinfo.Machine.LocalSID != "" {
+					ld.mutex.Lock()
+					ld.machinesids[cinfo.Machine.LocalSID] = append(ld.machinesids[cinfo.Machine.LocalSID], computerobject)
+					ld.mutex.Unlock()
 				}
 
 				// ld.ao.AddMerge([]engine.Attribute{engine.ObjectSid}, generatedobjs...)

@@ -6,6 +6,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/version"
 )
 
+//go:generate msgp
+
 type Common struct {
 	Collector string    `json:,omitempty`
 	Version   string    `json:,omitempty`
