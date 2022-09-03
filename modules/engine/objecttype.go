@@ -27,7 +27,7 @@ var (
 	ObjectTypeManagedServiceAccount      = NewObjectType("ManagedServiceAccount", "ms-DS-Managed-Service-Account")
 	ObjectTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit").SetDefault(Last, false)
 	ObjectTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
-	ObjectTypeContainer                  = NewObjectType("Container", "Container")
+	ObjectTypeContainer                  = NewObjectType("Container", "Container").SetDefault(Last, false)
 	ObjectTypeComputer                   = NewObjectType("Computer", "Computer")
 	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
 	ObjectTypeTrust                      = NewObjectType("Trust", "Trusted-Domain")
