@@ -271,7 +271,7 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		// var methods engine.EdgeBitmap
-		var methods_f, methods_m, methods_l engine.EdgeBitmap
+		var edges_f, egdes_m, edges_l engine.EdgeBitmap
 		var objecttypes_f, objecttypes_m, objecttypes_l []engine.ObjectType
 		for potentialfilter := range vars {
 			if len(potentialfilter) < 7 {
@@ -286,11 +286,11 @@ func analysisfuncs(ws *webservice) {
 				}
 				switch suffix {
 				case "_f":
-					methods_f = methods_f.Set(method)
+					edges_f = edges_f.Set(method)
 				case "_m":
-					methods_m = methods_m.Set(method)
+					egdes_m = egdes_m.Set(method)
 				case "_l":
-					methods_l = methods_l.Set(method)
+					edges_l = edges_l.Set(method)
 				}
 			} else if strings.HasPrefix(potentialfilter, "type_") {
 				prefix := potentialfilter[5 : len(potentialfilter)-2]
@@ -313,11 +313,11 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		// Are we using the new format FML? The just choose the old format methods for FML
-		if methods_f.Count() == 0 && methods_m.Count() == 0 && methods_l.Count() == 0 {
+		if edges_f.Count() == 0 && egdes_m.Count() == 0 && edges_l.Count() == 0 {
 			// Spread the choices to FML
-			methods_f = engine.AllEdgeMethods
-			methods_m = engine.AllEdgeMethods
-			methods_l = engine.AllEdgeMethods
+			edges_f = engine.AllEdgesBitmap
+			egdes_m = engine.AllEdgesBitmap
+			edges_l = engine.AllEdgesBitmap
 		}
 
 		var pg engine.Graph
@@ -327,7 +327,7 @@ func analysisfuncs(ws *webservice) {
 			}
 
 			// We dont support this yet, so merge all of them
-			combinedmethods := methods_f.Merge(methods_m).Merge(methods_l)
+			combinedmethods := edges_f.Merge(egdes_m).Merge(edges_l)
 
 			for _, source := range includeobjects.Slice() {
 				for _, target := range excludeobjects.Slice() {
@@ -340,9 +340,9 @@ func analysisfuncs(ws *webservice) {
 			opts := engine.NewAnalyzeObjectsOptions()
 			opts.IncludeObjects = includeobjects
 			opts.ExcludeObjects = excludeobjects
-			opts.MethodsF = methods_f
-			opts.MethodsM = methods_m
-			opts.MethodsL = methods_l
+			opts.MethodsF = edges_f
+			opts.MethodsM = egdes_m
+			opts.MethodsL = edges_l
 			opts.ObjectTypesF = objecttypes_f
 			opts.ObjectTypesM = objecttypes_m
 			opts.ObjectTypesL = objecttypes_l
@@ -519,22 +519,22 @@ func analysisfuncs(ws *webservice) {
 			})
 		}
 
-		var selectedmethods []engine.Edge
-		for potentialmethod, values := range uq {
-			if method := engine.E(potentialmethod); method != engine.NonExistingEdgeType {
+		var selectededges []engine.Edge
+		for potentialedge, values := range uq {
+			if edge := engine.E(potentialedge); edge != engine.NonExistingEdgeType {
 				enabled, _ := util.ParseBool(values[0])
 				if len(values) == 1 && enabled {
-					selectedmethods = append(selectedmethods, method)
+					selectededges = append(selectededges, edge)
 				}
 			}
 		}
 		// If everything is deselected, select everything
-		if len(selectedmethods) == 0 {
-			selectedmethods = engine.AllEdgesSlice()
+		if len(selectededges) == 0 {
+			selectededges = engine.AllEdgesSlice()
 		}
 
 		var methods engine.EdgeBitmap
-		for _, m := range selectedmethods {
+		for _, m := range selectededges {
 			methods = methods.Set(m)
 		}
 

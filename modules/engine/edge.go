@@ -27,43 +27,43 @@ const (
 
 type EdgeInfo struct {
 	Target      *Object
-	Method      Edge
+	Edge        Edge
 	Probability Probability
 }
 
-func (eb EdgeBitmap) Set(method Edge) EdgeBitmap {
-	EdgePopularity[method]++
-	return eb.set(method)
+func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
+	EdgePopularity[edge]++
+	return eb.set(edge)
 }
 
-func (eb EdgeBitmap) set(method Edge) EdgeBitmap {
+func (eb EdgeBitmap) set(edge Edge) EdgeBitmap {
 	newpm := eb
-	bits := uint64(1) << (method % 64)
-	newpm[int(method)/64] = eb[int(method)/64] | bits
+	bits := uint64(1) << (edge % 64)
+	newpm[int(edge)/64] = eb[int(edge)/64] | bits
 	return newpm
 }
 
-func (eb EdgeBitmap) Clear(method Edge) EdgeBitmap {
+func (eb EdgeBitmap) Clear(edge Edge) EdgeBitmap {
 	newpm := eb
-	bits := uint64(1) << (method % 64)
-	newpm[int(method)/64] = eb[int(method)/64] &^ bits
+	bits := uint64(1) << (edge % 64)
+	newpm[int(edge)/64] = eb[int(edge)/64] &^ bits
 	return newpm
 }
 
-func (eb EdgeBitmap) Intersect(methods EdgeBitmap) EdgeBitmap {
-	var newpm EdgeBitmap
+func (eb EdgeBitmap) Intersect(edges EdgeBitmap) EdgeBitmap {
+	var new EdgeBitmap
 	for i := 0; i < PMBSIZE; i++ {
-		newpm[i] = eb[i] & methods[i]
+		new[i] = eb[i] & edges[i]
 	}
-	return newpm
+	return new
 }
 
-func (eb EdgeBitmap) Merge(methods EdgeBitmap) EdgeBitmap {
-	var newpm EdgeBitmap
+func (eb EdgeBitmap) Merge(edges EdgeBitmap) EdgeBitmap {
+	var new EdgeBitmap
 	for i := 0; i < PMBSIZE; i++ {
-		newpm[i] = eb[i] | methods[i]
+		new[i] = eb[i] | edges[i]
 	}
-	return newpm
+	return new
 }
 
 func (eb EdgeBitmap) Count() int {
@@ -74,7 +74,7 @@ func (eb EdgeBitmap) Count() int {
 	return ones
 }
 
-func (eb EdgeBitmap) Methods() []Edge {
+func (eb EdgeBitmap) Edges() []Edge {
 	result := make([]Edge, eb.Count())
 	var n int
 	for i := 0; i < len(edgeInfos); i++ {
@@ -97,9 +97,9 @@ func (ec EdgeConnections) Objects() ObjectSlice {
 	return result
 }
 
-func (ec EdgeConnections) Set(o *Object, method Edge) {
+func (ec EdgeConnections) Set(o *Object, edge Edge) {
 	p := ec[o]
-	ec[o] = p.Set(method)
+	ec[o] = p.Set(edge)
 }
 
 type Edge int
@@ -139,7 +139,7 @@ func NewEdge(name string) Edge {
 
 	newindex := Edge(len(edgeInfos))
 	if newindex == MAXPWNMETHODPOSSIBLE {
-		panic("Too many PwnMethods")
+		panic("Too many Edge definitions")
 	}
 
 	edgeInfos = append(edgeInfos, &edgeInfo{
@@ -156,7 +156,7 @@ func NewEdge(name string) Edge {
 
 func (p Edge) String() string {
 	if int(p) >= len(edgeInfos) {
-		return "INVALID PWN METHOD"
+		return "INVALID EDGE"
 	}
 	return edgeInfos[p].Name
 }
@@ -221,13 +221,13 @@ var (
 	AnyEdgeType         = Edge(9999)
 )
 
-var AllEdgeMethods EdgeBitmap
+var AllEdgesBitmap EdgeBitmap
 
 var EdgePopularity [MAXPWNMETHODPOSSIBLE]uint64
 
 func init() {
 	for i := Edge(0); i < MAXPWNMETHODPOSSIBLE; i++ {
-		AllEdgeMethods = AllEdgeMethods.set(i)
+		AllEdgesBitmap = AllEdgesBitmap.set(i)
 	}
 }
 
