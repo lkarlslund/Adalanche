@@ -1033,18 +1033,22 @@ func (o *Object) ValueMap() map[string][]string {
 	return result
 }
 
+var ErrNoSecurityDescriptor = errors.New("no security desciptor")
+
 // Return parsed security descriptor
 func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 	if o.sdcache == nil {
-		return nil, errors.New("no security desciptor")
+		return nil, ErrNoSecurityDescriptor
 	}
 	return o.sdcache, nil
 }
 
+var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor attribute!?")
+
 // Parse and cache security descriptor
 func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 	if len(rawsd) == 0 {
-		return errors.New("empty nTSecurityDescriptor attribute!?")
+		return ErrEmptySecurityDescriptorAttribute
 	}
 
 	securitydescriptorcachemutex.RLock()
