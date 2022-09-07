@@ -128,6 +128,7 @@ func (avo AttributeValueOne) Len() int {
 	return 1
 }
 
+// This is really killing us
 func (avo AttributeValueOne) Slice() []AttributeValue {
 	return AttributeValueSlice{avo.Value}
 }
