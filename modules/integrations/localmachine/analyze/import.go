@@ -463,7 +463,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					engine.UniqueSource, uniquesource,
 				)
 			}
-			owner.Pwns(serviceobject, PwnFileOwner)
+			owner.Pwns(serviceimageobject, PwnFileOwner)
 		}
 
 		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
