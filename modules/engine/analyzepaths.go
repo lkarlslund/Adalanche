@@ -143,7 +143,7 @@ func (q queue) Empty() bool {
 	return len(q.items) == 0
 }
 
-func AnalyzePaths(start, end *Object, obs *Objects, lookformethods EdgeBitmap, minprobability Probability, iterations int) Graph {
+func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, minprobability Probability, iterations int) Graph {
 	visited := make(map[*Object]struct{})
 	dist := make(map[*Object]uint32)
 	prev := make(map[*Object]*Object)
@@ -166,19 +166,19 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookformethods EdgeBitmap, m
 
 		visited[source] = struct{}{}
 
-		for target, methods := range source.CanPwn {
+		for target, edges := range source.CanPwn {
 			if _, found := visited[target]; !found {
 
 				// If this is not a chosen method, skip it
-				detectedmethods := methods.Intersect(lookformethods)
+				detectededges := edges.Intersect(lookforedges)
 
-				methodcount := detectedmethods.Count()
-				if methodcount == 0 {
+				edgecount := detectededges.Count()
+				if edgecount == 0 {
 					// Nothing useful or just a deny ACL, skip it
 					continue
 				}
 
-				prob := detectedmethods.MaxProbability(v.Object, target)
+				prob := detectededges.MaxProbability(v.Object, target)
 				if prob < minprobability {
 					// Skip entirely if too
 					continue

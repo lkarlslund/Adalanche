@@ -88,7 +88,6 @@ func init() {
 		// },
 
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnReadLAPSPassword,
 			Description: "Reading local admin passwords via LAPS",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only if we've picked up some LAPS attribute GUIDs
@@ -120,7 +119,6 @@ func init() {
 		},
 
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnGPOMachineConfigPartOfGPO,
 			Description: "Machine configurations that are part of a GPO",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
@@ -135,7 +133,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnGPOUserConfigPartOfGPO,
 			Description: "User configurations that are part of a GPO",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "User" {
@@ -150,7 +147,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnACLContainsDeny,
 			Description: "Indicator for possible false positives, as the ACL contains DENY entries",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// It's a group
@@ -166,7 +162,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnOwns,
 			Description: "Indicator that someone owns an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				sd, err := o.SecurityDescriptor()
@@ -187,7 +182,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnGenericAll,
 			Description: "Indicator that someone has full permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -206,7 +200,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteAll,
 			Description: "Indicator that someone can write to all attributes and do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -225,7 +218,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWritePropertyAll,
 			Description: "Indicator that someone can write to all attributes of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -244,7 +236,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteExtendedAll,
 			Description: "Indicator that someone do all validated writes on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -264,7 +255,6 @@ func init() {
 		},
 		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnTakeOwnership,
 			Description: "Indicator that someone is allowed to take ownership of an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -283,7 +273,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteDACL,
 			Description: "Indicator that someone can change permissions on an object",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -302,7 +291,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method:      activedirectory.PwnWriteAttributeSecurityGUID,
 			Description: `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`,
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				sd, err := o.SecurityDescriptor()
@@ -321,7 +309,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnResetPassword,
 			Description: "Indicator that a group or user can reset the password of an account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only users, computers and service accounts
@@ -361,7 +348,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnHasSPN,
 			Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only computers and users
@@ -382,7 +368,6 @@ func init() {
 		},
 
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnHasSPN,
 			Description: "Indicator that a user has \"don't require preauth\" and can be kerberoasted",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only users
@@ -401,7 +386,6 @@ func init() {
 		},
 
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteSPN, // Same GUID as Validated writes, just a different permission (?)
 			Description: "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only computers and users
@@ -420,7 +404,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteValidatedSPN,
 			Description: "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only computers and users
@@ -439,7 +422,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method:      activedirectory.PwnWriteAllowedToAct,
 			Description: `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`,
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only computers
@@ -458,7 +440,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnAddMember,
 			Description: "Permission to add a member to a group",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for groups
@@ -478,7 +459,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnAddMemberGroupAttr,
 			Description: "Permission to add a member to a group (via attribute set)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for groups
@@ -517,7 +497,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnReadMSAPassword,
 			Description: "Allows someone to read a password of a managed service account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				msasds := o.AttrString(activedirectory.MSDSGroupMSAMembership)
@@ -534,7 +513,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method:      activedirectory.PwnWriteAltSecurityIdentities,
 			Description: "Allows an attacker to define a certificate that can be used to authenticate as the user",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for users
@@ -553,7 +531,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method:      activedirectory.PwnWriteProfilePath,
 			Description: "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for users
@@ -572,7 +549,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method:      activedirectory.PwnWriteScriptPath,
 			Description: "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for users
@@ -591,7 +567,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnHasMSA,
 			Description: "Indicates that the object has a service account in use",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				msas := o.Attr(activedirectory.MSDSHostServiceAccount).Slice()
@@ -603,7 +578,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnWriteKeyCredentialLink,
 			Description: "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				// Only for groups
@@ -623,7 +597,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnSIDHistoryEquality,
 			Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				sids := o.Attr(activedirectory.SIDHistory).Slice()
@@ -636,7 +609,6 @@ func init() {
 			},
 		},
 		engine.EdgeAnalyzer{
-			// Method: activedirectory.PwnAllExtendedRights,
 			Description: "Indicates that you have all extended rights",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
 				if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
@@ -1347,7 +1319,7 @@ func init() {
 			return
 		}
 
-		for target, methods := range creatorowner.CanPwn {
+		for target, edges := range creatorowner.CanPwn {
 			// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
 			if sd, err := target.SecurityDescriptor(); err == nil {
 				if sd.Owner != windowssecurity.BlankSID {
@@ -1359,8 +1331,8 @@ func init() {
 							}
 
 							// Link real target
-							realo.CanPwn[target] = realo.CanPwn[target].Merge(methods)
-							target.PwnableBy[realo] = target.PwnableBy[realo].Merge(methods)
+							realo.CanPwn[target] = realo.CanPwn[target].Merge(edges)
+							target.PwnableBy[realo] = target.PwnableBy[realo].Merge(edges)
 
 							// Unlink creatorowner
 							delete(creatorowner.CanPwn, target)
@@ -1510,8 +1482,8 @@ func init() {
 								}
 								warnlines++
 							} else if len(targetgroups) == 1 {
-								for _, method := range methods.Methods() {
-									targetgroups[0].PwnsEx(affected, method, true)
+								for _, edge := range methods.Edges() {
+									targetgroups[0].PwnsEx(affected, edge, true)
 								}
 							} else {
 								ui.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)

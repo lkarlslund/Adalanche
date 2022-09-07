@@ -127,7 +127,7 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 	}
 
 	for _, connection := range pg.Connections {
-		edge := CytoFlatElement{
+		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
 				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID(), connection.Target.ID()),
@@ -137,20 +137,20 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 		}
 
 		for key, value := range connection.DynamicFields {
-			edge.Data[key] = value
+			cytoedge.Data[key] = value
 		}
 
 		var maxprob engine.Probability
-		for _, method := range connection.Methods() {
-			prob := method.Probability(connection.Source, connection.Target)
-			edge.Data["method_"+method.String()] = prob
+		for _, edge := range connection.Edges() {
+			prob := edge.Probability(connection.Source, connection.Target)
+			cytoedge.Data["method_"+edge.String()] = prob
 			if prob > maxprob {
 				maxprob = prob
 			}
 		}
-		edge.Data["_maxprob"] = maxprob
+		cytoedge.Data["_maxprob"] = maxprob
 
-		g.Elements[i] = edge
+		g.Elements[i] = cytoedge
 
 		i++
 	}

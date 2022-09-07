@@ -33,9 +33,9 @@ func (pm Edge) Probability(source, target *Object) Probability {
 
 func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 	return AnalyzeObjectsOptions{
-		MethodsF:               AllEdgeMethods,
-		MethodsM:               AllEdgeMethods,
-		MethodsL:               AllEdgeMethods,
+		MethodsF:               AllEdgesBitmap,
+		MethodsM:               AllEdgesBitmap,
+		MethodsL:               AllEdgesBitmap,
 		Reverse:                false,
 		MaxDepth:               99,
 		MaxOutgoingConnections: -1,
@@ -102,7 +102,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 	}
 
 	// Methods and ObjectTypes allowed
-	detectmethods := opts.MethodsF
+	detectedges := opts.MethodsF
 
 	var detectobjecttypes map[ObjectType]struct{}
 	// If there are any, put them in a map - otherwise it's faster NOT to filter by checking if the filter map is nil
@@ -115,7 +115,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 	for opts.MaxDepth >= processinground {
 		if processinground == 2 {
-			detectmethods = opts.MethodsM
+			detectedges = opts.MethodsM
 			detectobjecttypes = nil
 			if len(opts.ObjectTypesM) > 0 {
 				detectobjecttypes = make(map[ObjectType]struct{})
@@ -135,29 +135,29 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 			newconnectionsmap := make(map[ObjectPair]EdgeBitmap) // Pwn Connection between objects
 
-			var pwnlist EdgeConnections
+			var ec EdgeConnections
 			if forward {
-				pwnlist = object.PwnableBy
+				ec = object.PwnableBy
 			} else {
-				pwnlist = object.CanPwn
+				ec = object.CanPwn
 			}
 
 			// Iterate over ever outgoing pwn
 			// This is not efficient, but we sort the pwnlist first
-			for _, pwntarget := range pwnlist.Objects() {
-				pwninfo := pwnlist[pwntarget]
+			for _, target := range ec.Objects() {
+				eb := ec[target]
 
 				// If this is not a chosen method, skip it
-				detectedmethods := pwninfo.Intersect(detectmethods)
+				detectededges := eb.Intersect(detectedges)
 
-				methodcount := detectedmethods.Count()
-				if methodcount == 0 {
+				edgecount := detectededges.Count()
+				if edgecount == 0 {
 					// Nothing useful or just a deny ACL, skip it
 					continue
 				}
 
 				if detectobjecttypes != nil {
-					if _, found := detectobjecttypes[pwntarget.Type()]; !found {
+					if _, found := detectobjecttypes[target.Type()]; !found {
 						// We're filtering on types, and it's not wanted
 						continue
 					}
@@ -165,9 +165,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 				var maxprobability Probability
 				if forward {
-					maxprobability = detectedmethods.MaxProbability(pwntarget, object)
+					maxprobability = detectededges.MaxProbability(target, object)
 				} else {
-					maxprobability = detectedmethods.MaxProbability(object, pwntarget)
+					maxprobability = detectededges.MaxProbability(object, target)
 				}
 				if maxprobability < Probability(opts.MinProbability) {
 					// Too unlikeliy, so we skip it
@@ -178,7 +178,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 				// Targets are allowed to pwn each other as a way to reach the goal of pwning all of them
 				// If pwner is already processed, we don't care what it can pwn someone more far away from targets
 				// If pwner is our attacker, we always want to know what it can do
-				tri, found := implicatedobjectsmap[pwntarget]
+				tri, found := implicatedobjectsmap[target]
 
 				// SKIP THIS IF
 				if
@@ -191,20 +191,20 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 					// It was found in an earlier round
 					tri.roundadded+opts.Fuzzlevel <= processinground &&
 					// If SIDs match between objects, it's a cross forest link and we want to see it
-					(object.SID().IsNull() || pwntarget.SID().IsNull() || object.SID().Component(2) != 21 || object.SID() != pwntarget.SID()) {
+					(object.SID().IsNull() || target.SID().IsNull() || object.SID().Component(2) != 21 || object.SID() != target.SID()) {
 					// skip it
 					continue
 				}
 
 				if opts.ExcludeObjects != nil {
-					if _, found := opts.ExcludeObjects.FindByID(pwntarget.ID()); found {
+					if _, found := opts.ExcludeObjects.FindByID(target.ID()); found {
 						// skip excluded objects
 						// ui.Debug().Msgf("Excluding target %v", pwntarget.DN())
 						continue
 					}
 				}
 
-				newconnectionsmap[ObjectPair{Source: object, Target: pwntarget}] = detectedmethods
+				newconnectionsmap[ObjectPair{Source: object, Target: target}] = detectededges
 			}
 
 			if opts.MaxOutgoingConnections == -1 || len(newconnectionsmap) < opts.MaxOutgoingConnections {

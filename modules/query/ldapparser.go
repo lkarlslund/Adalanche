@@ -223,26 +223,26 @@ valueloop:
 			}
 			return s, &random100{comparator, valuenum}, nil
 		case "_pwnable", "_canpwn":
-			pwnmethod := value
+			edgename := value
 			var target Query
-			commapos := strings.Index(pwnmethod, ",")
+			commapos := strings.Index(edgename, ",")
 			if commapos != -1 {
-				pwnmethod = value[:commapos]
+				edgename = value[:commapos]
 				target, err = ParseLDAPQueryStrict(value[commapos+1:], ao)
 				if err != nil {
 					return nil, nil, fmt.Errorf("Could not parse sub-query: %v", err)
 				}
 			}
-			var method engine.Edge
-			if pwnmethod == "*" {
-				method = engine.AnyEdgeType
+			var edge engine.Edge
+			if edgename == "*" {
+				edge = engine.AnyEdgeType
 			} else {
-				method = engine.E(pwnmethod)
-				if method == engine.NonExistingEdgeType {
-					return nil, nil, fmt.Errorf("Could not convert value %v to pwn method", pwnmethod)
+				edge = engine.E(edgename)
+				if edge == engine.NonExistingEdgeType {
+					return nil, nil, fmt.Errorf("Could not convert value %v to edge", edgename)
 				}
 			}
-			return s, pwnquery{attributename == "_canpwn", method, target}, nil
+			return s, pwnquery{attributename == "_canpwn", edge, target}, nil
 			// default:
 			// 	return "", nil, fmt.Errorf("Unknown synthetic attribute %v", attributename)
 		}
