@@ -130,28 +130,28 @@ There are some options here as well - try <code>adalanche analyze --help</code>
 
 When launched, you'll see some statistics on what's loaded into memory and how many edges are detected between objects. Don't worry, Adalanche can handle millions of objects and edges, if you have enough RAM ;)
 
-The pre-loaded query allows you to see who can pwn "Administrators", "Domain Admins" and "Enterprise Admins". Query targets are marked with RED. 
+The pre-loaded query allows you to see who can pwn "Administrators", "Domain Admins" and "Enterprise Admins". Query target nodes are marked with RED. 
 
 Press the "analyze" button in the query interface to get the results displayed. If you get a lot of objects on this one, congratz, you're running a pwnshop.
 
-Depending on whether you're over or underwhelmed by the resutls, you can do adjustments or other searches.
+Depending on whether you're over or underwhelmed by the results, you can do adjustments or other searches.
 
 #### Pre-defined searches
 
-To ease the learning experience, there are a number of sample quieries built into 'Adalanche'. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
+To ease the learning experience, there are a number of sample queries built into 'Adalanche'. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
 
 #### Analysis Options
 
 <img src="readme-images/analysis-options.png" width="50%">
 
 Mode allows you to switch between:
-- In normal mode you select targets, and Adalanche figures out who can reach these targets (most common search)
-- In reverse mode you select targets, and Adalanche figures out what impact they have (What can "Domain Users" do?)
+- In normal mode you select target nodes, and Adalanche figures out who can reach these target nodes (most common search)
+- In reverse mode you select target nodes, and Adalanche figures out what impact they have (What can "Domain Users" do?)
 - The SrcTgt mode consists of TWO queries separated by commas, and it allows you to do a path search from the source(s) to the target(s). You target selection should be limited to no more than 5 of each, as the query results in S*T searches to be run in the engine.
 
 If your query returns more than 1000 objects, Adalanche will reject the query, because it has the potential to crash your browser. Using the "Force too much data" allows you to override this, and depending on your browser and computer, you might get away with more data. On my setup using Firefox, 2500 objects is unproblematic, but much more is possible but requires a lot of patience for the graph lauout to run.
 
-Remember, you might get too many results. Limit the selection of targets with (&(attribute=something)(_limit=10)) to just get the first 10 targets (see LDAP queries below)
+Remember, you might get too many results. Limit the selection of target nodes with (&(attribute=something)(_limit=10)) to just get the first 10 target nodes (see LDAP queries below)
 
 Prune island nodes removes unconnecteded objects in the results.
 

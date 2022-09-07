@@ -75,14 +75,14 @@ body {
   transform: translate(-50%, 0%);
 }
 
-#about {
+#xxabout {
   position: absolute;
   left: 50%;
   top: 0px;
   transform: translate(-50%, 0%);
 }
 
-#commandbuttons {
+#lower-left {
   position: absolute;
   left: 10px;
   bottom: 10px;

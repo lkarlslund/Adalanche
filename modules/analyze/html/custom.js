@@ -227,16 +227,16 @@ function analyze(e) {
 
                 var info =
                     data.targets +
-                    ' targets can ' +
+                    ' target nodes can ' +
                     (!data.reversed ? 'be reached via ' : 'reach ') +
                     data.links +
-                    ' possible pwns ' +
+                    ' edges ' +
                     (!data.reversed ? 'from' : 'to') +
-                    ':<hr/>';
+                    ':<hr/><table class="w-full">';
                 for (var objecttype in data.resulttypes) {
-                    info += data.resulttypes[objecttype] + ' ' + objecttype + '<br>';
+                    info += '<tr><td class="text-right pr-5">'+ data.resulttypes[objecttype] + '</td><td>' + objecttype + '</td></tr>';
                 }
-                info += data.total + ' total objects in analysis';
+                info += '<tr><td class="text-right pr-5">' + data.total + '</td><td>total nodes in analysis</td></tr></table>';
 
                 newwindow('results', 'Query results', info);
 

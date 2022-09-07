@@ -60,7 +60,17 @@
   <div id="cy" class="fullscreen z-10"></div>
 
   <div id="overlay" class="fullscreen z-40 pointer-events-none">
-    <div id="commandbuttons" class="pointer-events-auto"><button id="explore" class="btn btn-primary">Explore</button></div>
+    <div id="lower-left">
+      <div id="about">
+        <div><img src="icons/adalanche-logo.svg" height="26px"> <span
+          id="programinfo">Adalanche</span></div>
+        <div>
+          <span id="programlink" class="pointer-events-auto"><img src="icons/twitter.svg" height="16px"> <a 
+            href="https://twitter.com/lkarlslund">@lkarlslund</a></span>
+        </div>
+      </div>
+      <div id="commandbuttons" class="pt-10 pointer-events-auto"><button id="explore" class="btn btn-primary">Explore</button></div>
+    </div>
     <!-- <div id="infobar" class="float-left">
       <div id="infowrap" class="fw-250 h-full pointer-events-auto">
         <div id="infocontent" class="fw-250 bg-dark h-full overflow-y-auto">
@@ -73,8 +83,9 @@
       <div id="optionspop" class="d-inline-block align-top bg-dark border p-10 xrotated-text-90 pointer-events-auto">
         Options
       </div>
-      <div id="optionswrap" class="fw-250 accordion pointer-events-auto">
-        <div id="optionscontent" class="fw-250 collapse-group bg-dark h-full overflow-y-auto">
+      <div id="optionswrap" class="fw-250 accordion">
+        <div id="optionscontent" class="fw-250 collapse-group h-full overflow-y-auto">
+            <div class="pointer-events-auto bg-dark">
             <details class="collapse-panel">
               <summary class="collapse-header" id="headingTwo">
                 Analysis options
@@ -223,13 +234,11 @@
           </div>
         </details>
       </div>
+      </div>
     </div>
   </div>
 
   <!-- Absolute stuff -->
-  <div id="about" class="pointer-events-auto align-items-center"><img src="icons/adalanche-logo.svg" height="26px"> <span id="programinfo">Adalanche</span> - <span id="programlink"><img src="icons/twitter.svg" height="16px"> <a href="https://twitter.com/lkarlslund">@lkarlslund</a></span>
-  </div>
-
   <div id="status" class="border bg-dark p-5 shadow pointer-events-auto">
   </div>
 

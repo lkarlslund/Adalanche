@@ -914,7 +914,7 @@ function findroute(source) {
             routecontents)
     } else {
         halfmoon.initStickyAlert({
-            content: "If your analysis was for multiple targets, there is no guarantee that all results can reach all targets.",
+            content: "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.",
             title: "No route found",
             alertType: "alert-danger",
             fillType: "filled",

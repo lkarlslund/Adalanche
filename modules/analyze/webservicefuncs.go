@@ -391,18 +391,19 @@ func analysisfuncs(ws *webservice) {
 
 		if len(pg.Nodes) > 1000 && !force {
 			w.WriteHeader(413) // too big payload response
-			errormsg := fmt.Sprintf("Too much data :-( %v targets can ", targets)
+			errormsg := fmt.Sprintf("Too much data :-( %v target nodes can ", targets)
 			if mode != "normal" || strings.HasPrefix(mode, "sourcetarget") {
 				errormsg += "can pwn"
 			} else {
 				errormsg += "be can pwned by"
 			}
+			errormsg += fmt.Sprintf(" %v total nodes<br>", len(pg.Nodes)-targets)
 			var notfirst bool
 			for objecttype, count := range resulttypes {
 				if notfirst {
-					errormsg += ","
+					errormsg += ", "
 				}
-				errormsg += fmt.Sprintf(" %v %v", count, objecttype)
+				errormsg += fmt.Sprintf("%v %v", count, objecttype)
 				notfirst = true
 			}
 
