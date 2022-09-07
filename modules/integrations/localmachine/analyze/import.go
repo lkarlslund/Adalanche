@@ -409,31 +409,54 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		}
 
 		// Change service executable via registry
+		if service.RegistryOwner != "" {
+			ro, err := windowssecurity.SIDFromString(service.RegistryOwner)
+			if err == nil {
+				o := ao.AddNew(
+					activedirectory.ObjectSid, engine.AttributeValueSID(ro),
+				)
+				if ro.StripRID() == localsid || ro.Component(2) != 21 {
+					o.SetFlex(
+						engine.UniqueSource, uniquesource,
+					)
+				}
+				o.Pwns(serviceobject, PwnRegistryOwns)
+			}
+		}
 		if sd, err := engine.ParseACL(service.RegistryDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
-				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.AceFlagsInheritOnly) == 0 {
 					if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
 						// if we have local admin it's already game over so don't map this
 						continue
 					}
 
-					o := ao.AddNew(
-						activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
-					)
+					var o *engine.Object
 
-					if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
-						o.SetFlex(
-							engine.UniqueSource, uniquesource,
+					if entrysid == windowssecurity.SystemSID {
+						o = computerobject
+					} else {
+						o = ao.AddNew(
+							activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 						)
+						if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
+							o.SetFlex(
+								engine.UniqueSource, uniquesource,
+							)
+						}
 					}
 
-					if entry.Mask&engine.KEY_SET_VALUE == engine.KEY_SET_VALUE {
+					if entry.Mask&engine.KEY_SET_VALUE != 0 {
 						o.Pwns(serviceobject, PwnRegistryWrite)
 					}
 
-					if entry.Mask&engine.RIGHT_WRITE_DACL == engine.RIGHT_WRITE_DACL {
+					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
 						o.Pwns(serviceobject, PwnRegistryModifyDACL)
+					}
+
+					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
+						o.Pwns(serviceobject, PwnRegistryModifyOwner)
 					}
 				}
 			}

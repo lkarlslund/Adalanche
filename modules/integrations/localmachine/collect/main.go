@@ -577,7 +577,7 @@ func Collect() (localmachine.Info, error) {
 					imagepath, _, _ := service_key.GetStringValue("ImagePath")
 
 					// Grab ImagePath key security
-					_, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+					registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
 
 					// if strings.HasSuffix(imagepath, "locator.exe") {
 					// 	ui.Info().Msg("Jackpot!")
@@ -647,6 +647,7 @@ func Collect() (localmachine.Info, error) {
 					stype, _, _ := service_key.GetIntegerValue("Type")
 					if stype >= 16 {
 						servicesinfo = append(servicesinfo, localmachine.Service{
+							RegistryOwner:        registryowner.String(),
 							RegistryDACL:         registrydacl,
 							Name:                 service,
 							DisplayName:          displayname,

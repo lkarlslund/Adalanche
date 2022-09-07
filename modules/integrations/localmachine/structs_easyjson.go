@@ -1144,6 +1144,8 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			continue
 		}
 		switch key {
+		case "RegistryOwner":
+			out.RegistryOwner = string(in.String())
 		case "RegistryDACL":
 			if in.IsNull() {
 				in.Skip()
@@ -1192,10 +1194,20 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 	out.RawByte('{')
 	first := true
 	_ = first
-	if len(in.RegistryDACL) != 0 {
-		const prefix string = ",\"RegistryDACL\":"
+	if in.RegistryOwner != "" {
+		const prefix string = ",\"RegistryOwner\":"
 		first = false
 		out.RawString(prefix[1:])
+		out.String(string(in.RegistryOwner))
+	}
+	if len(in.RegistryDACL) != 0 {
+		const prefix string = ",\"RegistryDACL\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Base64Bytes(in.RegistryDACL)
 	}
 	if in.Name != "" {

@@ -32,8 +32,10 @@ var (
 	PwnFileRead                     = engine.NewEdge("FileRead")
 	PwnFileModifyDACL               = engine.NewEdge("FileModifyDACL")
 	PwnFileShare                    = engine.NewEdge("FileShare")
+	PwnRegistryOwns                 = engine.NewEdge("RegistryOwns")
 	PwnRegistryWrite                = engine.NewEdge("RegistryWrite")
 	PwnRegistryModifyDACL           = engine.NewEdge("RegistryModifyDACL")
+	PwnRegistryModifyOwner          = engine.NewEdge("RegistryModifyOwner")
 
 	PwnSeBackupPrivilege        = engine.NewEdge("SeBackupPrivilege")
 	PwnSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")

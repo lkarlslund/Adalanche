@@ -4708,6 +4708,12 @@ func (z *Service) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "RegistryOwner":
+			z.RegistryOwner, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "RegistryOwner")
+				return
+			}
 		case "RegistryDACL":
 			z.RegistryDACL, err = dc.ReadBytes(z.RegistryDACL)
 			if err != nil {
@@ -4793,9 +4799,19 @@ func (z *Service) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Service) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 12
+	// map header, size 13
+	// write "RegistryOwner"
+	err = en.Append(0x8d, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.RegistryOwner)
+	if err != nil {
+		err = msgp.WrapError(err, "RegistryOwner")
+		return
+	}
 	// write "RegistryDACL"
-	err = en.Append(0x8c, 0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x41, 0x43, 0x4c)
+	err = en.Append(0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x41, 0x43, 0x4c)
 	if err != nil {
 		return
 	}
@@ -4920,9 +4936,12 @@ func (z *Service) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Service) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 12
+	// map header, size 13
+	// string "RegistryOwner"
+	o = append(o, 0x8d, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
+	o = msgp.AppendString(o, z.RegistryOwner)
 	// string "RegistryDACL"
-	o = append(o, 0x8c, 0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x41, 0x43, 0x4c)
+	o = append(o, 0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x41, 0x43, 0x4c)
 	o = msgp.AppendBytes(o, z.RegistryDACL)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -4978,6 +4997,12 @@ func (z *Service) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "RegistryOwner":
+			z.RegistryOwner, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RegistryOwner")
+				return
+			}
 		case "RegistryDACL":
 			z.RegistryDACL, bts, err = msgp.ReadBytesBytes(bts, z.RegistryDACL)
 			if err != nil {
@@ -5064,7 +5089,7 @@ func (z *Service) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Service) Msgsize() (s int) {
-	s = 1 + 13 + msgp.BytesPrefixSize + len(z.RegistryDACL) + 5 + msgp.StringPrefixSize + len(z.Name) + 12 + msgp.StringPrefixSize + len(z.DisplayName) + 12 + msgp.StringPrefixSize + len(z.Description) + 10 + msgp.StringPrefixSize + len(z.ImagePath) + 16 + msgp.StringPrefixSize + len(z.ImageExecutable) + 21 + msgp.StringPrefixSize + len(z.ImageExecutableOwner) + 20 + msgp.BytesPrefixSize + len(z.ImageExecutableDACL) + 6 + msgp.IntSize + 5 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Account) + 11 + msgp.StringPrefixSize + len(z.AccountSID)
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.RegistryOwner) + 13 + msgp.BytesPrefixSize + len(z.RegistryDACL) + 5 + msgp.StringPrefixSize + len(z.Name) + 12 + msgp.StringPrefixSize + len(z.DisplayName) + 12 + msgp.StringPrefixSize + len(z.Description) + 10 + msgp.StringPrefixSize + len(z.ImagePath) + 16 + msgp.StringPrefixSize + len(z.ImageExecutable) + 21 + msgp.StringPrefixSize + len(z.ImageExecutableOwner) + 20 + msgp.BytesPrefixSize + len(z.ImageExecutableDACL) + 6 + msgp.IntSize + 5 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Account) + 11 + msgp.StringPrefixSize + len(z.AccountSID)
 	return
 }
 

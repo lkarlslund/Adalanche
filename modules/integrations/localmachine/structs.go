@@ -100,7 +100,8 @@ type Share struct {
 
 type Services []Service
 type Service struct {
-	RegistryDACL []byte `json:",omitempty"`
+	RegistryOwner string `json:",omitempty"`
+	RegistryDACL  []byte `json:",omitempty"`
 
 	Name        string `json:",omitempty"`
 	DisplayName string `json:",omitempty"`
