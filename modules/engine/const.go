@@ -24,7 +24,7 @@ const (
 	UAC_TRUSTED_TO_AUTH_FOR_DELEGATION = 0x1000000
 	UAC_PARTIAL_SECRETS_ACCOUNT        = 0x04000000
 
-	RIGHT_GENERIC_READ ACLPermissionMask = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT /*
+	RIGHT_GENERIC_READ Mask = RIGHT_READ_CONTROL | RIGHT_DS_LIST_CONTENTS | RIGHT_DS_READ_PROPERTY | RIGHT_DS_LIST_OBJECT /*
 		** Mask value is not stored in AD but deduced from mask bits combined **
 		RIGHT_GENERIC_READ = 0x80000000 /*
 			The right to read permissions and all properties of the object, and list the contents of the

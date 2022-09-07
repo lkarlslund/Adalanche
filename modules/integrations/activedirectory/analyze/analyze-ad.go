@@ -110,7 +110,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					for _, objectGUID := range lapsguids {
-						if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
+						if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
 							ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadLAPSPassword)
 						}
 					}
@@ -193,7 +193,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnGenericAll)
 					}
 				}
@@ -211,7 +211,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAll)
 					}
 				}
@@ -229,7 +229,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWritePropertyAll)
 					}
 				}
@@ -247,7 +247,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteExtendedAll)
 					}
 				}
@@ -266,7 +266,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnTakeOwnership)
 					}
 				}
@@ -284,7 +284,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteDACL)
 					}
 				}
@@ -302,7 +302,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
 					}
 				}
@@ -321,7 +321,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnResetPassword)
 					}
 				}
@@ -341,7 +341,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadPasswordId)
 					}
 				}
@@ -397,7 +397,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteSPN)
 					}
 				}
@@ -415,7 +415,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteValidatedSPN)
 					}
 				}
@@ -433,7 +433,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAllowedToAct) // Success rate?
 					}
 				}
@@ -452,7 +452,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMember)
 					}
 				}
@@ -471,7 +471,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMemberGroupAttr)
 					}
 				}
@@ -490,7 +490,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddSelfMember)
 					}
 				}
@@ -524,7 +524,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAltSecurityIdentities)
 					}
 				}
@@ -542,7 +542,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteProfilePath)
 					}
 				}
@@ -560,7 +560,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteScriptPath)
 					}
 				}
@@ -590,7 +590,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteKeyCredentialLink)
 					}
 				}
@@ -620,7 +620,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAllExtendedRights)
 					}
 				}
@@ -655,7 +655,7 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCertificateEnroll)
 					}
 				}
@@ -677,16 +677,16 @@ func init() {
 					return
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
 					}
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
 					}
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
 					}
-					if sd.DACL.AllowObjectClass(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
 						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
 					}
 				}

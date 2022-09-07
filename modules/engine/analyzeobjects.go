@@ -8,7 +8,7 @@ import (
 
 var PwnMemberOfGroup = NewEdge("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
 
-var SortBy Attribute
+var SortBy Attribute = NonExistingAttribute
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
 
@@ -239,32 +239,46 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 						}
 					}
 					ui.Debug().Msgf("Expansion limit compromise - added %v groups as they fit under the expansion limit %v", added, opts.MaxOutgoingConnections)
+				}
 
-					// Add some more to expansion limit hit objects if we know how
-					if SortBy != 0 {
+				// Add some more to expansion limit hit objects if we know how
+				if SortBy != NonExistingAttribute {
+					var additionaladded int
 
-						// Find the most important ones that are not groups
-						var notadded []ObjectPair
-						for pwnpair, _ := range newconnectionsmap {
-							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
-								notadded = append(notadded, pwnpair)
-							}
-						}
-
-						sort.Slice(notadded, func(i, j int) bool {
-							iv, _ := notadded[i].Target.AttrInt(SortBy)
-							jv, _ := notadded[j].Target.AttrInt(SortBy)
-							return iv > jv
-						})
-
-						for i := 0; i+added < opts.MaxOutgoingConnections && i < len(notadded); i++ {
-							newimplicatedobjects[notadded[i].Target] = struct{}{} // Add this as our best item
+					// Find the most important ones that are not groups
+					var notadded []GraphEdge
+					for pwnpair, detectedmethods := range newconnectionsmap {
+						if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
+							notadded = append(notadded, GraphEdge{
+								Source:     pwnpair.Source,
+								Target:     pwnpair.Target,
+								EdgeBitmap: detectedmethods,
+							})
 						}
 					}
 
-					ri.canexpand = len(newconnectionsmap) - added
+					sort.Slice(notadded, func(i, j int) bool {
+						iv, _ := notadded[i].Target.AttrInt(SortBy)
+						jv, _ := notadded[j].Target.AttrInt(SortBy)
+						return iv > jv
+					})
+
+					for i := 0; i+added < opts.MaxOutgoingConnections && i < len(notadded); i++ {
+						connectionsmap[ObjectPair{
+							Source: notadded[i].Source,
+							Target: notadded[i].Target,
+						}] = notadded[i].EdgeBitmap
+						if _, found := implicatedobjectsmap[notadded[i].Target]; !found {
+							newimplicatedobjects[notadded[i].Target] = struct{}{} // Add this as our best item
+						}
+						additionaladded++
+					}
+
+					ui.Debug().Msgf("Added additionally %v prioritized objects", additionaladded)
+					added += additionaladded
 				}
 
+				ri.canexpand = len(newconnectionsmap) - added
 			}
 
 			ri.processed = true
@@ -324,10 +338,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 			break
 		}
 
+		ui.Debug().Msgf("Post graph object filtering remove %v nodes", removed)
+
 		weremovedsomething = true
 	}
 
 	// PruneIslands
+	var prunedislands int
 	if opts.PruneIslands || weremovedsomething {
 		// Find island nodes
 		pointedto := make(map[*Object]struct{})
@@ -339,10 +356,16 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 			if _, found := pointedto[node]; !found {
 				if _, found := opts.IncludeObjects.FindByID(node.ID()); opts.PruneIslands || !found {
 					delete(implicatedobjectsmap, node)
+					prunedislands++
 				}
 			}
 		}
 	}
+	if prunedislands > 0 {
+		ui.Debug().Msgf("Pruning islands removed %v nodes", prunedislands)
+	}
+
+	ui.Info().Msgf("Graph query resulted in %v nodes", len(implicatedobjectsmap))
 
 	// Convert map to slice
 	pg.Connections = make([]GraphEdge, len(connectionsmap))
