@@ -195,40 +195,41 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 }
 
 func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask, guid uuid.UUID, ao *Objects) bool {
-	if a.Entries[index].matchObjectClassAndGUID(true, testObject, mask, guid, ao) {
+	if a.Entries[index].Flags == ACETYPE_ACCESS_DENIED || a.Entries[index].Flags == ACETYPE_ACCESS_DENIED_OBJECT {
+		return false
+	}
+	if a.Entries[index].matchObjectClassAndGUID(testObject, mask, guid, ao) {
+		// It's allowed, unless there's a prior DENY rule that matches
 		if a.containsdeny && index > 0 {
-			// See if a prior one denies it
-			checksid := a.Entries[index].SID
+			allowedSid := a.Entries[index].SID
 
-			i := 0
-			for i < index {
-				if a.Entries[i].Type&0x01 == 0 {
+			for i := 0; i < index; i++ {
+				if a.Entries[i].Flags == ACETYPE_ACCESS_ALLOWED || a.Entries[i].Flags == ACETYPE_ACCESS_ALLOWED_OBJECT {
 					// this is not a DENY ACE, so we can skip it
-					if i < a.firstinheriteddeny {
-						// we've been processing direct DENY, but there are some inherited
+					if i < a.firstinheriteddeny && a.firstinheriteddeny < index {
+						// we've been processing direct DENY, but there are some inherited, so skip to them
 						i = a.firstinheriteddeny
-						continue
+					} else {
+						break
 					}
-
-					break
 				}
 
 				// Check SID first, this is very fast, then do detailed check later
 				var sidmatch bool
 
-				currentsid := a.Entries[i].SID
+				currentPotentialDenySid := a.Entries[i].SID
 
-				if currentsid == checksid {
+				if currentPotentialDenySid == allowedSid {
 					sidmatch = true
 				} else {
 					// This removes a few false positives
 					//
 					// The allowed SID might be a member of one or more groups matching a DENY ACE
 					// This will never work for cross domain groups
-					so, found := ao.Find(ObjectSid, AttributeValueSID(currentsid))
+					so, found := ao.Find(ObjectSid, AttributeValueSID(currentPotentialDenySid))
 					if found {
-						for _, sid := range so.MemberOfSID(true) {
-							if sid == currentsid {
+						for _, memberOfSid := range so.MemberOfSID(true) {
+							if memberOfSid == allowedSid {
 								sidmatch = true
 								break
 							}
@@ -236,22 +237,17 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 					}
 				}
 
-				if sidmatch && a.Entries[i].matchObjectClassAndGUID(false, testObject, mask, guid, ao) {
-					if a.Entries[i].ObjectType != NullGUID {
-						if guid == NullGUID {
-							// We tested for all properties / extended rights, but the DENY blocks some of these
-							// ui.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
+				if sidmatch {
+					if a.Entries[i].matchObjectClassAndGUID(testObject, mask, guid, ao) {
+						return false // Access denied
+					}
+					if !guid.IsNil() {
+						// Is there a generic deny?
+						if a.Entries[i].matchObjectClassAndGUID(testObject, mask, uuid.Nil, ao) {
 							return false // Access denied
 						}
-						if a.Entries[i].ObjectType == guid {
-							// The DENY is specific to attributes / extended rights etc. so it only blocks if the requested is the same
-							// ui.Debug().Msgf("ACL allow/deny detection: %v denies that %v allows", a.Entries[i].String(), a.Entries[index].String())
-							return false // Access denied
-						}
-						ui.Debug().Msg("LOLWUT")
 					}
 				}
-				i++
 			}
 		}
 		return true // No deny match
@@ -262,7 +258,7 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
 
 // Is the ACE something that allows or denies this type of GUID?
-func (a ACE) matchObjectClassAndGUID(allow bool, o *Object, mask Mask, g uuid.UUID, ao *Objects) bool {
+func (a ACE) matchObjectClassAndGUID(o *Object, mask Mask, g uuid.UUID, ao *Objects) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
@@ -275,9 +271,9 @@ func (a ACE) matchObjectClassAndGUID(allow bool, o *Object, mask Mask, g uuid.UU
 		return false
 	}
 
-	// This ACE only applies to some kinds of objects?
-	if a.InheritedObjectType != NullGUID {
-		typematch := a.InheritedObjectType == g
+	// This ACE only applies to some kinds of attributes / extended rights?
+	if a.ObjectType != NullGUID {
+		typematch := a.ObjectType == g
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
 			cachedset, found := objectSecurityGUIDcache.Load(g)
@@ -294,7 +290,7 @@ func (a ACE) matchObjectClassAndGUID(allow bool, o *Object, mask Mask, g uuid.UU
 				}
 				objectSecurityGUIDcache.Store(g, cachedset)
 			}
-			if a.InheritedObjectType == cachedset {
+			if a.ObjectType == cachedset {
 				typematch = true
 			}
 		}
@@ -303,37 +299,23 @@ func (a ACE) matchObjectClassAndGUID(allow bool, o *Object, mask Mask, g uuid.UU
 		}
 	}
 
-	// Access allowed/denied ACE
-	if a.Type&0x04 == 0 {
-		return true
-	}
+	if a.InheritedObjectType != NullGUID {
+		// We weren't passed a type, so if we don't have general access return false
+		if o == nil {
+			return false
+		}
 
-	// Access allowed/denied object ACE
-	if a.Flags&OBJECT_TYPE_PRESENT == 0 {
-		// Any object type so this matches
-		return true
-	}
-
-	if a.ObjectType == NullGUID {
-		// It's an allow only this class NULL (all object types)
-		ui.Warn().Msgf("ACE indicates allowed object, but is actually allowing all kinds through null GUID")
-		return true
-	}
-
-	// We weren't passed a type, so if we don't have general access return false
-	if o == nil {
+		for _, classattr := range o.Attr(ObjectClassGUIDs).Slice() {
+			if class, ok := classattr.Raw().(uuid.UUID); ok {
+				if a.InheritedObjectType == class {
+					return true
+				}
+			}
+		}
 		return false
 	}
 
-	for _, classattr := range o.Attr(ObjectClassGUIDs).Slice() {
-		if class, ok := classattr.Raw().(uuid.UUID); ok {
-			if a.ObjectType == class {
-				return true
-			}
-		}
-	}
-
-	return false
+	return true
 }
 
 func (a ACE) String(ao *Objects) string {
@@ -585,10 +567,9 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 			result.DACL.Sort()
 		}
 		if result.DACL.containsdeny {
-
 			result.DACL.firstinheriteddeny = -1
 			for i := range result.DACL.Entries {
-				if result.DACL.Entries[i].Flags&ACEFLAG_INHERITED_ACE != 0 && (result.DACL.Entries[i].Type&0x01 != 0) {
+				if result.DACL.Entries[i].ACEFlags&AceFlagsInherited != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
 					result.DACL.firstinheriteddeny = i
 					break
 				}
