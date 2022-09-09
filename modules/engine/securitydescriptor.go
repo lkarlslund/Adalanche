@@ -34,20 +34,20 @@ const (
 	CONTROLFLAG_SELF_RELATIVE       SecurityDescriptorControlFlag = 0x8000
 
 	// ACE.Type
-	ACETYPE_ACCESS_ALLOWED        = 0x00
-	ACETYPE_ACCESS_DENIED         = 0x01
-	ACETYPE_ACCESS_ALLOWED_OBJECT = 0x05
-	ACETYPE_ACCESS_DENIED_OBJECT  = 0x06
+	ACETYPE_ACCESS_ALLOWED        ACEType = 0x00
+	ACETYPE_ACCESS_DENIED         ACEType = 0x01
+	ACETYPE_ACCESS_ALLOWED_OBJECT ACEType = 0x05
+	ACETYPE_ACCESS_DENIED_OBJECT  ACEType = 0x06
 
 	// ACE.ACEFlags
-	ACEFLAG_INHERIT_ACE              = 0x02 // Child objects inherit this ACE
-	ACEFLAG_NO_PROPAGATE_INHERIT_ACE = 0x04 // Only the NEXT child inherits this, not further down the line
-	ACEFLAG_INHERIT_ONLY_ACE         = 0x08 // Not valid for this object, only for children
-	ACEFLAG_INHERITED_ACE            = 0x10 // This ACE was interited from parent object
+	ACEFLAG_INHERIT_ACE              ACEFlags = 0x02 // Child objects inherit this ACE
+	ACEFLAG_NO_PROPAGATE_INHERIT_ACE ACEFlags = 0x04 // Only the NEXT child inherits this, not further down the line
+	ACEFLAG_INHERIT_ONLY_ACE         ACEFlags = 0x08 // Not valid for this object, only for children
+	ACEFLAG_INHERITED_ACE            ACEFlags = 0x10 // This ACE was interited from parent object
 
 	// ACE.Flags - present if this is a ACETYPE_ACCESS_*_OBJECT Type
-	OBJECT_TYPE_PRESENT           = 0x01
-	INHERITED_OBJECT_TYPE_PRESENT = 0x02
+	OBJECT_TYPE_PRESENT           Flags = 0x01
+	INHERITED_OBJECT_TYPE_PRESENT Flags = 0x02
 
 	RIGHT_MAXIMUM_ALLOWED = 0x02000000 /* Not stored in AD, just for requests */
 
@@ -160,7 +160,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 	var err error
 	// ACEHEADER
 	data := odata
-	ace.Type = data[0]
+	ace.Type = ACEType(data[0])
 	ace.ACEFlags = ACEFlags(data[1])
 	acesize := binary.LittleEndian.Uint16(data[2:])
 	ace.Mask = Mask(binary.LittleEndian.Uint32(data[4:]))
@@ -195,7 +195,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 }
 
 func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask, guid uuid.UUID, ao *Objects) bool {
-	if a.Entries[index].Flags == ACETYPE_ACCESS_DENIED || a.Entries[index].Flags == ACETYPE_ACCESS_DENIED_OBJECT {
+	if a.Entries[index].Type == ACETYPE_ACCESS_DENIED || a.Entries[index].Type == ACETYPE_ACCESS_DENIED_OBJECT {
 		return false
 	}
 	if a.Entries[index].matchObjectClassAndGUID(testObject, mask, guid, ao) {
@@ -204,7 +204,7 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 			allowedSid := a.Entries[index].SID
 
 			for i := 0; i < index; i++ {
-				if a.Entries[i].Flags == ACETYPE_ACCESS_ALLOWED || a.Entries[i].Flags == ACETYPE_ACCESS_ALLOWED_OBJECT {
+				if a.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || a.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
 					// this is not a DENY ACE, so we can skip it
 					if i < a.firstinheriteddeny && a.firstinheriteddeny < index {
 						// we've been processing direct DENY, but there are some inherited, so skip to them
@@ -471,14 +471,18 @@ func (a *ACL) IsSortedCorrectly() bool {
 }
 
 type ACE struct {
-	SID                 windowssecurity.SID
-	Mask                Mask
-	Flags               Flags
+	Type  ACEType
+	Flags Flags
+
+	Mask Mask
+	SID  windowssecurity.SID
+
 	ObjectType          uuid.UUID
 	InheritedObjectType uuid.UUID
 	ACEFlags            ACEFlags
-	Type                byte
 }
+
+type ACEType byte
 
 type Flags uint32
 
@@ -497,7 +501,7 @@ const (
 
 func (a ACE) SortVal() byte {
 	var result byte
-	if a.Flags&ACEFLAG_INHERITED_ACE != 0 {
+	if a.ACEFlags&ACEFLAG_INHERITED_ACE != 0 {
 		result += 2
 	}
 	if a.Type == ACETYPE_ACCESS_ALLOWED || a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {

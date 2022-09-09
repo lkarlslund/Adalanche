@@ -69,24 +69,6 @@ var lapsguids []uuid.UUID
 
 func init() {
 	Loader.AddAnalyzers(
-
-		// It's a Unicorn, dang ...
-		// engine.EdgeAnalyzer{
-		// 	Method: activedirectory.PwnNullDACL,
-		// 	ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-		// 		var results []*engine.Object
-		// 		sd, err := o.SecurityDescriptor()
-		// 		if err != nil {
-		// 			return
-		// 		}
-		// 		if sd.Control&engine.CONTROLFLAG_DACL_PRESENT != 0 || len(sd.DACL.Entries) == 0 {
-		// 			results = append(results, ao.FindOrAddAdjacentSID(acl.SID, o))
-		// 		}
-
-		// 		return results
-		// 	},
-		// },
-
 		engine.EdgeAnalyzer{
 			Description: "Reading local admin passwords via LAPS",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
