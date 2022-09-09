@@ -697,6 +697,7 @@ func init() {
 
 			machine := ao.AddNew(
 				engine.IgnoreBlanks,
+				engine.DisplayName, o.Attr(engine.Name),
 				activedirectory.ObjectCategorySimple, "Machine",
 				DomainJoinedSID, o.SID(),
 				engine.Hostname, o.Attr(engine.Hostname),

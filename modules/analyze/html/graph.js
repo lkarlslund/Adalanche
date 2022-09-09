@@ -372,7 +372,7 @@ cytostyle = [{
     style: {
         shape: "round-octagon",
         "background-image": "icons/tv-fill.svg",
-        "background-color": "red"
+        "background-color": "teal"
     }
 },
 {
