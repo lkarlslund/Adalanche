@@ -210,7 +210,8 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 						// we've been processing direct DENY, but there are some inherited, so skip to them
 						i = a.firstinheriteddeny
 					} else {
-						break
+						// no more DENY entries so we're granted access
+						return true
 					}
 				}
 
@@ -237,16 +238,8 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 					}
 				}
 
-				if sidmatch {
-					if a.Entries[i].matchObjectClassAndGUID(testObject, mask, guid, ao) {
-						return false // Access denied
-					}
-					if !guid.IsNil() {
-						// Is there a generic deny?
-						if a.Entries[i].matchObjectClassAndGUID(testObject, mask, uuid.Nil, ao) {
-							return false // Access denied
-						}
-					}
+				if sidmatch && a.Entries[i].matchObjectClassAndGUID(testObject, mask, guid, ao) {
+					return false // Access denied
 				}
 			}
 		}
@@ -258,7 +251,7 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
 
 // Is the ACE something that allows or denies this type of GUID?
-func (a ACE) matchObjectClassAndGUID(o *Object, mask Mask, g uuid.UUID, ao *Objects) bool {
+func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUID, ao *Objects) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
@@ -267,12 +260,12 @@ func (a ACE) matchObjectClassAndGUID(o *Object, mask Mask, g uuid.UUID, ao *Obje
 		return false
 	}
 
-	if mask != 0 && a.Mask&mask != mask {
+	if a.Mask&requestedAccess != requestedAccess {
 		return false
 	}
 
 	// This ACE only applies to some kinds of attributes / extended rights?
-	if a.ObjectType != NullGUID {
+	if !a.ObjectType.IsNil() {
 		typematch := a.ObjectType == g
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
@@ -299,7 +292,7 @@ func (a ACE) matchObjectClassAndGUID(o *Object, mask Mask, g uuid.UUID, ao *Obje
 		}
 	}
 
-	if a.InheritedObjectType != NullGUID {
+	if !a.InheritedObjectType.IsNil() {
 		// We weren't passed a type, so if we don't have general access return false
 		if o == nil {
 			return false
