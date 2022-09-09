@@ -6,7 +6,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-var PwnMemberOfGroup = NewEdge("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
+var EdgeMemberOfGroup = NewEdge("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
 
 var SortBy Attribute = NonExistingAttribute
 
@@ -221,7 +221,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 				var groupcount int
 				for _, detectedmethods := range newconnectionsmap {
 					// We assume the number of groups are limited and add them anyway
-					if detectedmethods.IsSet(PwnMemberOfGroup) {
+					if detectedmethods.IsSet(EdgeMemberOfGroup) {
 						groupcount++
 					}
 				}
@@ -230,7 +230,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 					// Add the groups, but not the rest
 					for pwnpair, detectedmethods := range newconnectionsmap {
 						// We assume the number of groups are limited and add them anyway
-						if detectedmethods.IsSet(PwnMemberOfGroup) {
+						if detectedmethods.IsSet(EdgeMemberOfGroup) {
 							connectionsmap[pwnpair] = detectedmethods
 							if _, found := implicatedobjectsmap[pwnpair.Target]; !found {
 								newimplicatedobjects[pwnpair.Target] = struct{}{} // Add this to work map as non-processed

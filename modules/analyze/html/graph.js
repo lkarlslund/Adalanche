@@ -360,21 +360,21 @@ cytostyle = [{
     }
 },
 {
-    selector: 'node[type="Computer"]', // [? _workstation]
+    selector: 'node[type="Computer"]',
     style: {
         shape: "round-octagon",
         "background-image": "icons/tv-fill.svg",
         "background-color": "lightgreen"
     }
 },
-// {
-//     selector: 'node[type="Computer"][?_server]',
-//     style: {
-//         shape: "hexagon",
-//         "background-image": "icons/server.svg",
-//         "background-color": "lightgreen"
-//     }
-// },
+{
+    selector: 'node[type="Machine"]',
+    style: {
+        shape: "round-octagon",
+        "background-image": "icons/tv-fill.svg",
+        "background-color": "red"
+    }
+},
 {
     selector: "node[?_canexpand]",
     style: {
@@ -588,19 +588,39 @@ function getGraphlayout(choice) {
     return layout
 }
 
+
+
 function nodelabel(ele) {
     switch ($("#graphlabels").val()) {
         case "normal":
             return ele.data("label");
         case "off":
             return "";
-        case "anonymize":
+        case "randomize":
             return anonymizer.anonymize(ele.data("label"));
+        case "checksum":
+            return hashFnv32a(ele.data("label"), true, undefined);
     }
     return "error";
 }
 
 var anonymizer = new DataAnonymizer();
+
+function hashFnv32a(str, asString, seed) {
+    /*jshint bitwise:false */
+    var i, l,
+        hval = (seed === undefined) ? 0x811c9dc5 : seed;
+
+    for (i = 0, l = str.length; i < l; i++) {
+        hval ^= str.charCodeAt(i);
+        hval += (hval << 1) + (hval << 4) + (hval << 7) + (hval << 8) + (hval << 24);
+    }
+    if (asString) {
+        // Convert to 8 digit hex string
+        return ("0000000" + (hval >>> 0).toString(16)).substr(-8);
+    }
+    return hval >>> 0;
+}
 
 function renderedge(ele) {
     return rendernode(ele.source()) + rendermethods(ele) + rendernode(ele.target());
@@ -640,7 +660,7 @@ function renderdetails(data) {
         result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
         for (var i in attrvalues) {
-            if ($("#graphlabels").val() == "anonymize") {
+            if ($("#graphlabels").val() == "randomize") {
                 result += anonymizer.anonymize(attrvalues[i]) + "</br>";
             } else {
                 result += attrvalues[i] + "</br>";

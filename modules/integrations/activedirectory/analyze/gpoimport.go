@@ -23,16 +23,16 @@ var (
 	BinarySize      = engine.NewAttribute("binarySize").Single()
 	ExposedPassword = engine.NewAttribute("exposedPassword")
 
-	PwnExposesPassword       = engine.NewEdge("ExposesPassword")
-	PwnContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
-	PwnReadSensitiveData     = engine.NewEdge("ReadSensitiveData")
-	PwnOwns                  = engine.NewEdge("Owns")
-	PwnFSPartOfGPO           = engine.NewEdge("FSPartOfGPO")
-	PwnFileCreate            = engine.NewEdge("FileCreate")
-	PwnDirCreate             = engine.NewEdge("DirCreate")
-	PwnFileWrite             = engine.NewEdge("FileWrite")
-	PwnTakeOwnership         = engine.NewEdge("FileTakeOwnership")
-	PwnModifyDACL            = engine.NewEdge("FileModifyDACL")
+	EdgeExposesPassword       = engine.NewEdge("ExposesPassword")
+	EdgeContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
+	EdgeReadSensitiveData     = engine.NewEdge("ReadSensitiveData")
+	EdgeOwns                  = engine.NewEdge("Owns")
+	EdgeFSPartOfGPO           = engine.NewEdge("FSPartOfGPO")
+	EdgeFileCreate            = engine.NewEdge("FileCreate")
+	EdgeDirCreate             = engine.NewEdge("DirCreate")
+	EdgeFileWrite             = engine.NewEdge("FileWrite")
+	EdgeTakeOwnership         = engine.NewEdge("FileTakeOwnership")
+	EdgeModifyDACL            = engine.NewEdge("FileModifyDACL")
 )
 
 func init() {
@@ -80,7 +80,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 		)
 
 		if relativepath == "/" {
-			itemobject.Pwns(gpoobject, PwnFSPartOfGPO)
+			itemobject.EdgeTo(gpoobject, EdgeFSPartOfGPO)
 			gpoobject.Adopt(itemobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
@@ -89,13 +89,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			}
 
 			parent, _ := ao.FindOrAdd(AbsolutePath, engine.AttributeValueString(parentpath))
-			itemobject.Pwns(parent, PwnFSPartOfGPO)
+			itemobject.EdgeTo(parent, EdgeFSPartOfGPO)
 			parent.Adopt(itemobject)
 		}
 
 		if !item.OwnerSID.IsNull() {
 			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.AttributeValueSID(item.OwnerSID))
-			owner.Pwns(itemobject, PwnOwns)
+			owner.EdgeTo(itemobject, EdgeOwns)
 		}
 
 		if item.DACL != nil {
@@ -108,19 +108,19 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
-						entrysidobject.Pwns(itemobject, PwnFileCreate)
+						entrysidobject.EdgeTo(itemobject, EdgeFileCreate)
 					}
 					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
-						entrysidobject.Pwns(itemobject, PwnDirCreate)
+						entrysidobject.EdgeTo(itemobject, EdgeDirCreate)
 					}
 					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						entrysidobject.Pwns(itemobject, PwnFileWrite)
+						entrysidobject.EdgeTo(itemobject, EdgeFileWrite)
 					}
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						entrysidobject.Pwns(itemobject, PwnTakeOwnership) // Not sure about this one
+						entrysidobject.EdgeTo(itemobject, EdgeTakeOwnership) // Not sure about this one
 					}
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						entrysidobject.Pwns(itemobject, PwnModifyDACL)
+						entrysidobject.EdgeTo(itemobject, EdgeModifyDACL)
 					}
 				}
 			}
@@ -171,9 +171,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			)
 
 			// GPO exposes this object
-			itemobject.Pwns(expobj, PwnContainsSensitiveData)
+			itemobject.EdgeTo(expobj, EdgeContainsSensitiveData)
 			// Exposed password leaks this object
-			expobj.Pwns(target, PwnExposesPassword)
+			expobj.EdgeTo(target, EdgeExposesPassword)
 
 			// Everyone that can read the file can then read the password
 			if item.DACL != nil {
@@ -186,7 +186,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
-							entrysidobject.Pwns(expobj, PwnReadSensitiveData)
+							entrysidobject.EdgeTo(expobj, EdgeReadSensitiveData)
 						}
 					}
 				}
@@ -218,11 +218,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				if member != nil {
 					switch sidpair.GroupSID {
 					case "S-1-5-32-544":
-						member.Pwns(gpoobject, activedirectory.PwnLocalAdminRights)
+						member.EdgeTo(gpoobject, activedirectory.EdgeLocalAdminRights)
 					case "S-1-5-32-562":
-						member.Pwns(gpoobject, activedirectory.PwnLocalDCOMRights)
+						member.EdgeTo(gpoobject, activedirectory.EdgeLocalDCOMRights)
 					case "S-1-5-32-555":
-						member.Pwns(gpoobject, activedirectory.PwnLocalRDPRights)
+						member.EdgeTo(gpoobject, activedirectory.EdgeLocalRDPRights)
 					case "":
 						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
@@ -269,7 +269,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
-				sob.Pwns(gpoobject, activedirectory.PwnMachineScript)
+				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)
 				sob.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
@@ -288,7 +288,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
-				sob.Pwns(gpoobject, activedirectory.PwnMachineScript)
+				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)
 				sob.ChildOf(gpoobject)
 				scriptnum++
 			}

@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	PwnForeignIdentity = engine.NewEdge("ForeignIdentity")
+	EdgeForeignIdentity = engine.NewEdge("ForeignIdentity")
 
 	DistinguishedName          = engine.NewAttribute("distinguishedName").Tag("AD").Unique().Single()
 	ObjectClass                = engine.NewAttribute("objectClass").Tag("AD")

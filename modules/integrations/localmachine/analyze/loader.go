@@ -123,8 +123,8 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 		for _, o := range os {
 			for _, p := range os {
 				if o != p {
-					p.Pwns(o, PwnSIDCollision)
-					o.Pwns(p, PwnSIDCollision)
+					p.EdgeTo(o, EdgeSIDCollision)
+					o.EdgeTo(p, EdgeSIDCollision)
 				}
 			}
 		}

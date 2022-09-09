@@ -92,10 +92,10 @@ func (ld *ADLoader) Init() error {
 					}
 				}
 
-				if category, found := item.object.Attributes["objectCategory"]; found && strings.HasPrefix(category[0], "CN=Foreign-Security-Principal") {
-					// We don't want to import this
-					// continue
-				}
+				// if category, found := item.object.Attributes["objectCategory"]; found && strings.HasPrefix(category[0], "CN=Foreign-Security-Principal") {
+				// We don't want to import this
+				// continue
+				// }
 
 				// Convert
 				o := item.object.ToObject(*limitattributes)

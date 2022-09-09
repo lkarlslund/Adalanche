@@ -185,8 +185,6 @@ func analysisfuncs(ws *webservice) {
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 
-		// anonymize, _ := util.ParseBool(vars["anonymize"])
-
 		mode := vars["mode"]
 		if mode == "" {
 			mode = "normal"

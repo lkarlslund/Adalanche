@@ -57,10 +57,14 @@ var (
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
-	PwnPublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl")
+	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl")
 
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
+
+	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
+	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid")
+	EdgeAuthenticatesAs = engine.NewEdge("AuthenticatesAs")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -93,7 +97,7 @@ func init() {
 				for index, acl := range sd.DACL.Entries {
 					for _, objectGUID := range lapsguids {
 						if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, objectGUID, ao) {
-							ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadLAPSPassword)
+							ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadLAPSPassword)
 						}
 					}
 				}
@@ -111,7 +115,7 @@ func init() {
 				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
 					return
 				}
-				p.Pwns(o, activedirectory.PartOfGPO)
+				p.EdgeTo(o, activedirectory.PartOfGPO)
 			},
 		},
 		engine.EdgeAnalyzer{
@@ -125,7 +129,7 @@ func init() {
 				if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
 					return
 				}
-				p.Pwns(o, activedirectory.PartOfGPO)
+				p.EdgeTo(o, activedirectory.PartOfGPO)
 			},
 		},
 		engine.EdgeAnalyzer{
@@ -138,7 +142,7 @@ func init() {
 				}
 				for _, acl := range sd.DACL.Entries {
 					if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnACLContainsDeny) // Not a probability of success, this is just an indicator
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
 					}
 				}
 			},
@@ -159,7 +163,7 @@ func init() {
 					}
 				}
 				if !sd.Owner.IsNull() && !aclhasdeny {
-					ao.FindOrAddAdjacentSID(sd.Owner, o).Pwns(o, activedirectory.PwnOwns)
+					ao.FindOrAddAdjacentSID(sd.Owner, o).EdgeTo(o, activedirectory.EdgeOwns)
 				}
 			},
 		},
@@ -176,7 +180,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnGenericAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeGenericAll)
 					}
 				}
 			},
@@ -194,7 +198,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAll)
 					}
 				}
 			},
@@ -212,7 +216,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWritePropertyAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWritePropertyAll)
 					}
 				}
 			},
@@ -230,7 +234,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteExtendedAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteExtendedAll)
 					}
 				}
 			},
@@ -249,7 +253,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnTakeOwnership)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeTakeOwnership)
 					}
 				}
 			},
@@ -267,7 +271,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteDACL)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteDACL)
 					}
 				}
 			},
@@ -285,7 +289,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
 					}
 				}
 			},
@@ -304,7 +308,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnResetPassword)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeResetPassword)
 					}
 				}
 			},
@@ -324,7 +328,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadPasswordId)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadPasswordId)
 					}
 				}
 			},
@@ -344,7 +348,7 @@ func init() {
 						ui.Error().Msgf("Could not locate Authenticated Users")
 						return
 					}
-					AuthenticatedUsers[0].Pwns(o, activedirectory.PwnHasSPN)
+					AuthenticatedUsers[0].EdgeTo(o, activedirectory.EdgeHasSPN)
 				}
 			},
 		},
@@ -362,7 +366,7 @@ func init() {
 						ui.Error().Msgf("Could not locate Everyone")
 						return
 					}
-					everyone[0].Pwns(o, activedirectory.PwnDontReqPreauth)
+					everyone[0].EdgeTo(o, activedirectory.EdgeDontReqPreauth)
 				}
 			},
 		},
@@ -380,7 +384,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteSPN)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteSPN)
 					}
 				}
 			},
@@ -398,7 +402,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteValidatedSPN)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteValidatedSPN)
 					}
 				}
 			},
@@ -416,7 +420,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAllowedToAct) // Success rate?
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAllowedToAct) // Success rate?
 					}
 				}
 			},
@@ -435,7 +439,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMember)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddMember)
 					}
 				}
 			},
@@ -454,7 +458,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddMemberGroupAttr)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddMemberGroupAttr)
 					}
 				}
 			},
@@ -473,7 +477,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAddSelfMember)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddSelfMember)
 					}
 				}
 			},
@@ -487,7 +491,7 @@ func init() {
 					if err == nil {
 						for _, acl := range sd.DACL.Entries {
 							if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
-								ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnReadMSAPassword)
+								ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadMSAPassword)
 							}
 						}
 					}
@@ -507,7 +511,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteAltSecurityIdentities)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAltSecurityIdentities)
 					}
 				}
 			},
@@ -525,7 +529,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteProfilePath)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteProfilePath)
 					}
 				}
 			},
@@ -543,7 +547,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteScriptPath)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteScriptPath)
 					}
 				}
 			},
@@ -554,7 +558,7 @@ func init() {
 				msas := o.Attr(activedirectory.MSDSHostServiceAccount).Slice()
 				for _, dn := range msas {
 					if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
-						o.Pwns(targetmsa, activedirectory.PwnHasMSA)
+						o.EdgeTo(targetmsa, activedirectory.EdgeHasMSA)
 					}
 				}
 			},
@@ -573,7 +577,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnWriteKeyCredentialLink)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteKeyCredentialLink)
 					}
 				}
 			},
@@ -585,7 +589,7 @@ func init() {
 				for _, sidval := range sids {
 					if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
 						target := ao.FindOrAddAdjacentSID(sid, o)
-						o.Pwns(target, activedirectory.PwnSIDHistoryEquality)
+						o.EdgeTo(target, activedirectory.EdgeSIDHistoryEquality)
 					}
 				}
 			},
@@ -603,7 +607,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnAllExtendedRights)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAllExtendedRights)
 					}
 				}
 			},
@@ -619,7 +623,7 @@ func init() {
 						templates, _ := ao.FindMulti(engine.Name, engine.AttributeValueString(ct))
 						for _, template := range templates {
 							if template.Type() == engine.ObjectTypeCertificateTemplate {
-								o.Pwns(template, PwnPublishesCertificateTemplate)
+								o.EdgeTo(template, EdgePublishesCertificateTemplate)
 							}
 						}
 					}
@@ -638,7 +642,7 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnCertificateEnroll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeCertificateEnroll)
 					}
 				}
 			},
@@ -660,29 +664,49 @@ func init() {
 				}
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationSyncronize)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeDSReplicationSyncronize)
 					}
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChanges)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeDSReplicationGetChanges)
 					}
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesAll)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeDSReplicationGetChangesAll)
 					}
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
-						ao.FindOrAddAdjacentSID(acl.SID, o).Pwns(o, activedirectory.PwnDSReplicationGetChangesInFilteredSet)
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 					}
 				}
 
 				// Add the DCsync combination flag
 				for p, methods := range o.PwnableBy {
-					if methods.IsSet(activedirectory.PwnDSReplicationGetChanges) && methods.IsSet(activedirectory.PwnDSReplicationGetChangesAll) {
+					if methods.IsSet(activedirectory.EdgeDSReplicationGetChanges) && methods.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
 						// DCsync attack WOT WOT
-						p.Pwns(o, activedirectory.PwnDCsync)
+						p.EdgeTo(o, activedirectory.EdgeDCsync)
 					}
 				}
 			},
 		},
 	)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Ensure everyone has a family
+		for _, o := range ao.Slice() {
+			if o.Type() != engine.ObjectTypeComputer {
+				continue
+			}
+
+			machine := ao.AddNew(
+				engine.IgnoreBlanks,
+				activedirectory.ObjectCategorySimple, "Machine",
+				DomainJoinedSID, o.SID(),
+				engine.Hostname, o.Attr(engine.Hostname),
+			)
+
+			machine.EdgeTo(o, EdgeAuthenticatesAs)
+		}
+	},
+		"creating Machine objects (representing the machine running the OS)",
+		engine.BeforeMergeHigh)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
@@ -881,13 +905,13 @@ func init() {
 					continue
 				}
 
-				adminsdholder.Pwns(o, activedirectory.PwnOverwritesACL)
+				adminsdholder.EdgeTo(o, activedirectory.EdgeOverwritesACL)
 				dm := o.Members(false)
 				idm := o.Members(true)
 				_ = dm
 				_ = idm
 				for _, member := range o.Members(true) {
-					adminsdholder.Pwns(member, activedirectory.PwnOverwritesACL)
+					adminsdholder.EdgeTo(member, activedirectory.EdgeOverwritesACL)
 				}
 			}
 		}
@@ -1030,7 +1054,7 @@ func init() {
 					object.SetValues(engine.MetaServer, engine.AttributeValueInt(1))
 
 					// All DCs are members of Enterprise Domain Controllers
-					object.Pwns(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.PwnMemberOfGroup)
+					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
 				}
 				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
 					object.SetValues(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
@@ -1053,21 +1077,21 @@ func init() {
 
 					if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
 						engine.DomainPart, domainPart); found {
-						administrators.Pwns(object, activedirectory.PwnLocalAdminRights)
+						administrators.EdgeTo(object, activedirectory.EdgeLocalAdminRights)
 					} else {
 						ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 					}
 
 					if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
 						engine.DomainPart, domainPart); found {
-						remotedesktopusers.Pwns(object, activedirectory.PwnLocalRDPRights)
+						remotedesktopusers.EdgeTo(object, activedirectory.EdgeLocalRDPRights)
 					} else {
 						ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 					}
 
 					if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
 						engine.DomainPart, domainPart); found {
-						distributeddcomusers.Pwns(object, activedirectory.PwnLocalDCOMRights)
+						distributeddcomusers.EdgeTo(object, activedirectory.EdgeLocalDCOMRights)
 					} else {
 						ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
 					}
@@ -1185,14 +1209,28 @@ func init() {
 		engine.AfterMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
-			// Only for computers, you can't really pwn users this way
-			if o.Type() != engine.ObjectTypeComputer {
-				return
+		for _, machine := range ao.Slice() {
+			// Only for machines, you can't really pwn users this way
+			if machine.Type() != ObjectTypeMachine {
+				continue
 			}
+
+			// Find the computer AD object if any
+			var computer *engine.Object
+			for target, edges := range machine.CanPwn {
+				if edges.IsSet(EdgeAuthenticatesAs) && target.Type() == engine.ObjectTypeComputer {
+					computer = target
+					break
+				}
+			}
+
+			if computer == nil {
+				continue
+			}
+
 			// Find all perent containers with GP links
 			var hasparent bool
-			p := o
+			p := computer
 
 			// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/5c7ecdad-469f-4b30-94b3-450b7fff868f
 			allowEnforcedGPOsOnly := false
@@ -1221,7 +1259,7 @@ func init() {
 					if len(gplinks) != 0 {
 						// ui.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
 						if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
-							ui.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+							ui.Error().Msgf("Error parsing gplink on %v: %v", computer.DN(), gplinks)
 						} else {
 							links := strings.Split(gplinks[1:len(gplinks)-1], "][")
 
@@ -1229,7 +1267,7 @@ func init() {
 							for _, link := range links {
 								linkinfo := strings.Split(link, ";")
 								if len(linkinfo) != 2 {
-									ui.Error().Msgf("Error parsing gplink on %v: %v", o.DN(), gplinks)
+									ui.Error().Msgf("Error parsing gplink on %v: %v", computer.DN(), gplinks)
 									continue
 								}
 								linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
@@ -1238,7 +1276,7 @@ func init() {
 								if !found {
 									if _, warned := warnedgpos[linkedgpodn]; !warned {
 										warnedgpos[linkedgpodn] = struct{}{}
-										ui.Warn().Msgf("Object linked to GPO that is not found %v: %v", o.DN(), linkedgpodn)
+										ui.Warn().Msgf("Object linked to GPO that is not found %v: %v", computer.DN(), linkedgpodn)
 									}
 								} else {
 									linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
@@ -1267,7 +1305,7 @@ func init() {
 						// Enforcement required, but this is not an enforced GPO
 						continue
 					}
-					gpo.Pwns(o, activedirectory.PwnAffectedByGPO)
+					gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 				}
 
 				gpoptions := p.OneAttrString(activedirectory.GPOptions)
@@ -1294,40 +1332,43 @@ func init() {
 		"Adding displayName to Well-Known SID objects that are missing them",
 		engine.AfterMergeLow)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
-		creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
-		if !found {
-			ui.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
-			return
-		}
+	// CREATOR_OWNER is a template for new objects, so this was totally wrong
+	/*
+		Loader.AddProcessor(func(ao *engine.Objects) {
+			creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
+			if !found {
+				ui.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
+				return
+			}
 
-		for target, edges := range creatorowner.CanPwn {
-			// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
-			if sd, err := target.SecurityDescriptor(); err == nil {
-				if sd.Owner != windowssecurity.BlankSID {
-					if realowners, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
-						for _, realo := range realowners {
-							if realo.Type() == engine.ObjectTypeForeignSecurityPrincipal || realo.Type() == engine.ObjectTypeOther {
-								// Skip this
-								continue
+			for target, edges := range creatorowner.CanPwn {
+				// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
+				if sd, err := target.SecurityDescriptor(); err == nil {
+					if sd.Owner != windowssecurity.BlankSID {
+						if realowners, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
+							for _, realo := range realowners {
+								if realo.Type() == engine.ObjectTypeForeignSecurityPrincipal || realo.Type() == engine.ObjectTypeOther {
+									// Skip this
+									continue
+								}
+
+								// Link real target
+								realo.CanPwn[target] = realo.CanPwn[target].Merge(edges)
+								target.PwnableBy[realo] = target.PwnableBy[realo].Merge(edges)
+
+								// Unlink creatorowner
+								delete(creatorowner.CanPwn, target)
+								delete(target.PwnableBy, creatorowner)
 							}
-
-							// Link real target
-							realo.CanPwn[target] = realo.CanPwn[target].Merge(edges)
-							target.PwnableBy[realo] = target.PwnableBy[realo].Merge(edges)
-
-							// Unlink creatorowner
-							delete(creatorowner.CanPwn, target)
-							delete(target.PwnableBy, creatorowner)
 						}
 					}
 				}
 			}
-		}
-	},
-		"CreatorOwnerSID resolution fixup",
-		engine.BeforeMerge,
-	)
+		},
+			"CreatorOwnerSID resolution fixup",
+			engine.BeforeMerge,
+		)
+	*/
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
@@ -1389,7 +1430,7 @@ func init() {
 			}
 
 			for _, member := range object.Members(false) {
-				member.Pwns(object, activedirectory.PwnMemberOfGroup)
+				member.EdgeTo(object, activedirectory.EdgeMemberOfGroup)
 			}
 		}
 	},
@@ -1410,7 +1451,7 @@ func init() {
 				if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
 					for _, source := range sources {
 						if source.Type() != engine.ObjectTypeForeignSecurityPrincipal {
-							source.PwnsEx(foreign, activedirectory.PwnForeignIdentity, true)
+							source.PwnsEx(foreign, activedirectory.EdgeForeignIdentity, true)
 						}
 					}
 				}
@@ -1436,7 +1477,7 @@ func init() {
 
 					// It has some sort of % variable in it, let's go
 					for affected, amethods := range gpo.CanPwn {
-						if amethods.IsSet(activedirectory.PwnAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
+						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
 							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
 							if !found {
 								ui.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))

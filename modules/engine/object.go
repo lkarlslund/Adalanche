@@ -1108,7 +1108,7 @@ func (o *Object) GUID() uuid.UUID {
 }
 
 // Register that this object can pwn another object using the given method
-func (o *Object) Pwns(target *Object, method Edge) {
+func (o *Object) EdgeTo(target *Object, method Edge) {
 	o.PwnsEx(target, method, false)
 }
 
