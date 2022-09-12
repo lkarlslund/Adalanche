@@ -79,7 +79,6 @@ var (
 	UniqueSource   = NewAttribute("_source")
 
 	IPAddress          = NewAttribute("IPAddress")
-	Hostname           = NewAttribute("hostname").Merge()
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
 	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
