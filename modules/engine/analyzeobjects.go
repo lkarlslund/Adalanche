@@ -135,31 +135,28 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 			newconnectionsmap := make(map[ObjectPair]EdgeBitmap) // Pwn Connection between objects
 
-			var ec EdgeConnections
+			var ec EdgeDirection
 			if forward {
-				ec = object.PwnableBy
+				ec = In
 			} else {
-				ec = object.CanPwn
+				ec = Out
 			}
 
 			// Iterate over ever outgoing pwn
 			// This is not efficient, but we sort the pwnlist first
-			for _, target := range ec.Objects() {
-				eb := ec[target]
-
+			object.EdgeIterator(ec, func(target *Object, eb EdgeBitmap) bool {
 				// If this is not a chosen method, skip it
 				detectededges := eb.Intersect(detectedges)
 
-				edgecount := detectededges.Count()
-				if edgecount == 0 {
+				if detectededges.IsBlank() {
 					// Nothing useful or just a deny ACL, skip it
-					continue
+					return true // continue
 				}
 
 				if detectobjecttypes != nil {
 					if _, found := detectobjecttypes[target.Type()]; !found {
 						// We're filtering on types, and it's not wanted
-						continue
+						return true //continue
 					}
 				}
 
@@ -171,7 +168,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 				}
 				if maxprobability < Probability(opts.MinProbability) {
 					// Too unlikeliy, so we skip it
-					continue
+					return true // continue
 				}
 
 				// If we allow backlinks, all pwns are mapped, no matter who is the victim
@@ -193,19 +190,21 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 					// If SIDs match between objects, it's a cross forest link and we want to see it
 					(object.SID().IsNull() || target.SID().IsNull() || object.SID().Component(2) != 21 || object.SID() != target.SID()) {
 					// skip it
-					continue
+					return true // continue
 				}
 
 				if opts.ExcludeObjects != nil {
 					if _, found := opts.ExcludeObjects.FindByID(target.ID()); found {
 						// skip excluded objects
 						// ui.Debug().Msgf("Excluding target %v", pwntarget.DN())
-						continue
+						return true // continue
 					}
 				}
 
 				newconnectionsmap[ObjectPair{Source: object, Target: target}] = detectededges
-			}
+
+				return true
+			})
 
 			if opts.MaxOutgoingConnections == -1 || len(newconnectionsmap) < opts.MaxOutgoingConnections {
 				for pwnpair, detectedmethods := range newconnectionsmap {

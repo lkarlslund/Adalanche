@@ -616,18 +616,21 @@ type pwnquery struct {
 }
 
 func (p pwnquery) Evaluate(o *engine.Object) bool {
-	items := o.CanPwn
+	direction := engine.Out
 	if !p.canpwn {
-		items = o.PwnableBy
+		direction = engine.In
 	}
-	for pwntarget, pwnmethod := range items {
-		if (p.method == engine.AnyEdgeType && pwnmethod.Count() != 0) || pwnmethod.IsSet(p.method) {
-			if p.target == nil || p.target.Evaluate(pwntarget) {
-				return true
+	var result bool
+	o.EdgeIterator(direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+		if (p.method == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.method) {
+			if p.target == nil || p.target.Evaluate(target) {
+				result = true
+				return false // return from loop
 			}
 		}
-	}
-	return false
+		return true
+	})
+	return result
 }
 
 func (p pwnquery) ToLDAPFilter() string {

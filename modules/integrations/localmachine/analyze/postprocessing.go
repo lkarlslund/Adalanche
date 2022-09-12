@@ -13,7 +13,7 @@ func init() {
 		for _, o := range ao.Slice() {
 			if o.HasAttrValue(engine.MetaDataSource, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
-					if len(o.CanPwn) == 0 && len(o.PwnableBy) == 0 {
+					if o.EdgeCount(engine.Out)+o.EdgeCount(engine.In) == 0 {
 						ui.Debug().Msgf("Object has no graph connections: %v", o.Label())
 					}
 					warns++

@@ -166,22 +166,20 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 
 		visited[source] = struct{}{}
 
-		for target, edges := range source.CanPwn {
+		source.EdgeIterator(Out, func(target *Object, edges EdgeBitmap) bool {
 			if _, found := visited[target]; !found {
-
 				// If this is not a chosen method, skip it
 				detectededges := edges.Intersect(lookforedges)
 
-				edgecount := detectededges.Count()
-				if edgecount == 0 {
+				if detectededges.IsBlank() {
 					// Nothing useful or just a deny ACL, skip it
-					continue
+					return true //continue
 				}
 
 				prob := detectededges.MaxProbability(v.Object, target)
 				if prob < minprobability {
 					// Skip entirely if too
-					continue
+					return true //continue
 				}
 
 				weight := uint32(101 - prob)
@@ -201,7 +199,8 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 					q.Push(target, sdist+weight)
 				}
 			}
-		}
+			return true
+		})
 	}
 
 	if prev[end] == nil {
@@ -228,7 +227,7 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 			GraphEdge{
 				Source:     prenode,
 				Target:     curnode,
-				EdgeBitmap: prenode.CanPwn[curnode],
+				EdgeBitmap: prenode.Edge(Out, curnode),
 			})
 		if prenode == start {
 			break

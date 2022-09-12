@@ -74,6 +74,15 @@ func (eb EdgeBitmap) Count() int {
 	return ones
 }
 
+func (eb EdgeBitmap) IsBlank() bool {
+	for i := 0; i < PMBSIZE; i++ {
+		if eb[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (eb EdgeBitmap) Edges() []Edge {
 	result := make([]Edge, eb.Count())
 	var n int
@@ -238,6 +247,13 @@ type PwnMethodsAndProbabilities struct {
 	probabilities   Probabilities
 }
 */
+
+type EdgeDirection int
+
+const (
+	Out EdgeDirection = 0
+	In  EdgeDirection = 1
+)
 
 type EdgeConnections map[*Object]EdgeBitmap //sAndProbabilities
 

@@ -865,7 +865,7 @@ func analysisfuncs(ws *webservice) {
 
 		var pwnlinks int
 		for _, object := range ws.Objs.Slice() {
-			pwnlinks += len(object.CanPwn)
+			pwnlinks += object.EdgeCount(engine.Out)
 		}
 		result.Statistics["Total"] = len(ws.Objs.Slice())
 		result.Statistics["PwnConnections"] = pwnlinks

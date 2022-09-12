@@ -48,13 +48,12 @@ func setThreadsafe(enable bool) {
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
-	values    AttributeValueMap
-	PwnableBy EdgeConnections
-	CanPwn    EdgeConnections
-	parent    *Object
-	sdcache   *SecurityDescriptor
-	sid       windowssecurity.SID
-	children  []*Object
+	values   AttributeValueMap
+	edges    [2]EdgeConnections
+	parent   *Object
+	sdcache  *SecurityDescriptor
+	sid      windowssecurity.SID
+	children []*Object
 
 	members          map[*Object]struct{}
 	membersrecursive map[*Object]struct{}
@@ -190,20 +189,20 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		}
 	}
 
-	for pwntarget, methods := range source.CanPwn {
-		target.CanPwn[pwntarget] = target.CanPwn[pwntarget].Merge(methods)
-		delete(source.CanPwn, pwntarget)
+	for pwntarget, methods := range source.edges[Out] {
+		target.edges[Out][pwntarget] = target.edges[Out][pwntarget].Merge(methods)
+		delete(source.edges[Out], pwntarget)
 
-		pwntarget.PwnableBy[target] = pwntarget.PwnableBy[target].Merge(methods)
-		delete(pwntarget.PwnableBy, source)
+		pwntarget.edges[In][target] = pwntarget.edges[In][target].Merge(methods)
+		delete(pwntarget.edges[In], source)
 	}
 
-	for pwner, methods := range source.PwnableBy {
-		target.PwnableBy[pwner] = target.PwnableBy[pwner].Merge(methods)
-		delete(source.PwnableBy, pwner)
+	for pwner, methods := range source.edges[In] {
+		target.edges[In][pwner] = target.edges[In][pwner].Merge(methods)
+		delete(source.edges[In], pwner)
 
-		pwner.CanPwn[target] = pwner.CanPwn[target].Merge(methods)
-		delete(pwner.CanPwn, source)
+		pwner.edges[Out][target] = pwner.edges[Out][target].Merge(methods)
+		delete(pwner.edges[Out], source)
 	}
 
 	// For everyone that is a member of source, relink them to the target
@@ -981,9 +980,9 @@ func (o *Object) init() {
 	if o.values == nil {
 		o.values = NewAttributeValueMap()
 	}
-	if o.CanPwn == nil || o.PwnableBy == nil {
-		o.CanPwn = make(EdgeConnections)
-		o.PwnableBy = make(EdgeConnections)
+	if o.edges[Out] == nil || o.edges[In] == nil {
+		o.edges[Out] = make(EdgeConnections)
+		o.edges[In] = make(EdgeConnections)
 	}
 }
 
@@ -1107,13 +1106,21 @@ func (o *Object) GUID() uuid.UUID {
 	return guid
 }
 
+// Look up edge
+func (o *Object) Edge(direction EdgeDirection, target *Object) EdgeBitmap {
+	o.lock()
+	bm := o.edges[direction][target]
+	o.unlock()
+	return bm
+}
+
 // Register that this object can pwn another object using the given method
 func (o *Object) EdgeTo(target *Object, method Edge) {
-	o.PwnsEx(target, method, false)
+	o.EdgeToEx(target, method, false)
 }
 
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (o *Object) PwnsEx(target *Object, method Edge, force bool) {
+func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
 	if !force {
 		if o == target { // SID check solves (some) dual-AD analysis problems
 			// We don't care about self owns
@@ -1134,12 +1141,47 @@ func (o *Object) PwnsEx(target *Object, method Edge, force bool) {
 	}
 
 	o.lock()
-	o.CanPwn.Set(target, method) // Add the connection
+	o.edges[Out].Set(target, method) // Add the connection
 	o.unlock()
 
 	target.lock()
-	target.PwnableBy.Set(o, method) // Add the reverse connection too
+	target.edges[In].Set(o, method) // Add the reverse connection too
 	target.unlock()
+}
+
+func (o *Object) EdgeClear(target *Object, method Edge) {
+	o.lock()
+	currentedge := o.edges[Out][target]
+	if currentedge.IsSet(method) {
+		o.edges[Out][target] = currentedge.Clear(method)
+	}
+	o.unlock()
+
+	target.lock()
+	currentedge = target.edges[In][o]
+	if currentedge.IsSet(method) {
+		target.edges[In][o] = currentedge.Clear(method)
+	}
+	target.unlock()
+}
+
+func (o *Object) EdgeCount(direction EdgeDirection) int {
+	o.lock()
+	result := len(o.edges[direction])
+	o.unlock()
+	return result
+}
+
+func (o *Object) EdgeIterator(direction EdgeDirection, ei func(target *Object, edge EdgeBitmap) bool) {
+	o.lock()
+	for target, edge := range o.edges[direction] {
+		o.unlock()
+		if !ei(target, edge) {
+			return
+		}
+		o.lock()
+	}
+	o.unlock()
 }
 
 func (o *Object) ChildOf(parent *Object) {

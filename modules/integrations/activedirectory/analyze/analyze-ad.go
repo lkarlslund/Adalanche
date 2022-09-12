@@ -678,12 +678,13 @@ func init() {
 				}
 
 				// Add the DCsync combination flag
-				for p, methods := range o.PwnableBy {
-					if methods.IsSet(activedirectory.EdgeDSReplicationGetChanges) && methods.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
+				o.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+					if edge.IsSet(activedirectory.EdgeDSReplicationGetChanges) && edge.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
 						// DCsync attack WOT WOT
-						p.EdgeTo(o, activedirectory.EdgeDCsync)
+						target.EdgeTo(o, activedirectory.EdgeDCsync)
 					}
-				}
+					return true
+				})
 			},
 		},
 	)
@@ -1218,12 +1219,13 @@ func init() {
 
 			// Find the computer AD object if any
 			var computer *engine.Object
-			for target, edges := range machine.CanPwn {
-				if edges.IsSet(EdgeAuthenticatesAs) && target.Type() == engine.ObjectTypeComputer {
+			machine.EdgeIterator(engine.Out, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+				if edge.IsSet(EdgeAuthenticatesAs) && target.Type() == engine.ObjectTypeComputer {
 					computer = target
-					break
+					return false //break
 				}
-			}
+				return true
+			})
 
 			if computer == nil {
 				continue
@@ -1452,7 +1454,7 @@ func init() {
 				if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
 					for _, source := range sources {
 						if source.Type() != engine.ObjectTypeForeignSecurityPrincipal {
-							source.PwnsEx(foreign, activedirectory.EdgeForeignIdentity, true)
+							source.EdgeToEx(foreign, activedirectory.EdgeForeignIdentity, true)
 						}
 					}
 				}
@@ -1469,20 +1471,19 @@ func init() {
 		for _, gpo := range ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeGroupPolicyContainer
 		}).Slice() {
-			for group, methods := range gpo.PwnableBy {
-
+			gpo.EdgeIterator(engine.In, func(group *engine.Object, methods engine.EdgeBitmap) bool {
 				groupname := group.OneAttrString(engine.SAMAccountName)
 				if strings.Contains(groupname, "%") {
 					// Lowercase for ease
 					groupname := strings.ToLower(groupname)
 
 					// It has some sort of % variable in it, let's go
-					for affected, amethods := range gpo.CanPwn {
+					gpo.EdgeIterator(engine.Out, func(affected *engine.Object, amethods engine.EdgeBitmap) bool {
 						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
 							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
 							if !found {
 								ui.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
-								continue
+								return true //continue
 							}
 							computername = strings.TrimRight(computername, "$")
 
@@ -1507,7 +1508,7 @@ func init() {
 								warnlines++
 							} else if len(targetgroups) == 1 {
 								for _, edge := range methods.Edges() {
-									targetgroups[0].PwnsEx(affected, edge, true)
+									targetgroups[0].EdgeToEx(affected, edge, true)
 								}
 							} else {
 								ui.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
@@ -1516,10 +1517,11 @@ func init() {
 								}
 							}
 						}
-					}
+						return true
+					})
 				}
-
-			}
+				return true
+			})
 		}
 		if warnlines > 0 {
 			ui.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
