@@ -49,7 +49,9 @@ var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 	if ginfo.DomainDN != "" {
-		ao.AddDefaultFlex(engine.DomainPart, ginfo.DomainDN)
+		ao.AddDefaultFlex(engine.UniqueSource, ginfo.DomainDN)
+	} else {
+		ui.Fatal().Msg("Missing DomainDN in GPO dump, this is not supported")
 	}
 
 	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
