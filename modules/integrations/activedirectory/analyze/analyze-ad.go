@@ -64,7 +64,11 @@ var (
 
 	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
 	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid")
+	DnsHostName         = engine.NewAttribute("dnsHostName")
 	EdgeAuthenticatesAs = engine.NewEdge("AuthenticatesAs")
+	EdgeMachineAccount  = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		return -1 // Just informative
+	}).Describe("Indicates this is the domain joined computer account belonging to the machine")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -701,10 +705,11 @@ func init() {
 				engine.DisplayName, o.Attr(engine.Name),
 				activedirectory.ObjectCategorySimple, "Machine",
 				DomainJoinedSID, o.SID(),
-				engine.Hostname, o.Attr(engine.Hostname),
+				DnsHostName, o.Attr(DnsHostName),
 			)
 
 			machine.EdgeTo(o, EdgeAuthenticatesAs)
+			machine.EdgeTo(o, EdgeMachineAccount)
 		}
 	},
 		"creating Machine objects (representing the machine running the OS)",
