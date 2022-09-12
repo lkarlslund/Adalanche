@@ -2,29 +2,24 @@ function BuildVariants {
   param (
     $ldflags,
     $compileflags,
-    $suffix
+    $prefix,
+    $suffix,
+    $arch,
+    $os,
+    $path
   )
 
-  $env:GOARCH = "386"
-  $env:GOOS = "windows"
-  go build -ldflags "$ldflags" -o binaries/adalanche-collector-windows-386-$VERSION$suffix.exe $compileflags ./collector
-
-  $env:GOARCH = "amd64"
-  $env:GOOS = "windows"
-  go build -ldflags "$ldflags" -o binaries/adalanche-windows-x64-$VERSION$suffix.exe $compileflags ./adalanche
-  $env:GOOS = "darwin"
-  go build -ldflags "$ldflags" -o binaries/adalanche-osx-x64-$VERSION$suffix $compileflags ./adalanche
-  $env:GOOS = "linux"
-  go build -ldflags "$ldflags" -o binaries/adalanche-linux-x64-$VERSION$suffix $compileflags ./adalanche
-
-  $env:GOARCH = "arm64"
-  $env:GOOS = "windows"
-  go build -ldflags "$ldflags" -o binaries/adalanche-windows-arm64-$VERSION$suffix.exe $compileflags ./adalanche
-  $env:GOOS = "linux"
-  go build -ldflags "$ldflags" -o binaries/adalanche-linux-arm64-$VERSION$suffix $compileflags ./adalanche
-  $env:GOOS = "darwin"
-  go build -ldflags "$ldflags" -o binaries/adalanche-osx-m1-$VERSION$suffix $compileflags ./adalanche
-
+  foreach ($currentarch in $arch) {
+    foreach ($currentos in $os) {
+      $env:GOARCH = $currentarch
+      $env:GOOS = $currentos
+      go build -ldflags "$ldflags" -o binaries/$prefix-$currentarch-$currentos-$VERSION$suffix.exe $compileflags $path
+      if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
+      {
+        cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentarch-$currentos-$VERSION$suffix.bom.json -main $path .
+      }
+    }
+  }
 }
 
 Set-Location $PSScriptRoot
@@ -40,4 +35,5 @@ if ("$DIRTYFILES" -ne "") {
 $LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 
 # Release
-BuildVariants -ldflags "$LDFLAGS -s"
+BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche-collector-windows -path ./collector -arch @("386") -os @("windows")
+BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche-windows -path ./adalanche -arch @("amd64", "arm64") -os @("windows", "darwin", "linux")
