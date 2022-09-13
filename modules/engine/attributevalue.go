@@ -71,12 +71,22 @@ type AttributeAndValues struct {
 
 // AttributeValues can contain one or more values
 type AttributeValues interface {
+	First() AttributeValue
+	Iterate(func(val AttributeValue) bool)
 	Slice() []AttributeValue
 	StringSlice() []string
 	Len() int
 }
 
 type NoValues struct{}
+
+func (nv NoValues) First() AttributeValue {
+	return nil
+}
+
+func (nv NoValues) Iterate(func(val AttributeValue) bool) {
+	// no op
+}
 
 func (nv NoValues) Slice() []AttributeValue {
 	return nil
@@ -100,6 +110,18 @@ func AttributeValueSliceFromStrings(values []string) AttributeValueSlice {
 
 type AttributeValueSlice []AttributeValue
 
+func (avs AttributeValueSlice) First() AttributeValue {
+	return avs[0]
+}
+
+func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
+	for _, cval := range avs {
+		if !it(cval) {
+			break
+		}
+	}
+}
+
 func (avs AttributeValueSlice) Slice() []AttributeValue {
 	return avs
 }
@@ -122,6 +144,14 @@ func (avs AttributeValueSlice) Len() int {
 
 type AttributeValueOne struct {
 	Value AttributeValue
+}
+
+func (avo AttributeValueOne) First() AttributeValue {
+	return avo.Value
+}
+
+func (avo AttributeValueOne) Iterate(it func(val AttributeValue) bool) {
+	it(avo.Value)
 }
 
 func (avo AttributeValueOne) Len() int {
