@@ -53,11 +53,17 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 	return result
 }
 
-func (r *RawObject) IngestLDAP(source *ldap.Entry) error {
-	r.Init()
-	r.DistinguishedName = source.DN
+func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
+	item.Init()
+	item.DistinguishedName = source.DN
+	if len(source.Attributes) == 0 {
+		ui.Warn().Msgf("No attribute data for %v", source.DN)
+	}
 	for _, attr := range source.Attributes {
-		r.Attributes[attr.Name] = attr.Values
+		if len(attr.Values) == 0 && attr.Name != "member" {
+			ui.Warn().Msgf("Object %v attribute %v has no values", item.DistinguishedName, attr.Name)
+		}
+		item.Attributes[attr.Name] = attr.Values
 	}
 	return nil
 }
