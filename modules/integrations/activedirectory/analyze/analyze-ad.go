@@ -63,7 +63,7 @@ var (
 	NCName      = engine.NewAttribute("nCName")
 
 	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
-	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid")
+	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid").Merge()
 	DnsHostName         = engine.NewAttribute("dnsHostName")
 	EdgeAuthenticatesAs = engine.NewEdge("AuthenticatesAs")
 	EdgeMachineAccount  = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
@@ -76,6 +76,15 @@ var warnedgpos = make(map[string]struct{})
 var lapsguids []uuid.UUID
 
 func init() {
+	engine.AddMergeApprover("Only merge Machine objects with other Machine objects", func(a, b *engine.Object) (*engine.Object, error) {
+		if a.Type() == ObjectTypeMachine && b.Type() != ObjectTypeMachine {
+			return nil, engine.ErrDontMerge
+		} else if b.Type() == ObjectTypeMachine && a.Type() != ObjectTypeMachine {
+			return nil, engine.ErrDontMerge
+		}
+		return nil, nil
+	})
+
 	Loader.AddAnalyzers(
 		engine.EdgeAnalyzer{
 			Description: "Reading local admin passwords via LAPS",
@@ -708,12 +717,13 @@ func init() {
 				DnsHostName, o.Attr(DnsHostName),
 			)
 
+			o.Adopt(machine) // Accmount is parent to machine
 			machine.EdgeTo(o, EdgeAuthenticatesAs)
 			machine.EdgeTo(o, EdgeMachineAccount)
 		}
 	},
 		"creating Machine objects (representing the machine running the OS)",
-		engine.BeforeMergeHigh)
+		engine.BeforeMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
@@ -1077,30 +1087,37 @@ func init() {
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
-					domainPart := object.OneAttr(engine.DomainPart)
-					if domainPart == nil {
-						ui.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
-					}
-
-					if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
-						engine.DomainPart, domainPart); found {
-						administrators.EdgeTo(object, activedirectory.EdgeLocalAdminRights)
+					// find the machine object for this
+					machine, found := ao.FindTwo(engine.ObjectCategorySimple, engine.AttributeValueString("Machine"),
+						DomainJoinedSID, engine.AttributeValueSID(object.SID()))
+					if !found {
+						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
-						ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
-					}
+						domainPart := object.OneAttr(engine.DomainPart)
+						if domainPart == nil {
+							ui.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
+						}
 
-					if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
-						engine.DomainPart, domainPart); found {
-						remotedesktopusers.EdgeTo(object, activedirectory.EdgeLocalRDPRights)
-					} else {
-						ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
-					}
+						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
+							engine.DomainPart, domainPart); found {
+							administrators.EdgeTo(machine, activedirectory.EdgeLocalAdminRights)
+						} else {
+							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
+						}
 
-					if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
-						engine.DomainPart, domainPart); found {
-						distributeddcomusers.EdgeTo(object, activedirectory.EdgeLocalDCOMRights)
-					} else {
-						ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
+						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
+							engine.DomainPart, domainPart); found {
+							remotedesktopusers.EdgeTo(machine, activedirectory.EdgeLocalRDPRights)
+						} else {
+							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
+						}
+
+						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
+							engine.DomainPart, domainPart); found {
+							distributeddcomusers.EdgeTo(machine, activedirectory.EdgeLocalDCOMRights)
+						} else {
+							ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
+						}
 					}
 				}
 			}

@@ -48,6 +48,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 
 			computerobject.EdgeTo(computeraccount, analyze.EdgeAuthenticatesAs)
+			computerobject.EdgeTo(computeraccount, analyze.EdgeMachineAccount)
 		}
 	} else {
 		ui.Debug().Msg("NOT JOINED??")
