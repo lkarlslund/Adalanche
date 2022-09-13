@@ -223,7 +223,7 @@ func (os *Objects) refreshIndex(attribute Attribute, index *Index) {
 	// add all existing stuff to index
 	for _, o := range os.asarray {
 		for _, value := range o.Attr(attribute).Slice() {
-			key := attributeValueToIndex(value)
+			key := AttributeValueToIndex(value)
 
 			// Add to index
 			index.Add(key, o, false)
@@ -247,9 +247,9 @@ func (os *Objects) refreshMultiIndex(attribute, attribute2 Attribute, index *Ind
 		values := o.Attr(attribute).Slice()
 		values2 := o.Attr(attribute2).Slice()
 		for _, value := range values {
-			key := attributeValueToIndex(value)
+			key := AttributeValueToIndex(value)
 			for _, value2 := range values2 {
-				key2 := attributeValueToIndex(value2)
+				key2 := AttributeValueToIndex(value2)
 
 				// Add to index
 				index.Add(multiindexkey{key, key2}, o, false)
@@ -286,9 +286,9 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 	for i, index := range os.indexes {
 		attribute := Attribute(i)
 		if index != nil {
-			for _, value := range o.Attr(attribute).Slice() {
+			for _, value := range o.AttrRendered(attribute).Slice() {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
-				indexval := attributeValueToIndex(value)
+				indexval := AttributeValueToIndex(value)
 
 				unique := attribute.IsUnique()
 
@@ -319,9 +319,9 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 		values := o.Attr(attribute).Slice()
 		values2 := o.Attr(attribute2).Slice()
 		for _, value := range values {
-			key := attributeValueToIndex(value)
+			key := AttributeValueToIndex(value)
 			for _, value2 := range values2 {
-				key2 := attributeValueToIndex(value2)
+				key2 := AttributeValueToIndex(value2)
 
 				index.Add(multiindexkey{key, key2}, o, !isnew)
 			}
@@ -330,7 +330,7 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 	os.indexlock.RUnlock()
 }
 
-func attributeValueToIndex(value AttributeValue) interface{} {
+func AttributeValueToIndex(value AttributeValue) interface{} {
 	if vs, ok := value.(AttributeValueString); ok {
 		return strings.ToLower(string(vs))
 	}
@@ -394,9 +394,9 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 					for _, mergetarget := range mergetargets {
 						for attr, values := range o.AttributeValueMap() {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
-								if !CompareAttributeValues(values.Slice()[0], mergetarget.Attr(attr).Slice()[0]) {
+								if !CompareAttributeValues(values.First(), mergetarget.Attr(attr).First()) {
 									// Conflicting attribute values, we can't merge these
-									ui.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String())
+									ui.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String(), values.First().String(), mergetarget.Attr(attr).First().String())
 									// if attr == WhenCreated {
 									// 	ui.Debug().Msgf("Object details: %v", o.StringNoACL())
 									// 	ui.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
@@ -577,11 +577,11 @@ func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, 
 	if addifnotfound == nil {
 		if attribute2 == NonExistingAttribute {
 			// Lookup by one attribute
-			matches, found := os.GetIndex(attribute).Lookup(attributeValueToIndex(value))
+			matches, found := os.GetIndex(attribute).Lookup(AttributeValueToIndex(value))
 			return matches, found
 		} else {
 			// Lookup by two attributes
-			matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{attributeValueToIndex(value), attributeValueToIndex(value2)})
+			matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{AttributeValueToIndex(value), AttributeValueToIndex(value2)})
 			return matches, found
 		}
 	}
@@ -591,14 +591,14 @@ func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, 
 
 	if attribute2 == NonExistingAttribute {
 		// Lookup by one attribute
-		matches, found := os.GetIndex(attribute).Lookup(attributeValueToIndex(value))
+		matches, found := os.GetIndex(attribute).Lookup(AttributeValueToIndex(value))
 		if found {
 			os.objectmutex.Unlock()
 			return matches, found
 		}
 	} else {
 		// Lookup by two attributes
-		matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{attributeValueToIndex(value), attributeValueToIndex(value2)})
+		matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(multiindexkey{AttributeValueToIndex(value), AttributeValueToIndex(value2)})
 		if found {
 			os.objectmutex.Unlock()
 			return matches, found

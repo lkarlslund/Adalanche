@@ -64,7 +64,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	for mergeobject, _ := range needsmerge {
 		if mergeobject.HasAttr(UniqueSource) {
-			us := attributeValueToIndex(mergeobject.OneAttr(UniqueSource))
+			us := AttributeValueToIndex(mergeobject.OneAttr(UniqueSource))
 			if sourcemap[us] == nil {
 				sourcemap[us] = NewObjects()
 			}
@@ -95,7 +95,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-				if existing, exists := dnindex.Lookup(attributeValueToIndex(dn)); exists {
+				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 					existing[0].AbsorbEx(addobject, true)
 					continue
 				}
@@ -108,7 +108,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-			if existing, exists := dnindex.Lookup(attributeValueToIndex(dn)); exists {
+			if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 				existing[0].AbsorbEx(addobject, true)
 				continue
 			}

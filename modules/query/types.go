@@ -143,10 +143,11 @@ type LowerStringAttribute engine.Attribute
 
 func (a LowerStringAttribute) Strings(o *engine.Object) []string {
 	l := o.AttrRendered(engine.Attribute(a))
-	for i, s := range l {
-		l[i] = strings.ToLower(s)
+	lo := make([]string, l.Len())
+	for i, s := range l.Slice() {
+		lo[i] = strings.ToLower(s.String())
 	}
-	return l
+	return lo
 }
 
 type andquery struct {
@@ -497,13 +498,13 @@ type hasStringMatch struct {
 }
 
 func (hsm hasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
+	for _, value := range o.AttrRendered(a).Slice() {
 		if !hsm.casesensitive {
-			if strings.EqualFold(hsm.m, value) {
+			if strings.EqualFold(hsm.m, value.String()) {
 				return true
 			}
 		} else {
-			if hsm.m == value {
+			if hsm.m == value.String() {
 				return true
 			}
 		}
@@ -530,13 +531,13 @@ type hasGlobMatch struct {
 }
 
 func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
+	for _, value := range o.AttrRendered(a).Slice() {
 		if !hgm.casesensitive {
-			if hgm.m.Match(strings.ToLower(value)) {
+			if hgm.m.Match(strings.ToLower(value.String())) {
 				return true
 			}
 		} else {
-			if hgm.m.Match(value) {
+			if hgm.m.Match(value.String()) {
 				return true
 			}
 		}
@@ -557,8 +558,8 @@ type hasRegexpMatch struct {
 }
 
 func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a) {
-		if hrm.m.MatchString(value) {
+	for _, value := range o.AttrRendered(a).Slice() {
+		if hrm.m.MatchString(value.String()) {
 			return true
 		}
 	}
@@ -596,13 +597,13 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 		return false
 	}
 	// Check all attribute values for match or ancestry
-	for _, value := range o.AttrRendered(a) {
+	for _, value := range o.AttrRendered(a).Slice() {
 		// We're at the end
-		if strings.EqualFold(value, dn) {
+		if strings.EqualFold(value.String(), dn) {
 			return true
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value)); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value.String())); found {
 			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 		}
 	}

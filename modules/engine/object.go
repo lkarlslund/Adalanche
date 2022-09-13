@@ -417,40 +417,31 @@ func (o *Object) AttrString(attr Attribute) []string {
 	return o.Attr(attr).StringSlice()
 }
 
-func (o *Object) AttrRendered(attr Attribute) []string {
+func (o *Object) AttrRendered(attr Attribute) AttributeValues {
 	switch attr {
 	case ObjectCategory:
-		// ocguid := o.ObjectCategoryGUID()
-		// if ocguid != UnknownGUID {
-		// 	if schemaobject, found := AllObjects.Find(SchemaIDGUID, AttributeValueGUID(o.ObjectCategoryGUID())); found {
-		// 		// fmt.Println(schemaobject)
-		// 		return []string{schemaobject.OneAttrString(Name)}
-		// 	}
-		// }
-
-		cat := o.OneAttrString(ObjectCategory)
-		if cat != "" {
-
-			splitted := strings.Split(cat, ",")
+		vals := o.Attr(attr)
+		if vals.Len() == 1 {
+			cat := vals.First()
+			splitted := strings.Split(cat.String(), ",")
 			if len(splitted) > 1 {
-				// This is a DN pointing to a category - otherwise it's just something we made up! :)
-				return []string{splitted[0][3:]}
+				return AttributeValueOne{
+					Value: AttributeValueString(splitted[0][3:]),
+				}
 			}
-			return []string{cat}
 		}
-
-		return []string{"Unknown"}
+		return NoValues{}
 	default:
-		return o.Attr(attr).StringSlice()
+		return o.Attr(attr)
 	}
 }
 
 func (o *Object) OneAttrRendered(attr Attribute) string {
 	r := o.AttrRendered(attr)
-	if len(r) == 0 {
+	if r.Len() == 0 {
 		return ""
 	}
-	return r[0]
+	return r.First().String()
 }
 
 // Returns synthetic blank attribute value if it isn't set
@@ -510,7 +501,7 @@ func (o *Object) OneAttrRaw(attr Attribute) interface{} {
 		return nil
 	}
 	if a.Len() == 1 {
-		return a.Slice()[0].Raw()
+		return a.First().Raw()
 	}
 	return nil
 }
@@ -521,7 +512,7 @@ func (o *Object) OneAttr(attr Attribute) AttributeValue {
 		return nil
 	}
 	if a.Len() == 1 {
-		return a.Slice()[0]
+		return a.First()
 	}
 	return nil
 }
