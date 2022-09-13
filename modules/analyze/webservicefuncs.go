@@ -258,14 +258,10 @@ func analysisfuncs(ws *webservice) {
 			}
 		}
 
-		includeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-			return includequery.Evaluate(o)
-		})
+		includeobjects = query.Execute(includequery, ws.Objs)
 
 		if excludequery != nil {
-			excludeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-				return excludequery.Evaluate(o)
-			})
+			excludeobjects = query.Execute(excludequery, ws.Objs)
 		}
 
 		// var methods engine.EdgeBitmap
@@ -333,7 +329,7 @@ func analysisfuncs(ws *webservice) {
 					pg.Merge(newpg)
 				}
 			}
-			// pg = engine.AnalyzePaths(includeobjects.Slice()[0], excludeobjects.Slice()[0], ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
+			// pg = engine.AnalyzePaths(includeobjects.First(), excludeobjects.First(), ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
 		} else {
 			opts := engine.NewAnalyzeObjectsOptions()
 			opts.IncludeObjects = includeobjects
@@ -506,16 +502,10 @@ func analysisfuncs(ws *webservice) {
 			}
 		}
 
-		includeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-			// Domain Admins and Enterprise Admins groups
-			return includequery.Evaluate(o)
-		})
+		includeobjects = query.Execute(includequery, ws.Objs)
 
 		if excludequery != nil {
-			excludeobjects = ws.Objs.Filter(func(o *engine.Object) bool {
-				// Domain Admins and Enterprise Admins groups
-				return excludequery.Evaluate(o)
-			})
+			excludeobjects = query.Execute(excludequery, ws.Objs)
 		}
 
 		var selectededges []engine.Edge
