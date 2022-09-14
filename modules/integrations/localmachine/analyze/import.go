@@ -109,6 +109,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
 	uniquesource := cinfo.Machine.Name
 
+	// FIXME - this is WRONG - it's the NETBIOS name, not the domainPart :-\
 	if isdomaincontroller {
 		uniquesource = cinfo.Machine.Domain
 	}
