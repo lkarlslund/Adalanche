@@ -10,6 +10,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	ldap "github.com/lkarlslund/ldap/v3"
 )
 
@@ -152,7 +153,8 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
-			attributevalue = engine.AttributeValueSID(value)
+			sid, _, _ := windowssecurity.BytesToSID([]byte(value))
+			attributevalue = engine.AttributeValueSID(sid)
 		default:
 			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
 			if value == "true" || value == "TRUE" {
@@ -203,6 +205,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		result = new
 	}
 
-	avsPool.Put(avs[:0])
+	avs = avs[:0]
+	avsPool.Put(avs)
 	return result
 }

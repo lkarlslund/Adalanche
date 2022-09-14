@@ -15,7 +15,7 @@ type EdgeAnalyzer struct {
 
 // Increas this when we run out of space
 const PMBSIZE = 2
-const MAXPWNMETHODPOSSIBLE = PMBSIZE * 64
+const MAXEDGEPOSSIBLE = PMBSIZE * 64
 
 type EdgeBitmap [PMBSIZE]uint64
 type Probability int8
@@ -147,7 +147,7 @@ func NewEdge(name string) Edge {
 	}
 
 	newindex := Edge(len(edgeInfos))
-	if newindex == MAXPWNMETHODPOSSIBLE {
+	if newindex == MAXEDGEPOSSIBLE {
 		panic("Too many Edge definitions")
 	}
 
@@ -232,21 +232,13 @@ var (
 
 var AllEdgesBitmap EdgeBitmap
 
-var EdgePopularity [MAXPWNMETHODPOSSIBLE]uint64
+var EdgePopularity [MAXEDGEPOSSIBLE]uint64
 
 func init() {
-	for i := Edge(0); i < MAXPWNMETHODPOSSIBLE; i++ {
+	for i := Edge(0); i < MAXEDGEPOSSIBLE; i++ {
 		AllEdgesBitmap = AllEdgesBitmap.set(i)
 	}
 }
-
-/*
-type PwnMethodsAndProbabilities struct {
-	EdgeBitmap                 // Indicates if we have this method registered
-	probabilitymap  EdgeBitmap // Indicates if we have a probability set or should just return 100
-	probabilities   Probabilities
-}
-*/
 
 type EdgeDirection int
 
@@ -255,7 +247,7 @@ const (
 	In  EdgeDirection = 1
 )
 
-type EdgeConnections map[*Object]EdgeBitmap //sAndProbabilities
+type EdgeConnections map[*Object]EdgeBitmap
 
 var globalEdgeConnectionsLock sync.Mutex // Ugly but it will do
 

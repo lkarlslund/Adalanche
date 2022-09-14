@@ -13,18 +13,23 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
+var ErrorOnlySIDVersion1Supported = errors.New("only SID version 1 supported")
+
 type SID string
 
-const BlankSID = SID("")
-
-// 0 = revision
+// Windows representation
+// 0 = revision (always 1)
 // 1 = subauthority count
 // 2-7 = authority
 // 8-11+ = chunks of 4 with subauthorities
 
-func ParseSID(data []byte) (SID, []byte, error) {
+// Our representation
+// 0-5 = authority
+// 6-9+ = chunks of 4 with subauthorities
+
+func BytesToSID(data []byte) (SID, []byte, error) {
 	if len(data) == 0 {
-		return SID(""), data, errors.New("No data supplied")
+		return "", data, errors.New("No data supplied")
 	}
 	if data[0] != 0x01 {
 		if len(data) > 32 {
@@ -37,10 +42,10 @@ func ParseSID(data []byte) (SID, []byte, error) {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
 	length := 8 + 4*subauthoritycount
-	return SID(dedup.D.BS(data[0:length])), data[length:], nil
+	return SID(dedup.D.BS(data[2:length])), data[length:], nil
 }
 
-func SIDFromString(input string) (SID, error) {
+func ParseStringSID(input string) (SID, error) {
 	if len(input) < 5 {
 		return "", errors.New("SID string is too short to be a SID")
 	}
@@ -51,7 +56,7 @@ func SIDFromString(input string) (SID, error) {
 	if input[0] != 'S' {
 		return "", errors.New("SID must start with S")
 	}
-	var sid = make([]byte, 8+4*subauthoritycount)
+	var sid = make([]byte, 6+4*subauthoritycount)
 
 	strnums := strings.Split(input, "-")
 
@@ -59,8 +64,9 @@ func SIDFromString(input string) (SID, error) {
 	if err != nil {
 		return "", err
 	}
-	sid[0] = byte(version)
-	sid[1] = byte(subauthoritycount)
+	if version != 1 {
+		return "", ErrorOnlySIDVersion1Supported
+	}
 
 	authority, err := strconv.ParseInt(strnums[2], 10, 48)
 	if err != nil {
@@ -68,14 +74,14 @@ func SIDFromString(input string) (SID, error) {
 	}
 	authslice := make([]byte, 8)
 	binary.BigEndian.PutUint64(authslice, uint64(authority)<<16) // dirty tricks
-	copy(sid[2:], authslice[0:6])
+	copy(sid[0:], authslice[0:6])
 
 	for i := 0; i < subauthoritycount; i++ {
 		subauthority, err := strconv.ParseUint(strnums[3+i], 10, 32)
 		if err != nil {
 			return "", err
 		}
-		binary.LittleEndian.PutUint32(sid[8+4*i:], uint32(subauthority))
+		binary.LittleEndian.PutUint32(sid[6+4*i:], uint32(subauthority))
 	}
 	return SID(dedup.D.S(string(sid))), nil
 }
@@ -89,13 +95,13 @@ func (sid SID) String() string {
 		return "NULL SID"
 	}
 	var authority uint64
-	for i := 2; i <= 7; i++ {
+	for i := 0; i <= 5; i++ {
 		authority = authority<<8 | uint64(sid[i])
 	}
-	s := fmt.Sprintf("S-%d-%d", sid[0], authority)
+	s := fmt.Sprintf("S-1-%d", authority)
 
 	// Subauthorities
-	for i := 8; i < len(sid); i += 4 {
+	for i := 6; i < len(sid); i += 4 {
 		subauthority := binary.LittleEndian.Uint32([]byte(sid[i:]))
 		s += fmt.Sprintf("-%d", subauthority)
 	}
@@ -112,13 +118,13 @@ func (sid *SID) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	newsid, err := SIDFromString(sidstring)
+	newsid, err := ParseStringSID(sidstring)
 	*sid = newsid
 	return err
 }
 
 func (sid SID) Components() int {
-	return len(sid) / 4
+	return (len(sid) + 2) / 4
 }
 
 func (sid SID) Component(n int) uint64 {
@@ -127,19 +133,19 @@ func (sid SID) Component(n int) uint64 {
 		if len(sid) == 0 {
 			return 0 // FAIL
 		}
-		return uint64(sid[0])
+		return 1 // always version 1
 	case 1:
 		if len(sid) < 8 {
 			return 0 // FAIL
 		}
 
 		var authority uint64
-		for i := 2; i <= 7; i++ {
+		for i := 0; i <= 5; i++ {
 			authority = authority<<8 | uint64(sid[i])
 		}
 		return authority
 	default:
-		offset := n * 4
+		offset := n*4 - 2
 		if len(sid) < offset+3 {
 			return 0 // FAIL
 		}
@@ -148,22 +154,23 @@ func (sid SID) Component(n int) uint64 {
 }
 
 func (sid SID) StripRID() SID {
-	if len(sid) < 12 {
+	if len(sid) < 10 {
 		ui.Error().Msgf("SID %s is too short to strip RID", sid)
 		return ""
 	}
-	newsid := make([]byte, len(sid)-4)
-	copy(newsid, sid)
-	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
-	return SID(newsid)
+	return sid[:len(sid)-4]
 }
 
 func (sid SID) RID() uint32 {
-	if len(sid) <= 8 {
+	if len(sid) <= 6 {
 		return 0
 	}
 	l := len(sid) - 4
 	return binary.LittleEndian.Uint32([]byte(sid[l:]))
+}
+
+func (sid SID) IsBlank() bool {
+	return sid == ""
 }
 
 func (sid SID) AddComponent(component uint32) SID {
@@ -174,14 +181,14 @@ func (sid SID) AddComponent(component uint32) SID {
 	return SID(newsid)
 }
 
-func SIDFromBytes(data uintptr) (SID, error) {
+func SIDFromPtr(data uintptr) (SID, error) {
 	bytes := (*[1024]byte)(unsafe.Pointer(data))
 	if bytes[0] != 0x01 {
 		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", bytes[0:32])
 	}
 	subauthoritycount := int(bytes[1])
-	var sid = make([]byte, 8+4*subauthoritycount)
+	var sid = make([]byte, 6+4*subauthoritycount)
 
-	copy(sid, bytes[0:len(sid)])
+	copy(sid, bytes[2:len(sid)])
 	return SID(sid), nil
 }

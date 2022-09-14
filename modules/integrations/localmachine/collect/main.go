@@ -569,83 +569,79 @@ func Collect() (localmachine.Info, error) {
 				service_key, err := registry.OpenKey(services_key, service,
 					registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
 				if err == nil {
-					defer service_key.Close()
-					displayname, _, _ := service_key.GetStringValue("DisplayName")
-					description, _, _ := service_key.GetStringValue("Description")
-					objectname, _, _ := service_key.GetStringValue("ObjectName")
-					objectnamesid, _ := winio.LookupSidByName(objectname)
-					imagepath, _, _ := service_key.GetStringValue("ImagePath")
-
-					// Grab ImagePath key security
-					registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
-
-					// if strings.HasSuffix(imagepath, "locator.exe") {
-					// 	ui.Info().Msg("Jackpot!")
-					// }
-
-					// let's see if we can grab a DACL
-					var imagepathowner string
-					var imageexecutable string
-					var imagepathdacl []byte
-
-					if imagepath != "" {
-						// Windows service executable names is a hot effin mess
-						if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
-							// Avoid mapping on 32-bit on 64-bit SYSWOW
-							imagepath = `%SystemRoot%\` + imagepath
-						} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
-							imagepath = `%SystemRoot%\` + imagepath[12:]
-						} else if strings.HasPrefix(imagepath, `\??\`) {
-							imagepath = imagepath[4:]
-						}
-
-						// find the executable name ... windows .... arrrgh
-						var executable string
-						if imagepath[0] == '"' {
-							// Quoted
-							nextquote := strings.Index(imagepath[1:], `"`)
-							if nextquote != -1 {
-								executable = imagepath[1 : nextquote+1]
-							}
-						} else {
-							// Unquoted
-							trypath := imagepath
-							for {
-								statpath := resolvepath(trypath)
-								ui.Debug().Msgf("Trying %v -> %v", trypath, statpath)
-								if _, err = os.Stat(statpath); err == nil {
-									executable = trypath
-									break
-								}
-								lastspace := strings.LastIndex(trypath, " ")
-								if lastspace == -1 {
-									break // give up
-								}
-								trypath = imagepath[:lastspace]
-								if !strings.HasSuffix(strings.ToLower(trypath), ".exe") {
-									trypath += ".exe"
-								}
-							}
-						}
-						ui.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
-						executable = resolvepath(executable)
-						imageexecutable = executable
-						if executable != "" {
-							ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
-							if err == nil {
-								imagepathowner = ownersid.String()
-								imagepathdacl = dacl
-							} else {
-								ui.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
-							}
-						} else {
-							ui.Warn().Msgf("Could not resolve executable %v", imagepath)
-						}
-					}
-
-					start, _, _ := service_key.GetIntegerValue("Start")
 					stype, _, _ := service_key.GetIntegerValue("Type")
 					if stype >= 16 {
+						displayname, _, _ := service_key.GetStringValue("DisplayName")
+						description, _, _ := service_key.GetStringValue("Description")
+						objectname, _, _ := service_key.GetStringValue("ObjectName")
+						objectnamesid, _ := winio.LookupSidByName(objectname)
+						imagepath, _, _ := service_key.GetStringValue("ImagePath")
+						requiredPrivileges, _, _ := service_key.GetStringsValue("RequiredPrivileges")
+						start, _, _ := service_key.GetIntegerValue("Start")
+
+						// Grab ImagePath key security
+						registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+
+						// let's see if we can grab a DACL
+						var imagepathowner string
+						var imageexecutable string
+						var imagepathdacl []byte
+
+						if imagepath != "" {
+							// Windows service executable names is a hot effin mess
+							if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
+								// Avoid mapping on 32-bit on 64-bit SYSWOW
+								imagepath = `%SystemRoot%\` + imagepath
+							} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
+								imagepath = `%SystemRoot%\` + imagepath[12:]
+							} else if strings.HasPrefix(imagepath, `\??\`) {
+								imagepath = imagepath[4:]
+							}
+
+							// find the executable name ... windows .... arrrgh
+							var executable string
+							if imagepath[0] == '"' {
+								// Quoted
+								nextquote := strings.Index(imagepath[1:], `"`)
+								if nextquote != -1 {
+									executable = imagepath[1 : nextquote+1]
+								}
+							} else {
+								// Unquoted
+								trypath := imagepath
+								for {
+									statpath := resolvepath(trypath)
+									ui.Debug().Msgf("Trying %v -> %v", trypath, statpath)
+									if _, err = os.Stat(statpath); err == nil {
+										executable = trypath
+										break
+									}
+									lastspace := strings.LastIndex(trypath, " ")
+									if lastspace == -1 {
+										break // give up
+									}
+									trypath = imagepath[:lastspace]
+									if !strings.HasSuffix(strings.ToLower(trypath), ".exe") {
+										trypath += ".exe"
+									}
+								}
+							}
+							ui.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
+							executable = resolvepath(executable)
+							imageexecutable = executable
+							if executable != "" {
+								ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+								if err == nil {
+									imagepathowner = ownersid.String()
+									imagepathdacl = dacl
+								} else {
+									ui.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
+								}
+							} else {
+								ui.Warn().Msgf("Could not resolve executable %v", imagepath)
+							}
+						}
+
 						servicesinfo = append(servicesinfo, localmachine.Service{
 							RegistryOwner:        registryowner.String(),
 							RegistryDACL:         registrydacl,
@@ -660,20 +656,22 @@ func Collect() (localmachine.Info, error) {
 							Type:                 int(stype),
 							Account:              objectname,
 							AccountSID:           objectnamesid,
+							RequiredPrivileges:   requiredPrivileges,
 						})
 					}
+					service_key.Close()
 				}
 			}
 		}
 	}
 
 	// LOCAL USERS AND GROUPS
-	domainsid, _ := windowssecurity.SIDFromString(machineinfo.ComputerDomainSID)
+	domainsid, _ := windowssecurity.ParseStringSID(machineinfo.ComputerDomainSID)
 
 	var usersinfo localmachine.Users
 	users, _ := winapi.ListLocalUsers()
 	for _, user := range users {
-		usersid, _ := windowssecurity.SIDFromString(user.SID)
+		usersid, _ := windowssecurity.ParseStringSID(user.SID)
 		if machineinfo.IsDomainJoined && usersid.StripRID() == domainsid.StripRID() {
 			// This is a domain account, so we're running on a DC? skip it
 			continue

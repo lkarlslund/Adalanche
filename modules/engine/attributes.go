@@ -63,7 +63,7 @@ var (
 	ObjectSid             = NewAttribute("objectSid").Single() // Strange yes, but in the final results there are multiple objects with the same SID
 	ObjectGUID            = NewAttribute("objectGUID").Single().Unique()
 	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Single()
-	SchemaIDGUID          = NewAttribute("schemaIDGUID") // Dirty, needs proper FIXME for multi domain
+	SchemaIDGUID          = NewAttribute("schemaIDGUID")
 	RightsGUID            = NewAttribute("rightsGUID")
 	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 

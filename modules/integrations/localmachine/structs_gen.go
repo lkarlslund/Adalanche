@@ -4786,6 +4786,25 @@ func (z *Service) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "AccountSID")
 				return
 			}
+		case "RequiredPrivileges":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "RequiredPrivileges")
+				return
+			}
+			if cap(z.RequiredPrivileges) >= int(zb0002) {
+				z.RequiredPrivileges = (z.RequiredPrivileges)[:zb0002]
+			} else {
+				z.RequiredPrivileges = make([]string, zb0002)
+			}
+			for za0001 := range z.RequiredPrivileges {
+				z.RequiredPrivileges[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "RequiredPrivileges", za0001)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -4799,9 +4818,9 @@ func (z *Service) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Service) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 13
+	// map header, size 14
 	// write "RegistryOwner"
-	err = en.Append(0x8d, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
+	err = en.Append(0x8e, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
 	if err != nil {
 		return
 	}
@@ -4930,15 +4949,32 @@ func (z *Service) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "AccountSID")
 		return
 	}
+	// write "RequiredPrivileges"
+	err = en.Append(0xb2, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x50, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.RequiredPrivileges)))
+	if err != nil {
+		err = msgp.WrapError(err, "RequiredPrivileges")
+		return
+	}
+	for za0001 := range z.RequiredPrivileges {
+		err = en.WriteString(z.RequiredPrivileges[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "RequiredPrivileges", za0001)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *Service) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 13
+	// map header, size 14
 	// string "RegistryOwner"
-	o = append(o, 0x8d, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
+	o = append(o, 0x8e, 0xad, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x4f, 0x77, 0x6e, 0x65, 0x72)
 	o = msgp.AppendString(o, z.RegistryOwner)
 	// string "RegistryDACL"
 	o = append(o, 0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x41, 0x43, 0x4c)
@@ -4976,6 +5012,12 @@ func (z *Service) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "AccountSID"
 	o = append(o, 0xaa, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x49, 0x44)
 	o = msgp.AppendString(o, z.AccountSID)
+	// string "RequiredPrivileges"
+	o = append(o, 0xb2, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x50, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.RequiredPrivileges)))
+	for za0001 := range z.RequiredPrivileges {
+		o = msgp.AppendString(o, z.RequiredPrivileges[za0001])
+	}
 	return
 }
 
@@ -5075,6 +5117,25 @@ func (z *Service) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AccountSID")
 				return
 			}
+		case "RequiredPrivileges":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RequiredPrivileges")
+				return
+			}
+			if cap(z.RequiredPrivileges) >= int(zb0002) {
+				z.RequiredPrivileges = (z.RequiredPrivileges)[:zb0002]
+			} else {
+				z.RequiredPrivileges = make([]string, zb0002)
+			}
+			for za0001 := range z.RequiredPrivileges {
+				z.RequiredPrivileges[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RequiredPrivileges", za0001)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -5089,7 +5150,10 @@ func (z *Service) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Service) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.RegistryOwner) + 13 + msgp.BytesPrefixSize + len(z.RegistryDACL) + 5 + msgp.StringPrefixSize + len(z.Name) + 12 + msgp.StringPrefixSize + len(z.DisplayName) + 12 + msgp.StringPrefixSize + len(z.Description) + 10 + msgp.StringPrefixSize + len(z.ImagePath) + 16 + msgp.StringPrefixSize + len(z.ImageExecutable) + 21 + msgp.StringPrefixSize + len(z.ImageExecutableOwner) + 20 + msgp.BytesPrefixSize + len(z.ImageExecutableDACL) + 6 + msgp.IntSize + 5 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Account) + 11 + msgp.StringPrefixSize + len(z.AccountSID)
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.RegistryOwner) + 13 + msgp.BytesPrefixSize + len(z.RegistryDACL) + 5 + msgp.StringPrefixSize + len(z.Name) + 12 + msgp.StringPrefixSize + len(z.DisplayName) + 12 + msgp.StringPrefixSize + len(z.Description) + 10 + msgp.StringPrefixSize + len(z.ImagePath) + 16 + msgp.StringPrefixSize + len(z.ImageExecutable) + 21 + msgp.StringPrefixSize + len(z.ImageExecutableOwner) + 20 + msgp.BytesPrefixSize + len(z.ImageExecutableDACL) + 6 + msgp.IntSize + 5 + msgp.IntSize + 8 + msgp.StringPrefixSize + len(z.Account) + 11 + msgp.StringPrefixSize + len(z.AccountSID) + 19 + msgp.ArrayHeaderSize
+	for za0001 := range z.RequiredPrivileges {
+		s += msgp.StringPrefixSize + len(z.RequiredPrivileges[za0001])
+	}
 	return
 }
 

@@ -115,8 +115,9 @@ type Service struct {
 	Start int `json:",omitempty"`
 	Type  int `json:",omitempty"`
 
-	Account    string `json:",omitempty"`
-	AccountSID string `json:",omitempty"`
+	Account            string   `json:",omitempty"`
+	AccountSID         string   `json:",omitempty"`
+	RequiredPrivileges []string `json:",omitempty"`
 }
 
 type Software struct {

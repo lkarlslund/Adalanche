@@ -202,14 +202,14 @@ var (
 	lsaStorePrivateData               = advapi.NewProc("LsaStorePrivateData")
 )
 
-// typedef struct _LSA_OBJECT_ATTRIBUTES {
-//   ULONG               Length;
-//   HANDLE              RootDirectory;
-//   PLSA_UNICODE_STRING ObjectName;
-//   ULONG               Attributes;
-//   PVOID               SecurityDescriptor;
-//   PVOID               SecurityQualityOfService;
-// } LSA_OBJECT_ATTRIBUTES, *PLSA_OBJECT_ATTRIBUTES;
+//	typedef struct _LSA_OBJECT_ATTRIBUTES {
+//	  ULONG               Length;
+//	  HANDLE              RootDirectory;
+//	  PLSA_UNICODE_STRING ObjectName;
+//	  ULONG               Attributes;
+//	  PVOID               SecurityDescriptor;
+//	  PVOID               SecurityQualityOfService;
+//	} LSA_OBJECT_ATTRIBUTES, *PLSA_OBJECT_ATTRIBUTES;
 type _LSA_OBJECT_ATTRIBUTES struct {
 	Length                   uint32
 	RootDirectory            syscall.Handle
@@ -219,10 +219,11 @@ type _LSA_OBJECT_ATTRIBUTES struct {
 	SecurityQualityOfService uintptr
 }
 
-// typedef struct _LSA_UNICODE_STRING {
-//   USHORT Length;
-//   USHORT MaximumLength;
-// } LSA_UNICODE_STRING, *PLSA_UNICODE_STRING;
+//	typedef struct _LSA_UNICODE_STRING {
+//	  USHORT Length;
+//	  USHORT MaximumLength;
+//	} LSA_UNICODE_STRING, *PLSA_UNICODE_STRING;
+//
 // https://docs.microsoft.com/en-us/windows/desktop/api/lsalookup/ns-lsalookup-_lsa_unicode_string
 type _LSA_UNICODE_STRING struct {
 	Length        uint16
@@ -316,11 +317,13 @@ const (
 )
 
 // NTSTATUS LsaOpenPolicy(
-// 	PLSA_UNICODE_STRING    SystemName,
-// 	PLSA_OBJECT_ATTRIBUTES ObjectAttributes,
-// 	ACCESS_MASK            DesiredAccess,
-// 	PLSA_HANDLE            PolicyHandle
-//   );
+//
+//		PLSA_UNICODE_STRING    SystemName,
+//		PLSA_OBJECT_ATTRIBUTES ObjectAttributes,
+//		ACCESS_MASK            DesiredAccess,
+//		PLSA_HANDLE            PolicyHandle
+//	  );
+//
 // https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaopenpolicy
 func LsaOpenPolicy(system string, access uint32) (*syscall.Handle, error) {
 	// Docs say this is not used, but the structure needs to be
@@ -346,7 +349,9 @@ func LsaOpenPolicy(system string, access uint32) (*syscall.Handle, error) {
 }
 
 // NTSTATUS LsaClose(
-//   LSA_HANDLE ObjectHandle
+//
+//	LSA_HANDLE ObjectHandle
+//
 // );
 // https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaclose
 func LsaClose(hPolicy syscall.Handle) error {
@@ -360,12 +365,14 @@ func LsaClose(hPolicy syscall.Handle) error {
 }
 
 // NTSTATUS LsaEnumerateAccountRights(
-//   LSA_HANDLE          PolicyHandle,
-//   PSID                AccountSid,
-//   PLSA_UNICODE_STRING *UserRights,
-//   PULONG              CountOfRights
+//
+//	LSA_HANDLE          PolicyHandle,
+//	PSID                AccountSid,
+//	PLSA_UNICODE_STRING *UserRights,
+//	PULONG              CountOfRights
+//
 // );
-//https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaenumerateaccountrights
+// https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaenumerateaccountrights
 func LsaEnumerateAccountRights(hPolicy syscall.Handle, sid *syscall.SID) ([]string, error) {
 	var rights uintptr
 	var count uint32
@@ -392,10 +399,12 @@ func LsaEnumerateAccountRights(hPolicy syscall.Handle, sid *syscall.SID) ([]stri
 }
 
 // NTSTATUS LsaEnumerateAccountsWithUserRight(
-//   [in]  LSA_HANDLE          PolicyHandle,
-//   [in]  PLSA_UNICODE_STRING UserRight,
-//   [out] PVOID               *Buffer,
-//   [out] PULONG              CountReturned
+//
+//	[in]  LSA_HANDLE          PolicyHandle,
+//	[in]  PLSA_UNICODE_STRING UserRight,
+//	[out] PVOID               *Buffer,
+//	[out] PULONG              CountReturned
+//
 // );
 // https://docs.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaenumerateaccountswithuserright
 func LsaEnumerateAccountsWithUserRight(hPolicy syscall.Handle, userright string) ([]windowssecurity.SID, error) {
@@ -421,7 +430,7 @@ func LsaEnumerateAccountsWithUserRight(hPolicy syscall.Handle, userright string)
 
 	for i := 0; i < int(count); i++ {
 		nativesid := ((*[32768]uintptr)(unsafe.Pointer(bufferptr)))[i]
-		sid, err := windowssecurity.SIDFromBytes(nativesid)
+		sid, err := windowssecurity.SIDFromPtr(nativesid)
 		if err != nil {
 			return nil, err
 		}
@@ -431,10 +440,12 @@ func LsaEnumerateAccountsWithUserRight(hPolicy syscall.Handle, userright string)
 }
 
 // NTSTATUS LsaAddAccountRights(
-// 	LSA_HANDLE          PolicyHandle,
-// 	PSID                AccountSid,
-// 	PLSA_UNICODE_STRING UserRights,
-// 	ULONG               CountOfRights
+//
+//	LSA_HANDLE          PolicyHandle,
+//	PSID                AccountSid,
+//	PLSA_UNICODE_STRING UserRights,
+//	ULONG               CountOfRights
+//
 // );
 // https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaaddaccountrights
 func LsaAddAccountRights(hPolicy syscall.Handle, sid *syscall.SID, rights []string) error {
@@ -455,13 +466,15 @@ func LsaAddAccountRights(hPolicy syscall.Handle, sid *syscall.SID, rights []stri
 }
 
 // NTSTATUS LsaRemoveAccountRights(
-//   LSA_HANDLE          PolicyHandle,
-//   PSID                AccountSid,
-//   BOOLEAN             AllRights,
-//   PLSA_UNICODE_STRING UserRights,
-//   ULONG               CountOfRights
+//
+//	LSA_HANDLE          PolicyHandle,
+//	PSID                AccountSid,
+//	BOOLEAN             AllRights,
+//	PLSA_UNICODE_STRING UserRights,
+//	ULONG               CountOfRights
+//
 // );
-//https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaremoveaccountrights
+// https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsaremoveaccountrights
 func LsaRemoveAccountRights(hPolicy syscall.Handle, sid *syscall.SID, removeAll bool, rights []string) error {
 	var lsaRights []_LSA_UNICODE_STRING
 	if !removeAll {
@@ -483,7 +496,9 @@ func LsaRemoveAccountRights(hPolicy syscall.Handle, sid *syscall.SID, removeAll 
 }
 
 // ULONG LsaNtStatusToWinError(
-//   NTSTATUS Status
+//
+//	NTSTATUS Status
+//
 // );
 // https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsantstatustowinerror
 func LsaNtStatusToWinError(status uintptr) error {
@@ -495,7 +510,9 @@ func LsaNtStatusToWinError(status uintptr) error {
 }
 
 // NTSTATUS LsaFreeMemory(
-// 	PVOID Buffer
+//
+//	PVOID Buffer
+//
 // );
 // https://docs.microsoft.com/en-us/windows/desktop/api/ntsecapi/nf-ntsecapi-lsafreememory
 func LsaFreeMemory(buf uintptr) error {

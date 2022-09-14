@@ -91,15 +91,30 @@ func NewObjectType(name, lookup string) ObjectType {
 }
 
 func ObjectTypeLookup(lookup string) (ObjectType, bool) {
-	lowername := strings.ToLower(lookup)
-
 	objecttypemutex.RLock()
-	objecttype, found := objecttypenames[lowername]
-	objecttypemutex.RUnlock()
-	if !found {
-		return ObjectTypeOther, false
+	objecttype, found := objecttypenames[lookup]
+	if found {
+		objecttypemutex.RUnlock()
+		return objecttype, true
 	}
-	return objecttype, found
+
+	lowername := strings.ToLower(lookup)
+	objecttype, found = objecttypenames[lowername]
+	objecttypemutex.RUnlock()
+	if found {
+		// lowercase version found, add the cased version too
+		objecttypemutex.Lock()
+		objecttypenames[lookup] = objecttype
+		objecttypemutex.Unlock()
+		return objecttype, found
+	}
+
+	// not found, we don't know what this is, but lets speed this up for next time
+	objecttypemutex.Lock()
+	objecttypenames[lookup] = ObjectTypeOther
+	objecttypemutex.Unlock()
+
+	return ObjectTypeOther, false
 }
 
 func (ot ObjectType) String() string {

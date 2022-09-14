@@ -55,15 +55,6 @@ type Object struct {
 	sid      windowssecurity.SID
 	children []*Object
 
-	members          map[*Object]struct{}
-	membersrecursive map[*Object]struct{}
-
-	memberof          map[*Object]struct{}
-	memberofrecursive map[*Object]struct{}
-
-	memberofsid          []windowssecurity.SID
-	memberofsidrecursive []windowssecurity.SID
-
 	id   uint32
 	guid uuid.UUID
 	// objectcategoryguid uuid.UUID
@@ -143,7 +134,7 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 
 	// Fast mode does not merge values, it just relinks the source to the target
 	if !fast {
-		for attr, values := range source.values {
+		source.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 			var val AttributeValues
 			tval := target.attr(attr)
 			sval := values
@@ -153,8 +144,8 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 			} else if sval.Len() == 0 {
 				panic(fmt.Sprintf("Attribute %v with ZERO LENGTH data failure", attr.String()))
 			} else if tval.Len() == 1 && sval.Len() == 1 {
-				tvalue := tval.Slice()[0]
-				svalue := sval.Slice()[0]
+				tvalue := tval.First()
+				svalue := sval.First()
 
 				if CompareAttributeValues(tvalue, svalue) {
 					val = tval // They're the same, so pick any
@@ -164,29 +155,34 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 				}
 			} else {
 				// One or more of them have more than one value, do it the hard way
-				tvalslice := tval.Slice()
-				svalslice := sval.Slice()
+				var destinationSlice AttributeValueSlice
+				var testvalues AttributeValues
 
-				resultingvalues := make([]AttributeValue, tval.Len())
-				copy(resultingvalues, tvalslice)
+				if tval.Len() > sval.Len() {
+					destinationSlice = tval.Slice()
+					testvalues = sval
+				} else {
+					destinationSlice = sval.Slice()
+					testvalues = tval
+				}
 
-				for _, svalue := range svalslice {
-					var alreadythere bool
-				compareloop:
-					for _, tvalue := range tvalslice {
-						if CompareAttributeValues(svalue, tvalue) { // Crap!!
-							alreadythere = true
-							break compareloop
+				resultingvalues := destinationSlice
+
+				testvalues.Iterate(func(testvalue AttributeValue) bool {
+					for _, existingvalue := range destinationSlice {
+						if CompareAttributeValues(existingvalue, testvalue) { // Crap!!
+							return false
 						}
 					}
-					if !alreadythere {
-						resultingvalues = append(resultingvalues, svalue)
-					}
-				}
-				val = AttributeValueSlice(resultingvalues)
+					resultingvalues = append(resultingvalues, testvalue)
+					return true
+				})
+
+				val = resultingvalues
 			}
 			target.set(attr, val)
-		}
+			return true
+		})
 	}
 
 	for pwntarget, methods := range source.edges[Out] {
@@ -204,38 +200,6 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		pwner.edges[Out][target] = pwner.edges[Out][target].Merge(methods)
 		delete(pwner.edges[Out], source)
 	}
-
-	// For everyone that is a member of source, relink them to the target
-	if target.members == nil {
-		target.members = make(map[*Object]struct{})
-	}
-	for newmember := range source.members {
-		target.members[newmember] = struct{}{}
-		// delete(source.members, newmember) // Handled below by setting to nil
-
-		// Relink the memberof attribute of the member and clear cache
-		delete(newmember.memberof, source)
-		newmember.memberof[target] = struct{}{}
-		newmember.memberofrecursive = nil
-	}
-	source.members = nil
-	source.membersrecursive = nil
-
-	if target.memberof == nil {
-		target.memberof = make(map[*Object]struct{})
-	}
-
-	for newmemberof := range source.memberof {
-		target.memberof[newmemberof] = struct{}{}
-		// delete(source.memberof, newmemberof) // handled below by setting to nil
-
-		// Relink the member attribute of the newmemberof
-		newmemberof.members[target] = struct{}{}
-		delete(newmemberof.members, source)
-		newmemberof.membersrecursive = nil
-	}
-	source.memberof = nil
-	source.memberofrecursive = nil
 
 	for _, child := range source.children {
 		target.adopt(child)
@@ -265,26 +229,20 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 
 	target.objecttype = 0 // Recalculate this
 
-	target.memberofrecursive = nil // Clear cache
-	target.membersrecursive = nil  // Clear cache
-
-	target.memberofsid = nil          // Clear cache
-	target.memberofsidrecursive = nil // Clear cache
-
 	source.invalidated = true // Invalid object
 }
 
-func (o *Object) AttributeValueMap() AttributeValueMap {
-	o.lock()
-	defer o.unlock()
-	val := o.values
-	for attr, _ := range val {
-		if attributenums[attr].onget != nil {
-			val[attr], _ = attributenums[attr].onget(o, attr)
-		}
-	}
-	return val
-}
+// func (o *Object) AttributeValueMap() AttributeValueMap {
+// 	o.lock()
+// 	defer o.unlock()
+// 	val := o.values
+// 	for attr, _ := range val {
+// 		if attributenums[attr].onget != nil {
+// 			val[attr], _ = attributenums[attr].onget(o, attr)
+// 		}
+// 	}
+// 	return val
+// }
 
 type StringMap map[string][]string
 
@@ -316,9 +274,10 @@ func (o *Object) NameStringMap() StringMap {
 	o.lock()
 	defer o.unlock()
 	result := make(StringMap)
-	for attr, values := range o.values {
+	o.values.Iterate(func(attr Attribute, values AttributeValues) bool {
 		result[attr.String()] = values.StringSlice()
-	}
+		return true
+	})
 	return result
 }
 
@@ -383,20 +342,16 @@ func (o *Object) Type() ObjectType {
 		return o.objecttype
 	}
 
-	category := o.OneAttrString(ObjectCategory)
-	if category != "" {
-		equalpos := strings.Index(category, "=")
-		commapos := strings.Index(category, ",")
-		if equalpos == -1 || commapos == -1 || equalpos >= commapos {
-			// Just keep it as-is
-		} else {
-			category = category[equalpos+1 : commapos]
-		}
-	} else {
-		category = o.OneAttrString(ObjectCategorySimple)
+	category := o.Attr(ObjectCategorySimple)
+	if category.Len() == 0 {
+		category = o.AttrRendered(ObjectCategory)
 	}
 
-	objecttype, found := ObjectTypeLookup(category)
+	if category.Len() == 0 {
+		return ObjectTypeOther
+	}
+
+	objecttype, found := ObjectTypeLookup(category.First().String())
 	if found {
 		o.objecttype = objecttype
 	}
@@ -484,15 +439,10 @@ func (o *Object) OneAttrString(attr Attribute) string {
 	if !found {
 		return ""
 	}
-	if ao, ok := a.(AttributeValueOne); ok {
-		return ao.Value.String()
+	if a.Len() != 1 {
+		ui.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
 	}
-	if a.Len() == 1 {
-		ui.Warn().Msgf("Inefficient attribute storage for %v - multival used for one value ...", attr.String())
-		return a.Slice()[0].String()
-	}
-	ui.Error().Msgf("Attribute %v lookup for ONE value, but contains %v (%v)", attr.String(), a.Len(), strings.Join(a.StringSlice(), ", "))
-	return ""
+	return a.First().String()
 }
 
 func (o *Object) OneAttrRaw(attr Attribute) interface{} {
@@ -523,12 +473,15 @@ func (o *Object) HasAttr(attr Attribute) bool {
 }
 
 func (o *Object) HasAttrValue(attr Attribute, hasvalue AttributeValue) bool {
-	for _, value := range o.Attr(attr).Slice() {
+	var result bool
+	o.Attr(attr).Iterate(func(value AttributeValue) bool {
 		if CompareAttributeValues(value, hasvalue) {
-			return true
+			result = true
+			return false
 		}
-	}
-	return false
+		return true
+	})
+	return result
 }
 
 func (o *Object) AttrInt(attr Attribute) (int64, bool) {
@@ -561,139 +514,6 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 	t := util.FiletimeToTime(uint64(v))
 	// ui.Debug().Msgf("Converted %v to %v", v, t)
 	return t, true
-}
-
-func (o *Object) AddMember(member *Object) {
-	member.lock()
-	if _, found := member.memberof[o]; found {
-		member.unlock()
-		return
-	}
-	if member.memberof == nil {
-		member.memberof = make(map[*Object]struct{})
-	}
-	member.memberof[o] = struct{}{}
-	member.unlock()
-	o.lock()
-	if o.members == nil {
-		o.members = make(map[*Object]struct{})
-	}
-	o.members[member] = struct{}{}
-	o.unlock()
-}
-
-func (o *Object) Members(recursive bool) []*Object {
-	o.lock()
-	defer o.unlock()
-	if !recursive {
-		return util.KeysToSlice(o.members)
-	}
-
-	members := make(map[*Object]struct{})
-	o.recursemembers(&members)
-
-	membersarray := make([]*Object, len(members))
-	var i int
-	for member := range members {
-		membersarray[i] = member
-		i++
-	}
-	return membersarray
-}
-
-func (o *Object) recursemembers(members *map[*Object]struct{}) {
-	for directmember := range o.members {
-		if _, found := (*members)[directmember]; found {
-			// endless loop, not today thanks
-			continue
-		}
-		(*members)[directmember] = struct{}{}
-		directmember.recursemembers(members)
-	}
-}
-
-func (o *Object) MemberOf(recursive bool) []*Object {
-	o.lock()
-	defer o.unlock()
-	return o.memberofr(recursive)
-}
-
-func (o *Object) memberofr(recursive bool) []*Object {
-	if !recursive || len(o.memberof) == 0 {
-		return util.KeysToSlice(o.memberof)
-	}
-
-	if o.memberofrecursive != nil {
-		return util.KeysToSlice(o.memberofrecursive)
-	}
-
-	memberof := make(map[*Object]struct{})
-	o.recursememberof(&memberof)
-
-	o.memberofrecursive = memberof
-	return util.KeysToSlice(memberof)
-}
-
-// Recursive memberof, returns true if loop is detected
-func (o *Object) recursememberof(memberof *map[*Object]struct{}) bool {
-	var loop bool
-	for directmemberof := range o.memberof {
-		if _, found := (*memberof)[directmemberof]; found {
-			// endless loop, not today thanks
-			loop = true
-			continue
-		}
-		(*memberof)[directmemberof] = struct{}{}
-		if directmemberof.recursememberof(memberof) {
-			loop = true
-		}
-	}
-	return loop
-}
-
-func (o *Object) MemberOfSID(recursive bool) []windowssecurity.SID {
-	o.rlock()
-	if !recursive {
-		mos := o.memberofsid
-		if mos == nil {
-			o.runlock()
-			memberofsid := make([]windowssecurity.SID, len(o.memberof))
-			i := 0
-			for memberof := range o.memberof {
-				memberofsid[i] = memberof.SID()
-				i++
-			}
-			o.lock()
-			o.memberofsid = memberofsid
-			o.unlock()
-
-			return memberofsid
-		}
-
-		o.runlock()
-		return mos
-	}
-
-	mosr := o.memberofsidrecursive
-	if mosr != nil {
-		o.runlock()
-		return mosr
-	}
-
-	memberofrecursive := o.memberofr(true)
-	o.runlock()
-
-	mosr = make([]windowssecurity.SID, len(memberofrecursive))
-
-	for i, memberof := range memberofrecursive {
-		mosr[i] = memberof.SID()
-	}
-
-	o.lock()
-	o.memberofsidrecursive = mosr
-	o.unlock()
-
-	return mosr
 }
 
 // Wrapper for Set - easier to call
@@ -857,7 +677,8 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			o.set(attribute, newdata)
 		}
 	}
-	avsPool.Put(data[:0])
+	data = data[:0]
+	avsPool.Put(data)
 }
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
@@ -958,19 +779,17 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 
 func (o *Object) Meta() map[string]string {
 	result := make(map[string]string)
-	for attr, value := range o.values {
+	o.AttrIterator(func(attr Attribute, value AttributeValues) bool {
 		if attr.String()[0] == '_' {
-			result[attr.String()] = value.Slice()[0].String()
+			result[attr.String()] = value.First().String()
 		}
-	}
+		return true
+	})
 	return result
 }
 
 func (o *Object) init() {
 	o.id = atomic.AddUint32(&idcounter, 1)
-	if o.values == nil {
-		o.values = NewAttributeValueMap()
-	}
 	if o.edges[Out] == nil || o.edges[In] == nil {
 		o.edges[Out] = make(EdgeConnections)
 		o.edges[In] = make(EdgeConnections)
@@ -980,9 +799,9 @@ func (o *Object) init() {
 func (o *Object) String() string {
 	var result string
 	result += "OBJECT " + o.DN() + "\n"
-	for attr, values := range o.AttributeValueMap() {
+	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 		if attr == NTSecurityDescriptor {
-			continue
+			return true // continue
 		}
 		result += "  " + attributenums[attr].name + ":\n"
 		for _, value := range values.Slice() {
@@ -998,7 +817,8 @@ func (o *Object) String() string {
 			// dump with recursion - fixme
 			an.Children()
 		}
-	}
+		return true // one more
+	})
 	return result
 }
 
@@ -1017,9 +837,10 @@ func (o *Object) StringACL(ao *Objects) string {
 // Dump the object to simple map type for debugging
 func (o *Object) ValueMap() map[string][]string {
 	result := make(map[string][]string)
-	for attr, values := range o.values {
+	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 		result[attr.String()] = values.StringSlice()
-	}
+		return true
+	})
 	return result
 }
 
@@ -1068,7 +889,7 @@ func (o *Object) SID() windowssecurity.SID {
 		o.sidcached = true
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
-				if sid, ok := asid.Slice()[0].Raw().(windowssecurity.SID); ok {
+				if sid, ok := asid.First().Raw().(windowssecurity.SID); ok {
 					o.sid = sid
 				}
 			}
@@ -1086,7 +907,7 @@ func (o *Object) GUID() uuid.UUID {
 		o.guidcached = true
 		if aguid, ok := o.get(ObjectGUID); ok {
 			if aguid.Len() == 1 {
-				if guid, ok := aguid.Slice()[0].Raw().(uuid.UUID); ok {
+				if guid, ok := aguid.First().Raw().(uuid.UUID); ok {
 					o.guid = guid
 				}
 			}
@@ -1126,7 +947,7 @@ func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
 		}
 
 		tsid := target.SID()
-		if osid != windowssecurity.BlankSID && osid == tsid {
+		if !osid.IsBlank() && osid == tsid {
 			return
 		}
 	}
@@ -1173,6 +994,10 @@ func (o *Object) EdgeIterator(direction EdgeDirection, ei func(target *Object, e
 		o.lock()
 	}
 	o.unlock()
+}
+
+func (o *Object) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
+	o.values.Iterate(f)
 }
 
 func (o *Object) ChildOf(parent *Object) {

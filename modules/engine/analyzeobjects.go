@@ -6,7 +6,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-var EdgeMemberOfGroup = NewEdge("MemberOfGroup") // FIXME, this should be generalized to expand-anyway-priority somehoe
+var EdgeMemberOfGroup = NewEdge("MemberOfGroup")
 
 var SortBy Attribute = NonExistingAttribute
 

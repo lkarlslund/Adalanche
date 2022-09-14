@@ -105,7 +105,7 @@ func analysisfuncs(ws *webservice) {
 		case "dn", "distinguishedname":
 			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(vars["id"]))
 		case "sid":
-			sid, err := windowssecurity.SIDFromString(vars["id"])
+			sid, err := windowssecurity.ParseStringSID(vars["id"])
 			if err != nil {
 				w.WriteHeader(400) // bad request
 				w.Write([]byte(err.Error()))
@@ -147,11 +147,12 @@ func analysisfuncs(ws *webservice) {
 			Attributes:        make(map[string][]string),
 		}
 
-		for attr, values := range o.AttributeValueMap() {
+		o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
 			slice := values.StringSlice()
 			sort.StringSlice(slice).Sort()
 			od.Attributes[attr.String()] = slice
-		}
+			return true
+		})
 
 		if r.FormValue("format") == "json" {
 			w.WriteHeader(200)
@@ -567,12 +568,13 @@ func analysisfuncs(ws *webservice) {
 `, id, node.Label(), node.DN())
 
 				if alldetails {
-					for attribute, values := range node.AttributeValueMap() {
+					node.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
 						valuesjoined := strings.Join(values.StringSlice(), ", ")
 						if util.IsASCII(valuesjoined) {
 							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
 						}
-					}
+						return true
+					})
 				}
 				fmt.Fprintf(w, "  ]\n")
 			}
@@ -601,7 +603,7 @@ func analysisfuncs(ws *webservice) {
 				}
 
 				if alldetails {
-					for attribute, values := range object.AttributeValueMap() {
+					object.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
 						if values != nil {
 							valuesjoined := strings.Join(values.StringSlice(), ", ")
 							if util.IsASCII(valuesjoined) {
@@ -611,7 +613,8 @@ func analysisfuncs(ws *webservice) {
 								})
 							}
 						}
-					}
+						return true
+					})
 				}
 				graph.Nodes = append(graph.Nodes, xmlnode)
 			}

@@ -187,7 +187,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 		}
 	}
 
-	ace.SID, data, err = windowssecurity.ParseSID(data)
+	ace.SID, data, err = windowssecurity.BytesToSID(data)
 	if err != nil {
 		return ace, data, err
 	}
@@ -227,15 +227,17 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 					//
 					// The allowed SID might be a member of one or more groups matching a DENY ACE
 					// This will never work for cross domain groups
-					so, found := ao.Find(ObjectSid, AttributeValueSID(currentPotentialDenySid))
-					if found {
-						for _, memberOfSid := range so.MemberOfSID(true) {
-							if memberOfSid == allowedSid {
-								sidmatch = true
-								break
-							}
-						}
-					}
+
+					// FIXME
+					// so, found := ao.Find(ObjectSid, AttributeValueSID(currentPotentialDenySid))
+					// if found {
+					// 	for _, memberOfSid := range so.MemberOfSID(true) {
+					// 		if memberOfSid == allowedSid {
+					// 			sidmatch = true
+					// 			break
+					// 		}
+					// 	}
+					// }
 				}
 
 				if sidmatch && a.Entries[i].matchObjectClassAndGUID(testObject, mask, guid, ao) {
@@ -540,13 +542,13 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	}
 	var err error
 	if OffsetOwner > 0 {
-		result.Owner, _, err = windowssecurity.ParseSID(data[OffsetOwner:])
+		result.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
 		if err != nil {
 			return result, err
 		}
 	}
 	if OffsetGroup > 0 {
-		result.Group, _, err = windowssecurity.ParseSID(data[OffsetGroup:])
+		result.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
 		if err != nil {
 			return result, err
 		}

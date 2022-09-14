@@ -122,5 +122,5 @@ func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessP
 	}
 	wg.Wait()
 
-	return nil // FIXME
+	return nil
 }

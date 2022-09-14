@@ -286,7 +286,7 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 	for i, index := range os.indexes {
 		attribute := Attribute(i)
 		if index != nil {
-			for _, value := range o.AttrRendered(attribute).Slice() {
+			o.AttrRendered(attribute).Iterate(func(value AttributeValue) bool {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
 				indexval := AttributeValueToIndex(value)
 
@@ -298,12 +298,13 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 						ui.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing[0].Label())
 						ui.Debug().Msgf("NEW DN: %v", o.DN())
 						ui.Debug().Msgf("EXISTING DN: %v", existing[0].DN())
-						continue
+						return true
 					}
 				}
 
 				index.Add(indexval, o, !isnew)
-			}
+				return true
+			})
 		}
 	}
 
@@ -383,16 +384,15 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 	os.objectmutex.RUnlock()
 
 	// var deb int
+	var merged bool
 	if len(attrtomerge) > 0 {
 		for _, mergeattr := range attrtomerge {
-			if !o.HasAttr(mergeattr) {
-				continue
-			}
-			for _, lookfor := range o.Attr(mergeattr).Slice() {
-				if mergetargets, found := os.FindMultiOrAdd(mergeattr, lookfor, nil); found {
+			o.Attr(mergeattr).Iterate(func(lookfor AttributeValue) bool {
+				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
 				targetloop:
 					for _, mergetarget := range mergetargets {
-						for attr, values := range o.AttributeValueMap() {
+						var failed bool
+						o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
 								if !CompareAttributeValues(values.First(), mergetarget.Attr(attr).First()) {
 									// Conflicting attribute values, we can't merge these
@@ -401,9 +401,14 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 									// 	ui.Debug().Msgf("Object details: %v", o.StringNoACL())
 									// 	ui.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
 									// }
-									continue targetloop
+									failed = true
+									return false
 								}
 							}
+							return true
+						})
+						if failed {
+							continue targetloop
 						}
 						for _, mfi := range mergeapprovers {
 							res, err := mfi.mergefunc(o, mergetarget)
@@ -422,20 +427,24 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							if res != nil {
 								// Custom merge - how do we handle this?
 								ui.Fatal().Msgf("Custom merge function not supported yet")
-								return false
 							}
 						}
 						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 
 						mergetarget.Absorb(o)
 						os.ReindexObject(mergetarget, false)
-						return true
+						merged = true
+						return false
 					}
 				}
+				return true
+			})
+			if merged {
+				break
 			}
 		}
 	}
-	return false
+	return merged
 }
 
 func (os *Objects) add(o *Object) {

@@ -212,7 +212,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
 				} else {
 					// Use the SID
-					membersid, err := windowssecurity.SIDFromString(sidpair.MemberSID)
+					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
 					if err == nil {
 						member = ao.FindOrAddSID(membersid)
 					}

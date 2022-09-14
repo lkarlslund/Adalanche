@@ -67,12 +67,15 @@ type QueryAnyAttribute struct {
 }
 
 func (qaa QueryAnyAttribute) Evaluate(o *engine.Object) bool {
-	for a, _ := range o.AttributeValueMap() {
-		if qaa.q.Evaluate(a, o) {
-			return true
+	var result bool
+	o.AttrIterator(func(attr engine.Attribute, avs engine.AttributeValues) bool {
+		if qaa.q.Evaluate(attr, o) {
+			result = true
+			return false // break
 		}
-	}
-	return false
+		return true
+	})
+	return result
 }
 
 func (qaa QueryAnyAttribute) ToLDAPFilter() string {
@@ -263,12 +266,15 @@ func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	if !found {
 		return lm.c.Compare(0, lm.value)
 	}
-	for _, value := range vals.StringSlice() {
-		if lm.c.Compare(int64(len(value)), lm.value) {
-			return true
+	var result bool
+	vals.Iterate(func(value engine.AttributeValue) bool {
+		if lm.c.Compare(int64(len(value.String())), lm.value) {
+			result = true
+			return false
 		}
-	}
-	return false
+		return true
+	})
+	return result
 }
 
 func (lm lengthModifier) ToLDAPFilter(a string) string {

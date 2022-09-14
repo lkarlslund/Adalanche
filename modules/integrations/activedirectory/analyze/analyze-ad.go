@@ -49,11 +49,11 @@ var (
 	ObjectGuidOU                 = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
 	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
-	AdministratorsSID, _           = windowssecurity.SIDFromString("S-1-5-32-544")
-	BackupOperatorsSID, _          = windowssecurity.SIDFromString("S-1-5-32-551")
-	PrintOperatorsSID, _           = windowssecurity.SIDFromString("S-1-5-32-550")
-	ServerOperatorsSID, _          = windowssecurity.SIDFromString("S-1-5-32-549")
-	EnterpriseDomainControllers, _ = windowssecurity.SIDFromString("S-1-5-9")
+	AdministratorsSID, _           = windowssecurity.ParseStringSID("S-1-5-32-544")
+	BackupOperatorsSID, _          = windowssecurity.ParseStringSID("S-1-5-32-551")
+	PrintOperatorsSID, _           = windowssecurity.ParseStringSID("S-1-5-32-550")
+	ServerOperatorsSID, _          = windowssecurity.ParseStringSID("S-1-5-32-549")
+	EnterpriseDomainControllers, _ = windowssecurity.ParseStringSID("S-1-5-9")
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
@@ -498,9 +498,8 @@ func init() {
 		engine.EdgeAnalyzer{
 			Description: "Allows someone to read a password of a managed service account",
 			ObjectAnalyzer: func(o *engine.Object, ao *engine.Objects) {
-				msasds := o.AttrString(activedirectory.MSDSGroupMSAMembership)
-				for _, msasd := range msasds {
-					sd, err := engine.ParseSecurityDescriptor([]byte(msasd))
+				o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
+					sd, err := engine.ParseSecurityDescriptor([]byte(msads.String()))
 					if err == nil {
 						for _, acl := range sd.DACL.Entries {
 							if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
@@ -508,7 +507,8 @@ func init() {
 							}
 						}
 					}
-				}
+					return true
+				})
 			},
 		},
 		engine.EdgeAnalyzer{
@@ -922,14 +922,11 @@ func init() {
 					continue
 				}
 
+				// Apply this edge
 				adminsdholder.EdgeTo(o, activedirectory.EdgeOverwritesACL)
-				dm := o.Members(false)
-				idm := o.Members(true)
-				_ = dm
-				_ = idm
-				for _, member := range o.Members(true) {
-					adminsdholder.EdgeTo(member, activedirectory.EdgeOverwritesACL)
-				}
+				ApplyToGroupMembers(o, func(target *engine.Object) {
+					adminsdholder.EdgeTo(target, activedirectory.EdgeOverwritesACL)
+				}, true)
 			}
 		}
 	},
@@ -939,7 +936,7 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Add our known SIDs if they're missing
 		for sid, name := range windowssecurity.KnownSIDs {
-			binsid, err := windowssecurity.SIDFromString(sid)
+			binsid, err := windowssecurity.ParseStringSID(sid)
 			if err != nil {
 				ui.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
@@ -962,13 +959,13 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Generate member of chains
-		everyonesid, _ := windowssecurity.SIDFromString("S-1-1-0")
+		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
 		if everyone == nil {
 			ui.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		authenticateduserssid, _ := windowssecurity.SIDFromString("S-1-5-11")
+		authenticateduserssid, _ := windowssecurity.ParseStringSID("S-1-5-11")
 		authenticatedusers := FindWellKnown(ao, authenticateduserssid)
 		if authenticatedusers == nil {
 			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
@@ -992,11 +989,11 @@ func init() {
 				var guids []engine.AttributeValue
 				for _, class := range objectclasses {
 					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
-						if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); !ok {
+						if guid, ok := oto.OneAttr(activedirectory.SchemaIDGUID).(engine.AttributeValueGUID); !ok {
 							ui.Debug().Msgf("%v", oto)
 							ui.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 						} else {
-							guids = append(guids, oto.OneAttr(activedirectory.SchemaIDGUID))
+							guids = append(guids, guid)
 						}
 					}
 				}
@@ -1029,14 +1026,14 @@ func init() {
 					sidbytes := []byte(sid)
 					binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
 					primarygroup := ao.FindOrAddAdjacentSID(windowssecurity.SID(sidbytes), object)
-					primarygroup.AddMember(object)
+					object.EdgeTo(primarygroup, activedirectory.EdgeMemberOfGroup)
 				}
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
 			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeForeignSecurityPrincipal || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
-				everyone.AddMember(object)
-				authenticatedusers.AddMember(object)
+				object.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
+				object.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			}
 
 			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
@@ -1179,9 +1176,11 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
-				for _, member := range object.Members(true) {
-					member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
-				}
+				ApplyToGroupMembers(object, func(member *engine.Object) {
+					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
+						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
+					}
+				}, true)
 			}
 		}
 	},
@@ -1398,13 +1397,13 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			// Object that is member of something
-			for _, memberof := range object.Attr(activedirectory.MemberOf).Slice() {
+			object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
 				if !found {
 					var sid engine.AttributeValueSID
 					if stringsid, _, found := strings.Cut(memberof.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
-						if c, err := windowssecurity.SIDFromString(stringsid); err == nil {
+						if c, err := windowssecurity.ParseStringSID(stringsid); err == nil {
 							sid = engine.AttributeValueSID(c)
 						}
 						ui.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), memberof)
@@ -1423,18 +1422,19 @@ func init() {
 					)
 					ao.Add(group)
 				}
-				group.AddMember(object)
-			}
+				object.EdgeTo(group, activedirectory.EdgeMemberOfGroup)
+				return true
+			})
 
 			// Group that contains members
-			for _, member := range object.Attr(activedirectory.Member).Slice() {
+			object.Attr(activedirectory.Member).Iterate(func(member engine.AttributeValue) bool {
 				memberobject, found := ao.Find(engine.DistinguishedName, member)
 				if !found {
 					var sid engine.AttributeValueSID
 					var category string
 					if stringsid, _, found := strings.Cut(member.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
-						if c, err := windowssecurity.SIDFromString(stringsid); err == nil {
+						if c, err := windowssecurity.ParseStringSID(stringsid); err == nil {
 							sid = engine.AttributeValueSID(c)
 							category = "Foreign-Security-Principal"
 						}
@@ -1451,16 +1451,13 @@ func init() {
 					)
 					ao.Add(memberobject)
 				}
-				object.AddMember(memberobject)
-			}
-
-			for _, member := range object.Members(false) {
-				member.EdgeTo(object, activedirectory.EdgeMemberOfGroup)
-			}
+				memberobject.EdgeTo(object, activedirectory.EdgeMemberOfGroup)
+				return true
+			})
 		}
 	},
 		"MemberOf and Member resolution",
-		engine.AfterMerge,
+		engine.BeforeMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1552,4 +1549,37 @@ func init() {
 	}, "Resolve expanding group names to real names from GPOs",
 		engine.AfterMerge,
 	)
+}
+
+func ApplyToGroupMembers(startGroup *engine.Object, af func(member *engine.Object), recursive bool) {
+	var appliedTo map[*engine.Object]struct{}
+	if recursive {
+		appliedTo = make(map[*engine.Object]struct{})
+	}
+
+	startGroup.EdgeIterator(engine.In, func(nextTarget *engine.Object, edge engine.EdgeBitmap) bool {
+		if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
+			af(nextTarget)
+			if recursive {
+				appliedTo[nextTarget] = struct{}{}
+				applyToGroupMemberRecursive(nextTarget, af, appliedTo)
+			}
+		}
+		return true
+	})
+}
+
+func applyToGroupMemberRecursive(group *engine.Object, af func(nextTarget *engine.Object), appliedTo map[*engine.Object]struct{}) {
+	if _, found := appliedTo[group]; found {
+		return
+	}
+
+	group.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+		if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
+			af(target)
+			appliedTo[target] = struct{}{}
+			applyToGroupMemberRecursive(target, af, appliedTo)
+		}
+		return true
+	})
 }

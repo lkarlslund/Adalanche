@@ -20,13 +20,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	var existing bool
 
 	// See if the machine has a unique SID
-	localsid, err := windowssecurity.SIDFromString(cinfo.Machine.LocalSID)
+	localsid, err := windowssecurity.ParseStringSID(cinfo.Machine.LocalSID)
 	if err != nil {
 		return nil, fmt.Errorf("collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
 
 	if cinfo.Machine.IsDomainJoined {
-		domainsid, err := windowssecurity.SIDFromString(cinfo.Machine.ComputerDomainSID)
+		domainsid, err := windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
 		if cinfo.Machine.ComputerDomainSID != "" && err == nil {
 			computerobject, existing = ao.FindOrAdd(
 				analyze.DomainJoinedSID, engine.AttributeValueSID(domainsid),
@@ -109,9 +109,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
 	uniquesource := cinfo.Machine.Name
 
-	// if isdomaincontroller {
-	// 	uniquesource = cinfo.Machine.Domain
-	// }
+	if isdomaincontroller {
+		uniquesource = cinfo.Machine.Domain
+	}
 
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
 	computerobject.SetFlex(engine.UniqueSource, uniquesource)
@@ -157,7 +157,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			if user.NoChangePassword {
 				uac += 0x10000
 			}
-			usid, err := windowssecurity.SIDFromString(user.SID)
+			usid, err := windowssecurity.ParseStringSID(user.SID)
 			if err == nil {
 				user := ao.AddNew(
 					engine.IgnoreBlanks,
@@ -184,7 +184,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		ao.Add(groupscontainer)
 		groupscontainer.ChildOf(computerobject)
 		for _, group := range cinfo.Groups {
-			groupsid, err := windowssecurity.SIDFromString(group.SID)
+			groupsid, err := windowssecurity.ParseStringSID(group.SID)
 			// Potential translation
 			// groupsid = MapSID(originalsid, localsid, groupsid)
 
@@ -203,14 +203,14 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			for _, member := range group.Members {
 				var membersid windowssecurity.SID
 				if member.SID != "" {
-					membersid, err = windowssecurity.SIDFromString(member.SID)
+					membersid, err = windowssecurity.ParseStringSID(member.SID)
 					if err != nil {
 						ui.Warn().Msgf("Can't convert local group member SID %v: %v", member.SID, err)
 						continue
 					}
 				} else {
 					// Some members show up with the SID in the name field FML
-					membersid, err = windowssecurity.SIDFromString(member.Name)
+					membersid, err = windowssecurity.ParseStringSID(member.Name)
 					if err != nil {
 						ui.Info().Msgf("Fallback SID translation on %v failed: %v", member.Name, err)
 						continue
@@ -270,7 +270,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 	// USERS THAT HAVE SESSIONS ON THE MACHINE ONCE IN WHILE
 	for _, login := range cinfo.LoginPopularity.Day {
-		usersid, err := windowssecurity.SIDFromString(login.SID)
+		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
 			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
@@ -300,7 +300,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	for _, login := range cinfo.LoginPopularity.Week {
-		usersid, err := windowssecurity.SIDFromString(login.SID)
+		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
 			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
@@ -329,7 +329,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	for _, login := range cinfo.LoginPopularity.Month {
-		usersid, err := windowssecurity.SIDFromString(login.SID)
+		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
 			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
 			continue
@@ -360,7 +360,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN
 	if cinfo.Machine.DefaultUsername != "" &&
 		cinfo.Machine.DefaultDomain != "" &&
-		cinfo.Machine.DefaultDomain == cinfo.Machine.Domain {
+		strings.EqualFold(cinfo.Machine.DefaultDomain, cinfo.Machine.Domain) {
 		// NETBIOS name for domain check FIXME
 		user, _ := ao.FindOrAdd(
 			engine.NetbiosDomain, engine.AttributeValueString(cinfo.Machine.DefaultDomain),
@@ -376,8 +376,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	ao.Add(servicescontainer)
 	servicescontainer.ChildOf(computerobject)
 
+	// All services are a member of this group
 	localservicesgroup := ao.AddNew(
-		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.LocalServiceSID),
+		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.ServicesSID),
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
 		engine.UniqueSource, cinfo.Machine.Name,
 	)
@@ -394,39 +395,81 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
+
 		serviceobject.EdgeTo(localservicesgroup, engine.EdgeMemberOfGroup)
+
 		computerobject.EdgeTo(serviceobject, EdgeHosts)
 
-		if serviceaccountSID, err := windowssecurity.SIDFromString(service.AccountSID); err == nil && serviceaccountSID.Component(2) == 21 {
+		var serviceaccountSID windowssecurity.SID
 
-			// Potential translation
-			// serviceaccountSID = MapSID(originalsid, localsid, serviceaccountSID)
+		// If we have the SID use that
+		if service.AccountSID != "" {
+			serviceaccountSID, err = windowssecurity.ParseStringSID(service.AccountSID)
+			if err != nil {
+				ui.Warn().Msgf("Service account SID (%v) parsing problem: %v", service.AccountSID, err)
+			}
+		}
 
-			nameparts := strings.Split(service.Account, "\\")
-			if len(nameparts) == 2 && nameparts[0] != cinfo.Machine.Domain { // FIXME - NETBIOS NAMES ARE KILLIG US
-				svcaccount, _ := ao.FindOrAdd(
-					activedirectory.ObjectSid, engine.AttributeValueSID(serviceaccountSID),
-					engine.IgnoreBlanks,
-					engine.DownLevelLogonName, service.Account,
-					// activedirectory.SAMAccountName, engine.AttributeValueString(nameparts[1]),
-					// activedirectory.ObjectCategorySimple, engine.AttributeValueString("Person"),
+		// Some service don't have SID, just the name
+		if serviceaccountSID.IsBlank() {
+			if strings.EqualFold(service.Account, "LocalSystem") {
+				serviceaccountSID = windowssecurity.SystemSID
+			}
+		}
+
+		var svcaccount *engine.Object
+		if !serviceaccountSID.IsBlank() {
+			svcaccount = ao.AddNew(
+				activedirectory.ObjectSid, engine.AttributeValueSID(serviceaccountSID),
+			)
+			if serviceaccountSID.StripRID() == localsid || serviceaccountSID.Component(2) != 21 {
+				svcaccount.SetFlex(
+					engine.UniqueSource, uniquesource,
 				)
-				if serviceaccountSID.StripRID() == localsid || serviceaccountSID.Component(2) != 21 {
+
+				nameparts := strings.Split(service.Account, "\\")
+				if len(nameparts) == 2 && strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
 					svcaccount.SetFlex(
-						engine.UniqueSource, uniquesource,
+						engine.DownLevelLogonName, service.Account,
 					)
 				}
 
+			}
+		}
+		if svcaccount == nil {
+			if service.Account != "" {
+				nameparts := strings.Split(service.Account, "\\")
+				// account can be USER, .\USER, DOMAIN\USER (come on!)
+				if len(nameparts) == 2 && (nameparts[0] == "." || strings.EqualFold(nameparts[0], cinfo.Machine.Domain)) {
+					svcaccount, _ = ao.FindOrAdd(
+						engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[1]),
+					)
+				} else if len(nameparts) == 1 {
+					// no \\ in name, just a user name!?
+					svcaccount, _ = ao.FindOrAdd(
+						engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[0]),
+					)
+				}
+			}
+		}
+
+		// Did we somehow manage to find an account?
+		if svcaccount != nil {
+			if serviceaccountSID.Component(2) == 21 || serviceaccountSID.Component(2) == 32 {
+				// Foreign to computer, so it gets a direct edge
 				computerobject.EdgeTo(svcaccount, EdgeHasServiceAccountCredentials)
+			}
+
+			if serviceaccountSID != windowssecurity.LocalServiceSID {
 				serviceobject.EdgeTo(svcaccount, analyze.EdgeAuthenticatesAs)
 			}
-		} else if strings.EqualFold(service.Account, "LocalSystem") {
-			serviceobject.EdgeTo(computerobject, analyze.EdgeAuthenticatesAs)
+		} else if service.Account != "" || service.AccountSID != "" {
+			ui.Warn().Msgf("Unhandled service credentials %+v", service)
 		}
 
 		// Change service executable via registry
 		if service.RegistryOwner != "" {
-			ro, err := windowssecurity.SIDFromString(service.RegistryOwner)
+			ro, err := windowssecurity.ParseStringSID(service.RegistryOwner)
 			if err == nil {
 				o := ao.AddNew(
 					activedirectory.ObjectSid, engine.AttributeValueSID(ro),
@@ -488,7 +531,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		serviceimageobject.EdgeTo(serviceobject, EdgeExecuted)
 		serviceimageobject.ChildOf(serviceobject)
 
-		if ownersid, err := windowssecurity.SIDFromString(service.ImageExecutableOwner); err == nil {
+		if ownersid, err := windowssecurity.ParseStringSID(service.ImageExecutableOwner); err == nil {
 			// Potential translation
 			if ownersid.Component(2) == 80 /* Service user */ {
 				continue
@@ -573,7 +616,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		}
 
 		for _, sidstring := range pi.AssignedSIDs {
-			sid, err := windowssecurity.SIDFromString(sidstring)
+			sid, err := windowssecurity.ParseStringSID(sidstring)
 			if err != nil {
 				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
 				continue

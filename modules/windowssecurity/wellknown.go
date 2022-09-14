@@ -80,19 +80,21 @@ var (
 		"S-1-5-90-0":  "Windows Manager - Windows Manager Group",
 	}
 
-	AdministratorsSID, _     = SIDFromString("S-1-5-32-544")
-	RemoteDesktopUsersSID, _ = SIDFromString("S-1-5-32-555")
-	DCOMUsersSID, _          = SIDFromString("S-1-5-32-562")
+	AdministratorsSID, _     = ParseStringSID("S-1-5-32-544")
+	RemoteDesktopUsersSID, _ = ParseStringSID("S-1-5-32-555")
+	DCOMUsersSID, _          = ParseStringSID("S-1-5-32-562")
 
-	OwnerSID, _              = SIDFromString("S-1-3-4")
-	SystemSID, _             = SIDFromString("S-1-5-18")
-	CreatorOwnerSID, _       = SIDFromString("S-1-3-0")
-	SelfSID, _               = SIDFromString("S-1-5-10")
-	AuthenticatedUsersSID, _ = SIDFromString("S-1-5-11")
-	EveryoneSID, _           = SIDFromString("S-1-1-0")
-	ServicesSID, _           = SIDFromString("S-1-5-6")
-	NetworkServiceSID, _     = SIDFromString("S-1-5-19")
-	LocalServiceSID, _       = SIDFromString("S-1-5-20")
+	OwnerSID, _              = ParseStringSID("S-1-3-4")
+	CreatorOwnerSID, _       = ParseStringSID("S-1-3-0")
+	SelfSID, _               = ParseStringSID("S-1-5-10")
+	AuthenticatedUsersSID, _ = ParseStringSID("S-1-5-11")
+	EveryoneSID, _           = ParseStringSID("S-1-1-0")
 
-	AccountOperatorsSID, _ = SIDFromString("S-1-5-32-548")
+	ServicesSID, _ = ParseStringSID("S-1-5-6")
+
+	SystemSID, _         = ParseStringSID("S-1-5-18")
+	LocalServiceSID, _   = ParseStringSID("S-1-5-19")
+	NetworkServiceSID, _ = ParseStringSID("S-1-5-20")
+
+	AccountOperatorsSID, _ = ParseStringSID("S-1-5-32-548")
 )

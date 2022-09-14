@@ -13,46 +13,44 @@ import (
 )
 
 func CompareAttributeValues(a, b AttributeValue) bool {
-	araw := a.Raw()
-	braw := b.Raw()
-	switch na := araw.(type) {
-	case bool:
-		nb, btype := braw.(bool)
+	switch na := a.(type) {
+	case AttributeValueBool:
+		nb, btype := b.(AttributeValueBool)
 		if btype {
 			return na == nb
 		}
-	case string:
-		nb, btype := braw.(string)
+	case AttributeValueString:
+		nb, btype := b.(AttributeValueString)
 		if btype {
-			return strings.EqualFold(na, nb)
+			return strings.EqualFold(string(na), string(nb))
 		}
-	case int64:
-		nb, btype := braw.(int64)
+	case AttributeValueInt:
+		nb, btype := b.(AttributeValueInt)
 		if btype {
 			return na == nb
 		}
-	case time.Time:
-		nb, btype := braw.(time.Time)
+	case AttributeValueTime:
+		nb, btype := b.(AttributeValueTime)
 		if btype {
-			return na.Equal(nb)
+			return time.Time(na).Equal(time.Time(nb))
 		}
-	case []byte:
-		nb, btype := braw.([]byte)
+	case AttributeValueBlob:
+		nb, btype := b.(AttributeValueBlob)
 		if btype {
-			return bytes.Equal(na, nb)
+			return bytes.Equal([]byte(na), []byte(nb))
 		}
-	case windowssecurity.SID:
-		nb, btype := braw.(windowssecurity.SID)
+	case AttributeValueSID:
+		nb, btype := b.(AttributeValueSID)
 		if btype {
 			return string(na) == string(nb)
 		}
-	case uuid.UUID:
-		nb, btype := braw.(uuid.UUID)
+	case AttributeValueGUID:
+		nb, btype := b.(AttributeValueGUID)
 		if btype {
 			return na == nb
 		}
-	case *Object:
-		nb, btype := braw.(*Object)
+	case AttributeValueObject:
+		nb, btype := b.(AttributeValueObject)
 		if btype {
 			return na == nb // Exact same object pointed to in memory
 		}
@@ -171,6 +169,7 @@ type AttributeValue interface {
 	String() string
 	Raw() interface{}
 	IsZero() bool
+	// Compare(other AttributeValue) bool
 }
 
 type AttributeValueObject struct {
@@ -189,7 +188,7 @@ func (avo AttributeValueObject) IsZero() bool {
 	if avo.Object == nil {
 		return true
 	}
-	return len(avo.values) == 0
+	return avo.values.Len() == 0
 }
 
 type AttributeValueString string

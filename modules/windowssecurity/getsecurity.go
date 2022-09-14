@@ -46,7 +46,7 @@ func GetOwnerAndDACL(objectName string, objectType SE_OBJECT_TYPE) (SID, []byte,
 
 	var oursid SID
 	if err == nil {
-		oursid, err = SIDFromString(sid.String())
+		oursid, err = ParseStringSID(sid.String())
 	}
 	return oursid, dacl, err
 }
