@@ -118,7 +118,7 @@ func StringScrambler(s string) string {
 
 func ExtractNetbiosFromBase(dn string) string {
 	elements := strings.Split(dn, ",")
-	netbios, _, _ := strings.Cut(elements[0], "=")
+	_, netbios, _ := strings.Cut(elements[0], "=")
 	return netbios
 }
 
