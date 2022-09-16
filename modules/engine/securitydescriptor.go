@@ -300,14 +300,23 @@ func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUI
 			return false
 		}
 
-		for _, classattr := range o.Attr(ObjectClassGUIDs).Slice() {
+		result := false
+
+		ocg := o.Attr(ObjectClassGUIDs)
+		if ocg.Len() == 0 {
+			ui.Warn().Msg("That's not right")
+		}
+		o.Attr(ObjectClassGUIDs).Iterate(func(classattr AttributeValue) bool {
 			if class, ok := classattr.Raw().(uuid.UUID); ok {
 				if a.InheritedObjectType == class {
-					return true
+					result = true
+					return false
 				}
 			}
-		}
-		return false
+			return true
+		})
+
+		return result
 	}
 
 	return true
