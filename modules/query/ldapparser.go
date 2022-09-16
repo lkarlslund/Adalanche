@@ -243,16 +243,14 @@ valueloop:
 				}
 			}
 			return s, pwnquery{attributename == "_canpwn", edge, target}, nil
-			// default:
-			// 	return "", nil, fmt.Errorf("Unknown synthetic attribute %v", attributename)
 		}
-	} else {
-		attribute := engine.A(attributename)
-		if attribute == engine.NonExistingAttribute {
-			return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
-		}
-		attributes = []engine.Attribute{attribute}
 	}
+
+	attribute := engine.A(attributename)
+	if attribute == engine.NonExistingAttribute {
+		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
+	}
+	attributes = []engine.Attribute{attribute}
 
 	attribute2 := engine.NonExistingAttribute
 	if attributename2 != "" {
