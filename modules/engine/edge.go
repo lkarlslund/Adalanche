@@ -304,10 +304,12 @@ func (m EdgeBitmap) JoinedString() string {
 }
 
 func (m EdgeBitmap) StringSlice() []string {
-	var result []string
+	result := make([]string, m.Count())
+	var current int
 	for i := 0; i < len(edgeInfos); i++ {
 		if m.IsSet(Edge(i)) {
-			result = append(result, Edge(i).String())
+			result[current] = Edge(i).String()
+			current++
 		}
 	}
 	return result
