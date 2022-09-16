@@ -98,14 +98,6 @@ func (nv NoValues) Len() int {
 	return 0
 }
 
-func AttributeValueSliceFromStrings(values []string) AttributeValueSlice {
-	var result AttributeValueSlice
-	for _, av := range values {
-		result = append(result, AttributeValueString(av))
-	}
-	return result
-}
-
 type AttributeValueSlice []AttributeValue
 
 func (avs AttributeValueSlice) First() AttributeValue {
