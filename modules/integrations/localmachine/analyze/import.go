@@ -194,7 +194,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				activedirectory.Name, group.Name,
 				activedirectory.Description, group.Comment,
 				engine.ObjectCategorySimple, "Group",
-				engine.UniqueSource, uniquesource,
+				engine.DataSource, uniquesource,
 			)
 
 			if err != nil && group.Name != "SMS Admins" {
@@ -244,7 +244,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 				if membersid.StripRID() == localsid || (membersid.Component(2) != 21 && membersid != windowssecurity.EveryoneSID && membersid != windowssecurity.AuthenticatedUsersSID) {
 					memberobject.SetFlex(
-						engine.UniqueSource, uniquesource,
+						engine.DataSource, uniquesource,
 					)
 				}
 
@@ -289,7 +289,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
 			user.SetFlex(
-				engine.UniqueSource, uniquesource,
+				engine.DataSource, uniquesource,
 			)
 		}
 
@@ -318,7 +318,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
 			user.SetFlex(
-				engine.UniqueSource, uniquesource,
+				engine.DataSource, uniquesource,
 			)
 		}
 
@@ -347,7 +347,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
 			user.SetFlex(
-				engine.UniqueSource, uniquesource,
+				engine.DataSource, uniquesource,
 			)
 		}
 
@@ -381,7 +381,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	localservicesgroup := ao.AddNew(
 		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.ServicesSID),
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
-		engine.UniqueSource, cinfo.Machine.Name,
+		engine.DataSource, cinfo.Machine.Name,
 	)
 
 	for _, service := range cinfo.Services {
@@ -425,7 +425,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 			if serviceaccountSID.StripRID() == localsid || serviceaccountSID.Component(2) != 21 {
 				svcaccount.SetFlex(
-					engine.UniqueSource, uniquesource,
+					engine.DataSource, uniquesource,
 				)
 
 				nameparts := strings.Split(service.Account, "\\")
@@ -477,7 +477,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				)
 				if ro.StripRID() == localsid || ro.Component(2) != 21 {
 					o.SetFlex(
-						engine.UniqueSource, uniquesource,
+						engine.DataSource, uniquesource,
 					)
 				}
 				o.EdgeTo(serviceobject, EdgeRegistryOwns)
@@ -502,7 +502,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						)
 						if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
 							o.SetFlex(
-								engine.UniqueSource, uniquesource,
+								engine.DataSource, uniquesource,
 							)
 						}
 					}
@@ -543,7 +543,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 			if ownersid.StripRID() == localsid || ownersid.Component(2) != 21 {
 				owner.SetFlex(
-					engine.UniqueSource, uniquesource,
+					engine.DataSource, uniquesource,
 				)
 			}
 			owner.EdgeTo(serviceimageobject, activedirectory.EdgeOwns)
@@ -558,7 +558,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					)
 					if entrysid.StripRID() == localsid || entrysid.Component(2) != 21 {
 						o.SetFlex(
-							engine.UniqueSource, uniquesource,
+							engine.DataSource, uniquesource,
 						)
 					}
 
@@ -635,7 +635,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 			if sid.StripRID() == localsid || sid.Component(2) != 21 {
 				assignee.SetFlex(
-					engine.UniqueSource, uniquesource,
+					engine.DataSource, uniquesource,
 				)
 			}
 
@@ -680,7 +680,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						)
 						if entrysid.StripRID() == localsid || entrysid.Component(2) != 21 {
 							o.SetFlex(
-								engine.UniqueSource, uniquesource,
+								engine.DataSource, uniquesource,
 							)
 						}
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
@@ -705,27 +705,18 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	if cinfo.Machine.IsDomainJoined && !isdomaincontroller {
 		domaineveryoneobject := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID),
-			engine.UniqueSource, engine.AttributeValueString(cinfo.Machine.Domain),
+			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
 		)
 
-		if everyone, found := ao.FindTwoMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID),
-			engine.UniqueSource, engine.AttributeValueString(uniquesource)); found {
-			for _, o := range everyone {
-				domaineveryoneobject.EdgeTo(o, activedirectory.EdgeMemberOfGroup)
-			}
-		}
+		// Everyone who is a member of the Domain is also a member of "our" Everyone
+		domaineveryoneobject.EdgeTo(everyoneobject, activedirectory.EdgeMemberOfGroup)
 
 		domainauthenticatedusers := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
-			engine.UniqueSource, engine.AttributeValueString(cinfo.Machine.Domain),
+			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
 		)
 
-		if authenticatedusers, found := ao.FindTwoMulti(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
-			engine.UniqueSource, engine.AttributeValueString(uniquesource)); found {
-			for _, o := range authenticatedusers {
-				domainauthenticatedusers.EdgeTo(o, activedirectory.EdgeMemberOfGroup)
-			}
-		}
+		domainauthenticatedusers.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 	}
 
 	return computerobject, nil

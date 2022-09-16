@@ -691,7 +691,7 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 		result, _ := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
 			no := NewObject(
 				ObjectSid, AttributeValueSID(s),
-				MetaDataSource, "FindOrAddAdjacentSID",
+				DataLoader, "FindOrAddAdjacentSID",
 				IgnoreBlanks,
 				DomainPart, r.Attr(DomainPart),
 			)
@@ -717,8 +717,8 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 			}
 		}
 		// From inside same source, that is easy
-		if r.HasAttr(UniqueSource) {
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
+		if r.HasAttr(DataSource) {
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
 				return o[0]
 			}
 		}
@@ -732,7 +732,7 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 		no.SetFlex(
 			IgnoreBlanks,
 			DomainPart, r.Attr(DomainPart),
-			UniqueSource, r.Attr(UniqueSource),
+			DataSource, r.Attr(DataSource),
 		)
 	}
 

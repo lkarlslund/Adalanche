@@ -73,11 +73,13 @@ func (ld *GPOLoader) Init() error {
 					if sysvol != -1 && len(parts) > sysvol+2 && strings.EqualFold(parts[sysvol+2], "policies") {
 						netbios, _, _ = strings.Cut(parts[sysvol+1], ".")
 					}
-					if netbios != "" {
-						thisao.AddDefaultFlex(
-							engine.UniqueSource, engine.AttributeValueString(netbios),
-						)
-					}
+				}
+				if netbios != "" {
+					thisao.AddDefaultFlex(
+						engine.DataSource, engine.AttributeValueString(netbios),
+					)
+				} else {
+					ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)
 				}
 
 				err = ImportGPOInfo(ginfo, thisao)

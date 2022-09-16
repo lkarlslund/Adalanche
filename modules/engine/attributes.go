@@ -75,8 +75,8 @@ var (
 	ObjectCategoryGUID     = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
 	IsCriticalSystemObject = NewAttribute("isCriticalSystemObject")
 
-	MetaDataSource = NewAttribute("_datasource")
-	UniqueSource   = NewAttribute("_source")
+	DataLoader = NewAttribute("dataLoader")
+	DataSource = NewAttribute("dataSource")
 
 	IPAddress          = NewAttribute("IPAddress")
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()

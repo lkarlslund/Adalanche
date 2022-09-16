@@ -84,7 +84,7 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	ld.ao.SetThreadsafe(false)
 
 	for _, o := range ld.ao.Slice() {
-		if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.UniqueSource) {
+		if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
 
 			// We can do this with confidence as everything comes from this loader
 			sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
@@ -95,14 +95,14 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 			case engine.ObjectTypeUser:
 				// It's a User we added, find the computer
 				if computer, found := ld.ao.FindTwo(
-					engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+					engine.DataSource, o.OneAttr(engine.DataSource),
 					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 					o.ChildOf(computer) // FIXME -> Users
 				}
 			case engine.ObjectTypeGroup:
 				// It's a Group we added
 				if computer, found := ld.ao.FindTwo(
-					engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+					engine.DataSource, o.OneAttr(engine.DataSource),
 					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
 					o.ChildOf(computer) // FIXME -> Groups
 				}

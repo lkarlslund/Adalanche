@@ -11,7 +11,7 @@ func init() {
 		var warns int
 		ln := engine.AttributeValueString(loadername)
 		for _, o := range ao.Slice() {
-			if o.HasAttrValue(engine.MetaDataSource, ln) {
+			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
 					if o.EdgeCount(engine.Out)+o.EdgeCount(engine.In) == 0 {
 						ui.Debug().Msgf("Object has no graph connections: %v", o.Label())

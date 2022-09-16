@@ -203,37 +203,15 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	ld.done.Wait()
 
 	var aos []*engine.Objects
-	for path, ao := range ld.shardobjects {
-		var domainval engine.AttributeValues
-
-		// Replace shard path value with the domain name the represents
-		rootdse, found := ao.Find(engine.ObjectClass, engine.AttributeValueString("rootdse"))
-		if found {
-			domain := rootdse.OneAttrString(defaultNamingContext)
-			domainval = engine.AttributeValueOne{Value: engine.AttributeValueString(domain)}
+	ld.shardobjects.Range(func(path string, ao *engine.Objects) bool {
+		_, netbiosname, _, _, err := FindDomain(ao)
+		if err != nil {
+			ui.Error().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
 		} else {
-			domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
-			if !found {
-				ui.Fatal().Msgf("Could not find RootDSE or domainDNS in '%v'", path)
-			}
-			for _, domain := range domaindns {
-				if domain.HasAttr(engine.ObjectSid) {
-					dn := domain.OneAttrString(engine.DistinguishedName)
-					if domainval != nil {
-						ui.Fatal().Msgf("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
-					}
-					domainval = engine.AttributeValueOne{Value: engine.AttributeValueString(dn)}
-				}
-			}
-			if domainval == nil {
-				ui.Fatal().Msgf("Could not find domainDNS in object shard collection, giving up")
-			}
-		}
-
-		// Indicate from which domain we saw this if we have the data
-		if domainval != nil {
+			// Indicate from which domain we saw this if we have the data
+			nb := engine.AttributeValueString(netbiosname)
 			for _, o := range ao.Slice() {
-				o.Set(engine.UniqueSource, domainval)
+				o.SetFlex(engine.DataSource, nb)
 			}
 		}
 

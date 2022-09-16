@@ -63,8 +63,8 @@ func Merge(aos []*Objects) (*Objects, error) {
 	sourcemap[none] = NewObjects()
 
 	for mergeobject, _ := range needsmerge {
-		if mergeobject.HasAttr(UniqueSource) {
-			us := AttributeValueToIndex(mergeobject.OneAttr(UniqueSource))
+		if mergeobject.HasAttr(DataSource) {
+			us := AttributeValueToIndex(mergeobject.OneAttr(DataSource))
 			if sourcemap[us] == nil {
 				sourcemap[us] = NewObjects()
 			}
