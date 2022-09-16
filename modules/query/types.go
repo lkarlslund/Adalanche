@@ -147,9 +147,12 @@ type LowerStringAttribute engine.Attribute
 func (a LowerStringAttribute) Strings(o *engine.Object) []string {
 	l := o.AttrRendered(engine.Attribute(a))
 	lo := make([]string, l.Len())
-	for i, s := range l.Slice() {
+	var i int
+	l.Iterate(func(s engine.AttributeValue) bool {
 		lo[i] = strings.ToLower(s.String())
-	}
+		i++
+		return true
+	})
 	return lo
 }
 
@@ -296,22 +299,26 @@ func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 		return false
 	}
 
-	for _, value := range vals.Slice() {
-		// Time in AD is either a
-
-		raw := value.Raw()
-
-		t, ok := raw.(time.Time)
+	var result bool
+	vals.Iterate(func(value engine.AttributeValue) bool {
+		avt, ok := value.(engine.AttributeValueTime)
 
 		if !ok {
-			return false
+			result = false
+			return false // break
 		}
 
+		t := time.Time(avt)
+
 		if sm.c.Compare(t.Unix(), sm.ts.From(time.Now()).Unix()) {
-			return true
+			result = true
+			return false // break
 		}
-	}
-	return false
+
+		// Next
+		return true
+	})
+	return result
 }
 
 func (sm sinceModifier) ToLDAPFilter(a string) string {
@@ -343,23 +350,28 @@ func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 		return false
 	}
 
+	var result bool
 	val2slice := val2s.Slice()
-	for i, value1 := range val1s.Slice() {
+	var i int
+	val1s.Iterate(func(value1 engine.AttributeValue) bool {
+		i++
 		t1, ok := value1.Raw().(time.Time)
 		if !ok {
-			continue
+			return true
 		}
 
-		t2, ok2 := val2slice[i].Raw().(time.Time)
+		t2, ok2 := val2slice[i-1].Raw().(time.Time)
 		if !ok2 {
-			continue
+			return false
 		}
 
 		if td.c.Compare(t1.Unix(), td.ts.From(t2).Unix()) {
-			return true
+			result = true
+			return false
 		}
-	}
-	return false
+		return true // next
+	})
+	return result
 }
 
 func (td timediffModifier) ToLDAPFilter(a string) string {
@@ -504,18 +516,22 @@ type hasStringMatch struct {
 }
 
 func (hsm hasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a).Slice() {
+	var result bool
+	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if !hsm.casesensitive {
 			if strings.EqualFold(hsm.m, value.String()) {
-				return true
+				result = true
+				return false // break
 			}
 		} else {
 			if hsm.m == value.String() {
-				return true
+				result = true
+				return false // break
 			}
 		}
-	}
-	return false
+		return true // continue
+	})
+	return result
 }
 
 func (hsm hasStringMatch) ToLDAPFilter(a string) string {
@@ -537,18 +553,22 @@ type hasGlobMatch struct {
 }
 
 func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a).Slice() {
+	var result bool
+	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if !hgm.casesensitive {
 			if hgm.m.Match(strings.ToLower(value.String())) {
-				return true
+				result = true
+				return false // break
 			}
 		} else {
 			if hgm.m.Match(value.String()) {
-				return true
+				result = true
+				return false // break
 			}
 		}
-	}
-	return false
+		return true // next
+	})
+	return result
 }
 
 func (hgm hasGlobMatch) ToLDAPFilter(a string) string {
@@ -563,13 +583,15 @@ type hasRegexpMatch struct {
 	m *regexp.Regexp
 }
 
-func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	for _, value := range o.AttrRendered(a).Slice() {
+func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result bool) {
+	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if hrm.m.MatchString(value.String()) {
-			return true
+			result = true
+			return false // break
 		}
-	}
-	return false
+		return true // next
+	})
+	return
 }
 
 func (hrm hasRegexpMatch) ToLDAPFilter(a string) string {
@@ -597,23 +619,26 @@ func (rdn recursiveDNmatcher) ToWhereClause(a string) string {
 	return "RECURSIVEDNMATCH(" + a + ", " + rdn.dn + ")"
 }
 
-func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) bool {
+func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) (result bool) {
 	// Just to prevent loops
 	if maxdepth == 0 {
 		return false
 	}
 	// Check all attribute values for match or ancestry
-	for _, value := range o.AttrRendered(a).Slice() {
+	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		// We're at the end
 		if strings.EqualFold(value.String(), dn) {
-			return true
+			result = true
+			return false // break
 		}
 		// Perhaps parent matches?
 		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value.String())); found {
-			return recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
+			result = recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
+			return false // break
 		}
-	}
-	return false
+		return true // next
+	})
+	return
 }
 
 type pwnquery struct {
