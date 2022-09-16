@@ -2,10 +2,10 @@ package analyze
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -54,25 +54,40 @@ func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 	return nil
 }
 
-func FindDomain(ao *engine.Objects) (*engine.Object, bool) {
-	var domainval *engine.Object
+func FindDomain(ao *engine.Objects) (ncname, netbiosname, dnsroot string, domainsid windowssecurity.SID, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
 	if !found {
-		return nil, false
-	}
-	for _, domain := range domaindns {
-		if domain.HasAttr(engine.ObjectSid) {
-			if domainval != nil {
-				ui.Warn().Msgf("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
-				return nil, false
-			}
-			domainval = domain
-		}
-	}
-	if domainval == nil {
-		ui.Warn().Msgf("Could not find domainDNS in object shard collection, giving up")
-		return nil, false
+		err = errors.New("No domain info found in collection")
+		return
 	}
 
-	return domainval, true
+	for _, domain := range domaindns {
+		if domain.HasAttr(engine.ObjectSid) {
+			if ncname != "" {
+				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+				return
+			}
+			ncname = domain.OneAttrString(engine.DistinguishedName)
+			domainsid = domain.SID()
+		}
+	}
+
+	if ncname == "" {
+		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		return
+	}
+
+	// Find translation to NETBIOS name
+	crossRef, found := ao.FindTwo(
+		engine.ObjectClass, engine.AttributeValueString("crossRef"),
+		NCName, engine.AttributeValueString(ncname),
+	)
+	if !found {
+		err = fmt.Errorf("Could not find crossRef object for %v", ncname)
+	}
+
+	netbiosname = crossRef.OneAttrString(NetBIOSName)
+	dnsroot = crossRef.OneAttrString(DNSRoot)
+	found = true
+	return
 }

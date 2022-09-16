@@ -343,9 +343,6 @@ func (o *Object) Type() ObjectType {
 	}
 
 	category := o.Attr(ObjectCategorySimple)
-	if category.Len() == 0 {
-		category = o.AttrRendered(ObjectCategory)
-	}
 
 	if category.Len() == 0 {
 		return ObjectTypeOther
@@ -373,22 +370,10 @@ func (o *Object) AttrString(attr Attribute) []string {
 }
 
 func (o *Object) AttrRendered(attr Attribute) AttributeValues {
-	switch attr {
-	case ObjectCategory:
-		vals := o.Attr(attr)
-		if vals.Len() == 1 {
-			cat := vals.First()
-			splitted := strings.Split(cat.String(), ",")
-			if len(splitted) > 1 {
-				return AttributeValueOne{
-					Value: AttributeValueString(splitted[0][3:]),
-				}
-			}
-		}
-		return NoValues{}
-	default:
-		return o.Attr(attr)
+	if attr == ObjectCategory && o.HasAttr(ObjectCategorySimple) {
+		return o.Attr(ObjectCategorySimple)
 	}
+	return o.Attr(attr)
 }
 
 func (o *Object) OneAttrRendered(attr Attribute) string {
@@ -629,6 +614,11 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 				continue
 			}
 			data = append(data, AttributeValueInt(v))
+		case uint64:
+			if ignoreblanks && v == 0 {
+				continue
+			}
+			data = append(data, AttributeValueInt(v))
 		case AttributeValue:
 			if ignoreblanks && v.IsZero() {
 				continue
@@ -654,9 +644,12 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 			// Ignore it
 		case Attribute:
 			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-				if len(data) == 1 {
+				switch len(data) {
+				case 0:
+					o.set(attribute, NoValues{})
+				case 1:
 					o.set(attribute, AttributeValueOne{data[0]})
-				} else {
+				default:
 					newdata := make(AttributeValueSlice, len(data))
 					copy(newdata, data)
 					o.set(attribute, newdata)
@@ -669,9 +662,12 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 		}
 	}
 	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-		if len(data) == 1 {
+		switch len(data) {
+		case 0:
+			o.set(attribute, NoValues{})
+		case 1:
 			o.set(attribute, AttributeValueOne{data[0]})
-		} else {
+		default:
 			newdata := make(AttributeValueSlice, len(data))
 			copy(newdata, data)
 			o.set(attribute, newdata)
@@ -734,7 +730,10 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 
 	// Cache the NTSecurityDescriptor
 	if a == NTSecurityDescriptor {
-		for _, sd := range values.Slice() {
+		if values.Len() != 1 {
+			panic(fmt.Sprintf("Asked to set %v security descriptors on %v", values.Len(), o.Label()))
+		} else {
+			sd := values.First()
 			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {
 				ui.Error().Msgf("Problem parsing security descriptor for %v: %v", o.DN(), err)
 			}
@@ -749,6 +748,9 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			ui.Error().Msg("Wrong type")
 		}
 		for i, value := range vs {
+			if value == nil {
+				panic("tried to set nil value")
+			}
 			switch avs := value.(type) {
 			case AttributeValueSID:
 				vs[i] = AttributeValueSID(dedup.D.S(string(avs)))
@@ -759,6 +761,9 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			}
 		}
 	case AttributeValueOne:
+		if vs.Value == nil {
+			panic("tried to set nil value")
+		}
 		switch avs := vs.Value.(type) {
 		case AttributeValueSID:
 			vs.Value = AttributeValueSID(dedup.D.S(string(avs)))

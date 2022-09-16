@@ -61,6 +61,7 @@ var (
 
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
+	DNSRoot     = engine.NewAttribute("dnsRoot")
 
 	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
 	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid").Merge()
@@ -670,7 +671,6 @@ func init() {
 				if !o.HasAttr(activedirectory.SystemFlags) {
 					return
 				}
-
 				sd, err := o.SecurityDescriptor()
 				if err != nil {
 					return
@@ -971,54 +971,66 @@ func init() {
 			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		domaindns, found := FindDomain(ao)
-		if !found {
-			ui.Fatal().Msgf("Could not locate DomainDNS in collection, aborting")
+		ncname, netbiosname, dnsroot, domainsid, err := FindDomain(ao)
+		if err != nil {
+			ui.Fatal().Msgf("Could not get needed domain information (%v), aborting", err)
 		}
-		domaindn := domaindns.OneAttrString(engine.DistinguishedName)
-		domainsuffix := strings.ToLower(util.ExtractDomainPart(domaindn))
+
+		dnsroot = strings.ToLower(dnsroot)
 		TrustMap.Store(TrustPair{
-			Source: domainsuffix,
-			Target: "",
+			SourceNCName:  ncname,
+			SourceNetbios: netbiosname,
+			SourceSID:     domainsid.String(),
 		}, TrustInfo{})
 
 		for _, object := range ao.Slice() {
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
-			objectclasses := object.Attr(engine.ObjectClass).Slice()
-			if len(objectclasses) > 0 {
-				var guids []engine.AttributeValue
-				for _, class := range objectclasses {
+			objectclasses := object.Attr(engine.ObjectClass)
+			if objectclasses.Len() > 0 {
+				guids := make([]engine.AttributeValue, 0, objectclasses.Len())
+				objectclasses.Iterate(func(class engine.AttributeValue) bool {
 					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
 						if guid, ok := oto.OneAttr(activedirectory.SchemaIDGUID).(engine.AttributeValueGUID); !ok {
 							ui.Debug().Msgf("%v", oto)
-							ui.Fatal().Msgf("Sorry, could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
+							ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 						} else {
 							guids = append(guids, guid)
 						}
+					} else {
+						ui.Warn().Msgf("Could not resolve object class %v, perhaps you didn't get a dump of the schema?", class.String())
 					}
-				}
-				if len(guids) > 0 {
-					object.SetFlex(engine.ObjectClassGUIDs, guids)
-				}
+					return true // continue
+				})
+				object.SetFlex(engine.ObjectClassGUIDs, guids)
 			}
 
-			var objectcategoryguid engine.AttributeValues
-			objectcategoryguid = engine.AttributeValueOne{engine.AttributeValueGUID(engine.UnknownGUID)}
+			// ObjectCategory handling
+			var objectcategoryguid engine.AttributeValue
+			var simple engine.AttributeValue
+
+			objectcategoryguid = engine.AttributeValueGUID(engine.UnknownGUID)
+			simple = engine.AttributeValueString("Unknown")
+
 			typedn := object.OneAttr(engine.ObjectCategory)
 
 			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
-			if typedn != nil && strings.Contains(typedn.String(), ",") {
+			if typedn != nil {
 				if oto, found := ao.Find(engine.DistinguishedName, typedn); found {
 					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-						objectcategoryguid = oto.Attr(activedirectory.SchemaIDGUID)
+						objectcategoryguid = oto.OneAttr(activedirectory.SchemaIDGUID)
+						simple = oto.OneAttr(activedirectory.Name)
 					} else {
-						ui.Error().Msgf("Sorry, could not translate SchemaIDGUID for %v", typedn)
+						ui.Error().Msgf("Could not translate SchemaIDGUID for %v", typedn)
 					}
 				} else {
-					ui.Error().Msgf("Sorry, could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+					ui.Error().Msgf("Could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
 				}
 			}
-			object.Set(engine.ObjectCategoryGUID, objectcategoryguid)
+
+			object.SetFlex(
+				engine.ObjectCategoryGUID, objectcategoryguid,
+				engine.ObjectCategorySimple, simple,
+			)
 
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
@@ -1052,7 +1064,7 @@ func init() {
 				object.SetValues(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
 			}
 			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
-				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
+				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 && uac&engine.UAC_NOT_DELEGATED == 0 {
 					object.SetValues(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
 				}
 				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
@@ -1069,6 +1081,8 @@ func init() {
 
 					// All DCs are members of Enterprise Domain Controllers
 					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+
+					// Also they can DCsync because of this membership ... FIXME
 				}
 				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
 					object.SetValues(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
@@ -1138,15 +1152,15 @@ func init() {
 
 				partner := object.OneAttrString(activedirectory.TrustPartner)
 
-				ui.Info().Msgf("Domain %v has a %v trust with %v", util.ExtractDomainPart(domaindn), direction, partner)
+				ui.Info().Msgf("Domain %v has a %v trust with %v", dnsroot, direction, partner)
 
 				if dir&2 != 0 && attr&0x08 != 0 && attr&0x40 != 0 {
 					ui.Info().Msgf("SID filtering is not enabled, so pwn %v and pwn this AD too", object.OneAttr(activedirectory.TrustPartner))
 				}
 
 				TrustMap.Store(TrustPair{
-					Source: domainsuffix,
-					Target: util.DomainSuffixToDomainPart(partner),
+					SourceDNSRoot: dnsroot,
+					TargetDNSRoot: util.DomainSuffixToDomainPart(partner),
 				}, TrustInfo{
 					Direction: TrustDirection(dir),
 				})
@@ -1222,7 +1236,7 @@ func init() {
 					o.SetFlex(
 						engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
 						engine.ObjectCategorySimple, "Foreign-Security-Principal",
-						engine.MetaDataSource, "Autogenerated",
+						engine.DataLoader, "Autogenerated",
 					)
 				}
 			}
@@ -1418,7 +1432,7 @@ func init() {
 						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
 						engine.Description, engine.AttributeValueString("Synthetic group"),
 						engine.ObjectSid, sid,
-						engine.MetaDataSource, engine.AttributeValueString("Autogenerated"),
+						engine.DataLoader, engine.AttributeValueString("Autogenerated"),
 					)
 					ao.Add(group)
 				}
@@ -1447,7 +1461,7 @@ func init() {
 						engine.DistinguishedName, member,
 						engine.ObjectCategorySimple, category,
 						engine.ObjectSid, sid,
-						engine.MetaDataSource, "Autogenerated",
+						engine.DataLoader, "Autogenerated",
 					)
 					ao.Add(memberobject)
 				}
@@ -1457,7 +1471,7 @@ func init() {
 		}
 	},
 		"MemberOf and Member resolution",
-		engine.BeforeMerge,
+		engine.AfterMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {

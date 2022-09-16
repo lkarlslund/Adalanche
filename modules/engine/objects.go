@@ -564,6 +564,16 @@ func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2
 	return results[0], len(results) == 1
 }
 
+func (os *Objects) FindTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...interface{}) (o *Object, found bool) {
+	results, found := os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, func() *Object {
+		return NewObject(append(flexinit, attribute, value, attribute2, value2)...)
+	})
+	if !found {
+		return results[0], false
+	}
+	return results[0], len(results) == 1
+}
+
 func (os *Objects) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o []*Object, found bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, nil)
 }

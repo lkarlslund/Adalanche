@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	gposource = engine.AttributeValueString("Group Policy dumps")
+	gposource = engine.AttributeValueString("Group Policy")
 	GLoader   = engine.AddLoader(func() engine.Loader { return (&GPOLoader{}) })
 )
 
@@ -53,8 +53,8 @@ func (ld *GPOLoader) Init() error {
 				}
 
 				thisao := ld.getShard(path)
-
 				netbios := ginfo.DomainNetbios
+
 				if netbios == "" {
 					// Fallback to extracting from the domain DN
 					netbios = util.ExtractNetbiosFromBase(ginfo.DomainDN)

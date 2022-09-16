@@ -259,19 +259,26 @@
               aria-labelledby="queriesbutton">
               <li id="defaultquery" class="dropdown-item"
                 query="(&(objectCategory=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))"
-                mode="Normal" depth=99 methods="default">Who owns your AD?</li>
-              <li class="dropdown-item"
-                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
-                mode="Normal" depth=99 methods="default">Who can pwn your AD by sideloading a custom DLL on your DC?</li>
+                mode="Normal" depth=99 methods="default">Who owns your AD? (Reach Domain Admin etc)</li>
               <li class="dropdown-item"
                 query="(_canpwn=DCsync,(!(distinguishedName=*DnsZones,DC=*)))"
                 mode="Normal" depth=99 methods="default">Who can DCsync?</li>
+              <li class="dropdown-item" query="(&(objectCategory=Computer)((_unconstraineddelegation=1))(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))"
+                mode="Normal" depth=1>How to reach computers with unconstrained delegation (non-DCs)</li>
+              <li class="dropdown-item" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))"
+                mode="Reverse" depth=1>What can accounts with no Kerberos preauth requirement reach?</li>
+              <!-- Domain Controller stuff -->
+              <li class="dropdown-item"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                mode="Normal" depth=99 methods="default">Who can pwn your AD by sideloading a custom DLL on your DC? (Old DCs only)</li>
               <li class="dropdown-item"
                 query="(|(objectSid=S-1-5-32-551)(objectSid=S-1-5-32-549))"
                 mode="Normal" depth=99 methods="default">Who can dump SAM/SYSTEM or your ntds.dit remotely or via RDP? (Server and Backup Operators)</li>
               <li class="dropdown-item"
                 query="(&(objectCategory=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))"
                 mode="Normal" depth=99 methods="default">Client cert templates with custom SAN (pose as anyone)</li>
+
+
               <li class="dropdown-item" query="(|(objectSid=S-1-5-21-*-513)(objectSid=S-1-5-11)(objectSid=S-1-1-0))" mode="Reverse"
                 depth=99 methods="default">What can Domain Users, Authenticated Users and Everyone do?</li>
               <li class="dropdown-item"
@@ -312,9 +319,6 @@
               <li class="dropdown-item"
                 query="(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=4096)(_limit=100))"
                 mode="Normal" depth=99>Servers or Workstations (100 random)</li>
-              <li class="dropdown-item"
-                query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))" mode="Normal"
-                depth=1>Accounts with no Kerberos preauth requirement</li>
             </div>
           </div>
           <button id="analyzebutton" type="button" class="btn btn-sm float-right" onclick="analyze();">Analyze</button>

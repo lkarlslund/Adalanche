@@ -192,7 +192,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	cp, _ := util.ParseBool(*collectgpos)
 	var gpostocollect []*activedirectory.RawObject
+	var netbiosname string
 
 	if *adexplorerfile != "" {
 		// Active Directory Explorer file
@@ -218,6 +220,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 			do.OnObject = func(ro *activedirectory.RawObject) error {
 				if _, found := ro.Attributes["gPCFileSysPath"]; found {
 					gpostocollect = append(gpostocollect, ro)
+				}
+				if nbn, found := ro.Attributes["nETBIOSName"]; found {
+					netbiosname = nbn[0]
 				}
 				return nil
 			}
@@ -355,6 +360,16 @@ func Execute(cmd *cobra.Command, args []string) error {
 			ui.Info().Msg("Collecting configuration objects ...")
 			do.SearchBase = configContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
+
+			if *collectgpos == "auto" || cp {
+				do.OnObject = func(ro *activedirectory.RawObject) error {
+					if nbn, found := ro.Attributes["nETBIOSName"]; found {
+						netbiosname = nbn[0]
+					}
+					return nil
+				}
+			}
+
 			_, err = ad.Dump(do)
 			if err != nil {
 				os.Remove(do.WriteToFile)
@@ -383,7 +398,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 			do.SearchBase = domainContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 
-			cp, _ := util.ParseBool(*collectgpos)
 			if *collectgpos == "auto" || cp {
 				do.OnObject = func(ro *activedirectory.RawObject) error {
 					if _, found := ro.Attributes["gPCFileSysPath"]; found {
@@ -406,7 +420,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cp, _ := util.ParseBool(*collectgpos)
 	if *collectgpos == "auto" || cp {
 		ui.Debug().Msg("Collecting GPO files ...")
 		if *gpopath != "" {
@@ -446,6 +459,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 					gpoinfo.GPOinfo.GUID = gpuuid
 					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
 					gpoinfo.GPOinfo.DomainDN = domainPart
+					gpoinfo.GPOinfo.DomainNetbios = netbiosname
 
 					offset := len(gppath)
 					var filescollected int

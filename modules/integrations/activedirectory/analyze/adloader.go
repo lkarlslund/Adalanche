@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -44,7 +45,7 @@ type ADLoader struct {
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
 
-	shardobjects map[string]*engine.Objects
+	shardobjects gsync.MapOf[string, *engine.Objects]
 
 	objectstoconvert chan convertqueueitem
 	importcnf        bool // Import CNF (conflict) objects (experimental)
@@ -71,7 +72,6 @@ func (ld *ADLoader) Init() error {
 
 	ld.importeddns = make(map[string]struct{})
 
-	ld.shardobjects = make(map[string]*engine.Objects)
 	ld.objectstoconvert = make(chan convertqueueitem, 8192)
 
 	// AD Objects
@@ -84,7 +84,7 @@ func (ld *ADLoader) Init() error {
 					if dnc, found := item.object.Attributes["defaultNamingContext"]; found {
 						// There's a special place for people who do this
 						item.object.DistinguishedName = "cn=RootDSE," + dnc[0]
-						item.object.Attributes["objectClass"] = []string{"top", "rootdse"}
+						item.object.Attributes["objectCategorySimple"] = []string{"rootdse"}
 					} else {
 						// We want the RootDSE KTHX, but ignore everything else
 						ui.Warn().Msg("Empty DN, ignoring!")
@@ -135,16 +135,12 @@ func (ld *ADLoader) getShard(path string) *engine.Objects {
 
 	lookupshard := shard
 
-	var ao *engine.Objects
-	ld.importmutex.Lock()
-	ao = ld.shardobjects[lookupshard]
-	if ao == nil {
+	ao, found := ld.shardobjects.Load(lookupshard)
+	if !found {
 		ao = engine.NewLoaderObjects(ld)
-		// ao.AddDefaultFlex(engine.UniqueSource, engine.AttributeValueString(shard))
 		ao.SetThreadsafe(true)
-		ld.shardobjects[lookupshard] = ao
+		ld.shardobjects.Store(lookupshard, ao)
 	}
-	ld.importmutex.Unlock()
 	return ao
 }
 
@@ -217,9 +213,9 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 
 		aos = append(aos, ao)
 		ao.SetThreadsafe(false)
-	}
 
-	ld.shardobjects = make(map[string]*engine.Objects) // Clear from memory
+		return true // next
+	})
 
 	return aos, nil
 }

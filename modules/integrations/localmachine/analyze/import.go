@@ -62,7 +62,18 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	computerobject.SetFlex(
 		engine.IgnoreBlanks,
 		engine.DisplayName, cinfo.Machine.Name,
+		engine.NewAttribute("architecture"), cinfo.Machine.Architecture,
+		engine.NewAttribute("editionId"), cinfo.Machine.EditionID,
+		engine.NewAttribute("buildBranch"), cinfo.Machine.BuildBranch,
+		engine.NewAttribute("buildNumber"), cinfo.Machine.BuildNumber,
+		engine.NewAttribute("majorVersionNumber"), cinfo.Machine.MajorVersionNumber,
+		engine.NewAttribute("version"), cinfo.Machine.Version,
+		engine.NewAttribute("productName"), cinfo.Machine.ProductName,
+		engine.NewAttribute("productSuite"), cinfo.Machine.ProductSuite,
+		engine.NewAttribute("productType"), cinfo.Machine.ProductType,
+		engine.ObjectSid, localsid,
 		engine.ObjectCategorySimple, engine.AttributeValueString("Machine"),
+		engine.NewAttribute("connectivity"), cinfo.Network.InternetConnectivity,
 	)
 
 	if cinfo.Machine.WUServer != "" {
@@ -109,15 +120,28 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
 	uniquesource := cinfo.Machine.Name
 
-	// FIXME - this is WRONG - it's the NETBIOS name, not the domainPart :-\
+	// Set source to domain NetBios name if we're a DC
 	if isdomaincontroller {
 		uniquesource = cinfo.Machine.Domain
 	}
 
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
-	computerobject.SetFlex(engine.UniqueSource, uniquesource)
+	computerobject.SetFlex(engine.DataSource, uniquesource)
 
-	macaddrs := engine.AttributeValueSlice{}
+	everyoneobject, _ := ao.FindTwoOrAdd(
+		engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID),
+		engine.DataSource, engine.AttributeValueString(uniquesource),
+		engine.ObjectCategorySimple, "Group",
+	)
+
+	authenticatedusers, _ := ao.FindTwoOrAdd(
+		engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
+		engine.DataSource, engine.AttributeValueString(uniquesource),
+		engine.ObjectCategorySimple, "Group",
+	)
+
+	var macaddrs, ipaddresses []string
+
 	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
 		if strings.Count(networkinterface.MACAddress, ":") == 5 {
 			// Sanity check above removes ISATAP interfaces
@@ -132,12 +156,16 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				continue
 			}
 
-			macaddrs = append(macaddrs, engine.AttributeValueString(strings.ReplaceAll(networkinterface.MACAddress, ":", "")))
+			macaddrs = append(macaddrs, strings.ReplaceAll(networkinterface.MACAddress, ":", ""))
+
+			ipaddresses = append(ipaddresses, networkinterface.Addresses...)
 		}
 	}
-	if len(macaddrs) > 0 {
-		computerobject.SetValues(localmachine.MACAddress, macaddrs...)
-	}
+	computerobject.SetFlex(
+		engine.IgnoreBlanks,
+		localmachine.MACAddress, macaddrs,
+		engine.IPAddress, ipaddresses,
+	)
 
 	ao.ReindexObject(computerobject, false) // We changed stuff after adding it
 
@@ -172,9 +200,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					engine.DownLevelLogonName, cinfo.Machine.Name+"\\"+user.Name,
 					activedirectory.BadPwdCount, user.BadPasswordCount,
 					activedirectory.LogonCount, user.NumberOfLogins,
-					engine.UniqueSource, uniquesource,
+					engine.DataSource, uniquesource,
 				)
 				user.ChildOf(userscontainer)
+				user.EdgeTo(everyoneobject, activedirectory.EdgeMemberOfGroup)
+				user.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			} else {
 				ui.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
 			}
@@ -394,6 +424,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			ServiceType, int64(service.Type),
 			activedirectory.ObjectCategorySimple, "Service",
 		)
+
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
 
@@ -436,6 +467,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				}
 
 			}
+			if serviceaccountSID.Component(2) < 21 {
+				svcaccount.SetFlex(activedirectory.ObjectCategorySimple, "Group")
+			}
 		}
 		if svcaccount == nil {
 			if service.Account != "" {
@@ -445,8 +479,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					svcaccount, _ = ao.FindOrAdd(
 						engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[1]),
 					)
+					svcaccount.SetFlex(engine.DataSource, uniquesource)
 				} else if len(nameparts) == 1 {
-					// no \\ in name, just a user name!?
+					// no \\ in name, just a user name!? this COULD be wrong, might be a DOMAIN account?
 					svcaccount, _ = ao.FindOrAdd(
 						engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[0]),
 					)
@@ -665,6 +700,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 			shareobject.ChildOf(computershares)
 
+			// Fileshare rights
 			if sd, err := engine.ParseSecurityDescriptor(share.DACL); err == nil {
 				// if !sd.Owner.IsNull() {
 				// 	ui.Warn().Msgf("Share %v has owner set to %v", share.Name, sd.Owner)
@@ -673,8 +709,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				// 	ui.Warn().Msgf("Share %v has group set to %v", share.Name, sd.Group)
 				// }
 				for _, entry := range sd.DACL.Entries {
-					entrysid := entry.SID
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
+						entrysid := entry.SID
 						o := ao.AddNew(
 							activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
 						)
@@ -695,6 +731,61 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
 							o.EdgeTo(shareobject, activedirectory.EdgeWriteDACL)
 						}
+					} else if entry.Type == engine.ACETYPE_ACCESS_ALLOWED_OBJECT {
+						ui.Debug().Msg("Fixme")
+					}
+				}
+			}
+
+			pathobject := ao.AddNew(
+				engine.IgnoreBlanks,
+				activedirectory.DisplayName, share.Path,
+				AbsolutePath, share.Path,
+				engine.ObjectCategorySimple, "Directory",
+			)
+
+			pathobject.ChildOf(computerobject)
+
+			shareobject.EdgeTo(pathobject, EdgePublishes)
+
+			// File rights
+			if sd, err := engine.ParseSecurityDescriptor(share.PathDACL); err == nil {
+				if !sd.Owner.IsNull() {
+					owner := ao.AddNew(
+						activedirectory.ObjectSid, engine.AttributeValueSID(sd.Owner),
+					)
+					if sd.Owner.StripRID() == localsid || sd.Owner.Component(2) != 21 {
+						owner.SetFlex(
+							engine.DataSource, uniquesource,
+						)
+					}
+					owner.EdgeTo(pathobject, activedirectory.EdgeOwns)
+				}
+				for _, entry := range sd.DACL.Entries {
+					entrysid := entry.SID
+					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
+						aclsid := ao.AddNew(
+							activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
+						)
+						if entrysid.StripRID() == localsid || entrysid.Component(2) != 21 {
+							aclsid.SetFlex(
+								engine.DataSource, uniquesource,
+							)
+						}
+						if entry.Mask&engine.FILE_READ_DATA != 0 {
+							aclsid.EdgeTo(pathobject, EdgeFileRead)
+						}
+						if entry.Mask&engine.FILE_WRITE_DATA != 0 {
+							aclsid.EdgeTo(pathobject, EdgeFileWrite)
+						}
+						if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
+							aclsid.EdgeTo(pathobject, activedirectory.EdgeTakeOwnership) // Not sure about this one
+						}
+						if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
+							aclsid.EdgeTo(pathobject, activedirectory.EdgeWriteDACL)
+						}
+					} else if entry.Type == engine.ACETYPE_ACCESS_ALLOWED_OBJECT {
+						ui.Debug().Msgf("Fixme")
 					}
 				}
 			}

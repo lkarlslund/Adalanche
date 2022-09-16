@@ -29,7 +29,7 @@ var (
 	ObjectTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
 	ObjectTypeContainer                  = NewObjectType("Container", "Container").SetDefault(Last, false)
 	ObjectTypeComputer                   = NewObjectType("Computer", "Computer")
-	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
+	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "GroupPolicyContainer")
 	ObjectTypeTrust                      = NewObjectType("Trust", "Trusted-Domain")
 	ObjectTypeAttributeSchema            = NewObjectType("AttributeSchema", "Attribute-Schema")
 	ObjectTypeClassSchema                = NewObjectType("ClassSchema", "Class-Schema")
@@ -61,23 +61,27 @@ var objecttypemutex sync.RWMutex
 
 func NewObjectType(name, lookup string) ObjectType {
 	// Lowercase it, everything is case insensitive
-	lookup = strings.ToLower(lookup)
+	lowercase := strings.ToLower(lookup)
 
 	objecttypemutex.RLock()
-	if objecttype, found := objecttypenames[lookup]; found {
+	if objecttype, found := objecttypenames[lowercase]; found {
 		objecttypemutex.RUnlock()
 		return objecttype
 	}
 	objecttypemutex.RUnlock()
 	objecttypemutex.Lock()
 	// Retry, someone might have beaten us to it
-	if objecttype, found := objecttypenames[lookup]; found {
+	if objecttype, found := objecttypenames[lowercase]; found {
 		objecttypemutex.Unlock()
 		return objecttype
 	}
 
 	newindex := ObjectType(len(objecttypenums))
+
+	// both sensitive and insensitive at the same time when adding
+	objecttypenames[lowercase] = newindex
 	objecttypenames[lookup] = newindex
+
 	objecttypenums = append(objecttypenums, objecttypeinfo{
 		Name:            name,
 		Lookup:          lookup,

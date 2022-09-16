@@ -52,6 +52,10 @@ var (
 	EdgeControlsUpdates = engine.NewEdge("ControlsUpdates")
 	WUServer            = engine.NewAttribute("wuServer")
 	SCCMServer          = engine.NewAttribute("sccmServer")
+
+	EdgePublishes = engine.NewEdge("Publishes")
+
+	ObjectTypeShare = engine.NewObjectType("Share", "Share")
 )
 
 func MapSID(original, new, input windowssecurity.SID) windowssecurity.SID {

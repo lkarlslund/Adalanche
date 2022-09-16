@@ -81,7 +81,7 @@ var (
 	IPAddress          = NewAttribute("IPAddress")
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
 	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
-	NetbiosDomain      = NewAttribute("netbiosDomain") // Used to merge users with - if we only have a DOMAIN\USER type of info
+	NetbiosDomain      = NewAttribute("netbiosDomain").Single() // Used to merge users with - if we only have a DOMAIN\USER type of info
 	DomainPart         = NewAttribute("domainPart").Single()
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
