@@ -152,7 +152,10 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 			ADSTYPE_CASE_IGNORE_STRING,
 			ADSTYPE_PRINTABLE_STRING,
 			ADSTYPE_NUMERIC_STRING,
-			ADSTYPE_OBJECT_CLASS:
+			ADSTYPE_OBJECT_CLASS,
+			ADSTYPE_PATH,
+			ADSTYPE_POSTALADDRESS,
+			ADSTYPE_DN_WITH_STRING:
 
 			// First read the offsets
 			if i == 0 {
