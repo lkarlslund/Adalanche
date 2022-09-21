@@ -7,10 +7,8 @@ import (
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/mailru/easyjson"
 )
 
@@ -20,12 +18,17 @@ var (
 	loader = engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
 )
 
+type loaderQueueItem struct {
+	path string
+	cb   engine.ProgressCallbackFunc
+}
+
 type LocalMachineLoader struct {
 	ao          *engine.Objects
 	done        sync.WaitGroup
 	mutex       sync.Mutex
 	machinesids map[string][]*engine.Object
-	infostoadd  chan string
+	infostoadd  chan loaderQueueItem
 }
 
 func (ld *LocalMachineLoader) Name() string {
@@ -36,22 +39,22 @@ func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
 	ld.ao.SetThreadsafe(true)
 	ld.machinesids = make(map[string][]*engine.Object)
-	ld.infostoadd = make(chan string, 128)
+	ld.infostoadd = make(chan loaderQueueItem, 128)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
 		go func() {
-			for path := range ld.infostoadd {
-				raw, err := ioutil.ReadFile(path)
+			for queueItem := range ld.infostoadd {
+				raw, err := ioutil.ReadFile(queueItem.path)
 				if err != nil {
-					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", queueItem, err)
 					continue
 				}
 
 				var cinfo localmachine.Info
 				err = easyjson.Unmarshal(raw, &cinfo)
 				if err != nil {
-					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
+					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)
 					continue
 				}
 
@@ -68,8 +71,8 @@ func (ld *LocalMachineLoader) Init() error {
 					ld.mutex.Unlock()
 				}
 
-				// ld.ao.AddMerge([]engine.Attribute{engine.ObjectSid}, generatedobjs...)
-				// ld.infoaddmutex.Unlock()
+				// Add progress
+				queueItem.cb(-100, 0)
 			}
 			ld.done.Done()
 		}()
@@ -83,47 +86,11 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	ld.done.Wait()
 	ld.ao.SetThreadsafe(false)
 
-	for _, o := range ld.ao.Slice() {
-		if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
-
-			// We can do this with confidence as everything comes from this loader
-			sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
-
-			switch o.Type() {
-			case engine.ObjectTypeComputer:
-				// We don't link that - it's either absorbed into the real computer object, or it's orphaned
-			case engine.ObjectTypeUser:
-				// It's a User we added, find the computer
-				if computer, found := ld.ao.FindTwo(
-					engine.DataSource, o.OneAttr(engine.DataSource),
-					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
-					o.ChildOf(computer) // FIXME -> Users
-				}
-			case engine.ObjectTypeGroup:
-				// It's a Group we added
-				if computer, found := ld.ao.FindTwo(
-					engine.DataSource, o.OneAttr(engine.DataSource),
-					LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
-					o.ChildOf(computer) // FIXME -> Groups
-				}
-			default:
-				// if o.HasAttr(activedirectory.ObjectSid) {
-				// 	if computer, found := ld.ao.FindTwo(
-				// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
-				// 		LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
-				// 		o.ChildOf(computer) // We don't know what it is
-				// 	}
-				// }
-			}
-		}
-	}
-
 	// Knot all the objects with colliding SIDs together
 	for _, os := range ld.machinesids {
 		for _, o := range os {
 			for _, p := range os {
 				if o != p {
-					p.EdgeTo(o, EdgeSIDCollision)
 					o.EdgeTo(p, EdgeSIDCollision)
 				}
 			}
@@ -135,11 +102,24 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	return result, nil
 }
 
+func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFunc) error {
+	if !strings.HasSuffix(path, localmachine.Suffix) {
+		return engine.ErrUninterested
+	}
+
+	// Estimate progress
+	cb(0, -100)
+	return nil
+}
+
 func (ld *LocalMachineLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
 		return engine.ErrUninterested
 	}
 
-	ld.infostoadd <- path
+	ld.infostoadd <- loaderQueueItem{
+		path: path,
+		cb:   cb,
+	}
 	return nil
 }

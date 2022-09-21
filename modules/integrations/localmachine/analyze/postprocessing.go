@@ -4,9 +4,47 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func init() {
+	loader.AddProcessor(func(ao *engine.Objects) {
+		for _, o := range ao.Slice() {
+			if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
+
+				// We can do this with confidence as everything comes from this loader
+				sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
+
+				switch o.Type() {
+				case engine.ObjectTypeComputer:
+					// We don't link that - it's either absorbed into the real computer object, or it's orphaned
+				case engine.ObjectTypeUser:
+					// It's a User we added, find the machine
+					if machine, found := ao.FindTwo(
+						engine.DataSource, o.OneAttr(engine.DataSource),
+						LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+						o.ChildOf(machine) // FIXME -> Users
+					}
+				case engine.ObjectTypeGroup:
+					// It's a Group we added
+					if machine, found := ao.FindTwo(
+						engine.DataSource, o.OneAttr(engine.DataSource),
+						LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+						o.ChildOf(machine) // FIXME -> Groups
+					}
+				default:
+					// if o.HasAttr(activedirectory.ObjectSid) {
+					// 	if computer, found := ld.ao.FindTwo(
+					// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
+					// 		LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+					// 		o.ChildOf(computer) // We don't know what it is
+					// 	}
+					// }
+				}
+			}
+		}
+	}, "Link local users and groups to machines", engine.BeforeMergeLow)
+
 	loader.AddProcessor(func(ao *engine.Objects) {
 		var warns int
 		ln := engine.AttributeValueString(loadername)

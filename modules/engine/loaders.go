@@ -97,6 +97,8 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 		for _, loader := range loaders {
 			if le, ok := loader.(LoaderEstimator); ok {
 				le.Estimate(file.filename, cb)
+			} else {
+				cb(0, -1)
 			}
 		}
 	}
