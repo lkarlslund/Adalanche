@@ -92,11 +92,6 @@ func (ld *ADLoader) Init() error {
 					}
 				}
 
-				// if category, found := item.object.Attributes["objectCategory"]; found && strings.HasPrefix(category[0], "CN=Foreign-Security-Principal") {
-				// We don't want to import this
-				// continue
-				// }
-
 				// Convert
 				o := item.object.ToObject(*limitattributes)
 
@@ -133,14 +128,10 @@ func (ld *ADLoader) Init() error {
 func (ld *ADLoader) getShard(path string) *engine.Objects {
 	shard := filepath.Dir(path)
 
-	lookupshard := shard
+	new_ao := engine.NewLoaderObjects(ld)
+	new_ao.SetThreadsafe(true)
 
-	ao, found := ld.shardobjects.Load(lookupshard)
-	if !found {
-		ao = engine.NewLoaderObjects(ld)
-		ao.SetThreadsafe(true)
-		ld.shardobjects.Store(lookupshard, ao)
-	}
+	ao, _ := ld.shardobjects.LoadOrStore(shard, new_ao)
 	return ao
 }
 
