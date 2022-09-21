@@ -62,44 +62,21 @@ func Run(path string) (*Objects, error) {
 				}
 			}
 
-			pb := ui.ProgressBar(fmt.Sprintf("Preprocessing %v (low)", lobj.Loader.Name()), 0)
-			Process(lobj.Objects, func(cur, max int) {
-				if max > 0 {
-					pb.ChangeMax(max)
-				}
-				if cur > 0 {
-					pb.Set(cur)
-				} else {
-					pb.Add(-cur)
-				}
-			}, loaderid, BeforeMergeLow)
-			pb.Finish()
+			for priority := BeforeMergeLow; priority <= BeforeMergeFinal; priority++ {
 
-			pb = ui.ProgressBar(fmt.Sprintf("Preprocessing %v (normal)", lobj.Loader.Name()), 0)
-			Process(lobj.Objects, func(cur, max int) {
-				if max > 0 {
-					pb.ChangeMax(max)
-				}
-				if cur > 0 {
-					pb.Set(cur)
-				} else {
-					pb.Add(-cur)
-				}
-			}, loaderid, BeforeMerge)
-			pb.Finish()
-
-			pb = ui.ProgressBar(fmt.Sprintf("Preprocessing %v (high)", lobj.Loader.Name()), 0)
-			Process(lobj.Objects, func(cur, max int) {
-				if max > 0 {
-					pb.ChangeMax(max)
-				}
-				if cur > 0 {
-					pb.Set(cur)
-				} else {
-					pb.Add(-cur)
-				}
-			}, loaderid, BeforeMergeHigh)
-			pb.Finish()
+				pb := ui.ProgressBar(fmt.Sprintf("Preprocessing %v priority %v", lobj.Loader.Name(), priority.String()), 0)
+				Process(lobj.Objects, func(cur, max int) {
+					if max > 0 {
+						pb.ChangeMax(max)
+					}
+					if cur > 0 {
+						pb.Set(cur)
+					} else {
+						pb.Add(-cur)
+					}
+				}, loaderid, priority)
+				pb.Finish()
+			}
 
 			lobj.Objects.SetThreadsafe(false)
 
@@ -107,43 +84,6 @@ func Run(path string) (*Objects, error) {
 		}(os)
 	}
 	preprocessWG.Wait()
-
-	// Analyze Pwn relationships
-	var analyzeWG sync.WaitGroup
-	for _, os := range lo {
-		if os.Objects.Len() == 0 {
-			// Don't bother with empty objects
-			continue
-		}
-
-		analyzeWG.Add(1)
-		func(lobj loaderobjects) {
-			pwnbar := ui.ProgressBar(fmt.Sprintf("Analyzing %v objects from %v ...", lobj.Objects.Len(), lobj.Loader.Name()), 0)
-
-			var loaderid LoaderID
-			for i, loader := range loaders {
-				if loader == lobj.Loader {
-					loaderid = LoaderID(i)
-					break
-				}
-			}
-
-			loaderid.Analyze(lobj.Objects, func(cur, max int) {
-				if max > 0 {
-					pwnbar.ChangeMax(max)
-				}
-				if cur > 0 {
-					pwnbar.Set(cur)
-				} else {
-					pwnbar.Add(-cur)
-				}
-			})
-
-			pwnbar.Finish()
-			analyzeWG.Done()
-		}(os)
-	}
-	analyzeWG.Wait()
 
 	// Merging
 	objs := make([]*Objects, len(lo))
@@ -156,7 +96,7 @@ func Run(path string) (*Objects, error) {
 
 	// Do global post-processing
 	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
-		pb := ui.ProgressBar(fmt.Sprintf("Postprocessing merged objects (%v)", priority.String()), 0)
+		pb := ui.ProgressBar(fmt.Sprintf("Postprocessing merged objects priority %v", priority.String()), 0)
 		Process(ao, func(cur, max int) {
 			if max > 0 {
 				pb.ChangeMax(max)

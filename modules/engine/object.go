@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,10 +24,9 @@ import (
 
 var adjustthreadsafe sync.Mutex
 var threadsafeobject int
+var threadbuckets = runtime.NumCPU() * 64
 
-const threadbuckets = 1024
-
-var threadsafeobjectmutexes [threadbuckets]sync.RWMutex
+var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 
 func init() {
 	stringdedup.YesIKnowThisCouldGoHorriblyWrong = true
@@ -208,7 +208,7 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
 	if source.parent != nil {
 		if target.parent == nil {
-			target.ChildOf(source.parent)
+			target.childOf(source.parent)
 		}
 		source.parent.removeChild(source)
 		source.parent = nil
@@ -231,18 +231,6 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 
 	source.invalidated = true // Invalid object
 }
-
-// func (o *Object) AttributeValueMap() AttributeValueMap {
-// 	o.lock()
-// 	defer o.unlock()
-// 	val := o.values
-// 	for attr, _ := range val {
-// 		if attributenums[attr].onget != nil {
-// 			val[attr], _ = attributenums[attr].onget(o, attr)
-// 		}
-// 	}
-// 	return val
-// }
 
 type StringMap map[string][]string
 
@@ -1019,6 +1007,14 @@ func (o *Object) ChildOf(parent *Object) {
 	parent.lock()
 	parent.children = append(parent.children, o)
 	parent.unlock()
+}
+
+func (o *Object) childOf(parent *Object) {
+	if o.parent != nil {
+		ui.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+	}
+	o.parent = parent
+	parent.children = append(parent.children, o)
 }
 
 func (o *Object) Adopt(child *Object) {

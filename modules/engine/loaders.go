@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
@@ -90,42 +92,51 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 		return files[i].size > files[j].size
 	})
 
-	ui.Debug().Msg("Processing files with the biggest files first")
-
 	ui.Debug().Msg("Estimating data to process")
 	for _, file := range files {
 		for _, loader := range loaders {
 			if le, ok := loader.(LoaderEstimator); ok {
 				le.Estimate(file.filename, cb)
-			} else {
-				// Regular, just add the file as something to process
-				cb(0, -1)
 			}
 		}
 	}
 
+	ui.Debug().Msg("Processing files with the biggest files first")
+	fileQueue := make(chan string, runtime.NumCPU()*4)
+	var fileQueueWG sync.WaitGroup
 	var skipped int
-	for _, file := range files {
-		fileerr := ErrUninterested
-	loaderloop:
-		for _, loader := range loaders {
-			fileerr = loader.Load(file.filename, cb)
-			switch fileerr {
-			case nil:
-				break loaderloop
-			case ErrUninterested:
-				// loop, and try next loader
-			default:
-				ui.Error().Msgf("Error from loader %v: %v", loader.Name(), fileerr)
-				// return fileerr
+	for i := 0; i < runtime.NumCPU(); i++ {
+		fileQueueWG.Add(1)
+		go func() {
+			for filename := range fileQueue {
+			loaderloop:
+				for _, loader := range loaders {
+					fileerr := loader.Load(filename, cb)
+					switch fileerr {
+					case nil:
+						break loaderloop
+					case ErrUninterested:
+						// loop, and try next loader
+					default:
+						skipped++
+						ui.Error().Msgf("Error from loader %v on file %v: %v", loader.Name(), filename, fileerr)
+						break loaderloop
+					}
+				}
+				cb(-1, 0) // Either loaded or skipped
 			}
-		}
-		if fileerr != nil {
-			skipped++
-		}
-		cb(-1, 0) // Either loaded or skipped
+			fileQueueWG.Done()
+		}()
 	}
-	// pb.Finish()
+
+	// Feed into the queue
+	for _, file := range files {
+		fileQueue <- file.filename
+	}
+	close(fileQueue)
+
+	// Wait for processors to be done
+	fileQueueWG.Wait()
 
 	var globalerr error
 	var totalobjects int

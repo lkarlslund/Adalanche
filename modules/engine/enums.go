@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const _ProcessPriorityName = "BeforeMergeLowBeforeMergeBeforeMergeHighAfterMergeLowAfterMergeAfterMergeHighAfterMergeFinal"
+const _ProcessPriorityName = "BeforeMergeLowBeforeMergeBeforeMergeHighBeforeMergeFinalAfterMergeLowAfterMergeAfterMergeHighAfterMergeFinal"
 
-var _ProcessPriorityIndex = [...]uint8{0, 14, 25, 40, 53, 63, 77, 92}
+var _ProcessPriorityIndex = [...]uint8{0, 14, 25, 40, 56, 69, 79, 93, 108}
 
-const _ProcessPriorityLowerName = "beforemergelowbeforemergebeforemergehighaftermergelowaftermergeaftermergehighaftermergefinal"
+const _ProcessPriorityLowerName = "beforemergelowbeforemergebeforemergehighbeforemergefinalaftermergelowaftermergeaftermergehighaftermergefinal"
 
 func (i ProcessPriority) String() string {
 	if i < 0 || i >= ProcessPriority(len(_ProcessPriorityIndex)-1) {
@@ -27,39 +27,43 @@ func _ProcessPriorityNoOp() {
 	_ = x[BeforeMergeLow-(0)]
 	_ = x[BeforeMerge-(1)]
 	_ = x[BeforeMergeHigh-(2)]
-	_ = x[AfterMergeLow-(3)]
-	_ = x[AfterMerge-(4)]
-	_ = x[AfterMergeHigh-(5)]
-	_ = x[AfterMergeFinal-(6)]
+	_ = x[BeforeMergeFinal-(3)]
+	_ = x[AfterMergeLow-(4)]
+	_ = x[AfterMerge-(5)]
+	_ = x[AfterMergeHigh-(6)]
+	_ = x[AfterMergeFinal-(7)]
 }
 
-var _ProcessPriorityValues = []ProcessPriority{BeforeMergeLow, BeforeMerge, BeforeMergeHigh, AfterMergeLow, AfterMerge, AfterMergeHigh, AfterMergeFinal}
+var _ProcessPriorityValues = []ProcessPriority{BeforeMergeLow, BeforeMerge, BeforeMergeHigh, BeforeMergeFinal, AfterMergeLow, AfterMerge, AfterMergeHigh, AfterMergeFinal}
 
 var _ProcessPriorityNameToValueMap = map[string]ProcessPriority{
-	_ProcessPriorityName[0:14]:       BeforeMergeLow,
-	_ProcessPriorityLowerName[0:14]:  BeforeMergeLow,
-	_ProcessPriorityName[14:25]:      BeforeMerge,
-	_ProcessPriorityLowerName[14:25]: BeforeMerge,
-	_ProcessPriorityName[25:40]:      BeforeMergeHigh,
-	_ProcessPriorityLowerName[25:40]: BeforeMergeHigh,
-	_ProcessPriorityName[40:53]:      AfterMergeLow,
-	_ProcessPriorityLowerName[40:53]: AfterMergeLow,
-	_ProcessPriorityName[53:63]:      AfterMerge,
-	_ProcessPriorityLowerName[53:63]: AfterMerge,
-	_ProcessPriorityName[63:77]:      AfterMergeHigh,
-	_ProcessPriorityLowerName[63:77]: AfterMergeHigh,
-	_ProcessPriorityName[77:92]:      AfterMergeFinal,
-	_ProcessPriorityLowerName[77:92]: AfterMergeFinal,
+	_ProcessPriorityName[0:14]:        BeforeMergeLow,
+	_ProcessPriorityLowerName[0:14]:   BeforeMergeLow,
+	_ProcessPriorityName[14:25]:       BeforeMerge,
+	_ProcessPriorityLowerName[14:25]:  BeforeMerge,
+	_ProcessPriorityName[25:40]:       BeforeMergeHigh,
+	_ProcessPriorityLowerName[25:40]:  BeforeMergeHigh,
+	_ProcessPriorityName[40:56]:       BeforeMergeFinal,
+	_ProcessPriorityLowerName[40:56]:  BeforeMergeFinal,
+	_ProcessPriorityName[56:69]:       AfterMergeLow,
+	_ProcessPriorityLowerName[56:69]:  AfterMergeLow,
+	_ProcessPriorityName[69:79]:       AfterMerge,
+	_ProcessPriorityLowerName[69:79]:  AfterMerge,
+	_ProcessPriorityName[79:93]:       AfterMergeHigh,
+	_ProcessPriorityLowerName[79:93]:  AfterMergeHigh,
+	_ProcessPriorityName[93:108]:      AfterMergeFinal,
+	_ProcessPriorityLowerName[93:108]: AfterMergeFinal,
 }
 
 var _ProcessPriorityNames = []string{
 	_ProcessPriorityName[0:14],
 	_ProcessPriorityName[14:25],
 	_ProcessPriorityName[25:40],
-	_ProcessPriorityName[40:53],
-	_ProcessPriorityName[53:63],
-	_ProcessPriorityName[63:77],
-	_ProcessPriorityName[77:92],
+	_ProcessPriorityName[40:56],
+	_ProcessPriorityName[56:69],
+	_ProcessPriorityName[69:79],
+	_ProcessPriorityName[79:93],
+	_ProcessPriorityName[93:108],
 }
 
 // ProcessPriorityString retrieves an enum value from the enum constants string name.

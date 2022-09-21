@@ -29,7 +29,7 @@ var (
 	ObjectTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
 	ObjectTypeContainer                  = NewObjectType("Container", "Container").SetDefault(Last, false)
 	ObjectTypeComputer                   = NewObjectType("Computer", "Computer")
-	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "GroupPolicyContainer")
+	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
 	ObjectTypeTrust                      = NewObjectType("Trust", "Trusted-Domain")
 	ObjectTypeAttributeSchema            = NewObjectType("AttributeSchema", "Attribute-Schema")
 	ObjectTypeClassSchema                = NewObjectType("ClassSchema", "Class-Schema")

@@ -117,10 +117,12 @@ func (os *Objects) GetIndex(attribute Attribute) *Index {
 	if len(os.indexes) <= int(attribute) {
 		os.indexlock.RUnlock()
 		os.indexlock.Lock()
-
-		newindexes := make([]*Index, attribute+1, attribute+1)
-		copy(newindexes, os.indexes)
-		os.indexes = newindexes
+		// Someone might have beaten us to it?
+		if len(os.indexes) <= int(attribute) {
+			newindexes := make([]*Index, attribute+1, attribute+1)
+			copy(newindexes, os.indexes)
+			os.indexes = newindexes
+		}
 		os.indexlock.Unlock()
 
 		os.indexlock.RLock()
@@ -133,21 +135,22 @@ func (os *Objects) GetIndex(attribute Attribute) *Index {
 		os.indexlock.RUnlock()
 
 		os.indexlock.Lock()
+		// Someone might have beaten us to it
+		index = os.indexes[attribute]
+		if index == nil {
+			index = &Index{}
 
-		index = &Index{}
+			// Initialize index and add existing stuff
+			os.refreshIndex(attribute, index)
 
-		// Initialize index and add existing stuff
-		os.refreshIndex(attribute, index)
+			// Sync any locking stuff to the new index
+			for i := 0; i < int(os.objectmutex.enabled); i++ {
+				index.Enable()
+			}
 
-		// Sync any locking stuff to the new index
-		for i := 0; i < int(os.objectmutex.enabled); i++ {
-			index.Enable()
+			os.indexes[attribute] = index
 		}
-
-		os.indexes[attribute] = index
-
 		os.indexlock.Unlock()
-
 		return index
 	}
 
