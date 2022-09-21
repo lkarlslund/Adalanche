@@ -222,7 +222,7 @@ valueloop:
 				return nil, nil, errors.New("Could not convert value to integer for random100 limiter")
 			}
 			return s, &random100{comparator, valuenum}, nil
-		case "_pwnable", "_canpwn":
+		case "_pwnable", "_canpwn", "out", "in":
 			edgename := value
 			var target Query
 			commapos := strings.Index(edgename, ",")
@@ -242,7 +242,11 @@ valueloop:
 					return nil, nil, fmt.Errorf("Could not convert value %v to edge", edgename)
 				}
 			}
-			return s, pwnquery{attributename == "_canpwn", edge, target}, nil
+			direction := engine.Out
+			if attributename == "_pwnable" || attributename == "in" {
+				direction = engine.In
+			}
+			return s, pwnquery{direction, edge, target}, nil
 		}
 	}
 
@@ -378,7 +382,7 @@ valueloop:
 
 	// the other comparators require numeric value
 	if numok != nil {
-		return nil, nil, errors.New("Could not convert value to integer for numeric comparison")
+		return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
 	}
 
 	return s, genwrapper(numericComparator{comparator, valuenum}), nil
@@ -396,7 +400,7 @@ func parseMultipleLDAPRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query
 		result = append(result, query)
 	}
 	if len(s) == 0 || s[0] != ')' {
-		return nil, nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", s)
+		return nil, nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", string(s))
 	}
 	return s, result, nil
 }

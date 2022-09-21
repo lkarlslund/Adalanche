@@ -642,18 +642,14 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 }
 
 type pwnquery struct {
-	canpwn bool
-	method engine.Edge
-	target Query
+	direction engine.EdgeDirection
+	method    engine.Edge
+	target    Query
 }
 
 func (p pwnquery) Evaluate(o *engine.Object) bool {
-	direction := engine.Out
-	if !p.canpwn {
-		direction = engine.In
-	}
 	var result bool
-	o.EdgeIterator(direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+	o.EdgeIterator(p.direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
 		if (p.method == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.method) {
 			if p.target == nil || p.target.Evaluate(target) {
 				result = true
@@ -667,10 +663,10 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 
 func (p pwnquery) ToLDAPFilter() string {
 	var result string
-	if p.canpwn {
-		result += "_canpwn"
+	if p.direction == engine.Out {
+		result += "out"
 	} else {
-		result += "_pwnable"
+		result += "in"
 	}
 	result += "=" + p.method.String()
 	if p.target != nil {
@@ -681,10 +677,10 @@ func (p pwnquery) ToLDAPFilter() string {
 
 func (p pwnquery) ToWhereClause() string {
 	var result string
-	if p.canpwn {
-		result += "_canpwn"
+	if p.direction == engine.Out {
+		result += "out"
 	} else {
-		result += "_pwnable"
+		result += "in"
 	}
 	result += "=" + p.method.String()
 	if p.target != nil {
