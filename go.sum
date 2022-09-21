@@ -58,6 +58,10 @@ github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e/go.mod h1:chxPXzS
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
+github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
+github.com/DataDog/gostackparse v0.5.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
+github.com/DataDog/gostackparse v0.6.0 h1:egCGQviIabPwsyoWpGvIBGrEnNWez35aEO7OJ1vBI4o=
+github.com/DataDog/gostackparse v0.6.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/Julusian/godocdown v0.0.0-20170816220326-6d19f8ff2df8/go.mod h1:INZr5t32rG59/5xeltqoCJoNY7e5x/3xoY9WSWVWg74=
 github.com/MarvinJWendt/testza v0.1.0/go.mod h1:7AxNvlfeHP7Z/hDQ5JtE3OKYT3XFUeLCDE2DQninSqs=
 github.com/MarvinJWendt/testza v0.2.1/go.mod h1:God7bhG8n6uQxwdScay+gjm9/LnO4D3kkcZX4hv9Rp8=
@@ -189,6 +193,10 @@ github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL
 github.com/fatih/color v1.12.0/go.mod h1:ELkj/draVOlAH/xkhN6mQ50Qd0MPOk5AAr3maGEBuJM=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
+github.com/felixge/fgtrace v0.1.0 h1:cuMLI5NoBg/9IxIVmJzsxA3Aoz5eIKRca6WE1U2C1zc=
+github.com/felixge/fgtrace v0.1.0/go.mod h1:VYPh/jE5zczuRiQge0AtcpNmcLhV/epE/wpfVYQALlU=
+github.com/felixge/fgtrace v0.2.0 h1:lq7RO6ELjR+S74+eD+ai/vhYvsjno7Vb84yzU6RPSeU=
+github.com/felixge/fgtrace v0.2.0/go.mod h1:q9vMuItthu3CRfNhirTCTwzBcJ8atUFkrJUhgQbjg8c=
 github.com/floren/o365 v0.0.1/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
 github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/frankban/quicktest v1.4.1/go.mod h1:36zfPVQyHxymz4cH7wlDmVwDrJuljRB60qkgn7rorfQ=

@@ -112,3 +112,8 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+require (
+	github.com/DataDog/gostackparse v0.6.0 // indirect
+	github.com/felixge/fgtrace v0.2.0 // indirect
+)
