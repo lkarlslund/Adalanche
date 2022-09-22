@@ -204,7 +204,7 @@ valueloop:
 				return nil, nil, fmt.Errorf("No attributes matched pattern '%v'", attributename)
 			}
 		}
-	} else if attributename[0] == '_' {
+	} else {
 		// Magic attributes, uuuuuh ....
 		switch attributename {
 		case "_id":
@@ -247,14 +247,14 @@ valueloop:
 				direction = engine.In
 			}
 			return s, pwnquery{direction, edge, target}, nil
+		default:
+			attribute := engine.A(attributename)
+			if attribute == engine.NonExistingAttribute {
+				return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
+			}
+			attributes = []engine.Attribute{attribute}
 		}
 	}
-
-	attribute := engine.A(attributename)
-	if attribute == engine.NonExistingAttribute {
-		return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
-	}
-	attributes = []engine.Attribute{attribute}
 
 	attribute2 := engine.NonExistingAttribute
 	if attributename2 != "" {
