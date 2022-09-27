@@ -37,14 +37,15 @@ var (
 	EdgeSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")
 	EdgeSeTakeOwnershipPrivilege = engine.NewEdge("SeTakeOwnershipPrivilege")
 
-	EdgeSeAssignPrimaryToken = engine.NewEdge("SeAssignPrimaryToken")
-	EdgeSeCreateToken        = engine.NewEdge("SeCreateToken")
-	EdgeSeDebug              = engine.NewEdge("SeDebug")
-	EdgeSeImpersonate        = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
-	EdgeSeLoadDriver         = engine.NewEdge("SeLoadDriver")
-	EdgeSeManageVolume       = engine.NewEdge("SeManageVolume")
-	EdgeSeTakeOwnership      = engine.NewEdge("SeTakeOwnership")
-	EdgeSeTcb                = engine.NewEdge("SeTcb")
+	EdgeSeAssignPrimaryToken   = engine.NewEdge("SeAssignPrimaryToken")
+	EdgeSeCreateToken          = engine.NewEdge("SeCreateToken")
+	EdgeSeDebug                = engine.NewEdge("SeDebug")
+	EdgeSeImpersonate          = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
+	EdgeSeLoadDriver           = engine.NewEdge("SeLoadDriver")
+	EdgeSeManageVolume         = engine.NewEdge("SeManageVolume")
+	EdgeSeTakeOwnership        = engine.NewEdge("SeTakeOwnership")
+	EdgeSeTrustedCredManAccess = engine.NewEdge("SeTrustedCredManAccess")
+	EdgeSeTcb                  = engine.NewEdge("SeTcb")
 
 	EdgeSIDCollision = engine.NewEdge("SIDCollision")
 

@@ -25,8 +25,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		return nil, fmt.Errorf("collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
 
+	var domainsid windowssecurity.SID
 	if cinfo.Machine.IsDomainJoined {
-		domainsid, err := windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
+		domainsid, err = windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
 		if cinfo.Machine.ComputerDomainSID != "" && err == nil {
 			machine, existing = ao.FindOrAdd(
 				analyze.DomainJoinedSID, engine.AttributeValueSID(domainsid),
@@ -96,10 +97,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	var isdomaincontroller bool
-	if cinfo.Machine.ProductType != "" && !strings.EqualFold(cinfo.Machine.ProductType, "SERVERNT") && !strings.EqualFold(cinfo.Machine.ProductType, "WINNT") {
-		ui.Debug().Msgf("ProductType %v - %v", cinfo.Machine.ProductType, cinfo.Machine.ProductName)
-	}
-
 	if cinfo.Machine.ProductType != "" {
 		// New way of detecting domain controller
 		isdomaincontroller = strings.EqualFold(cinfo.Machine.ProductType, "LANMANNT")
@@ -119,27 +116,30 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
-	uniquesource := cinfo.Machine.Name
-
+	uniquesource := engine.AttributeValueString(cinfo.Machine.Name)
 	// Set source to domain NetBios name if we're a DC
 	if isdomaincontroller {
-		uniquesource = cinfo.Machine.Domain
+		uniquesource = engine.AttributeValueString(cinfo.Machine.Domain)
+	}
+
+	ri := relativeInfo{
+		LocalName:          engine.AttributeValueString(cinfo.Machine.Name),
+		DomainName:         engine.AttributeValueString(cinfo.Machine.Domain),
+		DomainJoinedSID:    domainsid,
+		IsDomainController: isdomaincontroller,
+		ao:                 ao,
 	}
 
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
 	machine.SetFlex(engine.DataSource, uniquesource)
 
-	everyoneobject, _ := ao.FindTwoOrAdd(
-		engine.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID),
-		engine.DataSource, engine.AttributeValueString(uniquesource),
-		engine.ObjectCategorySimple, "Group",
-	)
+	everyone, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Auto)
+	everyone.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
 
-	authenticatedusers, _ := ao.FindTwoOrAdd(
-		engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
-		engine.DataSource, engine.AttributeValueString(uniquesource),
-		engine.ObjectCategorySimple, "Group",
-	)
+	authenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.AuthenticatedUsersSID, Auto)
+	authenticatedusers.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
+
+	everyone.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 
 	var macaddrs, ipaddresses []string
 
@@ -175,6 +175,54 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	ao.Add(userscontainer)
 	userscontainer.ChildOf(machine)
 
+	var rdprightshandled bool
+
+	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
+	for _, pi := range cinfo.Privileges {
+		var pwn engine.Edge
+		switch pi.Name {
+		case "SeRemoteInteractiveLogonRight":
+			pwn = EdgeLocalRDPRights
+			rdprightshandled = true
+		case "SeBackupPrivilege":
+			pwn = EdgeSeBackupPrivilege
+		case "SeRestorePrivilege":
+			pwn = EdgeSeRestorePrivilege
+		case "SeAssignPrimaryTokenPrivilege":
+			pwn = EdgeSeAssignPrimaryToken
+		case "SeCreateTokenPrivilege":
+			pwn = EdgeSeCreateToken
+		case "SeDebugPrivilege":
+			pwn = EdgeSeDebug
+		case "SeImpersonatePrivilege":
+			pwn = EdgeSeImpersonate
+		case "SeLoadDriverPrivilege":
+			pwn = EdgeSeLoadDriver
+		case "SeManageVolumePrivilege":
+			pwn = EdgeSeManageVolume
+		case "SeTakeOwnershipPrivilege":
+			pwn = EdgeSeTakeOwnership
+		case "SeTrustedCredManAccess":
+			pwn = EdgeSeTrustedCredManAccess
+		case "SeTcbPrivilege":
+			pwn = EdgeSeTcb
+		default:
+			continue
+		}
+
+		for _, sidstring := range pi.AssignedSIDs {
+			sid, err := windowssecurity.ParseStringSID(sidstring)
+			if err != nil {
+				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
+				continue
+			}
+
+			// Potential translation
+			assignee, _, _ := ri.GetSIDObject(sid, Auto)
+			assignee.EdgeTo(machine, pwn)
+		}
+	}
+
 	if !isdomaincontroller {
 		for _, user := range cinfo.Users {
 			uac := 512
@@ -204,7 +252,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					engine.DataSource, uniquesource,
 				)
 				user.ChildOf(userscontainer)
-				user.EdgeTo(everyoneobject, activedirectory.EdgeMemberOfGroup)
 				user.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			} else {
 				ui.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
@@ -218,8 +265,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		for _, group := range cinfo.Groups {
 			groupsid, err := windowssecurity.ParseStringSID(group.SID)
 			// Potential translation
-			// groupsid = MapSID(originalsid, localsid, groupsid)
-
 			groupobject := ao.AddNew(
 				activedirectory.ObjectSid, engine.AttributeValueSID(groupsid),
 				activedirectory.Name, group.Name,
@@ -232,6 +277,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				ui.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
 				continue
 			}
+
 			for _, member := range group.Members {
 				var membersid windowssecurity.SID
 				if member.SID != "" {
@@ -249,35 +295,17 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					}
 				}
 
-				if membersid.Component(2) != 21 {
-					continue // Not a local or domain SID, skip it
-				}
-
-				if membersid.Components() != 7 {
-					ui.Warn().Msgf("Malformed SID from collector: %v, skipping member entry entirely", membersid.String())
-					continue
-				}
+				memberobject, existing, local := ri.GetSIDObject(membersid, Auto)
 
 				// Collector sometimes returns junk, remove it
 				if strings.HasSuffix(member.Name, "\\") || strings.HasPrefix(member.Name, "S-1-") {
 					// If name resolution fails, you end up with DOMAIN\ and nothing else
 					member.Name = ""
 				}
-
-				// Potential translation
-				// membersid = MapSID(originalsid, localsid, membersid)
-
-				memberobject := ao.AddNew(
-					activedirectory.ObjectSid, engine.AttributeValueSID(membersid),
+				memberobject.SetFlex(
 					engine.IgnoreBlanks,
 					engine.DownLevelLogonName, member.Name,
 				)
-
-				if membersid.StripRID() == localsid || (membersid.Component(2) != 21 && membersid != windowssecurity.EveryoneSID && membersid != windowssecurity.AuthenticatedUsersSID) {
-					memberobject.SetFlex(
-						engine.DataSource, uniquesource,
-					)
-				}
 
 				memberobject.EdgeTo(groupobject, activedirectory.EdgeMemberOfGroup)
 
@@ -289,11 +317,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				case groupsid == windowssecurity.DCOMUsersSID:
 					memberobject.EdgeTo(machine, EdgeLocalDCOMRights)
 				case groupsid == windowssecurity.RemoteDesktopUsersSID:
-					memberobject.EdgeTo(machine, EdgeLocalRDPRights)
+					if !rdprightshandled {
+						memberobject.EdgeTo(machine, EdgeLocalRDPRights)
+					}
 				}
 
-				if membersid.StripRID() == localsid || membersid.Component(2) != 21 {
-					// Local user or group, we don't know - add it to computer for now
+				if local && !existing {
+					// Maybe a deleted user or group
 					memberobject.ChildOf(machine)
 				}
 			}
@@ -624,61 +654,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		machine.SetFlex(localmachine.InstalledSoftware, installedsoftware)
 	}
 
-	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
-	for _, pi := range cinfo.Privileges {
-		var pwn engine.Edge
-		switch pi.Name {
-		case "SeBackupPrivilege":
-			pwn = EdgeSeBackupPrivilege
-		case "SeRestorePrivilege":
-			pwn = EdgeSeRestorePrivilege
-		case "SeAssignPrimaryTokenPrivilege":
-			pwn = EdgeSeAssignPrimaryToken
-		case "SeCreateTokenPrivilege":
-			pwn = EdgeSeCreateToken
-		case "SeDebugPrivilege":
-			pwn = EdgeSeDebug
-		case "SeImpersonatePrivilege":
-			pwn = EdgeSeImpersonate
-		case "SeLoadDriverPrivilege":
-			pwn = EdgeSeLoadDriver
-		case "SeManageVolumePrivilege":
-			pwn = EdgeSeManageVolume
-		case "SeTakeOwnershipPrivilege":
-			pwn = EdgeSeTakeOwnership
-		case "SeTcbPrivilege":
-			pwn = EdgeSeTcb
-		default:
-			continue
-		}
-
-		for _, sidstring := range pi.AssignedSIDs {
-			sid, err := windowssecurity.ParseStringSID(sidstring)
-			if err != nil {
-				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
-				continue
-			}
-
-			// Only domain users for now
-			if sid.Component(2) != 21 && sid != windowssecurity.LocalServiceSID && sid != windowssecurity.NetworkServiceSID && sid != windowssecurity.ServicesSID {
-				continue
-			}
-
-			// Potential translation
-			// sid = MapSID(originalsid, localsid, sid)
-			assignee := ao.AddNew(
-				activedirectory.ObjectSid, engine.AttributeValueSID(sid),
-			)
-			if sid.StripRID() == localsid || sid.Component(2) != 21 {
-				assignee.SetFlex(
-					engine.DataSource, uniquesource,
-				)
-			}
-
-			assignee.EdgeTo(machine, pwn)
-		}
-	}
-
 	// SHARES
 	if len(cinfo.Shares) > 0 {
 		computershares := ao.AddNew(
@@ -712,20 +687,16 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				for _, entry := range sd.DACL.Entries {
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						entrysid := entry.SID
-						o := ao.AddNew(
-							activedirectory.ObjectSid, engine.AttributeValueSID(entrysid),
-						)
-						if entrysid.StripRID() == localsid || entrysid.Component(2) != 21 {
-							o.SetFlex(
-								engine.DataSource, uniquesource,
-							)
-						}
+
+						o, _, _ := ri.GetSIDObject(entrysid, Auto)
+
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
 							o.EdgeTo(shareobject, EdgeFileRead)
 						}
 						if entry.Mask&engine.FILE_WRITE_DATA != 0 {
 							o.EdgeTo(shareobject, EdgeFileWrite)
 						}
+
 						if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
 							o.EdgeTo(shareobject, activedirectory.EdgeTakeOwnership) // Not sure about this one
 						}
@@ -801,7 +772,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 
 		// Everyone who is a member of the Domain is also a member of "our" Everyone
-		domaineveryoneobject.EdgeTo(everyoneobject, activedirectory.EdgeMemberOfGroup)
+		domaineveryoneobject.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
 
 		domainauthenticatedusers := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
@@ -812,4 +783,46 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	return machine, nil
+}
+
+type relativeInfo struct {
+	LocalName          engine.AttributeValue
+	DomainName         engine.AttributeValue
+	DomainJoinedSID    windowssecurity.SID
+	IsDomainController bool
+	ao                 *engine.Objects
+}
+
+type RelativeLocation byte
+
+const (
+	Auto RelativeLocation = iota
+	Local
+	Domain
+)
+
+func (ri *relativeInfo) GetSIDObject(targetSID windowssecurity.SID, location RelativeLocation) (result *engine.Object, existing bool, local bool) {
+	dataSource := ri.LocalName
+	local = true
+	switch location {
+	case Local:
+		// dataSource is already local name
+	case Domain:
+		dataSource = ri.DomainName
+		local = false
+	case Auto:
+		if ri.IsDomainController {
+			dataSource = ri.DomainName
+			local = false
+		} else if !ri.DomainName.IsZero() && targetSID.Component(2) == 21 && targetSID.StripRID() == ri.DomainJoinedSID.StripRID() {
+			dataSource = ri.DomainName
+			local = false
+		}
+	}
+
+	assignee, existing := ri.ao.FindTwoOrAdd(
+		activedirectory.ObjectSid, engine.AttributeValueSID(targetSID),
+		engine.DataSource, dataSource,
+	)
+	return assignee, existing, local
 }

@@ -185,20 +185,20 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		})
 	}
 
-	for pwntarget, methods := range source.edges[Out] {
-		target.edges[Out][pwntarget] = target.edges[Out][pwntarget].Merge(methods)
-		delete(source.edges[Out], pwntarget)
+	for edgetarget, edges := range source.edges[Out] {
+		target.edges[Out][edgetarget] = target.edges[Out][edgetarget].Merge(edges)
+		delete(source.edges[Out], edgetarget)
 
-		pwntarget.edges[In][target] = pwntarget.edges[In][target].Merge(methods)
-		delete(pwntarget.edges[In], source)
+		edgetarget.edges[In][target] = edgetarget.edges[In][target].Merge(edges)
+		delete(edgetarget.edges[In], source)
 	}
 
-	for pwner, methods := range source.edges[In] {
-		target.edges[In][pwner] = target.edges[In][pwner].Merge(methods)
-		delete(source.edges[In], pwner)
+	for edgesource, edges := range source.edges[In] {
+		target.edges[In][edgesource] = target.edges[In][edgesource].Merge(edges)
+		delete(source.edges[In], edgesource)
 
-		pwner.edges[Out][target] = pwner.edges[Out][target].Merge(methods)
-		delete(pwner.edges[Out], source)
+		edgesource.edges[Out][target] = edgesource.edges[Out][target].Merge(edges)
+		delete(edgesource.edges[Out], source)
 	}
 
 	for _, child := range source.children {
@@ -374,6 +374,9 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
+	if o.invalidated {
+		panic("object is invalidated")
+	}
 	if attributenums[attr].onget != nil {
 		return attributenums[attr].onget(o, attr)
 	}
@@ -998,7 +1001,8 @@ func (o *Object) ChildOf(parent *Object) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
 		o.unlock()
-		ui.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		return
 		o.lock()
 		// panic("objects can only have one parent")
 	}
@@ -1011,7 +1015,8 @@ func (o *Object) ChildOf(parent *Object) {
 
 func (o *Object) childOf(parent *Object) {
 	if o.parent != nil {
-		ui.Debug().Msgf("Object already %v has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		return
 	}
 	o.parent = parent
 	parent.children = append(parent.children, o)
