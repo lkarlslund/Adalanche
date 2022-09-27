@@ -138,8 +138,12 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 	authenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.AuthenticatedUsersSID, Auto)
 	authenticatedusers.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
+	authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
 
-	everyone.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
+	if cinfo.Machine.IsDomainJoined {
+		domainauthenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Domain)
+		domainauthenticatedusers.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
+	}
 
 	var macaddrs, ipaddresses []string
 
