@@ -107,15 +107,16 @@ func init() {
 		}
 
 		for _, o := range ao.Slice() {
-
 			// Only for computers
 			if o.Type() != engine.ObjectTypeComputer {
 				continue
 			}
+
 			// ... that has LAPS installed
 			if !o.HasAttr(activedirectory.MSmcsAdmPwdExpirationTime) {
 				continue
 			}
+
 			// Analyze ACL
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -127,8 +128,8 @@ func init() {
 			if machinesid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, ok := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
-			if !ok {
+			machine, found := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
+			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
 				continue
 			}
@@ -728,13 +729,19 @@ func init() {
 				continue
 			}
 
-			machine := ao.AddNew(
+			sid := computeraccount.OneAttr(engine.ObjectSid)
+			if sid == nil {
+				ui.Error().Msgf("Computer account without SID: %v", computeraccount.DN())
+				continue
+			}
+			machine, _ := ao.FindOrAdd(
+				DomainJoinedSID, sid,
 				engine.IgnoreBlanks,
 				engine.Name, computeraccount.Attr(engine.Name),
 				activedirectory.ObjectCategorySimple, "Machine",
-				DomainJoinedSID, computeraccount.SID(),
 				DnsHostName, computeraccount.Attr(DnsHostName),
 			)
+			// ui.Debug().Msgf("Added machine for SID %v", sid.String())
 
 			machine.EdgeTo(computeraccount, EdgeAuthenticatesAs)
 			machine.EdgeTo(computeraccount, EdgeMachineAccount)
@@ -973,7 +980,7 @@ func init() {
 		}
 	},
 		"missing well-known SIDs",
-		engine.BeforeMerge,
+		engine.BeforeMergeLow,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1003,54 +1010,6 @@ func init() {
 		}, TrustInfo{})
 
 		for _, object := range ao.Slice() {
-			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
-			objectclasses := object.Attr(engine.ObjectClass)
-			if objectclasses.Len() > 0 {
-				guids := make([]engine.AttributeValue, 0, objectclasses.Len())
-				objectclasses.Iterate(func(class engine.AttributeValue) bool {
-					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
-						if guid, ok := oto.OneAttr(activedirectory.SchemaIDGUID).(engine.AttributeValueGUID); !ok {
-							ui.Debug().Msgf("%v", oto)
-							ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
-						} else {
-							guids = append(guids, guid)
-						}
-					} else {
-						ui.Warn().Msgf("Could not resolve object class %v, perhaps you didn't get a dump of the schema?", class.String())
-					}
-					return true // continue
-				})
-				object.SetFlex(engine.ObjectClassGUIDs, guids)
-			}
-
-			// ObjectCategory handling
-			var objectcategoryguid engine.AttributeValue
-			var simple engine.AttributeValue
-
-			objectcategoryguid = engine.AttributeValueGUID(engine.UnknownGUID)
-			simple = engine.AttributeValueString("Unknown")
-
-			typedn := object.OneAttr(engine.ObjectCategory)
-
-			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
-			if typedn != nil {
-				if oto, found := ao.Find(engine.DistinguishedName, typedn); found {
-					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-						objectcategoryguid = oto.OneAttr(activedirectory.SchemaIDGUID)
-						simple = oto.OneAttr(activedirectory.Name)
-					} else {
-						ui.Error().Msgf("Could not translate SchemaIDGUID for %v", typedn)
-					}
-				} else {
-					ui.Error().Msgf("Could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
-				}
-			}
-
-			object.SetFlex(
-				engine.ObjectCategoryGUID, objectcategoryguid,
-				engine.ObjectCategorySimple, simple,
-			)
-
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {
@@ -1194,7 +1153,62 @@ func init() {
 		}
 	},
 		"Active Directory objects and metadata",
-		engine.BeforeMergeLow)
+		engine.BeforeMerge)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, object := range ao.Slice() {
+			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
+			objectclasses := object.Attr(engine.ObjectClass)
+			if objectclasses.Len() > 0 {
+				guids := make([]engine.AttributeValue, 0, objectclasses.Len())
+				objectclasses.Iterate(func(class engine.AttributeValue) bool {
+					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
+						if guid, ok := oto.OneAttr(activedirectory.SchemaIDGUID).(engine.AttributeValueGUID); !ok {
+							ui.Debug().Msgf("%v", oto)
+							ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
+						} else {
+							guids = append(guids, guid)
+						}
+					} else {
+						ui.Warn().Msgf("Could not resolve object class %v, perhaps you didn't get a dump of the schema?", class.String())
+					}
+					return true // continue
+				})
+				object.SetFlex(engine.ObjectClassGUIDs, guids)
+			}
+
+			// ObjectCategory handling
+			var objectcategoryguid engine.AttributeValue
+			var simple engine.AttributeValue
+
+			objectcategoryguid = engine.AttributeValueGUID(engine.UnknownGUID)
+			simple = engine.AttributeValueString("Unknown")
+
+			typedn := object.OneAttr(engine.ObjectCategory)
+
+			// Does it have one, and does it have a comma, then we're assuming it's not just something we invented
+			if typedn != nil {
+				if oto, found := ao.Find(engine.DistinguishedName, typedn); found {
+					if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+						objectcategoryguid = oto.OneAttr(activedirectory.SchemaIDGUID)
+						simple = oto.OneAttr(activedirectory.Name)
+					} else {
+						ui.Error().Msgf("Could not translate SchemaIDGUID for %v", typedn)
+					}
+				} else {
+					ui.Error().Msgf("Could not resolve object category %v, perhaps you didn't get a dump of the schema?", typedn)
+				}
+			}
+
+			object.SetFlex(
+				engine.ObjectCategoryGUID, objectcategoryguid,
+				engine.ObjectCategorySimple, simple,
+			)
+		}
+	},
+		"Set ObjectCategorySimple (for Type call) to Active Directory objects",
+		engine.BeforeMergeLow,
+	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {

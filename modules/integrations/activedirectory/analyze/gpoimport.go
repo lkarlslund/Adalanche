@@ -427,7 +427,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					// Usernames does not
 					membername = membersid
 					membersid = ""
-					translatedsid, err := TranslateLocalizedGroupToSID(membername)
+					translatedsid, err := TranslateLocalizedNameToSID(membername)
 					if err != nil {
 						ui.Info().Msgf("GPO GptTmplInf Memberof non-SID member %v translation gave no results, assuming it's a custom name: %v", membername, err)
 					} else {
@@ -444,7 +444,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						// We have a couple we can try - please contribute with more
 						groupname = groupsid
 						groupsid = ""
-						translatedsid, err := TranslateLocalizedGroupToSID(groupname)
+						translatedsid, err := TranslateLocalizedNameToSID(groupname)
 						if err != nil {
 							ui.Info().Msgf("GPO GptTmplInf Memberof non-SID group %v translation gave no results (PLEASE CONTRIBUTE): %v", groupname, err)
 						} else {
@@ -470,7 +470,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					// We have a couple we can try - please contribute with more
 					groupname = groupsid
 					groupsid = ""
-					translatedsid, err := TranslateLocalizedGroupToSID(groupname)
+					translatedsid, err := TranslateLocalizedNameToSID(groupname)
 					if err != nil {
 						ui.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v translation failed (PLEASE CONTRIBUTE): %v", groupname, err)
 					} else {
@@ -486,7 +486,7 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					} else {
 						membername = membersid
 						membersid = ""
-						translatedsid, err := TranslateLocalizedGroupToSID(membername)
+						translatedsid, err := TranslateLocalizedNameToSID(membername)
 						if err != nil {
 							ui.Warn().Msgf("GPO GptTmplInf Memberof non-SID member %v translation failed (PLEASE CONTRIBUTE): %v", membername, err)
 						} else {

@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	groupTranslationTable = map[string]windowssecurity.SID{
+	nameTranslationTable = map[string]windowssecurity.SID{
 		strings.ToLower("Administrators"):  windowssecurity.AdministratorsSID, // EN
 		strings.ToLower("Administratorer"): windowssecurity.AdministratorsSID, // DK
 		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // DE
@@ -39,8 +39,8 @@ var (
 	}
 )
 
-func TranslateLocalizedGroupToSID(groupname string) (windowssecurity.SID, error) {
-	if sid, found := groupTranslationTable[strings.ToLower(groupname)]; found {
+func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
+	if sid, found := nameTranslationTable[strings.ToLower(name)]; found {
 		return sid, nil
 	}
 	return windowssecurity.SID(""), errors.New("Localized group name not found")

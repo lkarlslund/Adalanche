@@ -399,11 +399,7 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
 								if !CompareAttributeValues(values.First(), mergetarget.Attr(attr).First()) {
 									// Conflicting attribute values, we can't merge these
-									ui.Debug().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String(), values.First().String(), mergetarget.Attr(attr).First().String())
-									// if attr == WhenCreated {
-									// 	ui.Debug().Msgf("Object details: %v", o.StringNoACL())
-									// 	ui.Debug().Msgf("Mergetarget details: %v", mergetarget.StringNoACL())
-									// }
+									ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String(), values.First().String(), mergetarget.Attr(attr).First().String())
 									failed = true
 									return false
 								}

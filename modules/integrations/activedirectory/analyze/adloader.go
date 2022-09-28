@@ -193,7 +193,7 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 	ld.shardobjects.Range(func(path string, ao *engine.Objects) bool {
 		_, netbiosname, _, _, err := FindDomain(ao)
 		if err != nil {
-			ui.Error().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
+			ui.Fatal().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
 		} else {
 			// Indicate from which domain we saw this if we have the data
 			nb := engine.AttributeValueString(netbiosname)
