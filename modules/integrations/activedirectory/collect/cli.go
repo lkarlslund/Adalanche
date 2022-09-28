@@ -64,6 +64,8 @@ var (
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
 	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, ntlm, ntlmpth (password is hash), negotiate/sspi")
 
+	purgeolddata = Command.Flags().Bool("purgeolddata", false, "Purge existing data from the datapath if connection to DC is successfull")
+
 	authmode AuthMode
 	tlsmode  TLSmode
 )
@@ -182,14 +184,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 	datapath := "data"
 	if idp := cmd.InheritedFlags().Lookup("datapath"); idp != nil {
 		datapath = idp.Value.String()
-	}
-
-	// Should be moved to main prerun, but I can't figure it out right now
-	if _, err := os.Open(datapath); os.IsNotExist(err) {
-		err = os.MkdirAll(datapath, 0755)
-		if err != nil {
-			return err
-		}
 	}
 
 	cp, _ := util.ParseBool(*collectgpos)
@@ -317,6 +311,25 @@ func Execute(cmd *cobra.Command, args []string) error {
 		for context, used := range namingcontexts {
 			if !used {
 				otherContexts = append(otherContexts, context)
+			}
+		}
+
+		// Auto adjust this to local domain, most users don't understand that each domain needs it's own path
+		if datapath == "data" {
+			datapath = filepath.Join("data", domainContext)
+		}
+
+		// Clean up old data if requested
+		if _, err := os.Stat(datapath); err == nil && *purgeolddata {
+			ui.Info().Msgf("Removing old data from %v", datapath)
+			os.RemoveAll(datapath)
+		}
+
+		// Ensure output folder exists
+		if _, err := os.Open(datapath); os.IsNotExist(err) {
+			err = os.MkdirAll(datapath, 0755)
+			if err != nil {
+				return err
 			}
 		}
 
