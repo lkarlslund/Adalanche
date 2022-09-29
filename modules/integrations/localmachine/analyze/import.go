@@ -56,6 +56,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		ui.Debug().Msg("NOT JOINED??")
 	}
 
+	if cinfo.UnprivilegedCollection {
+		ui.Info().Msgf("Loading partial information from unprivileged collector on machine %v", cinfo.Machine.Name)
+	}
+
 	if machine == nil {
 		// Not Domain Joined!?
 		machine = ao.AddNew()
@@ -681,13 +685,16 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			shareobject.ChildOf(computershares)
 
 			// Fileshare rights
-			if sd, err := engine.ParseSecurityDescriptor(share.DACL); err == nil {
+			if len(share.DACL) == 0 {
+				ui.Warn().Msgf("No security descriptor for machine %v file share %v", cinfo.Machine.Name, share.Name)
+			} else if sd, err := engine.ParseSecurityDescriptor(share.DACL); err == nil {
 				// if !sd.Owner.IsNull() {
 				// 	ui.Warn().Msgf("Share %v has owner set to %v", share.Name, sd.Owner)
 				// }
 				// if !sd.Group.IsNull() {
 				// 	ui.Warn().Msgf("Share %v has group set to %v", share.Name, sd.Group)
 				// }
+
 				for _, entry := range sd.DACL.Entries {
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						entrysid := entry.SID
@@ -711,6 +718,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						ui.Debug().Msg("Fixme")
 					}
 				}
+			} else {
+				ui.Warn().Msgf("Could not parse machine %v file share %v security descriptor", cinfo.Machine.Name, share.Name)
 			}
 
 			pathobject := ao.AddNew(

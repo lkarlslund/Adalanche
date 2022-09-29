@@ -567,6 +567,12 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Common")
 				return
 			}
+		case "UnprivilegedCollection":
+			z.UnprivilegedCollection, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "UnprivilegedCollection")
+				return
+			}
 		case "Machine":
 			err = z.Machine.DecodeMsg(dc)
 			if err != nil {
@@ -801,15 +807,25 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 12
+	// map header, size 13
 	// write "Common"
-	err = en.Append(0x8c, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	err = en.Append(0x8d, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
 	err = z.Common.EncodeMsg(en)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
+		return
+	}
+	// write "UnprivilegedCollection"
+	err = en.Append(0xb6, 0x55, 0x6e, 0x70, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x64, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.UnprivilegedCollection)
+	if err != nil {
+		err = msgp.WrapError(err, "UnprivilegedCollection")
 		return
 	}
 	// write "Machine"
@@ -1019,14 +1035,17 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 12
+	// map header, size 13
 	// string "Common"
-	o = append(o, 0x8c, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	o = append(o, 0x8d, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	o, err = z.Common.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
 		return
 	}
+	// string "UnprivilegedCollection"
+	o = append(o, 0xb6, 0x55, 0x6e, 0x70, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x64, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendBool(o, z.UnprivilegedCollection)
 	// string "Machine"
 	o = append(o, 0xa7, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65)
 	o, err = z.Machine.MarshalMsg(o)
@@ -1161,6 +1180,12 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			bts, err = z.Common.UnmarshalMsg(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Common")
+				return
+			}
+		case "UnprivilegedCollection":
+			z.UnprivilegedCollection, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "UnprivilegedCollection")
 				return
 			}
 		case "Machine":
@@ -1398,7 +1423,7 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Info) Msgsize() (s int) {
-	s = 1 + 7 + z.Common.Msgsize() + 8 + z.Machine.Msgsize() + 8 + 1 + 21 + msgp.StringPrefixSize + len(z.Network.InternetConnectivity) + 18 + msgp.ArrayHeaderSize
+	s = 1 + 7 + z.Common.Msgsize() + 23 + msgp.BoolSize + 8 + z.Machine.Msgsize() + 8 + 1 + 21 + msgp.StringPrefixSize + len(z.Network.InternetConnectivity) + 18 + msgp.ArrayHeaderSize
 	for za0001 := range z.Network.NetworkInterfaces {
 		s += z.Network.NetworkInterfaces[za0001].Msgsize()
 	}

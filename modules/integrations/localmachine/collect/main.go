@@ -17,6 +17,7 @@ import (
 	winio "github.com/Microsoft/go-winio"
 	"github.com/amidaware/taskmaster"
 	"github.com/antchfx/xmlquery"
+	ewin "github.com/elastic/go-windows"
 	"github.com/gravwell/gravwell/v3/winevent"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
@@ -86,6 +87,12 @@ func Collect() (localmachine.Info, error) {
 		ui.Debug().Msgf("Running as 32-bit on 64-bit system")
 	}
 
+	isUnprivileged := !windows.GetCurrentProcessToken().IsElevated()
+
+	if isUnprivileged {
+		ui.Warn().Msg("Collection is being run as an unelevated process. This will limit collected data and affect analysis results. ")
+	}
+
 	// MACHINE
 	hostname, _ := os.Hostname()
 	hostsid, _ := winio.LookupSidByName(hostname)
@@ -95,7 +102,10 @@ func Collect() (localmachine.Info, error) {
 	syscall.NetGetJoinInformation(nil, &domain, &status)
 	defer syscall.NetApiBufferFree((*byte)(unsafe.Pointer(domain)))
 
-	numcpus, _ := strconv.Atoi(os.Getenv(`NUMBER_OF_PROCESSORS`))
+	sysinfo, err := ewin.GetNativeSystemInfo()
+	if err != nil {
+		ui.Warn().Msgf("Problem getting system information: %v", err)
+	}
 
 	isdomainjoined := status == syscall.NetSetupDomainName
 	var hostdomainsid string
@@ -109,8 +119,8 @@ func Collect() (localmachine.Info, error) {
 		Domain:             winapi.UTF16toString(domain),
 		IsDomainJoined:     isdomainjoined,
 		ComputerDomainSID:  hostdomainsid,
-		Architecture:       os.Getenv(`PROCESSOR_ARCHITECTURE`),
-		NumberOfProcessors: numcpus,
+		Architecture:       sysinfo.ProcessorArchitecture.String(),
+		NumberOfProcessors: int(sysinfo.NumberOfProcessors),
 	}
 
 	var interfaceinfo []localmachine.NetworkInterfaceInfo
@@ -761,13 +771,15 @@ func Collect() (localmachine.Info, error) {
 	} else {
 		ui.Warn().Msgf("Could not open LSA policy: %v", err)
 	}
+
 	info := localmachine.Info{
 		Common: basedata.Common{
 			Collector: "collector",
 			Commit:    version.Commit,
 			Collected: time.Now(),
 		},
-		Machine: machineinfo,
+		UnprivilegedCollection: isUnprivileged, // Indicate if the collection was running with low privs, so we can issue annoying warnings when loading them
+		Machine:                machineinfo,
 		// Hardware: hwinfo,
 		Network: localmachine.NetworkInformation{
 			InternetConnectivity: TestInternet(),

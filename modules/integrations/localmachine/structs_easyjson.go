@@ -2977,6 +2977,8 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			continue
 		}
 		switch key {
+		case "UnprivilegedCollection":
+			out.UnprivilegedCollection = bool(in.Bool())
 		case "Machine":
 			(out.Machine).UnmarshalEasyJSON(in)
 		case "Network":
@@ -3170,10 +3172,20 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 	out.RawByte('{')
 	first := true
 	_ = first
-	if true {
-		const prefix string = ",\"Machine\":"
+	if in.UnprivilegedCollection {
+		const prefix string = ",\"UnprivilegedCollection\":"
 		first = false
 		out.RawString(prefix[1:])
+		out.Bool(bool(in.UnprivilegedCollection))
+	}
+	if true {
+		const prefix string = ",\"Machine\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(in.Machine).MarshalEasyJSON(out)
 	}
 	if true {

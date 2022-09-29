@@ -1,7 +1,7 @@
 package localmachine
 
 //go:generate easyjson -all structs.go
-//go:generate msgp
+//go:generate msgp -file structs.go
 
 import (
 	"time"
@@ -11,6 +11,8 @@ import (
 
 type Info struct {
 	basedata.Common
+
+	UnprivilegedCollection bool `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
 
 	Machine Machine `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
