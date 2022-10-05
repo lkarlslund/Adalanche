@@ -7,9 +7,20 @@
   --secondary-color: var(--indigo-color);
 }
 
+@font-face {
+  font-family: Oswald;
+  src: url(/external/Oswald-VariableFont_wght.ttf);
+}
+
 body {
+  font-family: Oswald;
+  font-variant: normal;
   overflow: hidden;
-  z-index: -2;
+    z-index: -2;
+}
+
+button, input, optgroup, select, textarea {
+  font-family: Oswald;
 }
 
 .no-wrap {

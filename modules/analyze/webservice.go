@@ -6,16 +6,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path"
 	"text/template"
 
-	"github.com/absfs/gofs"
-	"github.com/absfs/osfs"
 	"github.com/gorilla/mux"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/pkg/errors"
 )
 
 //go:embed html/*
@@ -42,15 +38,6 @@ func (ufs UnionFS) Open(filename string) (fs.File, error) {
 	return nil, os.ErrNotExist
 }
 
-type AddprefixFS struct {
-	Prefix string
-	FS     fs.FS
-}
-
-func (apfs AddprefixFS) Open(filename string) (fs.File, error) {
-	return apfs.FS.Open(path.Join(apfs.Prefix, filename))
-}
-
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
 
 type webservice struct {
@@ -69,7 +56,8 @@ func NewWebservice() *webservice {
 		Router: mux.NewRouter(),
 	}
 
-	ws.AddFS(http.FS(AddprefixFS{"html/", embeddedassets}))
+	htmlFs, _ := fs.Sub(embeddedassets, "html")
+	ws.AddFS(http.FS(htmlFs))
 
 	// Add stock functions
 	analysisfuncs(ws)
@@ -99,18 +87,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 			if stat, err := os.Stat(html); err == nil && stat.IsDir() {
 				// Use local files if they exist
 				ui.Info().Msgf("Adding local HTML folder %v", html)
-				if osf, err := osfs.NewFS(); err == nil {
-					err = osf.Chdir(html)
-					if err != nil {
-						return errors.Wrap(err, "")
-					}
-
-					overrideassets, err := gofs.NewFs(osf)
-					if err != nil {
-						return errors.Wrap(err, "")
-					}
-					w.AddFS(http.FS(overrideassets))
-				}
+				w.AddFS(http.FS(os.DirFS(html)))
 			} else {
 				ui.Fatal().Msgf("Could not add local HTML folder %v, failure: %v", html, err)
 			}
