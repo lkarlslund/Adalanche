@@ -702,7 +702,7 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 				ObjectSid, AttributeValueSID(s),
 				DataLoader, "FindOrAddAdjacentSID",
 				IgnoreBlanks,
-				DomainPart, r.Attr(DomainPart),
+				DomainContext, r.Attr(DomainContext),
 			)
 			if !r.SID().IsNull() {
 				if r.SID().StripRID() == s.StripRID() {
@@ -710,8 +710,8 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 				} else {
 					// Other domain, then it's a foreign principal
 					no.SetFlex(ObjectCategorySimple, "Foreign-Security-Principal")
-					if dp := r.OneAttrString(DomainPart); dp != "" {
-						no.SetFlex(DistinguishedName, "CN="+s.String()+",CN=ForeignSecurityPrincipals,"+dp)
+					if domainContext := r.OneAttrString(DomainContext); domainContext != "" {
+						no.SetFlex(DistinguishedName, "CN="+s.String()+",CN=ForeignSecurityPrincipals,"+domainContext)
 					}
 				}
 			}
@@ -719,9 +719,9 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 		})
 		return result[0]
 	default:
-		if r.HasAttr(DomainPart) {
+		if r.HasAttr(DomainContext) {
 			// From outside, we need to find the domain part
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
+			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
 				return o[0]
 			}
 		}
@@ -740,7 +740,7 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 	if s.Component(2) != 21 {
 		no.SetFlex(
 			IgnoreBlanks,
-			DomainPart, r.Attr(DomainPart),
+			DomainContext, r.Attr(DomainContext),
 			DataSource, r.Attr(DataSource),
 		)
 	}
@@ -749,34 +749,6 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 
 	return no
 }
-
-/*
-func (os *Objects) findAdjacentSID(s windowssecurity.SID, r *Object) *Object {
-	// These are the "local" groups shared between DCs
-	// We need to find the right one, and we'll use the DomainPart for this
-
-	switch s.Component(2) {
-	case 21: // Full "domain" SID
-		return os.Find(s)
-	default:
-		if r.HasAttr(DomainPart) {
-			// From outside, we need to find the domain part
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainPart, r.OneAttr(DomainPart)); found {
-				return findMostLocal(o)
-			}
-		}
-		// From inside same source, that is easy
-		if r.HasAttr(UniqueSource) {
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), UniqueSource, r.OneAttr(UniqueSource)); found {
-				return findMostLocal(o)
-			}
-		}
-	}
-
-	// Not found
-	return nil
-}
-*/
 
 func findMostLocal(os []*Object) *Object {
 	if len(os) == 0 {

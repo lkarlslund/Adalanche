@@ -82,7 +82,7 @@ var (
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
 	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain").Single() // Used to merge users with - if we only have a DOMAIN\USER type of info
-	DomainPart         = NewAttribute("domainPart").Single()
+	DomainContext      = NewAttribute("domainContext").Single()
 
 	MetaProtectedUser           = NewAttribute("_protecteduser")
 	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")

@@ -11,7 +11,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -847,7 +846,7 @@ func init() {
 				continue
 			}
 
-			if o.HasAttr(engine.DomainPart) {
+			if o.HasAttr(engine.DomainContext) {
 				continue
 			}
 
@@ -866,7 +865,7 @@ func init() {
 			}
 
 			if lastpart != -1 {
-				o.SetValues(engine.DomainPart, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
+				o.SetValues(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
 			}
 		}
 	},
@@ -879,14 +878,14 @@ func init() {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
 		}).Slice() {
 			// We found it - so we know it can change ACLs of some objects
-			domainpart := adminsdholder.OneAttrString(engine.DomainPart)
+			domaincontext := adminsdholder.OneAttrString(engine.DomainContext)
 
 			// Are some groups excluded?
 			excluded_mask := 0
 
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainpart)); found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
 					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
@@ -900,7 +899,7 @@ func init() {
 				}
 
 				// Only this "local" AD (for multi domain analysis)
-				if o.OneAttrString(engine.DomainPart) != domainpart {
+				if o.OneAttrString(engine.DomainContext) != domaincontext {
 					return false
 				}
 				return true
@@ -1005,6 +1004,7 @@ func init() {
 		dnsroot = strings.ToLower(dnsroot)
 		TrustMap.Store(TrustPair{
 			SourceNCName:  ncname,
+			SourceDNSRoot: dnsroot,
 			SourceNetbios: netbiosname,
 			SourceSID:     domainsid.String(),
 		}, TrustInfo{})
@@ -1082,27 +1082,27 @@ func init() {
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
-						domainPart := object.OneAttr(engine.DomainPart)
-						if domainPart == nil {
-							ui.Fatal().Msgf("DomainController %v has no DomainPart attribute", object.DN())
+						domainContext := object.OneAttr(engine.DomainContext)
+						if domainContext == nil {
+							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
 						}
 
 						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
-							engine.DomainPart, domainPart); found {
+							engine.DomainContext, domainContext); found {
 							administrators.EdgeTo(machine, activedirectory.EdgeLocalAdminRights)
 						} else {
 							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 						}
 
 						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
-							engine.DomainPart, domainPart); found {
+							engine.DomainContext, domainContext); found {
 							remotedesktopusers.EdgeTo(machine, activedirectory.EdgeLocalRDPRights)
 						} else {
 							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 						}
 
 						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
-							engine.DomainPart, domainPart); found {
+							engine.DomainContext, domainContext); found {
 							distributeddcomusers.EdgeTo(machine, activedirectory.EdgeLocalDCOMRights)
 						} else {
 							ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
@@ -1138,7 +1138,7 @@ func init() {
 
 				TrustMap.Store(TrustPair{
 					SourceDNSRoot: dnsroot,
-					TargetDNSRoot: util.DomainSuffixToDomainPart(partner),
+					TargetDNSRoot: partner,
 				}, TrustInfo{
 					Direction: TrustDirection(dir),
 				})
@@ -1244,9 +1244,9 @@ func init() {
 		}
 
 		for _, o := range ao.Slice() {
-			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) && o.HasAttr(engine.DomainPart) {
+			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) && o.HasAttr(engine.DomainContext) {
 				// An unknown SID, is it ours or from another domain?
-				ourDomainDN := o.OneAttrString(engine.DomainPart)
+				ourDomainDN := o.OneAttrString(engine.DomainContext)
 				ourDomainSid, domainfound := domains[ourDomainDN]
 				if !domainfound {
 					continue

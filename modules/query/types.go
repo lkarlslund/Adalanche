@@ -13,38 +13,38 @@ import (
 	timespan "github.com/lkarlslund/time-timespan"
 )
 
-type Query interface {
+type NodeFilter interface {
 	Evaluate(o *engine.Object) bool
 	ToLDAPFilter() string
 	ToWhereClause() string
 }
 
 // Wraps one Attribute around a queryattribute interface
-type QueryOneAttribute struct {
+type FilterOneAttribute struct {
 	a engine.Attribute
-	q QueryAttribute
+	q FilterAttribute
 }
 
-func (qoa QueryOneAttribute) Evaluate(o *engine.Object) bool {
+func (qoa FilterOneAttribute) Evaluate(o *engine.Object) bool {
 	return qoa.q.Evaluate(qoa.a, o)
 }
 
-func (qoa QueryOneAttribute) ToLDAPFilter() string {
+func (qoa FilterOneAttribute) ToLDAPFilter() string {
 	return qoa.q.ToLDAPFilter(qoa.a.String())
 }
 
-func (qoa QueryOneAttribute) ToWhereClause() string {
+func (qoa FilterOneAttribute) ToWhereClause() string {
 	return qoa.q.ToWhereClause(qoa.a.String())
 }
 
 // Wraps one Attribute around a queryattribute interface
-type QueryMultipleAttributes struct {
+type FilterMultipleAttributes struct {
 	attrglobstr string
 	a           []engine.Attribute
-	q           QueryAttribute
+	q           FilterAttribute
 }
 
-func (qma QueryMultipleAttributes) Evaluate(o *engine.Object) bool {
+func (qma FilterMultipleAttributes) Evaluate(o *engine.Object) bool {
 	for _, a := range qma.a {
 		if qma.q.Evaluate(a, o) {
 			return true
@@ -53,20 +53,20 @@ func (qma QueryMultipleAttributes) Evaluate(o *engine.Object) bool {
 	return false
 }
 
-func (qma QueryMultipleAttributes) ToLDAPFilter() string {
+func (qma FilterMultipleAttributes) ToLDAPFilter() string {
 	return qma.q.ToLDAPFilter(qma.attrglobstr)
 }
 
-func (qma QueryMultipleAttributes) ToWhereClause() string {
+func (qma FilterMultipleAttributes) ToWhereClause() string {
 	return qma.q.ToWhereClause(qma.attrglobstr)
 }
 
 // Wraps any attribute around a queryattribute interface
-type QueryAnyAttribute struct {
-	q QueryAttribute
+type FilterAnyAttribute struct {
+	q FilterAttribute
 }
 
-func (qaa QueryAnyAttribute) Evaluate(o *engine.Object) bool {
+func (qaa FilterAnyAttribute) Evaluate(o *engine.Object) bool {
 	var result bool
 	o.AttrIterator(func(attr engine.Attribute, avs engine.AttributeValues) bool {
 		if qaa.q.Evaluate(attr, o) {
@@ -78,27 +78,27 @@ func (qaa QueryAnyAttribute) Evaluate(o *engine.Object) bool {
 	return result
 }
 
-func (qaa QueryAnyAttribute) ToLDAPFilter() string {
+func (qaa FilterAnyAttribute) ToLDAPFilter() string {
 	return "*" + qaa.q.ToLDAPFilter("*")
 }
 
-func (qaa QueryAnyAttribute) ToWhereClause() string {
+func (qaa FilterAnyAttribute) ToWhereClause() string {
 	return "*" + qaa.q.ToWhereClause("*")
 }
 
-type QueryAttribute interface {
+type FilterAttribute interface {
 	Evaluate(a engine.Attribute, o *engine.Object) bool
 	ToLDAPFilter(a string) string
 	ToWhereClause(a string) string
 }
 
-type ObjectStrings interface {
-	Strings(o *engine.Object) []string
-}
+// type ObjectStrings interface {
+// 	Strings(o *engine.Object) []string
+// }
 
-type ObjectInt interface {
-	Int(o *engine.Object) (int64, bool)
-}
+// type ObjectInt interface {
+// 	Int(o *engine.Object) (int64, bool)
+// }
 
 type comparatortype byte
 
@@ -157,7 +157,7 @@ func (a LowerStringAttribute) Strings(o *engine.Object) []string {
 }
 
 type andquery struct {
-	subitems []Query
+	subitems []NodeFilter
 }
 
 func (q andquery) Evaluate(o *engine.Object) bool {
@@ -189,7 +189,7 @@ func (q andquery) ToWhereClause() string {
 }
 
 type orquery struct {
-	subitems []Query
+	subitems []NodeFilter
 }
 
 func (q orquery) Evaluate(o *engine.Object) bool {
@@ -222,7 +222,7 @@ func (q orquery) ToWhereClause() string {
 }
 
 type notquery struct {
-	subitem Query
+	subitem NodeFilter
 }
 
 func (q notquery) Evaluate(o *engine.Object) bool {
@@ -644,7 +644,7 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 type pwnquery struct {
 	direction engine.EdgeDirection
 	method    engine.Edge
-	target    Query
+	target    NodeFilter
 }
 
 func (p pwnquery) Evaluate(o *engine.Object) bool {

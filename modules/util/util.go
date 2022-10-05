@@ -122,7 +122,7 @@ func ExtractNetbiosFromBase(dn string) string {
 	return netbios
 }
 
-func ExtractDomainPart(dn string) string {
+func ExtractDomainContextFromDistinguishedName(dn string) string {
 	elements := strings.Split(dn, ",")
 	last := len(elements)
 	first := last // assume we have nothing
@@ -138,7 +138,16 @@ func ExtractDomainPart(dn string) string {
 	return strings.ToLower(strings.Join(elements[first:last], ","))
 }
 
-func DomainSuffixToDomainPart(domain string) string {
+func DomainContextToDomainSuffix(dn string) string {
+	elements := strings.Split(dn, ",")
+	for i, element := range elements {
+		elements[i] = strings.TrimPrefix(strings.ToLower(element), "dc=")
+	}
+
+	return strings.Join(elements, ".")
+}
+
+func DomainSuffixToDomainContext(domain string) string {
 	parts := strings.Split(domain, ".")
 	return strings.ToLower("dc=" + strings.Join(parts, ",dc="))
 }

@@ -223,7 +223,7 @@ func analysisfuncs(ws *webservice) {
 		var includeobjects *engine.Objects
 		var excludeobjects *engine.Objects
 
-		var excludequery query.Query
+		var excludequery query.NodeFilter
 
 		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
 		if expanddn := vars["expanddn"]; expanddn != "" {
@@ -482,7 +482,7 @@ func analysisfuncs(ws *webservice) {
 		var includeobjects *engine.Objects
 		var excludeobjects *engine.Objects
 
-		var excludequery query.Query
+		var excludequery query.NodeFilter
 
 		rest, includequery, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
 		if err != nil {

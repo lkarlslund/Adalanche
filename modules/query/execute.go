@@ -13,13 +13,13 @@ type IndexSelectorInfo struct {
 	queryIndex int
 }
 
-func Execute(q Query, ao *engine.Objects) *engine.Objects {
+func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 	var potentialindexes []IndexSelectorInfo
 	switch t := q.(type) {
 	case andquery:
 		// Iterate over all subitems
 		for _, st := range t.subitems {
-			if qo, ok := st.(QueryOneAttribute); ok {
+			if qo, ok := st.(FilterOneAttribute); ok {
 				if sm, ok := qo.q.(hasStringMatch); ok {
 					// This might be in an index
 					potentialindexes = append(potentialindexes, IndexSelectorInfo{
@@ -29,7 +29,7 @@ func Execute(q Query, ao *engine.Objects) *engine.Objects {
 				}
 			}
 		}
-	case QueryOneAttribute:
+	case FilterOneAttribute:
 		qo := t
 		if sm, ok := qo.q.(hasStringMatch); ok {
 			// This might be in an index

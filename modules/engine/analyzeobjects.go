@@ -6,30 +6,9 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-var EdgeMemberOfGroup = NewEdge("MemberOfGroup")
-
 var SortBy Attribute = NonExistingAttribute
 
-type ProbabilityCalculatorFunction func(source, target *Object) Probability
-
-func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
-	edgeInfos[pm].probability = doCalc
-	return pm
-}
-
-func (pm Edge) Describe(description string) Edge {
-	edgeInfos[pm].Description = description
-	return pm
-}
-
-func (pm Edge) Probability(source, target *Object) Probability {
-	if f := edgeInfos[pm].probability; f != nil {
-		return f(source, target)
-	}
-
-	// default
-	return 100
-}
+var EdgeMemberOfGroup = NewEdge("MemberOfGroup") // Get rid of this
 
 func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 	return AnalyzeObjectsOptions{

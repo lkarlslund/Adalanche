@@ -441,8 +441,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		for _, object := range gpostocollect {
 			// Let's check if it this is a GPO and then add som fake attributes to represent it
 			if gpfsp, found := object.Attributes["gPCFileSysPath"]; found {
-
-				domainPart := util.ExtractDomainPart(object.DistinguishedName)
+				domainContext := util.ExtractDomainContextFromDistinguishedName(object.DistinguishedName)
 
 				gpodisplayname := object.Attributes["displayName"]
 				gpoguid := object.Attributes["name"]
@@ -471,7 +470,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 					gpoinfo.GPOinfo.GUID = gpuuid
 					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
-					gpoinfo.GPOinfo.DomainDN = domainPart
+					gpoinfo.GPOinfo.DomainDN = domainContext
 					gpoinfo.GPOinfo.DomainNetbios = netbiosname
 
 					offset := len(gppath)

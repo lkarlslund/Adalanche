@@ -13,7 +13,7 @@ import (
 	timespan "github.com/lkarlslund/time-timespan"
 )
 
-func ParseLDAPQueryStrict(s string, ao *engine.Objects) (Query, error) {
+func ParseLDAPQueryStrict(s string, ao *engine.Objects) (NodeFilter, error) {
 	s, query, err := ParseLDAPQuery(s, ao)
 	if err == nil && s != "" {
 		return nil, fmt.Errorf("Extra data after query parsing: %v", s)
@@ -21,12 +21,12 @@ func ParseLDAPQueryStrict(s string, ao *engine.Objects) (Query, error) {
 	return query, err
 }
 
-func ParseLDAPQuery(s string, ao *engine.Objects) (string, Query, error) {
+func ParseLDAPQuery(s string, ao *engine.Objects) (string, NodeFilter, error) {
 	qs, q, err := parseLDAPRuneQuery([]rune(s), ao)
 	return string(qs), q, err
 }
 
-func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
+func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error) {
 	if len(s) < 5 {
 		return nil, nil, errors.New("Query string too short")
 	}
@@ -35,9 +35,16 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 	}
 	// Strip (
 	s = s[1:]
-	var subqueries []Query
-	var query Query
+	var subqueries []NodeFilter
+	var query NodeFilter
 	var err error
+
+	var invert bool
+	if s[0] == '!' {
+		invert = true
+		s = s[1:]
+	}
+
 	switch s[0] {
 	case '(': // double wrapped query?
 		s, query, err = parseLDAPRuneQuery(s, ao)
@@ -66,15 +73,6 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, Query, error) {
 		}
 		// Strip )
 		return s[1:], orquery{subqueries}, nil
-	case '!':
-		s, query, err = parseLDAPRuneQuery(s[1:], ao)
-		if err != nil {
-			return nil, nil, err
-		}
-		if len(s) == 0 {
-			return nil, nil, errors.New("Query ends with exclamation mark")
-		}
-		return s[1:], notquery{query}, err
 	}
 
 	// parse one Attribute = Value pair
@@ -224,7 +222,7 @@ valueloop:
 			return s, &random100{comparator, valuenum}, nil
 		case "_pwnable", "_canpwn", "out", "in":
 			edgename := value
-			var target Query
+			var target NodeFilter
 			commapos := strings.Index(edgename, ",")
 			if commapos != -1 {
 				edgename = value[:commapos]
@@ -266,39 +264,41 @@ valueloop:
 
 	var casesensitive bool
 
-	var genwrapper func(aq QueryAttribute) Query
+	var genwrapper func(aq FilterAttribute) NodeFilter
 
 	switch len(attributes) {
 	case 0:
-		genwrapper = func(aq QueryAttribute) Query {
-			return QueryAnyAttribute{aq}
+		genwrapper = func(aq FilterAttribute) NodeFilter {
+			return FilterAnyAttribute{aq}
 		}
 	case 1:
-		genwrapper = func(aq QueryAttribute) Query {
-			return QueryOneAttribute{attributes[0], aq}
+		genwrapper = func(aq FilterAttribute) NodeFilter {
+			return FilterOneAttribute{attributes[0], aq}
 		}
 	default:
-		genwrapper = func(aq QueryAttribute) Query {
-			return QueryMultipleAttributes{attributename, attributes, aq}
+		genwrapper = func(aq FilterAttribute) NodeFilter {
+			return FilterMultipleAttributes{attributename, attributes, aq}
 		}
 	}
+
+	var result NodeFilter
 
 	// Decide what to do
 	switch modifier {
 	case "":
-		// That's OK, this is default :-)
+		// That's OK, this is default :-) - continue below
 	case "caseExactMatch":
 		casesensitive = true
 	case "count":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, genwrapper(countModifier{comparator, valuenum}), nil
+		result = genwrapper(countModifier{comparator, valuenum})
 	case "len", "length":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		return s, genwrapper(lengthModifier{comparator, valuenum}), nil
+		result = genwrapper(lengthModifier{comparator, valuenum})
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
@@ -306,13 +306,14 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, genwrapper(sinceModifier{comparator, duration}), nil
+			result = genwrapper(sinceModifier{comparator, duration})
+			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		return s, genwrapper(sinceModifier{comparator, duration}), nil
+		result = genwrapper(sinceModifier{comparator, duration})
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
@@ -323,75 +324,84 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			return s, genwrapper(timediffModifier{attribute2, comparator, duration}), nil
+			result = genwrapper(timediffModifier{attribute2, comparator, duration})
+			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		return s, genwrapper(timediffModifier{attribute2, comparator, duration}), nil
-
+		result = genwrapper(timediffModifier{attribute2, comparator, duration})
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
-		return s, genwrapper(andModifier{valuenum}), nil
+		result = genwrapper(andModifier{valuenum})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
-		return s, genwrapper(orModifier{valuenum}), nil
+		result = genwrapper(orModifier{valuenum})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		return s, genwrapper(recursiveDNmatcher{value, ao}), nil
+		result = genwrapper(recursiveDNmatcher{value, ao})
 	default:
 		return nil, nil, errors.New("Unknown modifier " + modifier)
 	}
 
-	// string comparison
-	if comparator == CompareEquals {
-		if value == "*" {
-			return s, genwrapper(hasAttr{}), nil
+	if result == nil {
+		// string comparison
+		if comparator == CompareEquals {
+			if value == "*" {
+				result = genwrapper(hasAttr{})
+			} else if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
+				// regexp magic
+				pattern := value[1 : len(value)-1]
+				r, err := regexp.Compile(pattern)
+				if err != nil {
+					return nil, nil, err
+				}
+				result = genwrapper(hasRegexpMatch{r})
+			} else if strings.ContainsAny(value, "?*") {
+				// glob magic
+				pattern := value
+				if !casesensitive {
+					pattern = strings.ToLower(pattern)
+				}
+				g, err := glob.Compile(pattern)
+				if err != nil {
+					return nil, nil, err
+				}
+				if casesensitive {
+					result = genwrapper(hasGlobMatch{true, pattern, g})
+				} else {
+					result = genwrapper(hasGlobMatch{false, pattern, g})
+				}
+			} else {
+				result = genwrapper(hasStringMatch{casesensitive, value})
+			}
 		}
-		if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
-			// regexp magic
-			pattern := value[1 : len(value)-1]
-			r, err := regexp.Compile(pattern)
-			if err != nil {
-				return nil, nil, err
-			}
-			return s, genwrapper(hasRegexpMatch{r}), nil
-		}
-		if strings.ContainsAny(value, "?*") {
-			// glob magic
-			pattern := value
-			if !casesensitive {
-				pattern = strings.ToLower(pattern)
-			}
-			g, err := glob.Compile(pattern)
-			if err != nil {
-				return nil, nil, err
-			}
-			if casesensitive {
-				return s, genwrapper(hasGlobMatch{true, pattern, g}), nil
-			}
-			return s, genwrapper(hasGlobMatch{false, pattern, g}), nil
-		}
-		return s, genwrapper(hasStringMatch{casesensitive, value}), nil
 	}
 
-	// the other comparators require numeric value
-	if numok != nil {
-		return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
+	if result == nil {
+		// the other comparators require numeric value
+		if numok != nil {
+			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
+		}
+		result = genwrapper(numericComparator{comparator, valuenum})
 	}
 
-	return s, genwrapper(numericComparator{comparator, valuenum}), nil
+	if invert {
+		result = notquery{result}
+	}
+
+	return s, result, nil
 }
 
-func parseMultipleLDAPRuneQueries(s []rune, ao *engine.Objects) ([]rune, []Query, error) {
-	var result []Query
+func parseMultipleLDAPRuneQueries(s []rune, ao *engine.Objects) ([]rune, []NodeFilter, error) {
+	var result []NodeFilter
 	for len(s) > 0 && s[0] == '(' {
-		var query Query
+		var query NodeFilter
 		var err error
 		s, query, err = parseLDAPRuneQuery(s, ao)
 		if err != nil {

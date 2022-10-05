@@ -7,6 +7,27 @@ import (
 	"sync"
 )
 
+type ProbabilityCalculatorFunction func(source, target *Object) Probability
+
+func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
+	edgeInfos[pm].probability = doCalc
+	return pm
+}
+
+func (pm Edge) Describe(description string) Edge {
+	edgeInfos[pm].Description = description
+	return pm
+}
+
+func (pm Edge) Probability(source, target *Object) Probability {
+	if f := edgeInfos[pm].probability; f != nil {
+		return f(source, target)
+	}
+
+	// default
+	return 100
+}
+
 // EdgeAnalyzer takes an Object, examines it an outputs a list of Objects that can Pwn it
 type EdgeAnalyzer struct {
 	ObjectAnalyzer func(o *Object, ao *Objects)
