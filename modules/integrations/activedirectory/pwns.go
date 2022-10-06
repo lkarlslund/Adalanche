@@ -17,7 +17,7 @@ var (
 	EdgeGenericAll       = engine.NewEdge("GenericAll")
 	EdgeWriteAll         = engine.NewEdge("WriteAll")
 	EdgeWritePropertyAll = engine.NewEdge("WritePropertyAll")
-	EdgeWriteExtendedAll = engine.NewEdge("ExtendedAll")
+	EdgeWriteExtendedAll = engine.NewEdge("WriteExtendedAll")
 	EdgeTakeOwnership    = engine.NewEdge("TakeOwnership")
 	EdgeWriteDACL        = engine.NewEdge("WriteDACL")
 	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
@@ -77,4 +77,6 @@ var (
 	EdgeWriteProfilePath           = engine.NewEdge("WriteProfilePath")
 	EdgeWriteScriptPath            = engine.NewEdge("WriteScriptPath")
 	EdgeCertificateEnroll          = engine.NewEdge("CertificateEnroll")
+	EdgeCertificateAutoEnroll      = engine.NewEdge("CertificateAutoEnroll")
+	EdgeVoodooBit                  = engine.NewEdge("VoodooBit")
 )

@@ -174,7 +174,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 			if err != nil {
 				return ace, data, err
 			}
-			ace.InheritedObjectType = util.SwapUUIDEndianess(ace.InheritedObjectType)
+			ace.ObjectType = util.SwapUUIDEndianess(ace.ObjectType)
 			data = data[16:]
 		}
 		if ace.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 {
@@ -182,7 +182,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 			if err != nil {
 				return ace, data, err
 			}
-			ace.ObjectType = util.SwapUUIDEndianess(ace.ObjectType)
+			ace.InheritedObjectType = util.SwapUUIDEndianess(ace.InheritedObjectType)
 			data = data[16:]
 		}
 	}
@@ -193,6 +193,9 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 	}
 	return ace, odata[acesize:], nil
 }
+
+var ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
+var ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("a05b8cc2-17bc-4802-a710-e7c15ab866a2")
 
 func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask, guid uuid.UUID, ao *Objects) bool {
 	if a.Entries[index].Type == ACETYPE_ACCESS_DENIED || a.Entries[index].Type == ACETYPE_ACCESS_DENIED_OBJECT {
@@ -269,6 +272,9 @@ func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUI
 	// This ACE only applies to some kinds of attributes / extended rights?
 	if !a.ObjectType.IsNil() {
 		typematch := a.ObjectType == g
+		if typematch && requestedAccess == RIGHT_DS_CONTROL_ACCESS {
+			typematch = true
+		}
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
 			cachedset, found := objectSecurityGUIDcache.Load(g)
@@ -341,7 +347,7 @@ func (a ACE) String(ao *Objects) string {
 
 	if a.Flags&OBJECT_TYPE_PRESENT != 0 {
 		// ui.Debug().Msgf("Looking for right %v", a.ObjectType)
-		result += "OBJECT_TYPE_PRESENT "
+		result += " OBJECT_TYPE_PRESENT"
 		av := AttributeValueGUID(a.ObjectType)
 		if ao != nil {
 			if o, found := ao.Find(RightsGUID, av); found {
@@ -382,65 +388,69 @@ func (a ACE) String(ao *Objects) string {
 	result += fmt.Sprintf("MASK %08x", a.Mask)
 
 	var rights []string
-	if a.Mask&RIGHT_GENERIC_READ != 0 {
+	if a.Mask&RIGHT_GENERIC_READ == RIGHT_GENERIC_READ {
 		rights = append(rights, "GENERIC_READ")
 	}
-	if a.Mask&RIGHT_GENERIC_WRITE != 0 {
+	if a.Mask&RIGHT_GENERIC_WRITE == RIGHT_GENERIC_WRITE {
 		rights = append(rights, "GENERIC_WRITE")
 	}
-	if a.Mask&RIGHT_GENERIC_EXECUTE != 0 {
+	if a.Mask&RIGHT_GENERIC_EXECUTE == RIGHT_GENERIC_EXECUTE {
 		rights = append(rights, "GENERIC_EXECUTE")
 	}
-	if a.Mask&RIGHT_GENERIC_ALL != 0 {
+	if a.Mask&RIGHT_GENERIC_ALL == RIGHT_GENERIC_ALL {
 		rights = append(rights, "GENERIC_ALL")
 	}
-	if a.Mask&RIGHT_MAXIMUM_ALLOWED != 0 {
+	if a.Mask&RIGHT_MAXIMUM_ALLOWED == RIGHT_MAXIMUM_ALLOWED {
 		rights = append(rights, "MAXIMUM_ALLOWED")
 	}
-	if a.Mask&RIGHT_ACCESS_SYSTEM_SECURITY != 0 {
+	if a.Mask&RIGHT_ACCESS_SYSTEM_SECURITY == RIGHT_ACCESS_SYSTEM_SECURITY {
 		rights = append(rights, "ACCESS_SYSTEM_SECURITY")
 	}
-	if a.Mask&RIGHT_SYNCRONIZE != 0 {
+	if a.Mask&RIGHT_SYNCRONIZE == RIGHT_SYNCRONIZE {
 		rights = append(rights, "SYNCRONIZE")
 	}
-	if a.Mask&RIGHT_WRITE_OWNER != 0 {
+	if a.Mask&RIGHT_WRITE_OWNER == RIGHT_WRITE_OWNER {
 		rights = append(rights, "WRITE_OWNER")
 	}
-	if a.Mask&RIGHT_WRITE_DACL != 0 {
+	if a.Mask&RIGHT_WRITE_DACL == RIGHT_WRITE_DACL {
 		rights = append(rights, "WRITE_DACL")
 	}
-	if a.Mask&RIGHT_READ_CONTROL != 0 {
+	if a.Mask&RIGHT_READ_CONTROL == RIGHT_READ_CONTROL {
 		rights = append(rights, "READ_CONTROL")
 	}
-	if a.Mask&RIGHT_DELETE != 0 {
+	if a.Mask&RIGHT_DELETE == RIGHT_DELETE {
 		rights = append(rights, "DELETE")
 	}
-	if a.Mask&RIGHT_DS_CONTROL_ACCESS != 0 {
+	if a.Mask&RIGHT_DS_CONTROL_ACCESS == RIGHT_DS_CONTROL_ACCESS {
 		rights = append(rights, "DS_CONTROL_ACCESS")
 	}
 
-	if a.Mask&RIGHT_DS_LIST_OBJECT != 0 {
+	if a.Mask&RIGHT_DS_VOODOO_BIT == RIGHT_DS_VOODOO_BIT {
+		rights = append(rights, "DS_VOODOO_BIT")
+	}
+
+	if a.Mask&RIGHT_DS_LIST_OBJECT == RIGHT_DS_LIST_OBJECT {
 		rights = append(rights, "DS_LIST_OBJECT")
 	}
-	if a.Mask&RIGHT_DS_DELETE_TREE != 0 {
+	if a.Mask&RIGHT_DS_DELETE_TREE == RIGHT_DS_DELETE_TREE {
 		rights = append(rights, "DS_DELETE_TREE")
 	}
-	if a.Mask&RIGHT_DS_WRITE_PROPERTY != 0 {
+	if a.Mask&RIGHT_DS_WRITE_PROPERTY == RIGHT_DS_WRITE_PROPERTY {
 		rights = append(rights, "DS_WRITE_PROPERTY")
 	}
-	if a.Mask&RIGHT_DS_READ_PROPERTY != 0 {
+	if a.Mask&RIGHT_DS_READ_PROPERTY == RIGHT_DS_READ_PROPERTY {
 		rights = append(rights, "DS_READ_PROPERTY")
 	}
-	if a.Mask&RIGHT_DS_WRITE_PROPERTY_EXTENDED != 0 {
+	if a.Mask&RIGHT_DS_WRITE_PROPERTY_EXTENDED == RIGHT_DS_WRITE_PROPERTY_EXTENDED {
 		rights = append(rights, "DS_WRITE_PROPERTY_EXTENDED")
 	}
-	if a.Mask&RIGHT_DS_LIST_CONTENTS != 0 {
+	if a.Mask&RIGHT_DS_LIST_CONTENTS == RIGHT_DS_LIST_CONTENTS {
 		rights = append(rights, "DS_LIST_CONTENTS")
 	}
-	if a.Mask&RIGHT_DS_DELETE_CHILD != 0 {
+	if a.Mask&RIGHT_DS_DELETE_CHILD == RIGHT_DS_DELETE_CHILD {
 		rights = append(rights, "DS_DELETE_CHILD")
 	}
-	if a.Mask&RIGHT_DS_CREATE_CHILD != 0 {
+	if a.Mask&RIGHT_DS_CREATE_CHILD == RIGHT_DS_CREATE_CHILD {
 		rights = append(rights, "DS_CREATE_CHILD")
 	}
 	result += " " + strings.Join(rights, " | ")
