@@ -18,7 +18,7 @@ func Run(path string) (*Objects, error) {
 		ui.Debug().Msgf("Initializing loader for %v", loader.Name())
 		err := loader.Init()
 		if err != nil {
-			return nil, err
+			ui.Fatal().Msgf("Loader %v init failure: %v", loader.Name(), err.Error())
 		}
 		loaders = append(loaders, loader)
 	}
