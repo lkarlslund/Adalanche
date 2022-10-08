@@ -36,18 +36,20 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 	// Strip (
 	s = s[1:]
 	var subqueries []NodeFilter
-	var query NodeFilter
 	var err error
 
 	var invert bool
+
 	if s[0] == '!' {
 		invert = true
 		s = s[1:]
 	}
 
+	var result NodeFilter
+
 	switch s[0] {
 	case '(': // double wrapped query?
-		s, query, err = parseLDAPRuneQuery(s, ao)
+		s, result, err = parseLDAPRuneQuery(s, ao)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -55,14 +57,15 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 			return nil, nil, errors.New("Missing closing ) in query")
 		}
 		// Strip )
-		return s[1:], query, nil
+		s = s[1:]
 	case '&':
 		s, subqueries, err = parseMultipleLDAPRuneQueries(s[1:], ao)
 		if err != nil {
 			return nil, nil, err
 		}
 		// Strip )
-		return s[1:], andquery{subqueries}, nil
+		s = s[1:]
+		result = andquery{subqueries}
 	case '|':
 		s, subqueries, err = parseMultipleLDAPRuneQueries(s[1:], ao)
 		if err != nil {
@@ -72,7 +75,15 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 			return nil, nil, errors.New("Query should end with )")
 		}
 		// Strip )
-		return s[1:], orquery{subqueries}, nil
+		s = s[1:]
+		result = orquery{subqueries}
+	}
+
+	if result != nil {
+		if invert {
+			result = notquery{result}
+		}
+		return s, result, nil
 	}
 
 	// parse one Attribute = Value pair
@@ -280,8 +291,6 @@ valueloop:
 			return FilterMultipleAttributes{attributename, attributes, aq}
 		}
 	}
-
-	var result NodeFilter
 
 	// Decide what to do
 	switch modifier {
