@@ -1062,10 +1062,10 @@ func init() {
 			}
 			authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
 
-			if lastlogon, ok := object.AttrTimestamp(activedirectory.LastLogonTimestamp); ok {
+			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
 				object.SetValues(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
-			if passwordlastset, ok := object.AttrTimestamp(activedirectory.PwdLastSet); ok {
+			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
 				object.SetValues(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {

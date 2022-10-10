@@ -17,7 +17,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/lkarlslund/stringdedup"
 )
@@ -475,6 +474,7 @@ func (o *Object) AttrBool(attr Attribute) (bool, bool) {
 	return v, ok
 }
 
+/*
 func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, switch to auto-time formatting
 	v, ok := o.AttrInt(attr)
 	if !ok {
@@ -491,6 +491,7 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 	// ui.Debug().Msgf("Converted %v to %v", v, t)
 	return t, true
 }
+*/
 
 // Wrapper for Set - easier to call
 func (o *Object) SetValues(a Attribute, values ...AttributeValue) {

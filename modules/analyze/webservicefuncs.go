@@ -727,13 +727,13 @@ func analysisfuncs(ws *webservice) {
 				object.OneAttrString(engine.MetaWorkstation) != "1" &&
 				object.OneAttrString(engine.MetaServer) != "1" &&
 				object.OneAttrString(engine.MetaAccountDisabled) != "1" {
-				lastlogin, _ := object.AttrTimestamp(activedirectory.LastLogon)
-				lastlogints, _ := object.AttrTimestamp(activedirectory.LastLogonTimestamp)
-				last, _ := object.AttrTimestamp(activedirectory.PwdLastSet)
+				lastlogin, _ := object.AttrTime(activedirectory.LastLogon)
+				lastlogints, _ := object.AttrTime(activedirectory.LastLogonTimestamp)
+				last, _ := object.AttrTime(activedirectory.PwdLastSet)
 
-				expires, _ := object.AttrTimestamp(activedirectory.AccountExpires)
-				created, _ := object.AttrTimestamp(activedirectory.WhenCreated)
-				changed, _ := object.AttrTimestamp(activedirectory.WhenChanged)
+				expires, _ := object.AttrTime(activedirectory.AccountExpires)
+				created, _ := object.AttrTime(activedirectory.WhenCreated)
+				changed, _ := object.AttrTime(activedirectory.WhenChanged)
 
 				// ui.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
 

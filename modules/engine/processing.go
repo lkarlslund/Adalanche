@@ -65,10 +65,12 @@ func Merge(aos []*Objects) (*Objects, error) {
 	for mergeobject, _ := range needsmerge {
 		if mergeobject.HasAttr(DataSource) {
 			us := AttributeValueToIndex(mergeobject.OneAttr(DataSource))
-			if sourcemap[us] == nil {
-				sourcemap[us] = NewObjects()
+			shard := sourcemap[us]
+			if shard == nil {
+				shard = NewObjects()
+				sourcemap[us] = shard
 			}
-			sourcemap[us].AddMerge(mergeon, mergeobject)
+			shard.AddMerge(mergeon, mergeobject)
 		} else {
 			sourcemap[none].AddMerge(mergeon, mergeobject)
 		}
