@@ -215,7 +215,7 @@ valueloop:
 		}
 	} else {
 		// Magic attributes, uuuuuh ....
-		switch attributename {
+		switch strings.ToLower(attributename) {
 		case "_id":
 			if numok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for id comparison")
