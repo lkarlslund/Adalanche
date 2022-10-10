@@ -1,10 +1,12 @@
 # <img src="modules/analyze/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img src="modules/analyze/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche
+
 *Active Directory ACL Visualizer and Explorer*
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/lkarlslund/Adalanche)](https://github.com/lkarlslund/Adalanche/releases/latest) ![GitHub all releases](https://img.shields.io/github/downloads/lkarlslund/Adalanche/total) ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/lkarlslund/Adalanche/Build%20and%20publish%20pre-release)
 
 Adalanche gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
+<img align="right" src="readme-images/teaser-graph.png" width="40%">
 ## I Can Haz Domain Admin?
 
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
