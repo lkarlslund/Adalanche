@@ -140,9 +140,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	everyone, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Auto)
 	everyone.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
 
+	everyone.ChildOf(machine)
+
 	authenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.AuthenticatedUsersSID, Auto)
 	authenticatedusers.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
 	authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
+
+	authenticatedusers.ChildOf(machine)
 
 	if cinfo.Machine.IsDomainJoined {
 		domainauthenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Domain)
@@ -189,6 +193,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	for _, pi := range cinfo.Privileges {
 		var pwn engine.Edge
 		switch pi.Name {
+		case "SeNetworkLogonRight":
+			pwn = EdgeSeNetworkLogonRight
 		case "SeRemoteInteractiveLogonRight":
 			pwn = EdgeLocalRDPRights
 			rdprightshandled = true
@@ -280,6 +286,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.ObjectCategorySimple, "Group",
 				engine.DataSource, uniquesource,
 			)
+			groupobject.ChildOf(groupscontainer)
 
 			if err != nil && group.Name != "SMS Admins" {
 				ui.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
@@ -452,6 +459,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
 		engine.DataSource, cinfo.Machine.Name,
 	)
+	localservicesgroup.ChildOf(machine)
 
 	for _, service := range cinfo.Services {
 		serviceobject := engine.NewObject(
@@ -504,7 +512,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						engine.DownLevelLogonName, service.Account,
 					)
 				}
-
+				svcaccount.ChildOf(serviceobject)
 			}
 			if serviceaccountSID.Component(2) < 21 {
 				svcaccount.SetFlex(activedirectory.ObjectCategorySimple, "Group")

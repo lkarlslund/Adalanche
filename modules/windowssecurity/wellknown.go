@@ -92,6 +92,9 @@ var (
 
 	ServicesSID, _ = ParseStringSID("S-1-5-6")
 
+	InteractiveSID, _       = ParseStringSID("S-1-5-4")
+	RemoteInteractiveSID, _ = ParseStringSID("S-1-5-14")
+
 	SystemSID, _         = ParseStringSID("S-1-5-18")
 	LocalServiceSID, _   = ParseStringSID("S-1-5-19")
 	NetworkServiceSID, _ = ParseStringSID("S-1-5-20")

@@ -13,8 +13,25 @@ var (
 	ServiceStart            = engine.NewAttribute("serviceStart")
 	ServiceType             = engine.NewAttribute("serviceType")
 
-	EdgeLocalAdminRights             = engine.NewEdge("AdminRights")
-	EdgeLocalRDPRights               = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
+	EdgeLocalAdminRights = engine.NewEdge("AdminRights")
+	EdgeLocalRDPRights   = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		var probability engine.Probability
+		target.EdgeIterator(engine.In, func(potential *engine.Object, edge engine.EdgeBitmap) bool {
+			sid := potential.SID()
+			if sid.IsBlank() {
+				return true // continue
+			}
+			if sid == windowssecurity.InteractiveSID || sid == windowssecurity.RemoteInteractiveSID || sid == windowssecurity.AuthenticatedUsersSID || sid == windowssecurity.EveryoneSID {
+				probability = edge.MaxProbability(potential, target)
+				return false // break
+			}
+			return true
+		})
+		if probability < 30 {
+			probability = 30
+		}
+		return probability
+	})
 	EdgeLocalDCOMRights              = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
 	EdgeLocalSMSAdmins               = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
 	EdgeLocalSessionLastDay          = engine.NewEdge("SessionLastDay").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 80 })
@@ -46,6 +63,13 @@ var (
 	EdgeSeTakeOwnership        = engine.NewEdge("SeTakeOwnership")
 	EdgeSeTrustedCredManAccess = engine.NewEdge("SeTrustedCredManAccess")
 	EdgeSeTcb                  = engine.NewEdge("SeTcb")
+
+	EdgeSeNetworkLogonRight = engine.NewEdge("SeNetworkLogonRight").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 10 })
+	// RDPRight used ... EdgeSeRemoteInteractiveLogonRight = engine.NewEdge("SeRemoteInteractiveLogonRight").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 10 })
+
+	// SeDenyNetworkLogonRight
+	// SeDenyInteractiveLogonRight
+	// SeDenyRemoteInteractiveLogonRight
 
 	EdgeSIDCollision = engine.NewEdge("SIDCollision")
 
