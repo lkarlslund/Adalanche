@@ -132,54 +132,16 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 	target := o
 
 	// Fast mode does not merge values, it just relinks the source to the target
-	if !fast {
+
+	if fast {
+		// Just merge this one
+		val := MergeValues(source.attr(DataSource), target.attr(DataSource))
+		if val != nil {
+			target.set(DataSource, val)
+		}
+	} else {
 		source.AttrIterator(func(attr Attribute, values AttributeValues) bool {
-			var val AttributeValues
-			tval := target.attr(attr)
-			sval := values
-
-			if tval.Len() == 0 {
-				val = sval
-			} else if sval.Len() == 0 {
-				panic(fmt.Sprintf("Attribute %v with ZERO LENGTH data failure", attr.String()))
-			} else if tval.Len() == 1 && sval.Len() == 1 {
-				tvalue := tval.First()
-				svalue := sval.First()
-
-				if CompareAttributeValues(tvalue, svalue) {
-					val = tval // They're the same, so pick any
-				} else {
-					// They're not the same, join them
-					val = AttributeValueSlice{tvalue, svalue}
-				}
-			} else {
-				// One or more of them have more than one value, do it the hard way
-				var destinationSlice AttributeValueSlice
-				var testvalues AttributeValues
-
-				if tval.Len() > sval.Len() {
-					destinationSlice = tval.Slice()
-					testvalues = sval
-				} else {
-					destinationSlice = sval.Slice()
-					testvalues = tval
-				}
-
-				resultingvalues := destinationSlice
-
-				testvalues.Iterate(func(testvalue AttributeValue) bool {
-					for _, existingvalue := range destinationSlice {
-						if CompareAttributeValues(existingvalue, testvalue) { // Crap!!
-							return false
-						}
-					}
-					resultingvalues = append(resultingvalues, testvalue)
-					return true
-				})
-
-				val = resultingvalues
-			}
-			target.set(attr, val)
+			target.set(attr, MergeValues(target.attr(attr), values))
 			return true
 		})
 	}
@@ -229,6 +191,52 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 	target.objecttype = 0 // Recalculate this
 
 	source.invalidated = true // Invalid object
+}
+
+func MergeValues(v1, v2 AttributeValues) AttributeValues {
+	var val AttributeValues
+	if v1.Len() == 0 {
+		val = v2
+	} else if v2.Len() == 0 {
+		return nil
+	} else if v1.Len() == 1 && v2.Len() == 1 {
+		v1val := v1.First()
+		v2val := v2.First()
+
+		if CompareAttributeValues(v1val, v2val) {
+			val = v1 // They're the same, so pick any
+		} else {
+			// They're not the same, join them
+			val = AttributeValueSlice{v1val, v2val}
+		}
+	} else {
+		// One or more of them have more than one value, do it the hard way
+		var destinationSlice AttributeValueSlice
+		var testvalues AttributeValues
+
+		if v1.Len() > v2.Len() {
+			destinationSlice = v1.Slice()
+			testvalues = v2
+		} else {
+			destinationSlice = v2.Slice()
+			testvalues = v1
+		}
+
+		resultingvalues := destinationSlice
+
+		testvalues.Iterate(func(testvalue AttributeValue) bool {
+			for _, existingvalue := range destinationSlice {
+				if CompareAttributeValues(existingvalue, testvalue) { // Crap!!
+					return false
+				}
+			}
+			resultingvalues = append(resultingvalues, testvalue)
+			return true
+		})
+
+		val = resultingvalues
+	}
+	return val
 }
 
 type StringMap map[string][]string
