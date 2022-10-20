@@ -985,7 +985,7 @@ func init() {
 
 				// Apply this edge
 				adminsdholder.EdgeTo(o, activedirectory.EdgeOverwritesACL)
-				ApplyToGroupMembers(o, func(target *engine.Object) {
+				ApplyToObjectEdges(o, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(target *engine.Object, depth int) {
 					adminsdholder.EdgeTo(target, activedirectory.EdgeOverwritesACL)
 				}, true)
 			}
@@ -1249,7 +1249,7 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
-				ApplyToGroupMembers(object, func(member *engine.Object) {
+				ApplyToObjectEdges(object, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(member *engine.Object, depth int) {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
 						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
 					}
@@ -1540,8 +1540,8 @@ func init() {
 				continue
 			}
 
-			ApplyToGroupMembers(o, func(member *engine.Object) {
-				if member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
+			ApplyToObjectEdges(o, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), func(member *engine.Object, depth int) {
+				if depth > 1 && member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
 					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
 				}
 			}, true)
@@ -1642,27 +1642,27 @@ func init() {
 	)
 }
 
-func ApplyToGroupMembers(startGroup *engine.Object, af func(member *engine.Object), recursive bool) {
+func ApplyToObjectEdges(startObject *engine.Object, direction engine.EdgeDirection, edgeMatch engine.EdgeBitmap, af func(member *engine.Object, depth int), recursive bool) {
 	if recursive {
-		applyToGroupMemberRecursive(startGroup, af, make(map[*engine.Object]struct{}))
+		applyToGroupMemberRecursive(startObject, direction, edgeMatch, af, make(map[*engine.Object]struct{}), 1)
 		return
 	}
 
-	startGroup.EdgeIterator(engine.In, func(nextTarget *engine.Object, edge engine.EdgeBitmap) bool {
-		if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
-			af(nextTarget)
+	startObject.EdgeIterator(direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+		if !edge.Intersect(edgeMatch).IsBlank() {
+			af(target, 1)
 		}
 		return true
 	})
 }
 
-func applyToGroupMemberRecursive(group *engine.Object, af func(nextTarget *engine.Object), appliedTo map[*engine.Object]struct{}) {
-	group.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+func applyToGroupMemberRecursive(startObject *engine.Object, direction engine.EdgeDirection, edgeMatch engine.EdgeBitmap, af func(member *engine.Object, depth int), appliedTo map[*engine.Object]struct{}, depth int) {
+	startObject.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
 		if edge.IsSet(activedirectory.EdgeMemberOfGroup) || edge.IsSet(activedirectory.EdgeForeignIdentity) {
 			if _, found := appliedTo[target]; !found {
-				af(target)
+				af(target, depth)
 				appliedTo[target] = struct{}{}
-				applyToGroupMemberRecursive(target, af, appliedTo)
+				applyToGroupMemberRecursive(target, direction, edgeMatch, af, appliedTo, depth+1)
 			}
 		}
 		return true

@@ -492,6 +492,13 @@ cytostyle = [{
     }
 },
 {
+    selector: 'edge[?method_MemberOfGroupIndirect]',
+    style: {
+        "target-arrow-color": "darkorange",
+        "line-color": "darkorange"
+    }
+},
+{
     selector: 'edge[?method_ForeignIdentity]',
     style: {
         "target-arrow-color": "lightgreen",
