@@ -989,16 +989,44 @@ func (o *Object) EdgeCount(direction EdgeDirection) int {
 	return result
 }
 
+type ObjectEdge struct {
+	o *Object
+	e EdgeBitmap
+}
+
 func (o *Object) EdgeIterator(direction EdgeDirection, ei func(target *Object, edge EdgeBitmap) bool) {
-	o.lock()
+	o.rlock()
+	edges := make([]ObjectEdge, len(o.edges[direction]))
+	var i int
 	for target, edge := range o.edges[direction] {
-		o.unlock()
-		if !ei(target, edge) {
+		edges[i] = ObjectEdge{o: target, e: edge}
+		i++
+	}
+	o.runlock()
+	for _, objectedge := range edges {
+		if !ei(objectedge.o, objectedge.e) {
 			return
 		}
-		o.lock()
 	}
-	o.unlock()
+}
+
+func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool) {
+	o.applyToObjectEdgesRecursive(direction, edgeMatch, af, make(map[*Object]struct{}), 1)
+}
+
+func (o *Object) applyToObjectEdgesRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
+	o.EdgeIterator(direction, func(target *Object, edge EdgeBitmap) bool {
+		if _, found := appliedTo[target]; !found {
+			edgeMatches := edge.Intersect(edgeMatch)
+			if !edgeMatches.IsBlank() {
+				appliedTo[target] = struct{}{}
+				if af(o, target, edgeMatches, depth) {
+					target.applyToObjectEdgesRecursive(direction, edgeMatch, af, appliedTo, depth+1)
+				}
+			}
+		}
+		return true
+	})
 }
 
 func (o *Object) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {

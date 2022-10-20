@@ -985,9 +985,10 @@ func init() {
 
 				// Apply this edge
 				adminsdholder.EdgeTo(o, activedirectory.EdgeOverwritesACL)
-				ApplyToObjectEdges(o, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(target *engine.Object, depth int) {
+				o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(source, target *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					adminsdholder.EdgeTo(target, activedirectory.EdgeOverwritesACL)
-				}, true)
+					return true
+				})
 			}
 		}
 	},
@@ -1249,11 +1250,12 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, object := range ao.Slice() {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
-				ApplyToObjectEdges(object, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(member *engine.Object, depth int) {
+				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
 						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
 					}
-				}, true)
+					return true
+				})
 			}
 		}
 	},
@@ -1540,11 +1542,12 @@ func init() {
 				continue
 			}
 
-			ApplyToObjectEdges(o, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), func(member *engine.Object, depth int) {
+			o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 				if depth > 1 && member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
 					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
 				}
-			}, true)
+				return true
+			})
 		}
 	},
 		"MemberOfIndirect resolution",
@@ -1640,31 +1643,4 @@ func init() {
 	}, "Resolve expanding group names to real names from GPOs",
 		engine.AfterMerge,
 	)
-}
-
-func ApplyToObjectEdges(startObject *engine.Object, direction engine.EdgeDirection, edgeMatch engine.EdgeBitmap, af func(member *engine.Object, depth int), recursive bool) {
-	if recursive {
-		applyToGroupMemberRecursive(startObject, direction, edgeMatch, af, make(map[*engine.Object]struct{}), 1)
-		return
-	}
-
-	startObject.EdgeIterator(direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
-		if !edge.Intersect(edgeMatch).IsBlank() {
-			af(target, 1)
-		}
-		return true
-	})
-}
-
-func applyToGroupMemberRecursive(startObject *engine.Object, direction engine.EdgeDirection, edgeMatch engine.EdgeBitmap, af func(member *engine.Object, depth int), appliedTo map[*engine.Object]struct{}, depth int) {
-	startObject.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
-		if edge.IsSet(activedirectory.EdgeMemberOfGroup) || edge.IsSet(activedirectory.EdgeForeignIdentity) {
-			if _, found := appliedTo[target]; !found {
-				af(target, depth)
-				appliedTo[target] = struct{}{}
-				applyToGroupMemberRecursive(target, direction, edgeMatch, af, appliedTo, depth+1)
-			}
-		}
-		return true
-	})
 }
