@@ -54,25 +54,44 @@ func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 	return nil
 }
 
-func FindDomain(ao *engine.Objects) (ncname, netbiosname, dnsroot string, domainsid windowssecurity.SID, err error) {
+func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
 	if !found {
 		err = errors.New("No domain info found in collection")
 		return
 	}
 
-	for _, domain := range domaindns {
-		if domain.HasAttr(engine.ObjectSid) {
-			if ncname != "" {
+	var domain *engine.Object
+
+	for _, curdomain := range domaindns {
+		if curdomain.HasAttr(engine.ObjectSid) {
+			if domain != nil {
 				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 				return
 			}
-			ncname = domain.OneAttrString(engine.DistinguishedName)
-			domainsid = domain.SID()
+			domain = curdomain
 		}
 	}
 
-	if ncname == "" {
+	if domain == nil {
+		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		return
+	}
+
+	return GetDomainInfo(domain, ao)
+}
+
+func GetDomainInfo(domain *engine.Object, ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+	if domain.HasAttr(engine.ObjectSid) {
+		if domaincontext != "" {
+			err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+			return
+		}
+		domaincontext = domain.OneAttrString(engine.DistinguishedName)
+		domainsid = domain.SID()
+	}
+
+	if domaincontext == "" {
 		err = errors.New("Could not find domainDNS in object shard collection, giving up")
 		return
 	}
@@ -80,14 +99,14 @@ func FindDomain(ao *engine.Objects) (ncname, netbiosname, dnsroot string, domain
 	// Find translation to NETBIOS name
 	crossRef, found := ao.FindTwo(
 		engine.ObjectClass, engine.AttributeValueString("crossRef"),
-		NCName, engine.AttributeValueString(ncname),
+		NCName, engine.AttributeValueString(domaincontext),
 	)
 	if !found {
-		err = fmt.Errorf("Could not find crossRef object for %v", ncname)
+		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)
+		return
 	}
 
 	netbiosname = crossRef.OneAttrString(NetBIOSName)
-	dnsroot = crossRef.OneAttrString(DNSRoot)
-	found = true
+	dnssuffix = crossRef.OneAttrString(DNSRoot)
 	return
 }

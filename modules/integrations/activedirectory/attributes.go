@@ -80,6 +80,7 @@ var (
 	TrustDirection              = engine.NewAttribute("trustDirection").Type(engine.AttributeTypeInt)
 	TrustAttributes             = engine.NewAttribute("trustAttributes")
 	TrustPartner                = engine.NewAttribute("trustPartner")
+	TrustType                   = engine.NewAttribute("trustType")
 	DsHeuristics                = engine.NewAttribute("dsHeuristics").Tag("AD")
 	AttributeSecurityGUID       = engine.NewAttribute("attributeSecurityGUID").Tag("AD")
 	MSDSConsistencyGUID         = engine.NewAttribute("mS-DS-ConsistencyGuid")
@@ -89,4 +90,5 @@ var (
 	ScriptPath                  = engine.NewAttribute("scriptPath").Tag("AD").Single()
 	MSPKICertificateNameFlag    = engine.NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD").Type(engine.AttributeTypeInt)
 	PKIExtendedUsage            = engine.NewAttribute("pKIExtendedKeyUsage").Tag("AD")
+	MsDSBehaviourVersion        = engine.NewAttribute("msDS-Behavior-Version").Type(engine.AttributeTypeInt)
 )
