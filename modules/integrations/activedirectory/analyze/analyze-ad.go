@@ -1530,6 +1530,24 @@ func init() {
 		}
 	},
 		"MemberOf and Member resolution",
+		engine.AfterMergeLow,
+	)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		for _, o := range ao.Slice() {
+			// Object that is member of something
+			if o.Type() != engine.ObjectTypeGroup {
+				continue
+			}
+
+			ApplyToGroupMembers(o, func(member *engine.Object) {
+				if member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
+					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
+				}
+			}, true)
+		}
+	},
+		"MemberOfIndirect resolution",
 		engine.AfterMerge,
 	)
 
@@ -1625,33 +1643,27 @@ func init() {
 }
 
 func ApplyToGroupMembers(startGroup *engine.Object, af func(member *engine.Object), recursive bool) {
-	var appliedTo map[*engine.Object]struct{}
 	if recursive {
-		appliedTo = make(map[*engine.Object]struct{})
+		applyToGroupMemberRecursive(startGroup, af, make(map[*engine.Object]struct{}))
+		return
 	}
 
 	startGroup.EdgeIterator(engine.In, func(nextTarget *engine.Object, edge engine.EdgeBitmap) bool {
 		if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
 			af(nextTarget)
-			if recursive {
-				appliedTo[nextTarget] = struct{}{}
-				applyToGroupMemberRecursive(nextTarget, af, appliedTo)
-			}
 		}
 		return true
 	})
 }
 
 func applyToGroupMemberRecursive(group *engine.Object, af func(nextTarget *engine.Object), appliedTo map[*engine.Object]struct{}) {
-	if _, found := appliedTo[group]; found {
-		return
-	}
-
 	group.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
-		if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
-			af(target)
-			appliedTo[target] = struct{}{}
-			applyToGroupMemberRecursive(target, af, appliedTo)
+		if edge.IsSet(activedirectory.EdgeMemberOfGroup) || edge.IsSet(activedirectory.EdgeForeignIdentity) {
+			if _, found := appliedTo[target]; !found {
+				af(target)
+				appliedTo[target] = struct{}{}
+				applyToGroupMemberRecursive(target, af, appliedTo)
+			}
 		}
 		return true
 	})

@@ -51,6 +51,7 @@ var (
 	EdgeDCsync                               = engine.NewEdge("DCsync")
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup")
+	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false)
 	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
