@@ -145,6 +145,8 @@ type LDAPOptions struct {
 	TLSMode    TLSmode
 	SizeLimit  int
 
+	kerberos bool
+
 	IgnoreCert bool
 
 	Debug bool

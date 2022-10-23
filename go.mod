@@ -7,8 +7,6 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20220414055132-a37292614db8
 	github.com/Showmax/go-fqdn v1.0.0
-	github.com/absfs/gofs v0.0.0-20210326223041-415ec8094056
-	github.com/absfs/osfs v0.0.0-20210816191758-403afc5396f8
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/antchfx/xmlquery v1.3.12
 	github.com/gin-gonic/gin v1.7.7
@@ -45,7 +43,6 @@ require (
 	atomicgo.dev/cursor v0.1.1 // indirect
 	atomicgo.dev/keyboard v0.2.8 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
-	github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/antchfx/xpath v1.2.1 // indirect
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
@@ -99,7 +96,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	golang.org/x/crypto v0.0.0-20220924013350-4ba4fb4dd9e7 // indirect
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
+	golang.org/x/net v0.0.0-20220725212005-46097bf591d3 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/nullbio/null.v6 v6.0.0-20161116030900-40264a2e6b79 // indirect
@@ -108,11 +105,25 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-require github.com/felixge/fgtrace v0.2.0
+require (
+	github.com/elastic/go-windows v1.0.1
+	github.com/felixge/fgtrace v0.2.0
+	github.com/jcmturner/gokrb5/v8 v8.4.3
+)
 
 require (
 	github.com/DataDog/gostackparse v0.6.0 // indirect
-	github.com/elastic/go-windows v1.0.1 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
+	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
+	github.com/jcmturner/gofork v1.7.6 // indirect
+	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
+	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/tools v0.1.12 // indirect
+	h12.io/socks v1.0.3 // indirect
 )
+
+replace github.com/lkarlslund/ldap/v3 => github.com/spoNge369/ldap/v3 v3.0.0-20221023030516-58ef5434d954
+
+replace github.com/jcmturner/gokrb5/v8 => github.com/spoNge369/gokrb5/v8 v8.0.0-20220930223631-56e96234d4e0

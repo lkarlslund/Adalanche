@@ -3,6 +3,7 @@ package collect
 import (
 	"crypto/tls"
 	"errors"
+	"log"
 	"fmt"
 	"os"
 	"strings"
@@ -62,6 +63,24 @@ func (ad *AD) Connect() error {
 	ad.conn.Debug.Enable(ad.Debug)
 
 	var err error
+
+	if ad.kerberos {
+		ui.Debug().Msgf("kerberos authentication :DDDDD ccache for: %s", ad.Server)
+
+		cl := activedirectory.CcacheAuth(ad.Domain, ad.Server)
+        	spnTarget := fmt.Sprintf("ldap/%s", ad.Server)
+
+		_, err = ad.conn.GSSAPICCBindCCache(cl, spnTarget)
+		
+		if err != nil {
+			log.Fatal(err)
+		} else {
+		fmt.Println("Successfully authentication via GSSAPI/Kerberos!")
+			
+		}
+	
+	} else {
+
 	switch ad.AuthMode {
 	case Anonymous:
 		ui.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
@@ -91,6 +110,8 @@ func (ad *AD) Connect() error {
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
 	}
+
+}
 
 	return err
 }

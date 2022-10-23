@@ -44,6 +44,8 @@ var (
 	user   = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
 	pass   = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
 
+	kerberos = Command.Flags().Bool("kerberos", false, "Auth kerberos use --kerberos, KRB5CCNAME=$(pwd)/user.ccache")
+
 	tlsmodeString = Command.Flags().String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
 	ignoreCert = Command.Flags().Bool("ignorecert", false, "Disable certificate checks")
@@ -143,6 +145,10 @@ func PreRun(cmd *cobra.Command, args []string) error {
 
 	// END OF AUTODETECTION
 
+	if *kerberos {
+		return nil
+	}
+
 	if len(*server) == 0 {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
@@ -238,6 +244,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 			AuthMode:   authmode,
 			User:       *user,
 			Password:   *pass,
+			kerberos:   *kerberos,
 			AuthDomain: *authdomain,
 			TLSMode:    tlsmode,
 			IgnoreCert: *ignoreCert,
