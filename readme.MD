@@ -1,4 +1,4 @@
-# <img src="modules/analyze/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img src="modules/analyze/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche
+# <img src="modules/analyze/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img src="modules/analyze/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche Open Source
 
 *Active Directory ACL Visualizer and Explorer*
 
@@ -331,6 +331,10 @@ Since this is a frequent question, here's a short list of things I know that dif
 To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow FTW) where I dug up technical stuff
 
 If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at [PayloadsAllTheThings Active Directory section](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md)
+
+## Commercial Editions
+
+Different commercial editions with improved functionality are available for purchase from [NetSection](https://www.netsection.com).
 
 ## Happy hunting!
 
