@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -71,7 +70,6 @@ type AttributeAndValues struct {
 type AttributeValues interface {
 	First() AttributeValue
 	Iterate(func(val AttributeValue) bool)
-	Slice() []AttributeValue
 	StringSlice() []string
 	Len() int
 }
@@ -112,18 +110,10 @@ func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
 	}
 }
 
-func (avs AttributeValueSlice) Slice() []AttributeValue {
-	return avs
-}
-
 func (avs AttributeValueSlice) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
-		if avs[i] == nil {
-			ui.Warn().Msg("Encountered NIL value")
-		} else {
-			result[i] = avs[i].String()
-		}
+		result[i] = avs[i].String()
 	}
 	return result
 }
@@ -148,11 +138,6 @@ func (avo AttributeValueOne) Len() int {
 	return 1
 }
 
-// This is really killing us
-func (avo AttributeValueOne) Slice() []AttributeValue {
-	return AttributeValueSlice{avo.Value}
-}
-
 func (avo AttributeValueOne) StringSlice() []string {
 	return []string{avo.Value.String()}
 }
@@ -161,7 +146,6 @@ type AttributeValue interface {
 	String() string
 	Raw() interface{}
 	IsZero() bool
-	// Compare(other AttributeValue) bool
 }
 
 type AttributeValueObject struct {
@@ -283,17 +267,3 @@ func (as AttributeValueGUID) Raw() interface{} {
 func (as AttributeValueGUID) IsZero() bool {
 	return uuid.UUID(as).IsNil()
 }
-
-// type AttributeValueFiletime []byte
-
-// func (as AttributeValueFiletime) String() string {
-// 	return string(as)
-// }
-
-// func (as AttributeValueFiletime) Raw() interface{} {
-// 	return string(as)
-// }
-
-// func (as AttributeValueFiletime) AsTime() time.Time {
-// 	return nil
-// }

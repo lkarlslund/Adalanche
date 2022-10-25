@@ -37,7 +37,6 @@ func (ld *LocalMachineLoader) Name() string {
 
 func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
-	ld.ao.SetThreadsafe(true)
 	ld.machinesids = make(map[string][]*engine.Object)
 	ld.infostoadd = make(chan loaderQueueItem, 128)
 
@@ -84,7 +83,6 @@ func (ld *LocalMachineLoader) Init() error {
 func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
-	ld.ao.SetThreadsafe(false)
 
 	// Knot all the objects with colliding SIDs together
 	for _, os := range ld.machinesids {

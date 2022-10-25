@@ -52,8 +52,6 @@ func Run(path string) (*Objects, error) {
 
 		preprocessWG.Add(1)
 		go func(lobj loaderobjects) {
-			lobj.Objects.SetThreadsafe(true)
-
 			var loaderid LoaderID
 			for i, loader := range loaders {
 				if loader == lobj.Loader {
@@ -78,8 +76,6 @@ func Run(path string) (*Objects, error) {
 				pb.Finish()
 			}
 
-			lobj.Objects.SetThreadsafe(false)
-
 			preprocessWG.Done()
 		}(os)
 	}
@@ -91,8 +87,6 @@ func Run(path string) (*Objects, error) {
 		objs[i] = lobj.Objects
 	}
 	ao, err := Merge(objs)
-
-	ao.SetThreadsafe(true)
 
 	// Do global post-processing
 	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
@@ -109,8 +103,6 @@ func Run(path string) (*Objects, error) {
 		}, -1, priority)
 		pb.Finish()
 	}
-
-	ao.SetThreadsafe(false)
 
 	var statarray []string
 	for stat, count := range ao.Statistics() {

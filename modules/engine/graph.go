@@ -11,9 +11,9 @@ type Graph struct {
 
 type GraphNode struct {
 	*Object
-	Target    bool
-	CanExpand int
 	DynamicFields
+	CanExpand int
+	Target    bool
 }
 
 func (n *GraphNode) Set(key string, value interface{}) {
@@ -32,8 +32,8 @@ func (n *GraphNode) Get(key string) interface{} {
 
 type GraphEdge struct {
 	Source, Target *Object
-	EdgeBitmap
 	DynamicFields
+	EdgeBitmap
 }
 
 func (e *GraphEdge) Set(key string, value interface{}) {

@@ -27,9 +27,12 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
-	result := engine.NewObject(
+	result := engine.NewPreload(len(r.Attributes))
+
+	result.SetFlex(
 		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
+
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
 			continue

@@ -105,7 +105,6 @@ func (ld *GPOLoader) getShard(path string) *engine.Objects {
 	if ao == nil {
 		ao = engine.NewLoaderObjects(ld)
 
-		ao.SetThreadsafe(true)
 		ld.dco[lookupshard] = ao
 	}
 	ld.importmutex.Unlock()
@@ -127,7 +126,6 @@ func (ld *GPOLoader) Close() ([]*engine.Objects, error) {
 	var aos []*engine.Objects
 	for _, ao := range ld.dco {
 		aos = append(aos, ao)
-		ao.SetThreadsafe(false)
 	}
 
 	ld.dco = nil

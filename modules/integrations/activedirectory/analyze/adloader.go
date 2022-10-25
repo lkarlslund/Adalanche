@@ -129,8 +129,6 @@ func (ld *ADLoader) getShard(path string) *engine.Objects {
 	shard := filepath.Dir(path)
 
 	new_ao := engine.NewLoaderObjects(ld)
-	new_ao.SetThreadsafe(true)
-
 	ao, _ := ld.shardobjects.LoadOrStore(shard, new_ao)
 	return ao
 }
@@ -203,8 +201,6 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		}
 
 		aos = append(aos, ao)
-		ao.SetThreadsafe(false)
-
 		return true // next
 	})
 

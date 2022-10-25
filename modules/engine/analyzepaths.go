@@ -148,6 +148,8 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 	dist := make(map[*Object]uint32)
 	prev := make(map[*Object]*Object)
 
+	opeb := make(map[ObjectPair]EdgeBitmap)
+
 	q := heapqueue{}
 	// q := queue{}
 
@@ -166,7 +168,7 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 
 		visited[source] = struct{}{}
 
-		source.EdgeIterator(Out, func(target *Object, edges EdgeBitmap) bool {
+		source.Edges(Out).Range(func(target *Object, edges EdgeBitmap) bool {
 			if _, found := visited[target]; !found {
 				// If this is not a chosen method, skip it
 				detectededges := edges.Intersect(lookforedges)
@@ -181,6 +183,12 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 					// Skip entirely if too
 					return true //continue
 				}
+
+				// Save for later
+				opeb[ObjectPair{
+					Source: source,
+					Target: target,
+				}] = edges
 
 				weight := uint32(101 - prob)
 
@@ -225,9 +233,12 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 		})
 		result.Connections = append(result.Connections,
 			GraphEdge{
-				Source:     prenode,
-				Target:     curnode,
-				EdgeBitmap: prenode.Edge(Out, curnode),
+				Source: prenode,
+				Target: curnode,
+				EdgeBitmap: opeb[ObjectPair{
+					Source: prenode,
+					Target: curnode,
+				}],
 			})
 		if prenode == start {
 			break

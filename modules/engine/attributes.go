@@ -14,6 +14,8 @@ type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found boo
 type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
+	onset  AttributeSetFunc
+	onget  AttributeGetFunc
 	name   string
 	tags   []string
 	atype  AttributeType
@@ -21,8 +23,6 @@ type attributeinfo struct {
 	unique bool // Doing a Find on this attribute will return multiple results
 	merge  bool // If true, objects can be merged on this attribute
 	hidden bool // If true this does not show up in the list of attributes
-	onset  AttributeSetFunc
-	onget  AttributeGetFunc
 }
 
 type AttributeType uint8
@@ -49,7 +49,7 @@ var mergeapprovers []mergeapproverinfo
 var attributenums []attributeinfo
 
 var (
-	NonExistingAttribute = Attribute(-1)
+	NonExistingAttribute = ^Attribute(0)
 
 	DistinguishedName     = NewAttribute("distinguishedName").Single().Unique()
 	ObjectClass           = NewAttribute("objectClass")
@@ -101,12 +101,12 @@ var (
 	MetaLAPSInstalled           = NewAttribute("_haslaps")
 )
 
-type Attribute int16
+type Attribute uint16
 
 var attributemutex sync.RWMutex
 
 func NewAttribute(name string) Attribute {
-	if name[len(name)-1] >= '0' && name[len(name)-1] <= '9' && strings.Index(name, ";") != -1 {
+	if name[len(name)-1] >= '0' && name[len(name)-1] <= '9' && strings.Contains(name, ";") {
 		if !strings.HasPrefix(name, "member;") {
 			ui.Debug().Msgf("Incomplete data detected in attribute %v", name)
 		}
@@ -150,7 +150,7 @@ func NewAttribute(name string) Attribute {
 }
 
 func (a Attribute) String() string {
-	if a == -1 {
+	if a == NonExistingAttribute {
 		return "N/A"
 	}
 	return attributenums[a].name

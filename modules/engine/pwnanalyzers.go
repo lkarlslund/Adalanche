@@ -52,7 +52,8 @@ func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessP
 		}
 	}
 
-	total := len(priorityProcessors) * ao.Len()
+	aoLen := ao.Len()
+	total := len(priorityProcessors) * aoLen
 
 	if total == 0 {
 		return nil
@@ -67,7 +68,7 @@ func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessP
 		wg.Add(1)
 		go func(ppf ppfInfo) {
 			ppf.pf(ao)
-			cb(-ao.Len(), 0)
+			cb(-aoLen, 0)
 			wg.Done()
 		}(processor)
 	}

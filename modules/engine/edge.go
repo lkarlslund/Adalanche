@@ -2,9 +2,9 @@ package engine
 
 import (
 	"math/bits"
-	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
@@ -53,7 +53,7 @@ type EdgeInfo struct {
 }
 
 func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
-	EdgePopularity[edge]++
+	atomic.AddUint64(&EdgePopularity[edge], 1)
 	return eb.set(edge)
 }
 
@@ -116,22 +116,6 @@ func (eb EdgeBitmap) Edges() []Edge {
 	return result
 }
 
-func (ec EdgeConnections) Objects() ObjectSlice {
-	result := make(ObjectSlice, len(ec))
-	var i int
-	for object := range ec {
-		result[i] = object
-		i++
-	}
-	sort.Sort(result)
-	return result
-}
-
-func (ec EdgeConnections) Set(o *Object, edge Edge) {
-	p := ec[o]
-	ec[o] = p.Set(edge)
-}
-
 type Edge int
 
 var edgeMutex sync.RWMutex
@@ -139,10 +123,10 @@ var edgeNames = make(map[string]Edge)
 var edgeInfos []*edgeInfo
 
 type edgeInfo struct {
+	probability                  ProbabilityCalculatorFunction
 	Name                         string
 	Description                  string
 	tags                         []string
-	probability                  ProbabilityCalculatorFunction
 	multi                        bool // If true, this attribute can have multiple values
 	nonunique                    bool // Doing a Find on this attribute will return multiple results
 	merge                        bool // If true, objects can be merged on this attribute
@@ -267,29 +251,6 @@ const (
 	Out EdgeDirection = 0
 	In  EdgeDirection = 1
 )
-
-type EdgeConnections map[*Object]EdgeBitmap
-
-var globalEdgeConnectionsLock sync.Mutex // Ugly but it will do
-
-func (ec EdgeConnections) StringMap() map[string]string {
-	result := make(map[string]string)
-	for o, eb := range ec {
-		result[o.String()] = eb.JoinedString()
-	}
-	return result
-}
-
-// Thread safe range
-func (ec EdgeConnections) Range(rf func(*Object, EdgeBitmap) bool) {
-	globalEdgeConnectionsLock.Lock()
-	for o, eb := range ec {
-		if !rf(o, eb) {
-			break
-		}
-	}
-	globalEdgeConnectionsLock.Unlock()
-}
 
 func (m EdgeBitmap) IsSet(method Edge) bool {
 	return (m[method/64] & (1 << (method % 64))) != 0 // Uuuuh, nasty and unreadable

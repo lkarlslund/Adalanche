@@ -16,7 +16,7 @@ var (
 	EdgeLocalAdminRights = engine.NewEdge("AdminRights")
 	EdgeLocalRDPRights   = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		var probability engine.Probability
-		target.EdgeIterator(engine.In, func(potential *engine.Object, edge engine.EdgeBitmap) bool {
+		target.Edges(engine.In).Range(func(potential *engine.Object, edge engine.EdgeBitmap) bool {
 			sid := potential.SID()
 			if sid.IsBlank() {
 				return true // continue

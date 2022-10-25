@@ -123,7 +123,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 			// Iterate over ever outgoing pwn
 			// This is not efficient, but we sort the pwnlist first
-			object.EdgeIterator(ec, func(target *Object, eb EdgeBitmap) bool {
+			object.Edges(ec).Range(func(target *Object, eb EdgeBitmap) bool {
 				// If this is not a chosen method, skip it
 				detectededges := eb.Intersect(detectedges)
 

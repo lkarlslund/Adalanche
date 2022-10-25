@@ -351,24 +351,34 @@ func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	}
 
 	var result bool
-	val2slice := val2s.Slice()
 	var i int
 	val1s.Iterate(func(value1 engine.AttributeValue) bool {
-		i++
 		t1, ok := value1.Raw().(time.Time)
 		if !ok {
-			return true
+			return true // break
 		}
 
-		t2, ok2 := val2slice[i-1].Raw().(time.Time)
-		if !ok2 {
-			return false
+		var t2 time.Time
+		var t2ok bool
+		// Jump to the right entry to evaluate
+		var j int
+		val2s.Iterate(func(maybeVal2 engine.AttributeValue) bool {
+			if i == j {
+				t2, t2ok = maybeVal2.Raw().(time.Time)
+				return false
+			}
+			j++
+			return true
+		})
+		if !t2ok {
+			return false // break
 		}
 
 		if td.c.Compare(t1.Unix(), td.ts.From(t2).Unix()) {
 			result = true
-			return false
+			return false // break
 		}
+		i++
 		return true // next
 	})
 	return result
@@ -649,9 +659,9 @@ type pwnquery struct {
 
 func (p pwnquery) Evaluate(o *engine.Object) bool {
 	var result bool
-	o.EdgeIterator(p.direction, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+	o.Edges(p.direction).RangeID(func(targetid uint32, edge engine.EdgeBitmap) bool {
 		if (p.method == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.method) {
-			if p.target == nil || p.target.Evaluate(target) {
+			if p.target == nil || p.target.Evaluate(engine.IDtoOBject(targetid)) {
 				result = true
 				return false // return from loop
 			}

@@ -51,7 +51,7 @@ func init() {
 		for _, o := range ao.Slice() {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
-					if o.EdgeCount(engine.Out)+o.EdgeCount(engine.In) == 0 {
+					if o.Edges(engine.Out).Len()+o.Edges(engine.In).Len() == 0 {
 						ui.Debug().Msgf("Object has no graph connections: %v", o.Label())
 					}
 					warns++

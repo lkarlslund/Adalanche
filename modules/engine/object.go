@@ -21,27 +21,11 @@ import (
 	"github.com/lkarlslund/stringdedup"
 )
 
-var adjustthreadsafe sync.Mutex
-var threadsafeobject int
 var threadbuckets = runtime.NumCPU() * 64
-
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 
 func init() {
 	stringdedup.YesIKnowThisCouldGoHorriblyWrong = true
-}
-
-func setThreadsafe(enable bool) {
-	adjustthreadsafe.Lock()
-	if enable {
-		threadsafeobject++
-	} else {
-		threadsafeobject--
-	}
-	if threadsafeobject < 0 {
-		panic("threadsafeobject is negative")
-	}
-	adjustthreadsafe.Unlock()
 }
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -57,26 +41,30 @@ type Object struct {
 	id   uint32
 	guid uuid.UUID
 	// objectcategoryguid uuid.UUID
-	guidcached  bool
-	sidcached   bool
-	invalidated bool
-	objecttype  ObjectType
+	guidcached bool
+	sidcached  bool
+	isvalid    bool
+	objecttype ObjectType
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
 
 func NewObject(flexinit ...interface{}) *Object {
 	var result Object
-	result.init()
+	result.init(1)
 	result.setFlex(flexinit...)
 
 	return &result
 }
 
+func NewPreload(preloadAttributes int) *Object {
+	var result Object
+	result.init(preloadAttributes)
+
+	return &result
+}
+
 func (o *Object) ID() uint32 {
-	if o.id == 0 {
-		panic("no ID set on object, where did it come from?")
-	}
 	return o.id
 }
 
@@ -85,29 +73,41 @@ func (o *Object) lockbucket() int {
 }
 
 func (o *Object) lock() {
-	if threadsafeobject != 0 {
-		threadsafeobjectmutexes[o.lockbucket()].Lock()
-	}
-	if o.invalidated {
+	if !o.isvalid {
 		panic("object is invalidated")
 	}
+	threadsafeobjectmutexes[o.lockbucket()].Lock()
 }
 
 func (o *Object) rlock() {
-	if threadsafeobject != 0 {
-		threadsafeobjectmutexes[o.lockbucket()].RLock()
-	}
+	threadsafeobjectmutexes[o.lockbucket()].RLock()
 }
 
 func (o *Object) unlock() {
-	if threadsafeobject != 0 {
-		threadsafeobjectmutexes[o.lockbucket()].Unlock()
-	}
+	threadsafeobjectmutexes[o.lockbucket()].Unlock()
 }
 
 func (o *Object) runlock() {
-	if threadsafeobject != 0 {
-		threadsafeobjectmutexes[o.lockbucket()].RUnlock()
+	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
+}
+
+func (o *Object) lockwith(o2 *Object) {
+	ol := o.lockbucket()
+	o2l := o.lockbucket()
+
+	threadsafeobjectmutexes[ol].Lock()
+	if ol != o2l {
+		threadsafeobjectmutexes[o2l].Lock()
+	}
+}
+
+func (o *Object) unlockwith(o2 *Object) {
+	ol := o.lockbucket()
+	o2l := o.lockbucket()
+
+	threadsafeobjectmutexes[ol].Unlock()
+	if ol != o2l {
+		threadsafeobjectmutexes[o2l].Unlock()
 	}
 }
 
@@ -146,21 +146,37 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		})
 	}
 
-	for edgetarget, edges := range source.edges[Out] {
-		target.edges[Out][edgetarget] = target.edges[Out][edgetarget].Merge(edges)
-		delete(source.edges[Out], edgetarget)
+	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
+		// Load edges from target, and merge with source edges
+		ot := (*Object)(outgoingTarget)
+		if te, loaded := target.edges[Out].GetOrSet(outgoingTarget, edges); loaded {
+			target.edges[Out].Set(outgoingTarget, te.Merge(edges))
+		}
+		source.edges[Out].Del(outgoingTarget)
 
-		edgetarget.edges[In][target] = edgetarget.edges[In][target].Merge(edges)
-		delete(edgetarget.edges[In], source)
-	}
+		if te, loaded := ot.edges[In].GetOrSet(target, edges); loaded {
+			ot.edges[In].Set(target, te.Merge(edges))
+		}
+		ot.edges[In].Del(source)
 
-	for edgesource, edges := range source.edges[In] {
-		target.edges[In][edgesource] = target.edges[In][edgesource].Merge(edges)
-		delete(source.edges[In], edgesource)
+		return true
+	})
 
-		edgesource.edges[Out][target] = edgesource.edges[Out][target].Merge(edges)
-		delete(edgesource.edges[Out], source)
-	}
+	source.edges[In].Range(func(incomingTarget *Object, edges EdgeBitmap) bool {
+		it := (*Object)(incomingTarget)
+
+		if se, loaded := target.edges[In].GetOrSet(incomingTarget, edges); loaded {
+			target.edges[In].Set(incomingTarget, se.Merge(edges))
+		}
+		source.edges[In].Del(incomingTarget)
+
+		if se, loaded := it.edges[Out].GetOrSet(target, edges); loaded {
+			it.edges[Out].Set(target, se.Merge(edges))
+		}
+		it.edges[Out].Del(source)
+
+		return true
+	})
 
 	for _, child := range source.children {
 		target.adopt(child)
@@ -180,17 +196,15 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		// Both has a cache
 		if !source.sdcache.Equals(target.sdcache) {
 			// Different caches, so we need to merge them which is impossible
-			ui.Warn().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
+			ui.Error().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
 		}
 	} else if target.sdcache == nil && source.sdcache != nil {
 		target.sdcache = source.sdcache
-	} else {
-		target.sdcache = nil
 	}
 
 	target.objecttype = 0 // Recalculate this
 
-	source.invalidated = true // Invalid object
+	source.isvalid = false // Invalid object
 }
 
 func MergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -211,26 +225,26 @@ func MergeValues(v1, v2 AttributeValues) AttributeValues {
 		}
 	} else {
 		// One or more of them have more than one value, do it the hard way
-		var destinationSlice AttributeValueSlice
-		var testvalues AttributeValues
+		var biggest AttributeValues
+		var smallest AttributeValues
 
 		if v1.Len() > v2.Len() {
-			destinationSlice = v1.Slice()
-			testvalues = v2
+			biggest = v1
+			smallest = v2
 		} else {
-			destinationSlice = v2.Slice()
-			testvalues = v1
+			biggest = v2
+			smallest = v1
 		}
 
-		resultingvalues := destinationSlice
+		resultingvalues := biggest.(AttributeValueSlice)
 
-		testvalues.Iterate(func(testvalue AttributeValue) bool {
-			for _, existingvalue := range destinationSlice {
-				if CompareAttributeValues(existingvalue, testvalue) { // Crap!!
-					return false
+		smallest.Iterate(func(valueFromSmallest AttributeValue) bool {
+			for _, existingvalue := range resultingvalues {
+				if CompareAttributeValues(existingvalue, valueFromSmallest) { // Crap!!
+					return true // Continue
 				}
 			}
-			resultingvalues = append(resultingvalues, testvalue)
+			resultingvalues = append(resultingvalues, valueFromSmallest)
 			return true
 		})
 
@@ -266,8 +280,6 @@ func (s StringMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 }
 
 func (o *Object) NameStringMap() StringMap {
-	o.lock()
-	defer o.unlock()
 	result := make(StringMap)
 	o.values.Iterate(func(attr Attribute, values AttributeValues) bool {
 		result[attr.String()] = values.StringSlice()
@@ -381,7 +393,7 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
-	if o.invalidated {
+	if !o.isvalid {
 		panic("object is invalidated")
 	}
 	if attributenums[attr].onget != nil {
@@ -392,8 +404,6 @@ func (o *Object) get(attr Attribute) (AttributeValues, bool) {
 
 // Auto locking version
 func (o *Object) Get(attr Attribute) (AttributeValues, bool) {
-	o.rlock()
-	defer o.runlock()
 	return o.get(attr)
 }
 
@@ -410,14 +420,10 @@ func (o *Object) attr(attr Attribute) AttributeValues {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) Attr(attr Attribute) AttributeValues {
-	o.rlock()
-	defer o.runlock()
 	return o.attr(attr)
 }
 
 func (o *Object) OneAttrString(attr Attribute) string {
-	o.rlock()
-	defer o.runlock()
 	a, found := o.get(attr)
 	if !found {
 		return ""
@@ -517,9 +523,7 @@ func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
 }
 
 func (o *Object) SetFlex(flexinit ...interface{}) {
-	o.lock()
 	o.setFlex(flexinit...)
-	o.unlock()
 }
 
 var avsPool sync.Pool
@@ -678,15 +682,11 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 }
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
-	o.lock()
 	o.set(a, values)
-	o.unlock()
 }
 
 func (o *Object) Clear(a Attribute) {
-	o.lock()
 	o.values.Clear(a)
-	o.unlock()
 }
 
 func (o *Object) set(a Attribute, values AttributeValues) {
@@ -793,12 +793,14 @@ func (o *Object) Meta() map[string]string {
 	return result
 }
 
-func (o *Object) init() {
+func (o *Object) init(preloadAttributes int) {
 	o.id = atomic.AddUint32(&idcounter, 1)
-	if o.edges[Out] == nil || o.edges[In] == nil {
-		o.edges[Out] = make(EdgeConnections)
-		o.edges[In] = make(EdgeConnections)
+	if preloadAttributes == 0 {
+		preloadAttributes = 1
 	}
+	o.values.init(preloadAttributes)
+	o.isvalid = true
+	onAddObject(o)
 }
 
 func (o *Object) String() string {
@@ -809,19 +811,16 @@ func (o *Object) String() string {
 			return true // continue
 		}
 		result += "  " + attributenums[attr].name + ":\n"
-		for _, value := range values.Slice() {
+		values.Iterate(func(value AttributeValue) bool {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {
 				result += fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value.String()), len(cleanval))
 			} else {
 				result += "    " + value.String() + "\n"
 			}
-		}
+			return true
+		})
 
-		if an, ok := values.(AttributeNode); ok {
-			// dump with recursion - fixme
-			an.Children()
-		}
 		return true // one more
 	})
 	return result
@@ -890,8 +889,6 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 // Return the object's SID
 func (o *Object) SID() windowssecurity.SID {
 	if !o.sidcached {
-		o.lock()
-		o.sidcached = true
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
 				if sid, ok := asid.First().Raw().(windowssecurity.SID); ok {
@@ -899,7 +896,7 @@ func (o *Object) SID() windowssecurity.SID {
 				}
 			}
 		}
-		o.unlock()
+		o.sidcached = true
 	}
 	sid := o.sid
 	return sid
@@ -907,9 +904,7 @@ func (o *Object) SID() windowssecurity.SID {
 
 // Return the object's GUID
 func (o *Object) GUID() uuid.UUID {
-	o.lock()
 	if !o.guidcached {
-		o.guidcached = true
 		if aguid, ok := o.get(ObjectGUID); ok {
 			if aguid.Len() == 1 {
 				if guid, ok := aguid.First().Raw().(uuid.UUID); ok {
@@ -917,19 +912,17 @@ func (o *Object) GUID() uuid.UUID {
 				}
 			}
 		}
+		o.guidcached = true
 	}
 	guid := o.guid
-	o.unlock()
 	return guid
 }
 
 // Look up edge
-func (o *Object) Edge(direction EdgeDirection, target *Object) EdgeBitmap {
-	o.lock()
-	bm := o.edges[direction][target]
-	o.unlock()
-	return bm
-}
+// func (o *Object) Edge(direction EdgeDirection, target *Object) EdgeBitmap {
+// 	bm, _ := o.edges[direction].Get(target)
+// 	return bm
+// }
 
 // Register that this object can pwn another object using the given method
 func (o *Object) EdgeTo(target *Object, method Edge) {
@@ -947,7 +940,7 @@ func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
 		osid := o.SID()
 
 		// Ignore these, SELF = self own, Creator/Owner always has full rights
-		if osid == windowssecurity.SelfSID || osid == windowssecurity.SystemSID {
+		if osid == windowssecurity.SelfSID {
 			return
 		}
 
@@ -957,36 +950,8 @@ func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
 		}
 	}
 
-	o.lock()
-	o.edges[Out].Set(target, method) // Add the connection
-	o.unlock()
-
-	target.lock()
-	target.edges[In].Set(o, method) // Add the reverse connection too
-	target.unlock()
-}
-
-func (o *Object) EdgeClear(target *Object, method Edge) {
-	o.lock()
-	currentedge := o.edges[Out][target]
-	if currentedge.IsSet(method) {
-		o.edges[Out][target] = currentedge.Clear(method)
-	}
-	o.unlock()
-
-	target.lock()
-	currentedge = target.edges[In][o]
-	if currentedge.IsSet(method) {
-		target.edges[In][o] = currentedge.Clear(method)
-	}
-	target.unlock()
-}
-
-func (o *Object) EdgeCount(direction EdgeDirection) int {
-	o.lock()
-	result := len(o.edges[direction])
-	o.unlock()
-	return result
+	o.Edges(Out).SetEdge(target, method) // Add the connection
+	target.Edges(In).SetEdge(o, method)  // Add the reverse connection too
 }
 
 type ObjectEdge struct {
@@ -994,34 +959,41 @@ type ObjectEdge struct {
 	e EdgeBitmap
 }
 
-func (o *Object) EdgeIterator(direction EdgeDirection, ei func(target *Object, edge EdgeBitmap) bool) {
-	o.rlock()
-	edges := make([]ObjectEdge, len(o.edges[direction]))
-	var i int
-	for target, edge := range o.edges[direction] {
-		edges[i] = ObjectEdge{o: target, e: edge}
-		i++
-	}
-	o.runlock()
-	for _, objectedge := range edges {
-		if !ei(objectedge.o, objectedge.e) {
-			return
+func (o *Object) Edges(direction EdgeDirection) *EdgeConnections {
+	return &o.edges[direction]
+}
+
+func (o *Object) EdgeIteratorRecursiveID(direction EdgeDirection, edgeMatch EdgeBitmap, af func(sourceid, targetid uint32, edge EdgeBitmap, depth int) bool) {
+	o.edgeIteratorRecursiveID(direction, edgeMatch, af, make(map[uint32]struct{}), 1)
+}
+
+func (o *Object) edgeIteratorRecursiveID(direction EdgeDirection, edgeMatch EdgeBitmap, af func(sourceid, targetid uint32, edge EdgeBitmap, depth int) bool, appliedTo map[uint32]struct{}, depth int) {
+	o.Edges(direction).RangeID(func(targetid uint32, edge EdgeBitmap) bool {
+		if _, found := appliedTo[targetid]; !found {
+			edgeMatches := edge.Intersect(edgeMatch)
+			if !edgeMatches.IsBlank() {
+				appliedTo[targetid] = struct{}{}
+				if af(o.ID(), targetid, edgeMatches, depth) {
+					IDtoOBject(targetid).edgeIteratorRecursiveID(direction, edgeMatch, af, appliedTo, depth+1)
+				}
+			}
 		}
-	}
+		return true
+	})
 }
 
 func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool) {
-	o.applyToObjectEdgesRecursive(direction, edgeMatch, af, make(map[*Object]struct{}), 1)
+	o.edgeIteratorRecursive(direction, edgeMatch, af, make(map[*Object]struct{}), 1)
 }
 
-func (o *Object) applyToObjectEdgesRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
-	o.EdgeIterator(direction, func(target *Object, edge EdgeBitmap) bool {
+func (o *Object) edgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
+	o.Edges(direction).Range(func(target *Object, edge EdgeBitmap) bool {
 		if _, found := appliedTo[target]; !found {
 			edgeMatches := edge.Intersect(edgeMatch)
 			if !edgeMatches.IsBlank() {
 				appliedTo[target] = struct{}{}
 				if af(o, target, edgeMatches, depth) {
-					target.applyToObjectEdgesRecursive(direction, edgeMatch, af, appliedTo, depth+1)
+					target.edgeIteratorRecursive(direction, edgeMatch, af, appliedTo, depth+1)
 				}
 			}
 		}
@@ -1034,15 +1006,13 @@ func (o *Object) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) 
 }
 
 func (o *Object) ChildOf(parent *Object) {
-	o.lock()
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
-		o.unlock()
 		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		return
-		o.lock()
 		// panic("objects can only have one parent")
 	}
+	o.lock()
 	o.parent = parent
 	o.unlock()
 	parent.lock()

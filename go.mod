@@ -7,8 +7,6 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20220414055132-a37292614db8
 	github.com/Showmax/go-fqdn v1.0.0
-	github.com/absfs/gofs v0.0.0-20210326223041-415ec8094056
-	github.com/absfs/osfs v0.0.0-20210816191758-403afc5396f8
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/antchfx/xmlquery v1.3.12
 	github.com/gin-gonic/gin v1.7.7
@@ -45,7 +43,6 @@ require (
 	atomicgo.dev/cursor v0.1.1 // indirect
 	atomicgo.dev/keyboard v0.2.8 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
-	github.com/absfs/absfs v0.0.0-20200602175035-e49edc9fef15 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/antchfx/xpath v1.2.1 // indirect
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
@@ -108,11 +105,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-require github.com/felixge/fgtrace v0.2.0
+require (
+	github.com/akyoto/cache v1.0.6
+	github.com/elastic/go-windows v1.0.1
+	github.com/felixge/fgtrace v0.2.0
+)
 
 require (
 	github.com/DataDog/gostackparse v0.6.0 // indirect
-	github.com/elastic/go-windows v1.0.1 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 )

@@ -591,12 +591,12 @@ func init() {
 	}, "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, o := range ao.Slice() {
-			msas := o.Attr(activedirectory.MSDSHostServiceAccount).Slice()
-			for _, dn := range msas {
+			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
 				if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
 					o.EdgeTo(targetmsa, activedirectory.EdgeHasMSA)
 				}
-			}
+				return true
+			})
 		}
 	}, "Indicates that the object has a service account in use", engine.BeforeMergeFinal)
 
@@ -621,13 +621,13 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		for _, o := range ao.Slice() {
-			sids := o.Attr(activedirectory.SIDHistory).Slice()
-			for _, sidval := range sids {
+			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
 					target := ao.FindOrAddAdjacentSID(sid, o)
 					o.EdgeTo(target, activedirectory.EdgeSIDHistoryEquality)
 				}
-			}
+				return true
+			})
 		}
 	}, "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise", engine.BeforeMergeFinal)
 
@@ -747,7 +747,7 @@ func init() {
 			}
 
 			// Add the DCsync combination flag
-			o.EdgeIterator(engine.In, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+			o.Edges(engine.In).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
 				if edge.IsSet(activedirectory.EdgeDSReplicationGetChanges) && edge.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
 					// DCsync attack WOT WOT
 					target.EdgeTo(o, activedirectory.EdgeDCsync)
@@ -1315,7 +1315,7 @@ func init() {
 
 			// Find the computer AD object if any
 			var computer *engine.Object
-			machine.EdgeIterator(engine.Out, func(target *engine.Object, edge engine.EdgeBitmap) bool {
+			machine.Edges(engine.Out).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
 				if edge.IsSet(EdgeAuthenticatesAs) && target.Type() == engine.ObjectTypeComputer {
 					computer = target
 					return false //break
@@ -1391,22 +1391,22 @@ func init() {
 				}
 
 				// cached or generated - pairwise pointer to gpo object and int
-				gplinkslice := gpcachelinks.Slice()
-				for i := 0; i < gpcachelinks.Len(); i += 2 {
-					gpo := gplinkslice[i].Raw().(*engine.Object)
-					gpLinkOptions := gplinkslice[i+1].Raw().(int64)
-					// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
-					if gpLinkOptions&0x01 != 0 {
-						// GPO link is disabled
-						continue
+				if gplinkslice, ok := gpcachelinks.(engine.AttributeValueSlice); ok {
+					for i := 0; i < gpcachelinks.Len(); i += 2 {
+						gpo := gplinkslice[i].Raw().(*engine.Object)
+						gpLinkOptions := gplinkslice[i+1].Raw().(int64)
+						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+						if gpLinkOptions&0x01 != 0 {
+							// GPO link is disabled
+							continue
+						}
+						if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
+							// Enforcement required, but this is not an enforced GPO
+							continue
+						}
+						gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 					}
-					if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
-						// Enforcement required, but this is not an enforced GPO
-						continue
-					}
-					gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 				}
-
 				gpoptions := p.OneAttrString(activedirectory.GPOptions)
 				if gpoptions == "1" {
 					// inheritance is blocked, so let's not forget that when moving up
@@ -1536,10 +1536,10 @@ func init() {
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.IterateParallel(func(o *engine.Object) bool {
 			// Object that is member of something
 			if o.Type() != engine.ObjectTypeGroup {
-				continue
+				return true
 			}
 
 			o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
@@ -1548,7 +1548,8 @@ func init() {
 				}
 				return true
 			})
-		}
+			return true
+		}, 0)
 	},
 		"MemberOfIndirect resolution",
 		engine.AfterMerge,
@@ -1584,14 +1585,14 @@ func init() {
 		for _, gpo := range ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeGroupPolicyContainer
 		}).Slice() {
-			gpo.EdgeIterator(engine.In, func(group *engine.Object, methods engine.EdgeBitmap) bool {
+			gpo.Edges(engine.In).Range(func(group *engine.Object, methods engine.EdgeBitmap) bool {
 				groupname := group.OneAttrString(engine.SAMAccountName)
 				if strings.Contains(groupname, "%") {
 					// Lowercase for ease
 					groupname := strings.ToLower(groupname)
 
 					// It has some sort of % variable in it, let's go
-					gpo.EdgeIterator(engine.Out, func(affected *engine.Object, amethods engine.EdgeBitmap) bool {
+					gpo.Edges(engine.Out).Range(func(affected *engine.Object, amethods engine.EdgeBitmap) bool {
 						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
 							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
 							if !found {

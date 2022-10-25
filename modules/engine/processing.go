@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"runtime"
+
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -122,6 +124,10 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	aftermergetotalobjects := len(globalobjects.Slice())
 	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
+
+	runtime.GC()
+	runtime.GC()
+	ui.Info().Msgf("We freed %v objects", NukedObjects)
 
 	var orphans int
 	processed := make(map[uint32]struct{})

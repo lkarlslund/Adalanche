@@ -1,8 +1,13 @@
 package engine
 
 import (
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
+	"github.com/akyoto/cache"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -16,12 +21,12 @@ type Objects struct {
 	root          *Object
 	DefaultValues []interface{}
 
-	objectmutex FlexMutex
+	objectmutex sync.RWMutex
 
 	asarray []*Object // All objects in this collection, returned by .Slice()
 	asmap   map[*Object]struct{}
 
-	indexlock FlexMutex
+	indexlock sync.RWMutex
 
 	indexes      []*Index
 	multiindexes map[uint32]*Index // Indexes for multiple attributes (lower attr < 16 || higher attr)
@@ -33,7 +38,7 @@ type Objects struct {
 
 type Index struct {
 	lookup map[interface{}][]*Object
-	FlexMutex
+	sync.RWMutex
 }
 
 func (i *Index) Init() {
@@ -87,29 +92,6 @@ func (os *Objects) AddDefaultFlex(data ...interface{}) {
 	os.DefaultValues = append(os.DefaultValues, data...)
 }
 
-func (os *Objects) SetThreadsafe(enable bool) {
-	if enable {
-		os.objectmutex.Enable()
-		os.indexlock.Enable()
-
-		for _, index := range os.indexes {
-			if index != nil {
-				index.Enable()
-			}
-		}
-	} else {
-		os.objectmutex.Disable()
-		os.indexlock.Disable()
-
-		for _, index := range os.indexes {
-			if index != nil {
-				index.Disable()
-			}
-		}
-	}
-	setThreadsafe(enable) // Do this globally for individial objects too
-}
-
 func (os *Objects) GetIndex(attribute Attribute) *Index {
 	os.indexlock.RLock()
 
@@ -142,11 +124,6 @@ func (os *Objects) GetIndex(attribute Attribute) *Index {
 
 			// Initialize index and add existing stuff
 			os.refreshIndex(attribute, index)
-
-			// Sync any locking stuff to the new index
-			for i := 0; i < int(os.objectmutex.enabled); i++ {
-				index.Enable()
-			}
 
 			os.indexes[attribute] = index
 		}
@@ -208,11 +185,6 @@ func (os *Objects) GetMultiIndex(attribute, attribute2 Attribute) *Index {
 	// Initialize index and add existing stuff
 	os.refreshMultiIndex(attribute, attribute2, index)
 
-	// Sync any locking stuff to the new index
-	for i := 0; i < int(os.objectmutex.enabled); i++ {
-		index.Enable()
-	}
-
 	os.multiindexes[indexkey] = index
 
 	os.indexlock.Unlock()
@@ -225,12 +197,14 @@ func (os *Objects) refreshIndex(attribute Attribute, index *Index) {
 
 	// add all existing stuff to index
 	for _, o := range os.asarray {
-		for _, value := range o.Attr(attribute).Slice() {
+		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
 			key := AttributeValueToIndex(value)
 
 			// Add to index
 			index.Add(key, o, false)
-		}
+
+			return true // continue
+		})
 	}
 }
 
@@ -247,17 +221,19 @@ func (os *Objects) refreshMultiIndex(attribute, attribute2 Attribute, index *Ind
 		if !o.HasAttr(attribute) || !o.HasAttr(attribute2) {
 			continue
 		}
-		values := o.Attr(attribute).Slice()
-		values2 := o.Attr(attribute2).Slice()
-		for _, value := range values {
+
+		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
 			key := AttributeValueToIndex(value)
-			for _, value2 := range values2 {
+			o.Attr(attribute2).Iterate(func(value2 AttributeValue) bool {
 				key2 := AttributeValueToIndex(value2)
 
 				// Add to index
 				index.Add(multiindexkey{key, key2}, o, false)
-			}
-		}
+
+				return true
+			})
+			return true
+		})
 	}
 }
 
@@ -320,23 +296,32 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 			continue
 		}
 
-		values := o.Attr(attribute).Slice()
-		values2 := o.Attr(attribute2).Slice()
-		for _, value := range values {
+		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
 			key := AttributeValueToIndex(value)
-			for _, value2 := range values2 {
+			o.Attr(attribute2).Iterate(func(value2 AttributeValue) bool {
 				key2 := AttributeValueToIndex(value2)
 
 				index.Add(multiindexkey{key, key2}, o, !isnew)
-			}
-		}
+
+				return true
+			})
+			return true
+		})
 	}
 	os.indexlock.RUnlock()
 }
 
+var avtiCache = cache.New(time.Second * 30)
+
 func AttributeValueToIndex(value AttributeValue) interface{} {
 	if vs, ok := value.(AttributeValueString); ok {
-		return strings.ToLower(string(vs))
+		s := string(vs)
+		if lowered, found := avtiCache.Get(s); found {
+			return lowered
+		}
+		lowered := strings.ToLower(string(vs))
+		avtiCache.Set(s, lowered, time.Second*30)
+		return lowered
 	}
 	return value.Raw()
 }
@@ -508,6 +493,47 @@ func (os *Objects) Len() int {
 	return len(os.asarray)
 }
 
+func (os *Objects) Iterate(each func(o *Object) bool) {
+	for _, o := range os.asarray {
+		if !each(o) {
+			break
+		}
+	}
+}
+
+func (os *Objects) IterateParallel(each func(o *Object) bool, parallelFuncs int) {
+	if parallelFuncs == 0 {
+		parallelFuncs = runtime.NumCPU()
+	}
+	queue := make(chan *Object, parallelFuncs*2)
+	var wg sync.WaitGroup
+
+	var stop atomic.Bool
+
+	for i := 0; i < parallelFuncs; i++ {
+		wg.Add(1)
+		go func() {
+			for o := range queue {
+				if !each(o) {
+					stop.Store(false)
+				}
+			}
+			wg.Done()
+		}()
+	}
+
+	for i, o := range os.asarray {
+		if i&0x400 == 0 && stop.Load() {
+			ui.Debug().Msg("Aborting parallel iterator for Objects")
+			break
+		}
+		queue <- o
+	}
+
+	close(queue)
+	wg.Wait()
+}
+
 func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
 	os.objectmutex.RLock()
 	index, idfound := os.idindex[id]
@@ -586,7 +612,7 @@ func (os *Objects) FindMultiOrAdd(attribute Attribute, value AttributeValue, add
 }
 
 func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Object) ([]*Object, bool) {
-	if attribute < attribute2 {
+	if attribute2 != NonExistingAttribute && attribute < attribute2 {
 		attribute, attribute2 = attribute2, attribute
 		value, value2 = value2, value
 	}
