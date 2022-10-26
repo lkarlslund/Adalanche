@@ -661,7 +661,7 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 	var result bool
 	o.Edges(p.direction).RangeID(func(targetid uint32, edge engine.EdgeBitmap) bool {
 		if (p.method == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.method) {
-			if p.target == nil || p.target.Evaluate(engine.IDtoOBject(targetid)) {
+			if p.target == nil || p.target.Evaluate(engine.IDtoObject(targetid)) {
 				result = true
 				return false // return from loop
 			}

@@ -39,7 +39,7 @@ func onAddObject(newObject *Object) {
 	idToObjectLock.Unlock()
 }
 
-func IDtoOBject(id uint32) *Object {
+func IDtoObject(id uint32) *Object {
 	idToObjectLock.RLock()
 	objectPtr := atomic.LoadUintptr(&idToObject[id])
 	if objectPtr == 0 {

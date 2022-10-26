@@ -72,6 +72,17 @@ button, input, optgroup, select, textarea {
   display: inline-block;
 }
 
+#upperstatus {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, 0%);
+}
+
+#progressbars {
+  width: 600px;
+}
+
 #status {
   position: absolute;
   left: 50%;
@@ -83,13 +94,6 @@ button, input, optgroup, select, textarea {
   position: absolute;
   left: 50%;
   bottom: 0px;
-  transform: translate(-50%, 0%);
-}
-
-#xxabout {
-  position: absolute;
-  left: 50%;
-  top: 0px;
   transform: translate(-50%, 0%);
 }
 

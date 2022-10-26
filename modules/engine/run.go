@@ -2,14 +2,19 @@ package engine
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 // Loads, processes and merges everything. It's magic, just in code
 func Run(path string) (*Objects, error) {
+	starttime := time.Now()
+
 	var loaders []Loader
 
 	for _, lg := range loadergenerators {
@@ -61,19 +66,7 @@ func Run(path string) (*Objects, error) {
 			}
 
 			for priority := BeforeMergeLow; priority <= BeforeMergeFinal; priority++ {
-
-				pb := ui.ProgressBar(fmt.Sprintf("Preprocessing %v priority %v", lobj.Loader.Name(), priority.String()), 0)
-				Process(lobj.Objects, func(cur, max int) {
-					if max > 0 {
-						pb.ChangeMax(max)
-					}
-					if cur > 0 {
-						pb.Set(cur)
-					} else {
-						pb.Add(-cur)
-					}
-				}, loaderid, priority)
-				pb.Finish()
+				Process(lobj.Objects, fmt.Sprintf("Preprocessing %v priority %v", lobj.Loader.Name(), priority.String()), loaderid, priority)
 			}
 
 			preprocessWG.Done()
@@ -88,43 +81,59 @@ func Run(path string) (*Objects, error) {
 	}
 	ao, err := Merge(objs)
 
+	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
+
 	// Do global post-processing
-	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
-		pb := ui.ProgressBar(fmt.Sprintf("Postprocessing merged objects priority %v", priority.String()), 0)
-		Process(ao, func(cur, max int) {
-			if max > 0 {
-				pb.ChangeMax(max)
-			}
-			if cur > 0 {
-				pb.Set(cur)
-			} else {
-				pb.Add(-cur)
-			}
-		}, -1, priority)
-		pb.Finish()
-	}
+	go func() {
+		for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
+			Process(ao, fmt.Sprintf("Postprocessing global objects priority %v", priority.String()), -1, priority)
+		}
 
-	var statarray []string
-	for stat, count := range ao.Statistics() {
-		if stat == 0 {
-			continue
-		}
-		if count == 0 {
-			continue
-		}
-		statarray = append(statarray, fmt.Sprintf("%v: %v", ObjectType(stat).String(), count))
-	}
-	ui.Info().Msg(strings.Join(statarray, ", "))
+		ui.Info().Msgf("Time to analysis completed done in %v", time.Since(starttime))
 
-	// Show debug counters
-	var pwnarray []string
-	for pwn, count := range EdgePopularity {
-		if count == 0 {
-			continue
+		var statarray []string
+		for stat, count := range ao.Statistics() {
+			if stat == 0 {
+				continue
+			}
+			if count == 0 {
+				continue
+			}
+			statarray = append(statarray, fmt.Sprintf("%v: %v", ObjectType(stat).String(), count))
 		}
-		pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", Edge(pwn).String(), count))
-	}
-	ui.Debug().Msg(strings.Join(pwnarray, ", "))
+		ui.Info().Msg(strings.Join(statarray, ", "))
+
+		// Show debug counters
+		var pwnarray []string
+		for pwn, count := range EdgePopularity {
+			if count == 0 {
+				continue
+			}
+			pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", Edge(pwn).String(), count))
+		}
+		ui.Debug().Msg(strings.Join(pwnarray, ", "))
+
+		dedupStats := dedup.D.Statistics()
+
+		ui.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
+		ui.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
+		ui.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
+		ui.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
+		ui.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
+		ui.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
+
+		// Try to recover some memory
+		dedup.D.Flush()
+
+		// objs.DropIndexes()
+
+		// Force GC
+		// runtime.GC()
+
+		// After all this loading and merging, it's time to do release unused RAM
+		debug.FreeOSMemory()
+
+	}()
 
 	return ao, err
 }

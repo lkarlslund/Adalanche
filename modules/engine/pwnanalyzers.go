@@ -2,6 +2,8 @@ package engine
 
 import (
 	"sync"
+
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 //go:generate go run github.com/dmarkham/enumer -type=ProcessPriority -output enums.go
@@ -42,7 +44,7 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 }
 
 // LoaderID = wildcard
-func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessPriority) error {
+func Process(ao *Objects, statustext string, l LoaderID, priority ProcessPriority) error {
 	var priorityProcessors []ppfInfo
 	for _, potentialProcessor := range registeredProcessors {
 		if potentialProcessor.loader == l || l == -1 {
@@ -60,19 +62,18 @@ func Process(ao *Objects, cb ProgressCallbackFunc, l LoaderID, priority ProcessP
 	}
 
 	// We need to process this many objects
-	cb(0, total)
-
+	pb := ui.ProgressBar(statustext, total)
 	var wg sync.WaitGroup
-
 	for _, processor := range priorityProcessors {
 		wg.Add(1)
 		go func(ppf ppfInfo) {
 			ppf.pf(ao)
-			cb(-aoLen, 0)
+			pb.Add(aoLen)
 			wg.Done()
 		}(processor)
 	}
 	wg.Wait()
+	pb.Finish()
 
 	return nil
 }

@@ -18,7 +18,7 @@ var globalEdgeConnectionsLock sync.Mutex // Ugly but it will do
 func (ec *EdgeConnections) StringMap() map[string]string {
 	result := make(map[string]string)
 	ec.RangeID(func(id uint32, eb EdgeBitmap) bool {
-		result[IDtoOBject(id).Label()] = eb.JoinedString()
+		result[IDtoObject(id).Label()] = eb.JoinedString()
 		return true
 	})
 	return result
@@ -27,7 +27,7 @@ func (ec *EdgeConnections) StringMap() map[string]string {
 // Thread safe range
 func (ec *EdgeConnections) Range(rf func(*Object, EdgeBitmap) bool) {
 	ec.ecm.Range(func(id uint32, eb EdgeBitmap) bool {
-		return rf(IDtoOBject(id), eb)
+		return rf(IDtoObject(id), eb)
 	})
 }
 

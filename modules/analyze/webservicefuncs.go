@@ -867,6 +867,42 @@ func analysisfuncs(ws *webservice) {
 		w.Write(data)
 	})
 
+	type ProgressReport struct {
+		ID             uuid.UUID
+		Title          string
+		Current, Total int64
+		Percent        float32
+		Done           bool
+		StartTime      time.Time
+	}
+
+	ws.Router.HandleFunc("/progress", func(w http.ResponseWriter, r *http.Request) {
+		pbs := ui.GetProgressBars()
+		pbr := make([]ProgressReport, len(pbs))
+		for i, pb := range pbs {
+			pbr[i] = ProgressReport{
+				ID:        pb.ID,
+				Title:     pb.Title,
+				Current:   pb.Current,
+				Total:     pb.Total,
+				Percent:   pb.Percent,
+				Done:      pb.Done,
+				StartTime: pb.Started,
+			}
+		}
+
+		sort.Slice(pbr, func(i, j int) bool {
+			return pbr[i].StartTime.Before(pbr[j].StartTime)
+		})
+
+		data, err := json.MarshalIndent(pbr, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write(data)
+	})
+
 	// Saved preferences
 	var prefs Prefs
 	err := prefs.Load()

@@ -271,6 +271,58 @@ function analyze(e) {
     });
 }
 
+function refreshStatus() {
+    $.ajax({
+        type: "GET",
+        url: "/progress",
+        dataType: "json",
+        success: function (progressbars) {
+            if (progressbars.length > 0) {
+                keepProgressbars = new Set()
+                for (i in progressbars) {
+                    progressbar = progressbars[i]
+                    if (progressbar.Done) {
+                        continue
+                    }
+                    keepProgressbars.add(progressbar.ID)
+
+                    // find progressbar
+                    pb = $("#"+progressbar.ID)
+                    if (pb.length == 0 && !progressbar.Done) {
+                        $("#progressbars").append(`<div class="progress-group"><span class="progress-group-label">` + progressbar.Title + `</span><div class="progress"><div id="` + progressbar.ID + `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`)
+                        pb = $("#" + progressbar.ID)
+                    }
+
+                    // Update progressbar
+                    pb.attr("aria-valuenow", progressbar.Percent.toFixed(0))
+                    pb.css("width", progressbar.Percent.toFixed(0)+"%")
+                    pb.parent().next().html(progressbar.Percent.toFixed(2)+"%")
+                }
+                // remove old progressbars
+                $("#progressbars .progress-bar").each(function (index) {
+                    id = $(this).attr('id')
+                    if (!keepProgressbars.has(id)) {
+                        $(this).parent().parent().slideUp("slow", function () { $(this).remove(); })
+                    }
+                })
+
+                $("#progressbars").show()
+                $("#backendstatus").html("Adalanche is processing")
+            } else {
+                $("#progressbars").empty().hide()
+                $("#backendstatus").html("Adalanche backend is idle")
+            }
+        },
+        error: function (xhr, status, error) {
+            $("#backendstatus").html("Adalanche backend is offline")
+            $("#progressbars").empty().hide()
+        }
+    });
+    $()
+
+    setTimeout(refreshStatus, 1000);
+}
+
 // When we´re ready ...
 $(function () {
     // Initial GUI setup
@@ -577,5 +629,6 @@ $(function () {
         }
     });
 
+    refreshStatus();
     // End of on document loaded function
 });

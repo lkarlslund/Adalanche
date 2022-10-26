@@ -974,7 +974,7 @@ func (o *Object) edgeIteratorRecursiveID(direction EdgeDirection, edgeMatch Edge
 			if !edgeMatches.IsBlank() {
 				appliedTo[targetid] = struct{}{}
 				if af(o.ID(), targetid, edgeMatches, depth) {
-					IDtoOBject(targetid).edgeIteratorRecursiveID(direction, edgeMatch, af, appliedTo, depth+1)
+					IDtoObject(targetid).edgeIteratorRecursiveID(direction, edgeMatch, af, appliedTo, depth+1)
 				}
 			}
 		}

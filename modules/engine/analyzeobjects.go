@@ -92,7 +92,10 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 		}
 	}
 
+	pb := ui.ProgressBar("Analyzing graph", opts.MaxDepth)
+	pb.Add(-1)
 	for opts.MaxDepth >= processinground {
+		pb.Add(1)
 		if processinground == 2 {
 			detectedges = opts.MethodsM
 			detectobjecttypes = nil
@@ -275,6 +278,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 			}
 		}
 	}
+	pb.Finish()
+
+	pb = ui.ProgressBar("Removing filtered nodes", len(connectionsmap))
 
 	// Remove outer end nodes that are invalid
 	detectobjecttypes = nil
@@ -301,11 +307,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 				if opts.MethodsL.Intersect(detectedmethods).Count() == 0 {
 					// No matches on LastMethods
 					delete(connectionsmap, pair)
+					pb.Add(1)
 					removed++
 				} else if detectobjecttypes != nil {
 					if _, found := detectobjecttypes[pair.Target.Type()]; !found {
 						// No matches on LastMethods
 						delete(connectionsmap, pair)
+						pb.Add(1)
 						removed++
 					}
 				}
@@ -320,6 +328,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 		weremovedsomething = true
 	}
+	pb.Finish()
 
 	// PruneIslands
 	var prunedislands int

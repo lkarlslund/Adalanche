@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
-	"runtime/debug"
-	"time"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
-	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
@@ -34,36 +31,15 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	starttime := time.Now()
-
 	datapath := cmd.InheritedFlags().Lookup("datapath").Value.String()
 
+	// Process what we can in foreground, and the rest in the background
 	objs, err := engine.Run(datapath)
 	if err != nil {
 		return err
 	}
 
-	// After all this loading and merging, it's time to do release unused RAM
-	debug.FreeOSMemory()
-
-	ui.Info().Msgf("Processing done in %v", time.Since(starttime))
-
-	dedupStats := dedup.D.Statistics()
-
-	ui.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
-	ui.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
-	ui.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
-	ui.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
-	ui.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
-	ui.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
-
-	// Try to recover some memory
-	dedup.D.Flush()
-	objs.DropIndexes()
-
-	runtime.GC()
-	debug.FreeOSMemory()
-
+	// Fire up the web interface with incomplete results
 	err = WebService.Start(*bind, objs, *localhtml)
 	if err != nil {
 		return err
