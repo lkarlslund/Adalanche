@@ -93,7 +93,6 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 	}
 
 	pb := ui.ProgressBar("Analyzing graph", opts.MaxDepth)
-	pb.Add(-1)
 	for opts.MaxDepth >= processinground {
 		pb.Add(1)
 		if processinground == 2 {
