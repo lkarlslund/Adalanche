@@ -276,7 +276,9 @@ function refreshStatus() {
         type: "GET",
         url: "/progress",
         dataType: "json",
+        timeout: 5000,
         success: function (progressbars) {
+            $("#offlineblur").hide()
             if (progressbars.length > 0) {
                 keepProgressbars = new Set()
                 for (i in progressbars) {
@@ -316,6 +318,7 @@ function refreshStatus() {
         error: function (xhr, status, error) {
             $("#backendstatus").html("Adalanche backend is offline")
             $("#progressbars").empty().hide()
+            $("#offlineblur").show()
         }
     });
     $()
