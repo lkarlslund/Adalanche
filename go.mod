@@ -63,7 +63,7 @@ require (
 	github.com/google/cabbie v1.0.4 // indirect
 	github.com/google/glazier v0.0.0-20221020175949-24442e3c310c // indirect
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 // indirect
-	github.com/google/renameio v1.0.1 // indirect; DONT CHANGE FROM v0.1.0
+	github.com/google/renameio v0.1.0 // indirect; DONT CHANGE FROM v0.1.0
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gookit/color v1.5.2
 	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091 // indirect
