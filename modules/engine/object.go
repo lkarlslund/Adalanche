@@ -1031,6 +1031,9 @@ func (o *Object) childOf(parent *Object) {
 
 func (o *Object) Adopt(child *Object) {
 	o.lock()
+	if o.hasChild(child) {
+		panic("can't adopt same child twice")
+	}
 	o.children = append(o.children, child)
 	o.unlock()
 
@@ -1045,12 +1048,24 @@ func (o *Object) Adopt(child *Object) {
 }
 
 func (o *Object) adopt(child *Object) {
+	if o.hasChild(child) {
+		panic("can't adopt same child twice")
+	}
 	o.children = append(o.children, child)
 
 	if child.parent != nil {
 		child.parent.removeChild(child)
 	}
 	child.parent = o
+}
+
+func (o *Object) hasChild(child *Object) bool {
+	for _, ochild := range o.children {
+		if child == ochild {
+			return true
+		}
+	}
+	return false
 }
 
 func (o *Object) removeChild(child *Object) {
