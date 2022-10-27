@@ -324,12 +324,14 @@ func analysisfuncs(ws *webservice) {
 			// We dont support this yet, so merge all of them
 			combinedmethods := edges_f.Merge(egdes_m).Merge(edges_l)
 
-			for _, source := range includeobjects.Slice() {
-				for _, target := range excludeobjects.Slice() {
+			includeobjects.Iterate(func(source *engine.Object) bool {
+				excludeobjects.Iterate(func(target *engine.Object) bool {
 					newpg := engine.AnalyzePaths(source, target, ws.Objs, combinedmethods, engine.Probability(minprobability), maxdepth)
 					pg.Merge(newpg)
-				}
-			}
+					return true
+				})
+				return true
+			})
 			// pg = engine.AnalyzePaths(includeobjects.First(), excludeobjects.First(), ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
 		} else {
 			opts := engine.NewAnalyzeObjectsOptions()
@@ -657,11 +659,12 @@ func analysisfuncs(ws *webservice) {
 			return includequery.Evaluate(o)
 		})
 
-		dns := make([]string, len(objects.Slice()))
+		dns := make([]string, 0, objects.Len())
 
-		for i, o := range objects.Slice() {
-			dns[i] = o.DN()
-		}
+		objects.Iterate(func(o *engine.Object) bool {
+			dns = append(dns, o.DN())
+			return true
+		})
 
 		err = encoder.Encode(dns)
 		if err != nil {
@@ -695,7 +698,7 @@ func analysisfuncs(ws *webservice) {
 			return includequery.Evaluate(o)
 		})
 
-		err = encoder.Encode(objects.Slice())
+		err = encoder.Encode(objects.AsSlice())
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte(err.Error()))
@@ -722,7 +725,7 @@ func analysisfuncs(ws *webservice) {
 			HasLAPS       bool      `json:"haslaps,omitempty"`
 		}
 		var result []info
-		for _, object := range ws.Objs.Slice() {
+		ws.Objs.Iterate(func(object *engine.Object) bool {
 			if object.Type() == engine.ObjectTypeUser &&
 				object.OneAttrString(engine.MetaWorkstation) != "1" &&
 				object.OneAttrString(engine.MetaServer) != "1" &&
@@ -772,7 +775,8 @@ func analysisfuncs(ws *webservice) {
 
 				result = append(result, i)
 			}
-		}
+			return true
+		})
 
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
@@ -857,10 +861,11 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		var pwnlinks int
-		for _, object := range ws.Objs.Slice() {
+		ws.Objs.Iterate(func(object *engine.Object) bool {
 			pwnlinks += object.Edges(engine.Out).Len()
-		}
-		result.Statistics["Total"] = len(ws.Objs.Slice())
+			return true
+		})
+		result.Statistics["Total"] = ws.Objs.Len()
 		result.Statistics["PwnConnections"] = pwnlinks
 
 		data, _ := json.MarshalIndent(result, "", "  ")

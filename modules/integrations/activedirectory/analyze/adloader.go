@@ -195,9 +195,10 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		} else {
 			// Indicate from which domain we saw this if we have the data
 			nb := engine.AttributeValueString(netbiosname)
-			for _, o := range ao.Slice() {
+			ao.Iterate(func(o *engine.Object) bool {
 				o.SetFlex(engine.DataSource, nb)
-			}
+				return true
+			})
 		}
 
 		aos = append(aos, ao)

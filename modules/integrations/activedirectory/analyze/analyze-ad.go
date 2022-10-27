@@ -106,21 +106,21 @@ func init() {
 			return
 		}
 
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for computers
 			if o.Type() != engine.ObjectTypeComputer {
-				continue
+				return true
 			}
 
 			// ... that has LAPS installed
 			if !o.HasAttr(activedirectory.MSmcsAdmPwdExpirationTime) {
-				continue
+				return true
 			}
 
 			// Analyze ACL
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 
 			// Link to the machine object
@@ -131,7 +131,7 @@ func init() {
 			machine, found := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
-				continue
+				return true
 			}
 
 			for index, acl := range sd.DACL.Entries {
@@ -139,57 +139,61 @@ func init() {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword)
 				}
 			}
-		}
+			return true
+		})
 	}, "Reading local admin passwords via LAPS", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
-				continue
+				return true
 			}
 			// Only for computers, you can't really pwn users this way
 			p, hasparent := ao.DistinguishedParent(o)
 			if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
-				continue
+				return true
 			}
 			p.EdgeTo(o, activedirectory.PartOfGPO)
-		}
+			return true
+		})
 	}, "Machine configurations that are part of a GPO", engine.BeforeMergeHigh)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "User" {
-				continue
+				return true
 			}
 			// Only for users, you can't really pwn users this way
 			p, hasparent := ao.DistinguishedParent(o)
 			if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
-				continue
+				return true
 			}
 			p.EdgeTo(o, activedirectory.PartOfGPO)
-		}
+			return true
+		})
 	}, "User configurations that are part of a GPO", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for _, acl := range sd.DACL.Entries {
 				if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator for possible false positives, as the ACL contains DENY entries", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			// https://www.alsid.com/crb_article/kerberos-delegation/
 			// --- Citation bloc --- This is generally true, but an exception exists: positioning a Deny for the OWNER RIGHTS SID (S-1-3-4) in an object’s ACE removes the owner’s implicit control of this object’s DACL. ---------------------
@@ -202,173 +206,183 @@ func init() {
 			if !sd.Owner.IsNull() && !aclhasdeny {
 				ao.FindOrAddAdjacentSID(sd.Owner, o).EdgeTo(o, activedirectory.EdgeOwns)
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone owns an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_ALL, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeGenericAll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone has full permissions on an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_WRITE, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone can write to all attributes and do all validated writes on an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWritePropertyAll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone can write to all attributes of an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteExtendedAll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone do all validated writes on an object", engine.BeforeMergeFinal)
 
 	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_OWNER, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeTakeOwnership)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone is allowed to take ownership of an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_DACL, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteDACL)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that someone can change permissions on an object", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if o.Type() != engine.ObjectTypeAttributeSchema {
-				continue
+				return true
 			}
 			// FIXME - check for SYSTEM ATTRIBUTES - these can NEVER be changed
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
 				}
 			}
-		}
+			return true
+		})
 	}, `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`, engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only users, computers and service accounts
 			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
-				continue
+				return true
 			}
 			// Check who can reset the password
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeResetPassword)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that a group or user can reset the password of an account", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only managed service accounts
 			if o.Type() != engine.ObjectTypeManagedServiceAccount && o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
-				continue
+				return true
 			}
 
 			// Check who can reset the password
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadPasswordId)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -378,17 +392,18 @@ func init() {
 			return
 		}
 
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers and users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
 				o.SetValues(engine.MetaHasSPN, engine.AttributeValueInt(1))
 
 				authusers.EdgeTo(o, activedirectory.EdgeHasSPN)
 			}
-		}
+			return true
+		})
 	}, "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
@@ -398,130 +413,137 @@ func init() {
 			return
 		}
 
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
 				everyone.EdgeTo(o, activedirectory.EdgeDontReqPreauth)
 			}
-		}
+			return true
+		})
 	}, "Indicator that a user has \"don't require preauth\" and can be kerberoasted", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
-			// Only computers and users
+		ao.Iterate(func(o *engine.Object) bool {
+			// Only users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteSPN)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers and users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteValidatedSPN)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
 			if o.Type() != engine.ObjectTypeComputer {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAllowedToAct) // Success rate?
 				}
 			}
-		}
+			return true
+		})
 	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`, engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
-				continue
+				return true
 			}
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddMember)
 				}
 			}
-		}
+			return true
+		})
 	}, "Permission to add a member to a group", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
-				continue
+				return true
 			}
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddMemberGroupAttr)
 				}
 			}
-		}
+			return true
+		})
 	}, "Permission to add a member to a group (via attribute set)", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
-				continue
+				return true
 			}
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAddSelfMember)
 				}
 			}
-		}
+			return true
+		})
 	}, "Permission to add yourself to a group", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
 				sd, err := engine.ParseSecurityDescriptor([]byte(msads.String()))
 				if err == nil {
@@ -533,94 +555,100 @@ func init() {
 				}
 				return true
 			})
-		}
+			return true
+		})
 	}, "Allows someone to read a password of a managed service account", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAltSecurityIdentities)
 				}
 			}
-		}
+			return true
+		})
 	}, "Allows an attacker to define a certificate that can be used to authenticate as the user", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteProfilePath)
 				}
 			}
-		}
+			return true
+		})
 	}, "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteScriptPath)
 				}
 			}
-		}
+			return true
+		})
 	}, "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
 				if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
 					o.EdgeTo(targetmsa, activedirectory.EdgeHasMSA)
 				}
 				return true
 			})
-		}
+			return true
+		})
 	}, "Indicates that the object has a service account in use", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
-				continue
+				return true
 			}
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteKeyCredentialLink)
 				}
 			}
-		}
+			return true
+		})
 	}, "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
 					target := ao.FindOrAddAdjacentSID(sid, o)
@@ -628,31 +656,33 @@ func init() {
 				}
 				return true
 			})
-		}
+			return true
+		})
 	}, "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				continue
+				return true
 			}
 
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, engine.NullGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeAllExtendedRights)
 				}
 			}
-		}
+			return true
+		})
 	}, "Indicates that you have all extended rights", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypePKIEnrollmentService {
-				continue
+				return true
 			}
 			for _, cts := range o.AttrString(engine.A("certificateTemplates")) {
 				for _, ct := range cts {
@@ -664,17 +694,18 @@ func init() {
 					}
 				}
 			}
-		}
+			return true
+		})
 	}, "Certificate service publishes Certificate Template", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeCertificateTemplate {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
@@ -683,17 +714,18 @@ func init() {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeCertificateEnroll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Permission to enroll into a certificate template", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeCertificateTemplate {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
@@ -702,34 +734,36 @@ func init() {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeCertificateAutoEnroll)
 				}
 			}
-		}
+			return true
+		})
 	}, "Permission to auto-enroll into a certificate template", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeVoodooBit)
 				}
 			}
-		}
+			return true
+		})
 	}, "Has the Voodoo Bit set", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeDomainDNS {
-				continue
+				return true
 			}
 			if !o.HasAttr(activedirectory.SystemFlags) {
-				continue
+				return true
 			}
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
-				continue
+				return true
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
@@ -754,20 +788,21 @@ func init() {
 				}
 				return true
 			})
-		}
+			return true
+		})
 	}, "Permissions on DomainDNS objects leading to DCsync attacks", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
-		for _, computeraccount := range ao.Slice() {
+		ao.Iterate(func(computeraccount *engine.Object) bool {
 			if computeraccount.Type() != engine.ObjectTypeComputer {
-				continue
+				return true
 			}
 
 			sid := computeraccount.OneAttr(engine.ObjectSid)
 			if sid == nil {
 				ui.Error().Msgf("Computer account without SID: %v", computeraccount.DN())
-				continue
+				return true
 			}
 			machine, _ := ao.FindOrAdd(
 				DomainJoinedSID, sid,
@@ -781,21 +816,23 @@ func init() {
 			machine.EdgeTo(computeraccount, EdgeAuthenticatesAs)
 			machine.EdgeTo(computeraccount, EdgeMachineAccount)
 			machine.ChildOf(computeraccount)
-		}
+
+			return true
+		})
 	},
 		"creating Machine objects (representing the machine running the OS)",
 		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 
 			if o.Parent() != nil {
-				continue
+				return true
 			}
 
 			if o == ao.Root() {
-				continue
+				return true
 			}
 
 			if parent, found := ao.DistinguishedParent(o); found {
@@ -805,11 +842,12 @@ func init() {
 				if o.Type() == engine.ObjectTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
 					// Top of some AD we think, hook to top of browsable tree
 					o.ChildOf(ao.Root())
-					continue
+					return true
 				}
 				ui.Debug().Msgf("AD object %v (%v) has no parent :-(", o.Label(), o.DN())
 			}
-		}
+			return true
+		})
 	},
 		"applying parent/child relationships",
 		engine.BeforeMergeHigh)
@@ -856,9 +894,9 @@ func init() {
 		})
 
 		// Apply DownLevelLogonName to relevant objects
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if !o.HasAttr(engine.SAMAccountName) {
-				continue
+				return true
 			}
 			dn := o.DN()
 			for _, domaininfo := range domains {
@@ -867,7 +905,8 @@ func init() {
 					break
 				}
 			}
-		}
+			return true
+		})
 
 		ao.DropIndex(engine.DownLevelLogonName)
 	},
@@ -876,14 +915,14 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Add domain part attribute from distinguished name to objects
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			// Only objects with a DistinguishedName
 			if o.DN() == "" {
-				continue
+				return true
 			}
 
 			if o.HasAttr(engine.DomainContext) {
-				continue
+				return true
 			}
 
 			parts := strings.Split(o.DN(), ",")
@@ -903,16 +942,17 @@ func init() {
 			if lastpart != -1 {
 				o.SetValues(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
 			}
-		}
+			return true
+		})
 	},
 		"applying domain part attribute",
 		engine.BeforeMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
-		for _, adminsdholder := range ao.Filter(func(o *engine.Object) bool {
+		ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
-		}).Slice() {
+		}).Iterate(func(adminsdholder *engine.Object) bool {
 			// We found it - so we know it can change ACLs of some objects
 			domaincontext := adminsdholder.OneAttrString(engine.DomainContext)
 
@@ -928,7 +968,7 @@ func init() {
 				}
 			}
 
-			for _, o := range ao.Filter(func(o *engine.Object) bool {
+			ao.Filter(func(o *engine.Object) bool {
 				// Check if object is a group
 				if o.Type() != engine.ObjectTypeGroup {
 					return false
@@ -939,11 +979,11 @@ func init() {
 					return false
 				}
 				return true
-			}).Slice() {
+			}).Iterate(func(o *engine.Object) bool {
 
 				grpsid := o.SID()
 				if grpsid.IsNull() {
-					continue
+					return true
 				}
 
 				switch grpsid.RID() {
@@ -957,30 +997,30 @@ func init() {
 				case DOMAIN_ALIAS_RID_ADMINS:
 				case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
 					if excluded_mask&1 != 0 {
-						continue
+						return true
 					}
 				case DOMAIN_ALIAS_RID_SYSTEM_OPS:
 					if excluded_mask&2 != 0 {
-						continue
+						return true
 					}
 				case DOMAIN_ALIAS_RID_PRINT_OPS:
 					if excluded_mask&4 != 0 {
-						continue
+						return true
 					}
 				case DOMAIN_ALIAS_RID_BACKUP_OPS:
 					if excluded_mask&8 != 0 {
-						continue
+						return true
 					}
 				case DOMAIN_ALIAS_RID_REPLICATOR:
 				default:
 					// Not a protected group
-					continue
+					return true
 				}
 
 				// Only domain groups
 				if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
 					ui.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
-					continue
+					return true
 				}
 
 				// Apply this edge
@@ -989,8 +1029,10 @@ func init() {
 					adminsdholder.EdgeTo(target, activedirectory.EdgeOverwritesACL)
 					return true
 				})
-			}
-		}
+				return true
+			})
+			return true
+		})
 	},
 		"AdminSDHolder rights propagation indicator",
 		engine.BeforeMerge)
@@ -1046,7 +1088,7 @@ func init() {
 			SourceSID:     domainsid.String(),
 		}, TrustInfo{})
 
-		for _, object := range ao.Slice() {
+		ao.Iterate(func(object *engine.Object) bool {
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {
@@ -1187,13 +1229,14 @@ func init() {
 					engine.AllSchemaClasses[u] = object
 				}
 			}*/
-		}
+			return true
+		})
 	},
 		"Active Directory objects and metadata",
 		engine.BeforeMerge)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, object := range ao.Slice() {
+		ao.Iterate(func(object *engine.Object) bool {
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
 			objectclasses := object.Attr(engine.ObjectClass)
 			if objectclasses.Len() > 0 {
@@ -1241,14 +1284,15 @@ func init() {
 				engine.ObjectCategoryGUID, objectcategoryguid,
 				engine.ObjectCategorySimple, simple,
 			)
-		}
+			return true
+		})
 	},
 		"Set ObjectCategorySimple (for Type call) to Active Directory objects",
 		engine.BeforeMergeLow,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, object := range ao.Slice() {
+		ao.Iterate(func(object *engine.Object) bool {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
 				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
@@ -1257,7 +1301,8 @@ func init() {
 					return true
 				})
 			}
-		}
+			return true
+		})
 	},
 		"Protected users meta attribute",
 		engine.BeforeMerge,
@@ -1281,19 +1326,19 @@ func init() {
 			}
 		}
 
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) && o.HasAttr(engine.DomainContext) {
 				// An unknown SID, is it ours or from another domain?
 				ourDomainDN := o.OneAttrString(engine.DomainContext)
 				ourDomainSid, domainfound := domains[ourDomainDN]
 				if !domainfound {
-					continue
+					return true
 				}
 
 				if o.SID().StripRID() == ourDomainSid {
-					ui.Debug().Msgf("Found a 'dangling' local SID object %v. This is either a SID from a deleted object (most likely) or hardened objects that are not readable with the account used to dump data.", o.SID())
+					// ui.Debug().Msgf("Found a 'dangling' local SID object %v. This is either a SID from a deleted object (most likely) or hardened objects that are not readable with the account used to dump data.", o.SID())
 				} else {
-					ui.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
+					// ui.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
 					o.SetFlex(
 						engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
 						engine.ObjectCategorySimple, "Foreign-Security-Principal",
@@ -1301,16 +1346,17 @@ func init() {
 					)
 				}
 			}
-		}
+			return true
+		})
 	},
 		"Creation of synthetic Foreign-Security-Principal objects",
 		engine.AfterMergeLow)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, machine := range ao.Slice() {
+		ao.Iterate(func(machine *engine.Object) bool {
 			// Only for machines, you can't really pwn users this way
 			if machine.Type() != ObjectTypeMachine {
-				continue
+				return true
 			}
 
 			// Find the computer AD object if any
@@ -1324,7 +1370,7 @@ func init() {
 			})
 
 			if computer == nil {
-				continue
+				return true
 			}
 
 			// Find all perent containers with GP links
@@ -1413,20 +1459,22 @@ func init() {
 					allowEnforcedGPOsOnly = true
 				}
 			}
-		}
+			return true
+		})
 	},
 		"Computers affected by a GPO",
 		engine.AfterMergeLow,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttr(engine.ObjectSid) && !o.HasAttr(engine.DisplayName) {
 				if name, found := windowssecurity.KnownSIDs[o.SID().String()]; found {
 					o.SetFlex(engine.DisplayName, name)
 				}
 			}
-		}
+			return true
+		})
 	},
 		"Adding displayName to Well-Known SID objects that are missing them",
 		engine.AfterMergeLow)
@@ -1470,7 +1518,7 @@ func init() {
 	*/
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, object := range ao.Slice() {
+		ao.Iterate(func(object *engine.Object) bool {
 			// Object that is member of something
 			object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
@@ -1529,7 +1577,8 @@ func init() {
 				memberobject.EdgeTo(object, activedirectory.EdgeMemberOfGroup)
 				return true
 			})
-		}
+			return true
+		})
 	},
 		"MemberOf and Member resolution",
 		engine.AfterMergeLow,
@@ -1556,13 +1605,13 @@ func init() {
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
-		for _, foreign := range ao.Filter(func(o *engine.Object) bool {
+		ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeForeignSecurityPrincipal
-		}).Slice() {
+		}).Iterate(func(foreign *engine.Object) bool {
 			sid := foreign.SID()
 			if sid.IsNull() {
 				ui.Error().Msgf("Found a foreign security principal with no SID %v", foreign.Label())
-				continue
+				return true
 			}
 			if sid.Component(2) == 21 {
 				if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
@@ -1575,16 +1624,17 @@ func init() {
 			} else {
 				ui.Warn().Msgf("Found a foreign security principal %v with an non type 21 SID %v", foreign.DN(), sid.String())
 			}
-		}
+			return true
+		})
 	}, "Link foreign security principals to their native objects",
 		engine.AfterMerge,
 	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		var warnlines int
-		for _, gpo := range ao.Filter(func(o *engine.Object) bool {
+		ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeGroupPolicyContainer
-		}).Slice() {
+		}).Iterate(func(gpo *engine.Object) bool {
 			gpo.Edges(engine.In).Range(func(group *engine.Object, methods engine.EdgeBitmap) bool {
 				groupname := group.OneAttrString(engine.SAMAccountName)
 				if strings.Contains(groupname, "%") {
@@ -1636,7 +1686,8 @@ func init() {
 				}
 				return true
 			})
-		}
+			return true
+		})
 		if warnlines > 0 {
 			ui.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
 		}

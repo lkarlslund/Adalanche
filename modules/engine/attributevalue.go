@@ -148,6 +148,11 @@ type AttributeValue interface {
 	IsZero() bool
 }
 
+type AttributeValuePair struct {
+	Value1 AttributeValue
+	Value2 AttributeValue
+}
+
 type AttributeValueObject struct {
 	*Object
 }

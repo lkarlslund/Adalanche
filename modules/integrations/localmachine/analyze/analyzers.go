@@ -6,7 +6,7 @@ import (
 )
 
 func LinkSCCM(ao *engine.Objects) {
-	for _, o := range ao.Slice() {
+	ao.Iterate(func(o *engine.Object) bool {
 		if o.HasAttr(WUServer) || o.HasAttr(SCCMServer) {
 			var hosts []string
 			if hostname := o.OneAttrString(WUServer); hostname != "" {
@@ -31,7 +31,8 @@ func LinkSCCM(ao *engine.Objects) {
 				}
 			}
 		}
-	}
+		return true
+	})
 }
 
 func init() {

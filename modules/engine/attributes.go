@@ -103,6 +103,11 @@ var (
 
 type Attribute uint16
 
+type AttributePair struct {
+	attribute1 Attribute
+	attribute2 Attribute
+}
+
 var attributemutex sync.RWMutex
 
 func NewAttribute(name string) Attribute {

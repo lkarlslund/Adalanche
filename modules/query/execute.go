@@ -48,7 +48,7 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 
 	for i, potentialIndex := range potentialindexes {
 		index := ao.GetIndex(potentialIndex.a)
-		foundObjects, found := index.Lookup(engine.AttributeValueToIndex(engine.AttributeValueString(potentialIndex.match)))
+		foundObjects, found := index.Lookup(engine.AttributeValueString(potentialIndex.match))
 		if found {
 			potentialindexes[i].results = foundObjects
 		}

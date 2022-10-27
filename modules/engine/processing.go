@@ -2,14 +2,16 @@ package engine
 
 import (
 	"runtime"
+	"sync"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 func Merge(aos []*Objects) (*Objects, error) {
 	var biggest, biggestcount, totalobjects int
 	for i, caos := range aos {
-		loaderproduced := len(caos.Slice())
+		loaderproduced := caos.Len()
 		totalobjects += loaderproduced
 		if loaderproduced > biggestcount {
 			biggestcount = loaderproduced
@@ -41,88 +43,120 @@ func Merge(aos []*Objects) (*Objects, error) {
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
 
-	// Iterate over all the object collections
-	needsmerge := make(map[*Object]struct{})
+	ui.Info().Msgf("Merging %v objects into the object metaverse", totalobjects)
 
+	pb := ui.ProgressBar("Merging objects from each unique source", totalobjects)
+
+	// To ease anti-cross-the-beams on DataSource we temporarily group each source and combine them in the end
+	type sourceinfo struct {
+		queue chan *Object
+		shard *Objects
+	}
+
+	var sourcemap gsync.MapOf[string, sourceinfo]
+
+	var consumerWG, producerWG sync.WaitGroup
+
+	// Iterate over all the object collections
 	for _, mergeobjects := range aos {
 		if mergeroot := mergeobjects.Root(); mergeroot != nil {
 			mergeroot.ChildOf(globalroot)
 		}
 
-		for _, o := range mergeobjects.Slice() {
-			needsmerge[o] = struct{}{}
-		}
-		// needsmerge = append(needsmerge, mergeobjects.Slice()...)
-	}
-
-	ui.Info().Msgf("Merging %v objects into the object metaverse", len(needsmerge))
-
-	pb := ui.ProgressBar("Merging objects from each unique source ...", len(needsmerge))
-
-	// To ease anti-cross-the-beams on UniqueSource we temporarily group each source and combine them in the end
-	sourcemap := make(map[interface{}]*Objects)
-	none := ""
-	sourcemap[none] = NewObjects()
-
-	for mergeobject, _ := range needsmerge {
-		if mergeobject.HasAttr(DataSource) {
-			us := AttributeValueToIndex(mergeobject.OneAttr(DataSource))
-			shard := sourcemap[us]
-			if shard == nil {
-				shard = NewObjects()
-				sourcemap[us] = shard
+		// Merge all objects into their own shard based on the DataSource attribute if any
+		producerWG.Add(1)
+		go func(os *Objects) {
+			nextshard := sourceinfo{
+				queue: make(chan *Object, 64),
+				shard: NewObjects(),
 			}
-			shard.AddMerge(mergeon, mergeobject)
-		} else {
-			sourcemap[none].AddMerge(mergeon, mergeobject)
-		}
-		pb.Add(1)
+
+			os.Iterate(func(mergeobject *Object) bool {
+				pb.Add(1)
+				ds := mergeobject.OneAttr(DataSource)
+				if ds != nil {
+					ds = AttributeValueToIndex(ds)
+				} else {
+					ds = AttributeValueString("")
+				}
+
+				info, loaded := sourcemap.LoadOrStore(ds.String(), nextshard)
+				if !loaded {
+					consumerWG.Add(1)
+					go func(shard *Objects, queue chan *Object) {
+						for mergeobject := range queue {
+							shard.AddMerge(mergeon, mergeobject)
+						}
+						consumerWG.Done()
+					}(info.shard, info.queue)
+					nextshard = sourceinfo{
+						queue: make(chan *Object, 64),
+						shard: NewObjects(),
+					}
+				}
+				info.queue <- mergeobject
+				return true
+			})
+			producerWG.Done()
+		}(mergeobjects)
 	}
 
+	producerWG.Wait()
+	sourcemap.Range(func(key string, value sourceinfo) bool {
+		close(value.queue)
+		return true
+	})
+	consumerWG.Wait()
 	pb.Finish()
 
 	var needsfinalization int
-	for _, sao := range sourcemap {
-		needsfinalization += sao.Len()
-	}
+	sourcemap.Range(func(key string, value sourceinfo) bool {
+		needsfinalization += value.shard.Len()
+		return true
+	})
 
-	pb = ui.ProgressBar("Finalizing merge ...", needsfinalization)
+	pb = ui.ProgressBar("Finalizing merge", needsfinalization)
 
 	// We're grabbing the index directly for faster processing here
 	dnindex := globalobjects.GetIndex(DistinguishedName)
 
-	for us, usao := range sourcemap {
-		if us == none {
-			continue // not these, we'll try to merge at the very end
+	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collition FML
+	sourcemap.Range(func(us string, usao sourceinfo) bool {
+		if us == "" {
+			return true // continue - not these, we'll try to merge at the very end
 		}
-		for _, addobject := range usao.Slice() {
+		usao.shard.Iterate(func(addobject *Object) bool {
 			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
 				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 					existing[0].AbsorbEx(addobject, true)
-					continue
+					return true
 				}
 			}
 			globalobjects.Add(addobject)
-		}
-	}
+			return true
+		})
+		return true
+	})
 
-	for _, addobject := range sourcemap[none].Slice() {
+	nodatasource, _ := sourcemap.Load("")
+	nodatasource.shard.Iterate(func(addobject *Object) bool {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
 			if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 				existing[0].AbsorbEx(addobject, true)
-				continue
+				return true
 			}
 		}
 		globalobjects.AddMerge(mergeon, addobject)
-	}
+		return true
+	})
 
 	pb.Finish()
 
-	aftermergetotalobjects := len(globalobjects.Slice())
+	aftermergetotalobjects := globalobjects.Len()
 	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
 
 	runtime.GC()
@@ -144,13 +178,14 @@ func Merge(aos []*Objects) (*Objects, error) {
 			}
 		}
 	}
-	for _, object := range globalobjects.Slice() {
+	globalobjects.Iterate(func(object *Object) bool {
 		if object.Parent() == nil {
 			object.ChildOf(orphancontainer)
 			orphans++
 		}
 		processobject(object)
-	}
+		return true
+	})
 	if orphans > 0 {
 		ui.Warn().Msgf("Detected %v orphan objects in final results", orphans)
 	}

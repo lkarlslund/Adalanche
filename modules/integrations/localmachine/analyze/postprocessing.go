@@ -9,7 +9,7 @@ import (
 
 func init() {
 	loader.AddProcessor(func(ao *engine.Objects) {
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
 
 				// We can do this with confidence as everything comes from this loader
@@ -42,13 +42,14 @@ func init() {
 					// }
 				}
 			}
-		}
+			return true
+		})
 	}, "Link local users and groups to machines", engine.BeforeMergeLow)
 
 	loader.AddProcessor(func(ao *engine.Objects) {
 		var warns int
 		ln := engine.AttributeValueString(loadername)
-		for _, o := range ao.Slice() {
+		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
 					if o.Edges(engine.Out).Len()+o.Edges(engine.In).Len() == 0 {
@@ -57,11 +58,12 @@ func init() {
 					warns++
 					if warns > 100 {
 						ui.Debug().Msg("Stopping warnings about graph connections, too much output")
-						break
+						return false
 					}
 				}
 			}
-		}
+			return true
+		})
 	},
 		"Detecting broken links",
 		engine.AfterMergeHigh,

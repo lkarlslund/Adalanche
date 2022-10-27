@@ -74,11 +74,12 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 
 	// Convert to our working map
 	processinground := 1
-	for _, object := range opts.IncludeObjects.Slice() {
-		implicatedobjectsmap[object] = &roundinfo{
+	opts.IncludeObjects.Iterate(func(o *Object) bool {
+		implicatedobjectsmap[o] = &roundinfo{
 			roundadded: processinground,
 		}
-	}
+		return true
+	})
 
 	// Methods and ObjectTypes allowed
 	detectedges := opts.MethodsF
