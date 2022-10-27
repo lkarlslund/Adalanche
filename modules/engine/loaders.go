@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
@@ -106,24 +107,27 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 	ui.Debug().Msg("Processing files with the biggest files first")
 	fileQueue := make(chan string, runtime.NumCPU()*4)
 	var fileQueueWG sync.WaitGroup
-	var skipped int
+	var skipped uint32
 	for i := 0; i < runtime.NumCPU(); i++ {
 		fileQueueWG.Add(1)
 		go func() {
 			for filename := range fileQueue {
+				var handled bool
 			loaderloop:
 				for _, loader := range loaders {
 					fileerr := loader.Load(filename, cb)
 					switch fileerr {
 					case nil:
+						handled = true
 						break loaderloop
 					case ErrUninterested:
 						// loop, and try next loader
 					default:
-						skipped++
 						ui.Error().Msgf("Error from loader %v on file %v: %v", loader.Name(), filename, fileerr)
-						break loaderloop
 					}
+				}
+				if !handled {
+					atomic.AddUint32(&skipped, 1)
 				}
 				cb(-1, 0) // Either loaded or skipped
 			}
@@ -143,7 +147,7 @@ func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjec
 	var globalerr error
 	var totalobjects int
 
-	ui.Info().Msgf("Loaded %v files, skipped %v files", len(files)-skipped, skipped)
+	ui.Info().Msgf("Loaded %v files, skipped %v files", len(files)-int(skipped), skipped)
 
 	var aos []loaderobjects
 
