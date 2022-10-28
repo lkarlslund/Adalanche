@@ -27,10 +27,10 @@ jobs:
       shell: pwsh
 
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Binaries
-        path: binaries/*
+        path: binaries/
 
     - uses: "marvinpinto/action-automatic-releases@latest"
       with:
