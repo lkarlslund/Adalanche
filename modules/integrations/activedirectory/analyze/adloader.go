@@ -78,7 +78,7 @@ func (ld *ADLoader) Init() error {
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
 		go func() {
-			// chunk := make([]*engine.Object, 0, 64)
+			// chunk := make(engine.ObjectSlice, 0, 64)
 			for item := range ld.objectstoconvert {
 				if item.object.DistinguishedName == "" {
 					if dnc, found := item.object.Attributes["defaultNamingContext"]; found {

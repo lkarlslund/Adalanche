@@ -5,44 +5,55 @@ import (
 )
 
 type Index struct {
-	lookup map[AttributeValue][]*Object
+	lookup map[AttributeValue]*ObjectSlice
 	sync.RWMutex
 }
 
 func (i *Index) init() {
-	i.lookup = make(map[AttributeValue][]*Object)
+	i.lookup = make(map[AttributeValue]*ObjectSlice)
 }
 
-func (i *Index) Lookup(key AttributeValue) ([]*Object, bool) {
+func (i *Index) Lookup(key AttributeValue) (ObjectSlice, bool) {
 	iv := AttributeValueToIndex(key)
 	i.RLock()
 	result, found := i.lookup[iv]
 	i.RUnlock()
-	return result, found
+	if !found {
+		return ObjectSlice{}, false
+	}
+	return *result, found
 }
 
 func (i *Index) Add(key AttributeValue, o *Object, undupe bool) {
 	iv := AttributeValueToIndex(key)
 	i.Lock()
-	if undupe {
-		existing, _ := i.lookup[iv]
-		for _, dupe := range existing {
-			if dupe == o {
-				i.Unlock()
-				return
+	existing, found := i.lookup[iv]
+	if !found {
+		new := NewObjectSlice(0)
+		i.lookup[iv] = &new
+		existing = &new
+	}
+	i.Unlock()
+	if undupe && existing.Len() > 0 {
+		dupefound := false
+		existing.Iterate(func(eo *Object) bool {
+			if o == eo {
+				dupefound = true
+				return false
 			}
+			return true
+		})
+		if dupefound {
+			return
 		}
 	}
-
-	existing, _ := i.lookup[iv]
-	i.lookup[iv] = append(existing, o)
-	i.Unlock()
+	existing.Add(o)
 }
 
-func (i *Index) Iterate(each func(key AttributeValue, objects []*Object) bool) {
+func (i *Index) Iterate(each func(key AttributeValue, objects ObjectSlice) bool) {
 	i.RLock()
 	for key, value := range i.lookup {
-		if !each(key, value) {
+		if !each(key, *value) {
 			break
 		}
 	}
@@ -50,22 +61,25 @@ func (i *Index) Iterate(each func(key AttributeValue, objects []*Object) bool) {
 }
 
 type MultiIndex struct {
-	lookup map[AttributeValuePair][]*Object
+	lookup map[AttributeValuePair]*ObjectSlice
 	sync.RWMutex
 }
 
 func (i *MultiIndex) init() {
-	i.lookup = make(map[AttributeValuePair][]*Object)
+	i.lookup = make(map[AttributeValuePair]*ObjectSlice)
 }
 
-func (i *MultiIndex) Lookup(key, key2 AttributeValue) ([]*Object, bool) {
+func (i *MultiIndex) Lookup(key, key2 AttributeValue) (ObjectSlice, bool) {
 	iv := AttributeValueToIndex(key)
 	iv2 := AttributeValueToIndex(key2)
 
 	i.RLock()
 	result, found := i.lookup[AttributeValuePair{iv, iv2}]
 	i.RUnlock()
-	return result, found
+	if !found {
+		return ObjectSlice{}, false
+	}
+	return *result, found
 }
 
 func (i *MultiIndex) Add(key, key2 AttributeValue, o *Object, undupe bool) {
@@ -73,25 +87,35 @@ func (i *MultiIndex) Add(key, key2 AttributeValue, o *Object, undupe bool) {
 	iv2 := AttributeValueToIndex(key2)
 	avp := AttributeValuePair{iv, iv2}
 	i.Lock()
-	if undupe {
-		existing, _ := i.lookup[avp]
-		for _, dupe := range existing {
-			if dupe == o {
-				i.Unlock()
-				return
+	existing, found := i.lookup[avp]
+	if !found {
+		new := NewObjectSlice(0)
+		i.lookup[avp] = &new
+		existing = &new
+	}
+	if undupe && existing.Len() > 0 {
+		dupefound := false
+		existing.Iterate(func(eo *Object) bool {
+			if o == eo {
+				dupefound = true
+				return false
 			}
+			return true
+		})
+		if dupefound {
+			i.Unlock()
+			return
 		}
 	}
 
-	existing, _ := i.lookup[avp]
-	i.lookup[avp] = append(existing, o)
+	existing.Add(o)
 	i.Unlock()
 }
 
-func (i *MultiIndex) Iterate(each func(key, key2 AttributeValue, objects []*Object) bool) {
+func (i *MultiIndex) Iterate(each func(key, key2 AttributeValue, objects ObjectSlice) bool) {
 	i.RLock()
 	for pair, value := range i.lookup {
-		if !each(pair.Value1, pair.Value2, value) {
+		if !each(pair.Value1, pair.Value2, *value) {
 			break
 		}
 	}

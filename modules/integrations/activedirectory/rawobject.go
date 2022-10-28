@@ -73,12 +73,10 @@ func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
 }
 
 // Performance hack
-var avsPool sync.Pool
-
-func init() {
-	avsPool.New = func() interface{} {
+var avsPool = sync.Pool{
+	New: func() interface{} {
 		return make(engine.AttributeValueSlice, 0, 16)
-	}
+	},
 }
 
 func EncodeAttributeData(attribute engine.Attribute, values []string) engine.AttributeValues {

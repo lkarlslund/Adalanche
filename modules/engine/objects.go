@@ -28,7 +28,8 @@ type Objects struct {
 
 	indexes      []*Index                      // Uses atribute directly as slice offset for performance
 	multiindexes map[AttributePair]*MultiIndex // Uses a map for storage considerations
-	idindex      gsync.MapOf[uint32, *Object]
+
+	objects gsync.MapOf[ObjectID, *Object]
 
 	typecount typestatistics
 }
@@ -203,11 +204,11 @@ func (os *Objects) ReindexObject(o *Object, isnew bool) {
 
 				if isnew && unique {
 					existing, dupe := index.Lookup(indexval)
-					if dupe && existing[0] != o {
-						ui.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing[0].Label())
-						ui.Debug().Msgf("NEW DN: %v", o.DN())
-						ui.Debug().Msgf("EXISTING DN: %v", existing[0].DN())
-						return true
+					if dupe {
+						if existing.First() != o {
+							ui.Warn().Msgf("Duplicate index %v value %v when trying to add %v, already exists as %v, index still points to original object", attribute.String(), value.String(), o.Label(), existing.First().Label())
+							return true
+						}
 					}
 				}
 
@@ -286,7 +287,7 @@ func (os *Objects) Add(obs ...*Object) {
 
 func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 	for _, o := range obs {
-		if !os.Merge(attrtomerge, o) {
+		if attrtomerge == nil || !os.Merge(attrtomerge, o) {
 			os.objectmutex.Lock()
 			os.add(o)
 			os.objectmutex.Unlock()
@@ -296,18 +297,18 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 
 // Attemps to merge the object into the objects
 func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
-	if _, found := os.idindex.Load(o.ID()); found {
+	if _, found := os.FindID(o.ID()); found {
 		ui.Fatal().Msg("Object already exists in objects, so we can't merge it")
 	}
 
 	// var deb int
 	var merged bool
+	mergeAttrSuccess := NonExistingAttribute
 	if len(attrtomerge) > 0 {
 		for _, mergeattr := range attrtomerge {
 			o.Attr(mergeattr).Iterate(func(lookfor AttributeValue) bool {
 				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
-				targetloop:
-					for _, mergetarget := range mergetargets {
+					mergetargets.Iterate(func(mergetarget *Object) bool {
 						var failed bool
 						o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 							if attr.IsSingle() && mergetarget.HasAttr(attr) {
@@ -321,7 +322,7 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							return true
 						})
 						if failed {
-							continue targetloop
+							return false // break
 						}
 						for _, mfi := range mergeapprovers {
 							res, err := mfi.mergefunc(o, mergetarget)
@@ -331,7 +332,7 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 								// 	ui.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
 								// }
 
-								continue targetloop
+								return false // break
 							case ErrMergeOnThis, nil:
 								// Let the code below do the merge
 							default:
@@ -343,19 +344,22 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 							}
 						}
 						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-
+						mergeAttrSuccess = mergeattr
 						mergetarget.Absorb(o)
 						os.ReindexObject(mergetarget, false)
 						merged = true
 						return false
-					}
+					})
 				}
-				return true
+				return !merged
 			})
 			if merged {
 				break
 			}
 		}
+	}
+	if merged {
+		attributenums[int(mergeAttrSuccess)].mergeSuccesses.Add(1)
 	}
 	return merged
 }
@@ -365,7 +369,7 @@ func (os *Objects) add(o *Object) {
 		ui.Fatal().Msg("Objects must have a unique ID")
 	}
 
-	if _, found := os.idindex.LoadOrStore(o.ID(), o); found {
+	if _, found := os.objects.LoadOrStore(o.ID(), o); found {
 		ui.Fatal().Msg("Object already exists in objects, so we can't add it")
 	}
 
@@ -390,10 +394,10 @@ func (os *Objects) Statistics() typestatistics {
 	return os.typecount
 }
 
-func (os *Objects) AsSlice() []*Object {
-	result := make([]*Object, 0, os.Len())
+func (os *Objects) AsSlice() ObjectSlice {
+	result := NewObjectSlice(os.Len())
 	os.Iterate(func(o *Object) bool {
-		result = append(result, o)
+		result.Add(o)
 		return true
 	})
 	return result
@@ -401,7 +405,7 @@ func (os *Objects) AsSlice() []*Object {
 
 func (os *Objects) Len() int {
 	var count int
-	os.idindex.Range(func(key uint32, value *Object) bool {
+	os.objects.Range(func(key ObjectID, value *Object) bool {
 		count++
 		return true
 	})
@@ -409,8 +413,14 @@ func (os *Objects) Len() int {
 }
 
 func (os *Objects) Iterate(each func(o *Object) bool) {
-	os.idindex.Range(func(key uint32, value *Object) bool {
+	os.objects.Range(func(key ObjectID, value *Object) bool {
 		return each(value)
+	})
+}
+
+func (os *Objects) IterateID(each func(id ObjectID) bool) {
+	os.objects.Range(func(key ObjectID, value *Object) bool {
+		return each(key)
 	})
 }
 
@@ -428,7 +438,7 @@ func (os *Objects) IterateParallel(each func(o *Object) bool, parallelFuncs int)
 		go func() {
 			for o := range queue {
 				if !each(o) {
-					stop.Store(false)
+					stop.Store(true)
 				}
 			}
 			wg.Done()
@@ -450,22 +460,23 @@ func (os *Objects) IterateParallel(each func(o *Object) bool, parallelFuncs int)
 	wg.Wait()
 }
 
-func (os *Objects) FindByID(id uint32) (o *Object, found bool) {
-	return os.idindex.Load(id)
-}
-
 func (os *Objects) MergeOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (*Object, bool) {
-	o, found := os.FindMultiOrAdd(attribute, value, func() *Object {
+	results, found := os.FindMultiOrAdd(attribute, value, func() *Object {
 		// Add this is not found
 		return NewObject(append(flexinit, attribute, value)...)
 	})
 	if found {
 		eatme := NewObject(append(flexinit, attribute, value)...)
 		// Use the first one found
-		o[0].Absorb(eatme)
-		return o[0], true
+		target := results.First()
+		target.Absorb(eatme)
+		return target, true
 	}
-	return o[0], false
+	return results.First(), false
+}
+
+func (os *Objects) FindID(id ObjectID) (*Object, bool) {
+	return os.objects.Load(id)
 }
 
 func (os *Objects) FindOrAddObject(o *Object) bool {
@@ -479,15 +490,15 @@ func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit
 	o, found := os.FindMultiOrAdd(attribute, value, func() *Object {
 		return NewObject(append(flexinit, attribute, value)...)
 	})
-	return o[0], found
+	return o.First(), found
 }
 
 func (os *Objects) Find(attribute Attribute, value AttributeValue) (o *Object, found bool) {
 	v, found := os.FindMultiOrAdd(attribute, value, nil)
-	if len(v) != 1 {
+	if v.Len() != 1 {
 		return nil, false
 	}
-	return v[0], found
+	return v.First(), found
 }
 
 func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o *Object, found bool) {
@@ -495,7 +506,7 @@ func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2
 	if !found {
 		return nil, false
 	}
-	return results[0], len(results) == 1
+	return results.First(), results.Len() == 1
 }
 
 func (os *Objects) FindTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...interface{}) (o *Object, found bool) {
@@ -503,24 +514,24 @@ func (os *Objects) FindTwoOrAdd(attribute Attribute, value AttributeValue, attri
 		return NewObject(append(flexinit, attribute, value, attribute2, value2)...)
 	})
 	if !found {
-		return results[0], false
+		return results.First(), false
 	}
-	return results[0], len(results) == 1
+	return results.First(), results.Len() == 1
 }
 
-func (os *Objects) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o []*Object, found bool) {
+func (os *Objects) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o ObjectSlice, found bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, nil)
 }
 
-func (os *Objects) FindMulti(attribute Attribute, value AttributeValue) ([]*Object, bool) {
+func (os *Objects) FindMulti(attribute Attribute, value AttributeValue) (ObjectSlice, bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, nil)
 }
 
-func (os *Objects) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Object) ([]*Object, bool) {
+func (os *Objects) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Object) (ObjectSlice, bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, addifnotfound)
 }
 
-func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Object) ([]*Object, bool) {
+func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Object) (ObjectSlice, bool) {
 	if attribute > attribute2 {
 		attribute, attribute2 = attribute2, attribute
 		value, value2 = value2, value
@@ -566,10 +577,12 @@ func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, 
 		}
 		os.add(no)
 		os.objectmutex.Unlock()
-		return []*Object{no}, false
+		nos := NewObjectSlice(1)
+		nos.Add(no)
+		return nos, false
 	}
 	os.objectmutex.Unlock()
-	return nil, false
+	return ObjectSlice{}, false
 }
 
 func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
@@ -626,7 +639,7 @@ func (os *Objects) FindOrAddSID(s windowssecurity.SID) *Object {
 		}
 		return no
 	})
-	return o[0]
+	return o.First()
 }
 
 func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Object {
@@ -652,18 +665,18 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 			}
 			return no
 		})
-		return result[0]
+		return result.First()
 	default:
 		if r.HasAttr(DomainContext) {
 			// From outside, we need to find the domain part
 			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
-				return o[0]
+				return o.First()
 			}
 		}
 		// From inside same source, that is easy
 		if r.HasAttr(DataSource) {
 			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
-				return o[0]
+				return o.First()
 			}
 		}
 

@@ -176,7 +176,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 				}
 
 				if opts.ExcludeObjects != nil {
-					if _, found := opts.ExcludeObjects.FindByID(target.ID()); found {
+					if _, found := opts.ExcludeObjects.FindID(target.ID()); found {
 						// skip excluded objects
 						// ui.Debug().Msgf("Excluding target %v", pwntarget.DN())
 						return true // continue
@@ -341,7 +341,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 		}
 		for node := range implicatedobjectsmap {
 			if _, found := pointedto[node]; !found {
-				if _, found := opts.IncludeObjects.FindByID(node.ID()); opts.PruneIslands || !found {
+				if _, found := opts.IncludeObjects.FindID(node.ID()); opts.PruneIslands || !found {
 					delete(implicatedobjectsmap, node)
 					prunedislands++
 				}
@@ -374,7 +374,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 	i = 0
 	for object, ri := range implicatedobjectsmap {
 		pg.Nodes[i].Object = object
-		if _, found := opts.IncludeObjects.FindByID(object.ID()); found {
+		if _, found := opts.IncludeObjects.FindID(object.ID()); found {
 			pg.Nodes[i].Target = true
 		}
 		pg.Nodes[i].CanExpand = ri.canexpand

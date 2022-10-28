@@ -27,7 +27,7 @@ type LocalMachineLoader struct {
 	ao          *engine.Objects
 	done        sync.WaitGroup
 	mutex       sync.Mutex
-	machinesids map[string][]*engine.Object
+	machinesids map[string]*engine.ObjectSlice
 	infostoadd  chan loaderQueueItem
 }
 
@@ -37,7 +37,7 @@ func (ld *LocalMachineLoader) Name() string {
 
 func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
-	ld.machinesids = make(map[string][]*engine.Object)
+	ld.machinesids = make(map[string]*engine.ObjectSlice)
 	ld.infostoadd = make(chan loaderQueueItem, 128)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -66,7 +66,14 @@ func (ld *LocalMachineLoader) Init() error {
 
 				if cinfo.Machine.LocalSID != "" {
 					ld.mutex.Lock()
-					ld.machinesids[cinfo.Machine.LocalSID] = append(ld.machinesids[cinfo.Machine.LocalSID], computerobject)
+					sids := ld.machinesids[cinfo.Machine.LocalSID]
+					if sids == nil {
+						slice := engine.NewObjectSlice(0)
+						sids = &slice
+						ld.machinesids[cinfo.Machine.LocalSID] = sids
+					}
+					sids.Add(computerobject)
+
 					ld.mutex.Unlock()
 				}
 
@@ -86,13 +93,15 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 
 	// Knot all the objects with colliding SIDs together
 	for _, os := range ld.machinesids {
-		for _, o := range os {
-			for _, p := range os {
+		os.Iterate(func(o *engine.Object) bool {
+			os.Iterate(func(p *engine.Object) bool {
 				if o != p {
 					o.EdgeTo(p, EdgeSIDCollision)
 				}
-			}
-		}
+				return true
+			})
+			return true
+		})
 	}
 
 	result := []*engine.Objects{ld.ao}

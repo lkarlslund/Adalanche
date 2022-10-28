@@ -2,11 +2,27 @@ package engine
 
 import (
 	"runtime"
+	"sort"
 	"sync"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
+
+func getMergeAttributes() []Attribute {
+	var mergeon []Attribute
+	for i, ai := range attributenums {
+		if ai.merge {
+			mergeon = append(mergeon, Attribute(i))
+		}
+	}
+	sort.Slice(mergeon, func(i, j int) bool {
+		isuccess := attributenums[mergeon[i]].mergeSuccesses.Load()
+		jsuccess := attributenums[mergeon[j]].mergeSuccesses.Load()
+		return jsuccess < isuccess
+	})
+	return mergeon
+}
 
 func Merge(aos []*Objects) (*Objects, error) {
 	var biggest, biggestcount, totalobjects int
@@ -26,13 +42,6 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// ui.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
 
 	// Find all the attributes that can be merged objects on
-	var mergeon []Attribute
-	for i, ai := range attributenums {
-		if ai.merge {
-			mergeon = append(mergeon, Attribute(i))
-		}
-	}
-
 	globalobjects := NewObjects()
 	globalroot := NewObject(
 		Name, AttributeValueString("Adalanche root node"),
@@ -84,8 +93,14 @@ func Merge(aos []*Objects) (*Objects, error) {
 				if !loaded {
 					consumerWG.Add(1)
 					go func(shard *Objects, queue chan *Object) {
+						var i int
+						mergeon := getMergeAttributes()
 						for mergeobject := range queue {
+							if i%16384 == 0 {
+								mergeon = getMergeAttributes()
+							}
 							shard.AddMerge(mergeon, mergeobject)
+							i++
 						}
 						consumerWG.Done()
 					}(info.shard, info.queue)
@@ -130,7 +145,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
 				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-					existing[0].AbsorbEx(addobject, true)
+					existing.First().AbsorbEx(addobject, true)
 					return true
 				}
 			}
@@ -141,16 +156,22 @@ func Merge(aos []*Objects) (*Objects, error) {
 	})
 
 	nodatasource, _ := sourcemap.Load("")
+	var i int
+	mergeon := getMergeAttributes()
 	nodatasource.shard.Iterate(func(addobject *Object) bool {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
 		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
 			if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-				existing[0].AbsorbEx(addobject, true)
+				existing.First().AbsorbEx(addobject, true)
 				return true
 			}
 		}
+		if i%16384 == 0 {
+			mergeon = getMergeAttributes()
+		}
 		globalobjects.AddMerge(mergeon, addobject)
+		i++
 		return true
 	})
 
@@ -164,18 +185,19 @@ func Merge(aos []*Objects) (*Objects, error) {
 	ui.Info().Msgf("We freed %v objects", NukedObjects)
 
 	var orphans int
-	processed := make(map[uint32]struct{})
+	processed := make(map[ObjectID]struct{})
 	var processobject func(o *Object)
 	processobject = func(o *Object) {
 		if _, done := processed[o.ID()]; !done {
-			if _, found := globalobjects.FindByID(o.ID()); !found {
+			if _, found := globalobjects.FindID(o.ID()); !found {
 				ui.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
 				globalobjects.Add(o)
 			}
 			processed[o.ID()] = struct{}{}
-			for _, child := range o.Children() {
+			o.Children().Iterate(func(child *Object) bool {
 				processobject(child)
-			}
+				return true
+			})
 		}
 	}
 	globalobjects.Iterate(func(object *Object) bool {

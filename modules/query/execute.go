@@ -9,7 +9,7 @@ import (
 type IndexSelectorInfo struct {
 	a          engine.Attribute
 	match      string
-	results    []*engine.Object
+	results    engine.ObjectSlice
 	queryIndex int
 }
 
@@ -55,26 +55,29 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 	}
 
 	sort.Slice(potentialindexes, func(i, j int) bool {
-		return len(potentialindexes[i].results) < len(potentialindexes[j].results)
+		return potentialindexes[i].results.Len() < potentialindexes[j].results.Len()
 	})
 
 	for _, foundindex := range potentialindexes {
-		if len(foundindex.results) != 0 {
+		if foundindex.results.Len() != 0 {
 			filteredobjects := engine.NewObjects()
 
 			// best working index is first
 			if foundindex.queryIndex == -1 {
 				// not an AND query with subitems
-				for _, o := range foundindex.results {
+
+				foundindex.results.Iterate(func(o *engine.Object) bool {
 					filteredobjects.Add(o)
-				}
+					return true
+				})
 			} else {
 				// can be optimized by patching out the index matched query filter (remove queryIndex item from filter)
-				for _, o := range foundindex.results {
+				foundindex.results.Iterate(func(o *engine.Object) bool {
 					if q.Evaluate(o) {
 						filteredobjects.Add(o)
 					}
-				}
+					return true
+				})
 			}
 
 			return filteredobjects

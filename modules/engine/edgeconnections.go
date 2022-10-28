@@ -1,24 +1,25 @@
 package engine
 
 import (
-	"sort"
-	"sync"
-
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
+	"github.com/rs/zerolog/log"
 )
 
 type EdgeConnections struct {
-	ecm  gsync.MapOf[uint32, EdgeBitmap]
-	lock sync.Mutex // For stable modification of edges
-	// m *haxmap.Map[unsafe.Pointer, EdgeBitmap]
+	ecm gsync.MapOf[*Object, *EdgeBitmap]
+	// ecm *haxmap.Map[ObjectID, *EdgeBitmap]
+	// ecm *hashmap.Map[ObjectID, *EdgeBitmap]
 }
 
-var globalEdgeConnectionsLock sync.Mutex // Ugly but it will do
+func (ec *EdgeConnections) init() {
+	ec.ecm = gsync.MapOf[*Object, *EdgeBitmap]{}
+	// ec.ecm = hashmap.New[ObjectID, *EdgeBitmap]()
+}
 
 func (ec *EdgeConnections) StringMap() map[string]string {
 	result := make(map[string]string)
-	ec.RangeID(func(id uint32, eb EdgeBitmap) bool {
-		result[IDtoObject(id).Label()] = eb.JoinedString()
+	ec.Range(func(target *Object, eb EdgeBitmap) bool {
+		result[target.Label()] = eb.JoinedString()
 		return true
 	})
 	return result
@@ -26,20 +27,30 @@ func (ec *EdgeConnections) StringMap() map[string]string {
 
 // Thread safe range
 func (ec *EdgeConnections) Range(rf func(*Object, EdgeBitmap) bool) {
-	ec.ecm.Range(func(id uint32, eb EdgeBitmap) bool {
-		return rf(IDtoObject(id), eb)
+	// if ec.ecm == nil {
+	// 	return
+	// }
+	ec.ecm.Range(func(target *Object, eb *EdgeBitmap) bool {
+		if target == nil {
+			log.Warn().Msg("Unpossible 2: Top Secret Mission")
+			return true
+		}
+		return rf(target, *eb)
 	})
 }
 
-func (ec *EdgeConnections) RangeID(rf func(uint32, EdgeBitmap) bool) {
-	ec.ecm.Range(func(id uint32, eb EdgeBitmap) bool {
-		return rf(id, eb)
+func (ec *EdgeConnections) RangeID(rf func(ObjectID, EdgeBitmap) bool) {
+	// if ec.ecm == nil {
+	// 	return
+	// }
+	ec.ecm.Range(func(target *Object, eb *EdgeBitmap) bool {
+		return rf(target.id, *eb)
 	})
 }
 
 func (ec *EdgeConnections) Len() int {
 	var count int
-	ec.RangeID(func(id uint32, eb EdgeBitmap) bool {
+	ec.RangeID(func(id ObjectID, eb EdgeBitmap) bool {
 		count++
 		return true
 	})
@@ -47,58 +58,74 @@ func (ec *EdgeConnections) Len() int {
 }
 
 func (ec *EdgeConnections) Objects() ObjectSlice {
-	result := make(ObjectSlice, ec.Len())
+	result := NewObjectSlice(ec.Len())
 	var i int
 	ec.Range(func(o *Object, eb EdgeBitmap) bool {
-		result[i] = o
+		result.Add(o)
 		i++
 		return true
 	})
-	sort.Sort(result)
+	result.Sort(ObjectGUID, false)
 	return result
 }
 
-// func (ec *EdgeConnections) Get(o *Object) (EdgeBitmap, bool) {
-// 	return ec.m.Load(o.ID())
-// }
-
-func (ec *EdgeConnections) GetOrSet(o *Object, eb EdgeBitmap) (EdgeBitmap, bool) {
-	ec.lock.Lock()
-	res, status := ec.ecm.LoadOrStore(o.ID(), eb)
-	ec.lock.Unlock()
+func (ec *EdgeConnections) GetOrSet(o *Object, eb *EdgeBitmap) (*EdgeBitmap, bool) {
+	// res, status := ec.ecm.GetOrInsert(o.ID(), eb)
+	// res, status := ec.ecm.GetOrSet(o.ID(), eb)
+	res, status := ec.ecm.LoadOrStore(o, eb)
 	return res, status
 }
 
-func (ec *EdgeConnections) Set(o *Object, edge EdgeBitmap) {
-	ec.lock.Lock()
-	ec.ecm.Store(o.ID(), edge)
-	ec.lock.Unlock()
+func (ec *EdgeConnections) Set(o *Object, edge *EdgeBitmap) {
+	// ec.ecm.Set(o.ID(), edge)
+	ec.ecm.Store(o, edge)
 }
 
 var GlobalFSPartOfGPO uint32
 
-func (ec *EdgeConnections) SetEdge(o *Object, edge Edge) {
-	ec.lock.Lock()
-	p, _ := ec.ecm.Load(o.ID())
-	newedge := p.Set(edge)
-	ec.ecm.Store(o.ID(), newedge)
-	ec.lock.Unlock()
+// Thread safe stuff from here
+func (ec *EdgeConnections) SetEdge(o *Object, edge Edge) (*EdgeBitmap, bool) {
+	// edges, loaded := ec.ecm.Get(o.ID())
+	edges, loaded := ec.ecm.Load(o)
+	if !loaded {
+		// This is to avoid allocating EdgeBitmap way too many times
+		// edges, loaded = ec.ecm.GetOrSet(o.ID(), &EdgeBitmap{})
+		// edges, loaded = ec.ecm.GetOrInsert(o.ID(), &EdgeBitmap{})
+		edges, loaded = ec.ecm.LoadOrStore(o, &EdgeBitmap{})
+	}
+	edges.AtomicSet(edge)
+	return edges, loaded
 }
 
 func (ec *EdgeConnections) ClearEdge(o *Object, edge Edge) {
-	ec.lock.Lock()
-	p, loaded := ec.ecm.Load(o.ID())
-	if !loaded {
-		ec.lock.Unlock()
-		return
+	// p, found := ec.ecm.Get(o.ID())
+	p, found := ec.ecm.Load(o)
+	if found {
+		p.AtomicClear(edge)
 	}
-	newedge := p.Clear(edge)
-	ec.ecm.Store(o.ID(), newedge)
-	ec.lock.Unlock()
+}
+
+func (ec *EdgeConnections) SetEdges(o *Object, edges EdgeBitmap) {
+	// p, loaded := ec.ecm.Get(o.ID())
+	p, loaded := ec.ecm.Load(o)
+	if !loaded {
+		// This is to avoid allocating EdgeBitmap way too many times
+		// p, _ = ec.ecm.GetOrInsert(o.ID(), &EdgeBitmap{})
+		// p, _ = ec.ecm.GetOrSet(o.ID(), &EdgeBitmap{})
+		p, _ = ec.ecm.LoadOrStore(o, &EdgeBitmap{})
+	}
+	p.AtomicOr(edges)
+}
+
+func (ec *EdgeConnections) ClearEdges(o *Object, edges EdgeBitmap) {
+	// p, found := ec.ecm.Get(o.ID())
+	p, found := ec.ecm.Load(o)
+	if found {
+		p.AtomicAnd(edges.Invert())
+	}
 }
 
 func (ec *EdgeConnections) Del(o *Object) {
-	ec.lock.Lock()
-	ec.ecm.Delete(o.ID())
-	ec.lock.Unlock()
+	// ec.ecm.Del(o)
+	ec.ecm.Delete(o)
 }

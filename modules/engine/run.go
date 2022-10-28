@@ -31,6 +31,9 @@ func Run(path string) (*Objects, error) {
 	// Load everything
 	loadbar := ui.ProgressBar("Loading data", 0)
 
+	// Enable deduplication
+	// DedupValues(true)
+
 	lo, err := Load(loaders, path, func(cur, max int) {
 		if max > 0 {
 			loadbar.ChangeMax(max)
@@ -88,6 +91,9 @@ func Run(path string) (*Objects, error) {
 		for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
 			Process(ao, fmt.Sprintf("Postprocessing global objects priority %v", priority.String()), -1, priority)
 		}
+
+		// Free deduplication map
+		// DedupValues(false)
 
 		ui.Info().Msgf("Time to analysis completed done in %v", time.Since(starttime))
 

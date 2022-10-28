@@ -26,9 +26,10 @@ func LinkSCCM(ao *engine.Objects) {
 					ui.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.Label())
 					continue
 				}
-				for _, server := range servers {
+				servers.Iterate(func(server *engine.Object) bool {
 					server.EdgeTo(o, EdgeControlsUpdates)
-				}
+					return true
+				})
 			}
 		}
 		return true

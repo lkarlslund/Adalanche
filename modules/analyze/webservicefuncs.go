@@ -101,7 +101,7 @@ func analysisfuncs(ws *webservice) {
 				w.Write([]byte(err.Error()))
 				return
 			}
-			o, found = ws.Objs.FindByID(uint32(id))
+			o, found = ws.Objs.FindID(engine.ObjectID(id))
 		case "dn", "distinguishedname":
 			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(vars["id"]))
 		case "sid":
@@ -792,7 +792,7 @@ func analysisfuncs(ws *webservice) {
 		encoder := qjson.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 
-		var children []*engine.Object
+		var children engine.ObjectSlice
 		if idstr == "#" {
 			children = ws.Objs.Root().Children()
 		} else {
@@ -803,7 +803,7 @@ func analysisfuncs(ws *webservice) {
 				return
 			}
 
-			if parent, found := ws.Objs.FindByID(uint32(id)); found {
+			if parent, found := ws.Objs.FindID(engine.ObjectID(id)); found {
 				children = parent.Children()
 			} else {
 				w.WriteHeader(404) // not found
@@ -813,21 +813,22 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		type treeData struct {
-			Label    string `json:"text"`
-			Type     string `json:"type,omitempty"`
-			ID       uint32 `json:"id"`
-			Children bool   `json:"children,omitempty"`
+			Label    string          `json:"text"`
+			Type     string          `json:"type,omitempty"`
+			ID       engine.ObjectID `json:"id"`
+			Children bool            `json:"children,omitempty"`
 		}
 
 		var results []treeData
-		for _, object := range children {
+		children.Iterate(func(object *engine.Object) bool {
 			results = append(results, treeData{
 				ID:       object.ID(),
 				Label:    object.Label(),
 				Type:     object.Type().String(),
-				Children: len(object.Children()) > 0,
+				Children: object.Children().Len() > 0,
 			})
-		}
+			return true
+		})
 
 		err := encoder.Encode(results)
 		if err != nil {

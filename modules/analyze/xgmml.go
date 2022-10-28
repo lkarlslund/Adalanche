@@ -1,6 +1,10 @@
 package analyze
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+
+	"github.com/lkarlslund/adalanche/modules/engine"
+)
 
 // type XGMML struct {
 // 	XMLNAme xml.Name `xml:"graph"`
@@ -35,18 +39,18 @@ type XGMMLGraph struct {
 }
 
 type XGMMLNode struct {
-	XMLName    xml.Name `xml:"node"`
-	Id         uint32   `xml:"id,attr"`
-	Label      string   `xml:"label,attr"`
-	Weight     int      `xml:"weight,attr,omitempty"`
+	XMLName    xml.Name        `xml:"node"`
+	Id         engine.ObjectID `xml:"id,attr"`
+	Label      string          `xml:"label,attr"`
+	Weight     int             `xml:"weight,attr,omitempty"`
 	Attributes []XGMMLAttribute
 }
 
 type XGMMLEdge struct {
-	XMLName    xml.Name `xml:"edge"`
-	Source     uint32   `xml:"source,attr"`
-	Target     uint32   `xml:"target,attr"`
-	Label      string   `xml:"label,attr"`
+	XMLName    xml.Name        `xml:"edge"`
+	Source     engine.ObjectID `xml:"source,attr"`
+	Target     engine.ObjectID `xml:"target,attr"`
+	Label      string          `xml:"label,attr"`
 	Attributes []XGMMLAttribute
 }
 

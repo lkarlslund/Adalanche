@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
@@ -14,15 +15,16 @@ type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found boo
 type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
-	onset  AttributeSetFunc
-	onget  AttributeGetFunc
-	name   string
-	tags   []string
-	atype  AttributeType
-	single bool // If true, this attribute can not have multiple values
-	unique bool // Doing a Find on this attribute will return multiple results
-	merge  bool // If true, objects can be merged on this attribute
-	hidden bool // If true this does not show up in the list of attributes
+	onset          AttributeSetFunc
+	onget          AttributeGetFunc
+	name           string
+	tags           []string
+	atype          AttributeType
+	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
+	single         bool          // If true, this attribute can not have multiple values
+	unique         bool          // Doing a Find on this attribute will return multiple results
+	merge          bool          // If true, objects can be merged on this attribute
+	hidden         bool          // If true this does not show up in the list of attributes
 }
 
 type AttributeType uint8

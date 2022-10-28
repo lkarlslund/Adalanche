@@ -88,17 +88,18 @@ func init() {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
 		if lapsobjects, found := ao.FindMulti(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd")); found {
-			for _, lapsobject := range lapsobjects {
+			lapsobjects.Iterate(func(lapsobject *engine.Object) bool {
 				if lapsobject.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
 					if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 						ui.Debug().Msg("Detected LAPS schema extension GUID")
 						lapsGUID = objectGUID
-						break
+						return false // break
 					} else {
 						ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
 					}
 				}
-			}
+				return true
+			})
 		}
 
 		if lapsGUID.IsNil() {
@@ -684,16 +685,16 @@ func init() {
 			if o.Type() != engine.ObjectTypePKIEnrollmentService {
 				return true
 			}
-			for _, cts := range o.AttrString(engine.A("certificateTemplates")) {
-				for _, ct := range cts {
-					templates, _ := ao.FindMulti(engine.Name, engine.AttributeValueString(ct))
-					for _, template := range templates {
-						if template.Type() == engine.ObjectTypeCertificateTemplate {
-							o.EdgeTo(template, EdgePublishesCertificateTemplate)
-						}
+			o.Attr(engine.A("certificateTemplates")).Iterate(func(val engine.AttributeValue) bool {
+				templates, _ := ao.FindMulti(engine.Name, val)
+				templates.Iterate(func(template *engine.Object) bool {
+					if template.Type() == engine.ObjectTypeCertificateTemplate {
+						o.EdgeTo(template, EdgePublishesCertificateTemplate)
 					}
-				}
-			}
+					return true
+				})
+				return true
+			})
 			return true
 		})
 	}, "Certificate service publishes Certificate Template", engine.BeforeMergeFinal)
@@ -866,21 +867,22 @@ func init() {
 			return
 		}
 
-		for _, o := range results {
+		results.Iterate(func(o *engine.Object) bool {
 			// Store domain -> netbios name in array for later
 			dn := o.OneAttrString(NCName)
 			netbiosname := o.OneAttrString(NetBIOSName)
 
 			if dn == "" || netbiosname == "" {
 				// Some crossref objects have no NCName or NetBIOSName, skip them
-				continue
+				return true // continue
 			}
 
 			domains = append(domains, domaininfo{
 				suffix: dn,
 				name:   netbiosname,
 			})
-		}
+			return true
+		})
 
 		if len(domains) == 0 {
 			ui.Error().Msg("No NCName to NetBIOSName mapping found, can't apply DownLevelLogonName to objects")
@@ -1025,7 +1027,7 @@ func init() {
 
 				// Apply this edge
 				adminsdholder.EdgeTo(o, activedirectory.EdgeOverwritesACL)
-				o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(source, target *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+				o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, target *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					adminsdholder.EdgeTo(target, activedirectory.EdgeOverwritesACL)
 					return true
 				})
@@ -1294,7 +1296,7 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {
 			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
-				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
 						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
 					}
@@ -1318,13 +1320,14 @@ func init() {
 			ui.Error().Msg("Could not find any domainDNS objects")
 		}
 
-		for _, domaindnsobject := range domaindnsobjects {
+		domaindnsobjects.Iterate(func(domaindnsobject *engine.Object) bool {
 			domainSID, sidok := domaindnsobject.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID)
 			dn := domaindnsobject.OneAttrString(activedirectory.DistinguishedName)
 			if sidok {
 				domains[dn] = domainSID
 			}
-		}
+			return true
+		})
 
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) && o.HasAttr(engine.DomainContext) {
@@ -1591,7 +1594,8 @@ func init() {
 				return true
 			}
 
-			o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+			// Search from all groups towards incoming memberships
+			o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 				if depth > 1 && member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
 					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
 				}
@@ -1615,11 +1619,12 @@ func init() {
 			}
 			if sid.Component(2) == 21 {
 				if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
-					for _, source := range sources {
+					sources.Iterate(func(source *engine.Object) bool {
 						if source.Type() != engine.ObjectTypeForeignSecurityPrincipal {
 							source.EdgeToEx(foreign, activedirectory.EdgeForeignIdentity, true)
 						}
-					}
+						return true
+					})
 				}
 			} else {
 				ui.Warn().Msgf("Found a foreign security principal %v with an non type 21 SID %v", foreign.DN(), sid.String())
@@ -1656,7 +1661,7 @@ func init() {
 							realgroup = strings.Replace(realgroup, "%domainname%", netbiosdomain, -1)
 							realgroup = strings.Replace(realgroup, "%domain%", netbiosdomain, -1)
 
-							var targetgroups []*engine.Object
+							var targetgroups engine.ObjectSlice
 
 							if !strings.Contains(realgroup, "\\") {
 								realgroup = netbiosdomain + "\\" + realgroup
@@ -1665,20 +1670,21 @@ func init() {
 								engine.DownLevelLogonName, engine.AttributeValueString(realgroup),
 							)
 
-							if len(targetgroups) == 0 {
+							if targetgroups.Len() == 0 {
 								if warnlines < 10 {
 									ui.Warn().Msgf("Could not find group %v", realgroup)
 								}
 								warnlines++
-							} else if len(targetgroups) == 1 {
+							} else if targetgroups.Len() == 1 {
 								for _, edge := range methods.Edges() {
-									targetgroups[0].EdgeToEx(affected, edge, true)
+									targetgroups.First().EdgeToEx(affected, edge, true)
 								}
 							} else {
 								ui.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
-								for _, targetgroup := range targetgroups {
+								targetgroups.Iterate(func(targetgroup *engine.Object) bool {
 									ui.Warn().Msgf("Target: %v", targetgroup.DN())
-								}
+									return true
+								})
 							}
 						}
 						return true

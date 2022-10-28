@@ -280,6 +280,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			groupsid, err := windowssecurity.ParseStringSID(group.SID)
 			// Potential translation
 			groupobject := ao.AddNew(
+				engine.IgnoreBlanks,
 				activedirectory.ObjectSid, engine.AttributeValueSID(groupsid),
 				activedirectory.Name, group.Name,
 				activedirectory.Description, group.Comment,

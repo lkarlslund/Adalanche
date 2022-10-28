@@ -57,6 +57,36 @@ func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
 	return eb.set(edge)
 }
 
+func (eb *EdgeBitmap) AtomicSet(edge Edge) {
+	atomic.AddUint64(&EdgePopularity[edge], 1)
+	bits := uint64(1) << (edge % 64)
+	index := int(edge) / 64
+
+	for {
+		oldvalue := atomic.LoadUint64(&eb[index])
+		newvalue := oldvalue | bits
+		if atomic.CompareAndSwapUint64(&eb[index], oldvalue, newvalue) {
+			// We won the race
+			break
+		}
+	}
+}
+
+func (eb *EdgeBitmap) AtomicOr(edges EdgeBitmap) {
+	index := 0
+	for {
+		oldvalue := atomic.LoadUint64(&eb[index])
+		newvalue := oldvalue | edges[index]
+		if atomic.CompareAndSwapUint64(&eb[index], oldvalue, newvalue) {
+			// We won the race
+			index++
+			if index == PMBSIZE {
+				break
+			}
+		}
+	}
+}
+
 func (eb EdgeBitmap) set(edge Edge) EdgeBitmap {
 	newpm := eb
 	bits := uint64(1) << (edge % 64)
@@ -69,6 +99,43 @@ func (eb EdgeBitmap) Clear(edge Edge) EdgeBitmap {
 	bits := uint64(1) << (edge % 64)
 	newpm[int(edge)/64] = eb[int(edge)/64] &^ bits
 	return newpm
+}
+
+func (eb *EdgeBitmap) AtomicClear(edge Edge) {
+	atomic.AddUint64(&EdgePopularity[edge], 1)
+	bits := uint64(1) << (edge % 64)
+	index := int(edge) / 64
+
+	for {
+		oldvalue := atomic.LoadUint64(&eb[index])
+		newvalue := oldvalue & ^bits
+		if atomic.CompareAndSwapUint64(&eb[index], oldvalue, newvalue) {
+			// We won the race
+			break
+		}
+	}
+}
+
+func (eb *EdgeBitmap) AtomicAnd(edges EdgeBitmap) {
+	index := 0
+	for {
+		oldvalue := atomic.LoadUint64(&eb[index])
+		newvalue := oldvalue & edges[index]
+		if atomic.CompareAndSwapUint64(&eb[index], oldvalue, newvalue) {
+			// We won the race
+			index++
+			if index == PMBSIZE {
+				break
+			}
+		}
+	}
+}
+
+func (eb EdgeBitmap) Invert() EdgeBitmap {
+	for index := 0; index <= PMBSIZE; index++ {
+		eb[index] = ^eb[index]
+	}
+	return eb
 }
 
 func (eb EdgeBitmap) Intersect(edges EdgeBitmap) EdgeBitmap {

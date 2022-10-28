@@ -47,9 +47,9 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 }
 
 func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
-	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
-	for _, result := range results {
-		return result
+	results, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
+	if found {
+		return results.First()
 	}
 	return nil
 }
@@ -63,15 +63,16 @@ func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix strin
 
 	var domain *engine.Object
 
-	for _, curdomain := range domaindns {
+	domaindns.Iterate(func(curdomain *engine.Object) bool {
 		if curdomain.HasAttr(engine.ObjectSid) {
 			if domain != nil {
 				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
-				return
+				return true
 			}
 			domain = curdomain
 		}
-	}
+		return true
+	})
 
 	if domain == nil {
 		err = errors.New("Could not find domainDNS in object shard collection, giving up")
