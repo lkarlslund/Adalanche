@@ -1,30 +1,381 @@
-! function(e, n) { "object" == typeof exports && "object" == typeof module ? module.exports = n(require("dagre")) : "function" == typeof define && define.amd ? define(["dagre"], n) : "object" == typeof exports ? exports.cytoscapeDagre = n(require("dagre")) : e.cytoscapeDagre = n(e.dagre) }(window, (function(e) { return function(e) { var n = {};
+(function webpackUniversalModuleDefinition(root, factory) {
+	if(typeof exports === 'object' && typeof module === 'object')
+		module.exports = factory(require("dagre"));
+	else if(typeof define === 'function' && define.amd)
+		define(["dagre"], factory);
+	else if(typeof exports === 'object')
+		exports["cytoscapeDagre"] = factory(require("dagre"));
+	else
+		root["cytoscapeDagre"] = factory(root["dagre"]);
+})(this, function(__WEBPACK_EXTERNAL_MODULE__4__) {
+return /******/ (function(modules) { // webpackBootstrap
+/******/ 	// The module cache
+/******/ 	var installedModules = {};
+/******/
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/
+/******/ 		// Check if module is in cache
+/******/ 		if(installedModules[moduleId]) {
+/******/ 			return installedModules[moduleId].exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = installedModules[moduleId] = {
+/******/ 			i: moduleId,
+/******/ 			l: false,
+/******/ 			exports: {}
+/******/ 		};
+/******/
+/******/ 		// Execute the module function
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/
+/******/ 		// Flag the module as loaded
+/******/ 		module.l = true;
+/******/
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/
+/******/
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = modules;
+/******/
+/******/ 	// expose the module cache
+/******/ 	__webpack_require__.c = installedModules;
+/******/
+/******/ 	// define getter function for harmony exports
+/******/ 	__webpack_require__.d = function(exports, name, getter) {
+/******/ 		if(!__webpack_require__.o(exports, name)) {
+/******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
+/******/ 		}
+/******/ 	};
+/******/
+/******/ 	// define __esModule on exports
+/******/ 	__webpack_require__.r = function(exports) {
+/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 		}
+/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 	};
+/******/
+/******/ 	// create a fake namespace object
+/******/ 	// mode & 1: value is a module id, require it
+/******/ 	// mode & 2: merge all properties of value into the ns
+/******/ 	// mode & 4: return value when already ns object
+/******/ 	// mode & 8|1: behave like require
+/******/ 	__webpack_require__.t = function(value, mode) {
+/******/ 		if(mode & 1) value = __webpack_require__(value);
+/******/ 		if(mode & 8) return value;
+/******/ 		if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
+/******/ 		var ns = Object.create(null);
+/******/ 		__webpack_require__.r(ns);
+/******/ 		Object.defineProperty(ns, 'default', { enumerable: true, value: value });
+/******/ 		if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
+/******/ 		return ns;
+/******/ 	};
+/******/
+/******/ 	// getDefaultExport function for compatibility with non-harmony modules
+/******/ 	__webpack_require__.n = function(module) {
+/******/ 		var getter = module && module.__esModule ?
+/******/ 			function getDefault() { return module['default']; } :
+/******/ 			function getModuleExports() { return module; };
+/******/ 		__webpack_require__.d(getter, 'a', getter);
+/******/ 		return getter;
+/******/ 	};
+/******/
+/******/ 	// Object.prototype.hasOwnProperty.call
+/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
+/******/
+/******/ 	// __webpack_public_path__
+/******/ 	__webpack_require__.p = "";
+/******/
+/******/
+/******/ 	// Load entry module and return exports
+/******/ 	return __webpack_require__(__webpack_require__.s = 0);
+/******/ })
+/************************************************************************/
+/******/ ([
+/* 0 */
+/***/ (function(module, exports, __webpack_require__) {
 
-        function t(r) { if (n[r]) return n[r].exports; var o = n[r] = { i: r, l: !1, exports: {} }; return e[r].call(o.exports, o, o.exports, t), o.l = !0, o.exports } return t.m = e, t.c = n, t.d = function(e, n, r) { t.o(e, n) || Object.defineProperty(e, n, { enumerable: !0, get: r }) }, t.r = function(e) { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(e, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(e, "__esModule", { value: !0 }) }, t.t = function(e, n) { if (1 & n && (e = t(e)), 8 & n) return e; if (4 & n && "object" == typeof e && e && e.__esModule) return e; var r = Object.create(null); if (t.r(r), Object.defineProperty(r, "default", { enumerable: !0, value: e }), 2 & n && "string" != typeof e)
-                for (var o in e) t.d(r, o, function(n) { return e[n] }.bind(null, o)); return r }, t.n = function(e) { var n = e && e.__esModule ? function() { return e.default } : function() { return e }; return t.d(n, "a", n), n }, t.o = function(e, n) { return Object.prototype.hasOwnProperty.call(e, n) }, t.p = "", t(t.s = 0) }([function(e, n, t) { var r = t(1),
-            o = function(e) { e && e("layout", "dagre", r) }; "undefined" != typeof cytoscape && o(cytoscape), e.exports = o }, function(e, n, t) {
-        function r(e) { return (r = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(e) { return typeof e } : function(e) { return e && "function" == typeof Symbol && e.constructor === Symbol && e !== Symbol.prototype ? "symbol" : typeof e })(e) } var o = t(2),
-            i = t(3),
-            a = t(4);
+var impl = __webpack_require__(1); // registers the extension on a cytoscape lib ref
 
-        function u(e) { this.options = i({}, o, e) }
-        u.prototype.run = function() { var e = this.options,
-                n = e.cy,
-                t = e.eles,
-                o = function(e, n) { return "function" == typeof n ? n.apply(e, [e]) : n },
-                i = e.boundingBox || { x1: 0, y1: 0, w: n.width(), h: n.height() };
-            void 0 === i.x2 && (i.x2 = i.x1 + i.w), void 0 === i.w && (i.w = i.x2 - i.x1), void 0 === i.y2 && (i.y2 = i.y1 + i.h), void 0 === i.h && (i.h = i.y2 - i.y1); var u = new a.graphlib.Graph({ multigraph: !0, compound: !0 }),
-                c = {},
-                f = function(e, n) { null != n && (c[e] = n) };
-            f("nodesep", e.nodeSep), f("edgesep", e.edgeSep), f("ranksep", e.rankSep), f("rankdir", e.rankDir), f("ranker", e.ranker), u.setGraph(c), u.setDefaultEdgeLabel((function() { return {} })), u.setDefaultNodeLabel((function() { return {} })); for (var d = t.nodes(), s = 0; s < d.length; s++) { var y = d[s],
-                    p = y.layoutDimensions(e);
-                u.setNode(y.id(), { width: p.w, height: p.h, name: y.id() }) } for (var l = 0; l < d.length; l++) { var g = d[l];
-                g.isChild() && u.setParent(g.id(), g.parent().id()) } for (var h = t.edges().stdFilter((function(e) { return !e.source().isParent() && !e.target().isParent() })), x = 0; x < h.length; x++) { var b = h[x];
-                u.setEdge(b.source().id(), b.target().id(), { minlen: o(b, e.minLen), weight: o(b, e.edgeWeight), name: b.id() }, b.id()) }
-            a.layout(u); for (var v, m = u.nodes(), w = 0; w < m.length; w++) { var S = m[w],
-                    j = u.node(S);
-                n.getElementById(S).scratch().dagre = j }
-            e.boundingBox ? (v = { x1: 1 / 0, x2: -1 / 0, y1: 1 / 0, y2: -1 / 0 }, d.forEach((function(e) { var n = e.scratch().dagre;
-                v.x1 = Math.min(v.x1, n.x), v.x2 = Math.max(v.x2, n.x), v.y1 = Math.min(v.y1, n.y), v.y2 = Math.max(v.y2, n.y) })), v.w = v.x2 - v.x1, v.h = v.y2 - v.y1) : v = i; return d.layoutPositions(this, e, (function(n) { var t = (n = "object" === r(n) ? n : this).scratch().dagre; return function(n) { if (e.boundingBox) { var t = 0 === v.w ? 0 : (n.x - v.x1) / v.w,
-                            r = 0 === v.h ? 0 : (n.y - v.y1) / v.h; return { x: i.x1 + t * i.w, y: i.y1 + r * i.h } } return n }({ x: t.x, y: t.y }) })), this }, e.exports = u }, function(e, n) { var t = { nodeSep: void 0, edgeSep: void 0, rankSep: void 0, rankDir: void 0, ranker: void 0, minLen: function(e) { return 1 }, edgeWeight: function(e) { return 1 }, fit: !0, padding: 30, spacingFactor: void 0, nodeDimensionsIncludeLabels: !1, animate: !1, animateFilter: function(e, n) { return !0 }, animationDuration: 500, animationEasing: void 0, boundingBox: void 0, transform: function(e, n) { return n }, ready: function() {}, stop: function() {} };
-        e.exports = t }, function(e, n) { e.exports = null != Object.assign ? Object.assign.bind(Object) : function(e) { for (var n = arguments.length, t = new Array(n > 1 ? n - 1 : 0), r = 1; r < n; r++) t[r - 1] = arguments[r]; return t.forEach((function(n) { Object.keys(n).forEach((function(t) { return e[t] = n[t] })) })), e } }, function(n, t) { n.exports = e }]) }));
+
+var register = function register(cytoscape) {
+  if (!cytoscape) {
+    return;
+  } // can't register if cytoscape unspecified
+
+
+  cytoscape('layout', 'dagre', impl); // register with cytoscape.js
+};
+
+if (typeof cytoscape !== 'undefined') {
+  // expose to global cytoscape (i.e. window.cytoscape)
+  register(cytoscape);
+}
+
+module.exports = register;
+
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+var isFunction = function isFunction(o) {
+  return typeof o === 'function';
+};
+
+var defaults = __webpack_require__(2);
+
+var assign = __webpack_require__(3);
+
+var dagre = __webpack_require__(4); // constructor
+// options : object containing layout options
+
+
+function DagreLayout(options) {
+  this.options = assign({}, defaults, options);
+} // runs the layout
+
+
+DagreLayout.prototype.run = function () {
+  var options = this.options;
+  var layout = this;
+  var cy = options.cy; // cy is automatically populated for us in the constructor
+
+  var eles = options.eles;
+
+  var getVal = function getVal(ele, val) {
+    return isFunction(val) ? val.apply(ele, [ele]) : val;
+  };
+
+  var bb = options.boundingBox || {
+    x1: 0,
+    y1: 0,
+    w: cy.width(),
+    h: cy.height()
+  };
+
+  if (bb.x2 === undefined) {
+    bb.x2 = bb.x1 + bb.w;
+  }
+
+  if (bb.w === undefined) {
+    bb.w = bb.x2 - bb.x1;
+  }
+
+  if (bb.y2 === undefined) {
+    bb.y2 = bb.y1 + bb.h;
+  }
+
+  if (bb.h === undefined) {
+    bb.h = bb.y2 - bb.y1;
+  }
+
+  var g = new dagre.graphlib.Graph({
+    multigraph: true,
+    compound: true
+  });
+  var gObj = {};
+
+  var setGObj = function setGObj(name, val) {
+    if (val != null) {
+      gObj[name] = val;
+    }
+  };
+
+  setGObj('nodesep', options.nodeSep);
+  setGObj('edgesep', options.edgeSep);
+  setGObj('ranksep', options.rankSep);
+  setGObj('rankdir', options.rankDir);
+  setGObj('align', options.align);
+  setGObj('ranker', options.ranker);
+  setGObj('acyclicer', options.acyclicer);
+  g.setGraph(gObj);
+  g.setDefaultEdgeLabel(function () {
+    return {};
+  });
+  g.setDefaultNodeLabel(function () {
+    return {};
+  }); // add nodes to dagre
+
+  var nodes = eles.nodes();
+
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+    var nbb = node.layoutDimensions(options);
+    g.setNode(node.id(), {
+      width: nbb.w,
+      height: nbb.h,
+      name: node.id()
+    }); // console.log( g.node(node.id()) );
+  } // set compound parents
+
+
+  for (var _i = 0; _i < nodes.length; _i++) {
+    var _node = nodes[_i];
+
+    if (_node.isChild()) {
+      g.setParent(_node.id(), _node.parent().id());
+    }
+  } // add edges to dagre
+
+
+  var edges = eles.edges().stdFilter(function (edge) {
+    return !edge.source().isParent() && !edge.target().isParent(); // dagre can't handle edges on compound nodes
+  });
+
+  for (var _i2 = 0; _i2 < edges.length; _i2++) {
+    var edge = edges[_i2];
+    g.setEdge(edge.source().id(), edge.target().id(), {
+      minlen: getVal(edge, options.minLen),
+      weight: getVal(edge, options.edgeWeight),
+      name: edge.id()
+    }, edge.id()); // console.log( g.edge(edge.source().id(), edge.target().id(), edge.id()) );
+  }
+
+  dagre.layout(g);
+  var gNodeIds = g.nodes();
+
+  for (var _i3 = 0; _i3 < gNodeIds.length; _i3++) {
+    var id = gNodeIds[_i3];
+    var n = g.node(id);
+    cy.getElementById(id).scratch().dagre = n;
+  }
+
+  var dagreBB;
+
+  if (options.boundingBox) {
+    dagreBB = {
+      x1: Infinity,
+      x2: -Infinity,
+      y1: Infinity,
+      y2: -Infinity
+    };
+    nodes.forEach(function (node) {
+      var dModel = node.scratch().dagre;
+      dagreBB.x1 = Math.min(dagreBB.x1, dModel.x);
+      dagreBB.x2 = Math.max(dagreBB.x2, dModel.x);
+      dagreBB.y1 = Math.min(dagreBB.y1, dModel.y);
+      dagreBB.y2 = Math.max(dagreBB.y2, dModel.y);
+    });
+    dagreBB.w = dagreBB.x2 - dagreBB.x1;
+    dagreBB.h = dagreBB.y2 - dagreBB.y1;
+  } else {
+    dagreBB = bb;
+  }
+
+  var constrainPos = function constrainPos(p) {
+    if (options.boundingBox) {
+      var xPct = dagreBB.w === 0 ? 0 : (p.x - dagreBB.x1) / dagreBB.w;
+      var yPct = dagreBB.h === 0 ? 0 : (p.y - dagreBB.y1) / dagreBB.h;
+      return {
+        x: bb.x1 + xPct * bb.w,
+        y: bb.y1 + yPct * bb.h
+      };
+    } else {
+      return p;
+    }
+  };
+
+  nodes.layoutPositions(layout, options, function (ele) {
+    ele = _typeof(ele) === "object" ? ele : this;
+    var dModel = ele.scratch().dagre;
+    return constrainPos({
+      x: dModel.x,
+      y: dModel.y
+    });
+  });
+  return this; // chaining
+};
+
+module.exports = DagreLayout;
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports) {
+
+var defaults = {
+  // dagre algo options, uses default value on undefined
+  nodeSep: undefined,
+  // the separation between adjacent nodes in the same rank
+  edgeSep: undefined,
+  // the separation between adjacent edges in the same rank
+  rankSep: undefined,
+  // the separation between adjacent nodes in the same rank
+  rankDir: undefined,
+  // alignment for rank nodes. Can be 'UL', 'UR', 'DL', or 'DR', where U = up, D = down, L = left, and R = right
+  align: undefined,
+  // 'TB' for top to bottom flow, 'LR' for left to right,
+  ranker: undefined,
+  // Type of algorithm to assigns a rank to each node in the input graph.
+  // Possible values: network-simplex, tight-tree or longest-path
+  minLen: function minLen(edge) {
+    return 1;
+  },
+  // number of ranks to keep between the source and target of the edge
+  edgeWeight: function edgeWeight(edge) {
+    return 1;
+  },
+  // higher weight edges are generally made shorter and straighter than lower weight edges
+  // general layout options
+  fit: true,
+  // whether to fit to viewport
+  padding: 30,
+  // fit padding
+  spacingFactor: undefined,
+  // Applies a multiplicative factor (>0) to expand or compress the overall area that the nodes take up
+  nodeDimensionsIncludeLabels: false,
+  // whether labels should be included in determining the space used by a node
+  animate: false,
+  // whether to transition the node positions
+  animateFilter: function animateFilter(node, i) {
+    return true;
+  },
+  // whether to animate specific nodes when animation is on; non-animated nodes immediately go to their final positions
+  animationDuration: 500,
+  // duration of animation in ms if enabled
+  animationEasing: undefined,
+  // easing of animation if enabled
+  boundingBox: undefined,
+  // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
+  transform: function transform(node, pos) {
+    return pos;
+  },
+  // a function that applies a transform to the final node position
+  ready: function ready() {},
+  // on layoutready
+  stop: function stop() {} // on layoutstop
+
+};
+module.exports = defaults;
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports) {
+
+// Simple, internal Object.assign() polyfill for options objects etc.
+module.exports = Object.assign != null ? Object.assign.bind(Object) : function (tgt) {
+  for (var _len = arguments.length, srcs = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+    srcs[_key - 1] = arguments[_key];
+  }
+
+  srcs.forEach(function (src) {
+    Object.keys(src).forEach(function (k) {
+      return tgt[k] = src[k];
+    });
+  });
+  return tgt;
+};
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE__4__;
+
+/***/ })
+/******/ ]);
+});
