@@ -28,6 +28,7 @@ var (
 	loglevel     = Root.PersistentFlags().String("loglevel", "info", "Console log level")
 	logfile      = Root.PersistentFlags().String("logfile", "", "File to log to")
 	logfilelevel = Root.PersistentFlags().String("logfilelevel", "info", "Log file log level")
+	logzerotime  = Root.PersistentFlags().Bool("logzerotime", false, "Logged timestamps start from zero when program launches")
 
 	embeddedprofiler  = Root.PersistentFlags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
 	cpuprofile        = Root.PersistentFlags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
@@ -60,6 +61,8 @@ func Run() error {
 
 	Root.SetArgs(args)
 	Root.ParseFlags(args)
+
+	ui.Zerotime = *logzerotime
 
 	ll, err := ui.LogLevelString(*loglevel)
 	if err != nil {

@@ -34,8 +34,13 @@ const (
 	LevelPanic
 )
 
-var defaultLogLevel = LevelInfo
-var clearneeded bool
+var (
+	defaultLogLevel = LevelInfo
+	clearneeded     bool
+
+	Zerotime  bool
+	starttime = time.Now()
+)
 
 func SetDefaultLoglevel(i LogLevel) {
 	defaultLogLevel = i
@@ -65,8 +70,17 @@ type Logger struct {
 
 func (t Logger) Msgf(format string, args ...interface{}) Logger {
 	outputMutex.Lock()
+
+	var timetext string
+	if Zerotime {
+		elapsed := time.Since(starttime)
+		timetext = fmt.Sprintf("%02.0f:%02.0f:%02.0f.%03d", elapsed.Hours(), elapsed.Minutes(), elapsed.Seconds(), elapsed.Milliseconds()%1000)
+	} else {
+		timetext = time.Now().Format("15:04:05.000")
+	}
+
 	if logfile != nil && logfilelevel <= t.ll {
-		fmt.Fprintf(logfile, time.Now().Format("15:04:05.000")+" "+t.ll.String()+" "+format+"\n", args...)
+		fmt.Fprintf(logfile, timetext+" "+t.ll.String()+" "+format+"\n", args...)
 	}
 	if defaultLogLevel <= t.ll {
 		if clearneeded {
@@ -75,7 +89,7 @@ func (t Logger) Msgf(format string, args ...interface{}) Logger {
 			clearneeded = false
 		}
 
-		tprefix := pterm.DefaultBasicText.Sprint(time.Now().Format("15:04:05.000 "))
+		tprefix := pterm.DefaultBasicText.Sprint(timetext + " ")
 		pterm.Fprint(t.pterm.Writer, tprefix+t.pterm.Sprintfln(format, args...))
 	}
 	if t.ll == LevelFatal {

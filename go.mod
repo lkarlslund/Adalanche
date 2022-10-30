@@ -116,6 +116,8 @@ require (
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/ipfix v1.4.5 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
+	github.com/jfcg/sixb v1.3.5 // indirect
+	github.com/jfcg/sorty/v2 v2.0.8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/open-networks/go-msgraph v0.3.1 // indirect
