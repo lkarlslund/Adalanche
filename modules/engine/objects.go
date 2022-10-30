@@ -21,15 +21,14 @@ type typestatistics [256]int
 type Objects struct {
 	root          *Object
 	DefaultValues []interface{}
+	objects       gsync.MapOf[ObjectID, *Object]
+	multiindexes  map[AttributePair]*MultiIndex // Uses a map for storage considerations
+
+	indexes []*Index // Uses atribute directly as slice offset for performance
 
 	objectmutex sync.RWMutex
 
 	indexlock sync.RWMutex
-
-	indexes      []*Index                      // Uses atribute directly as slice offset for performance
-	multiindexes map[AttributePair]*MultiIndex // Uses a map for storage considerations
-
-	objects gsync.MapOf[ObjectID, *Object]
 
 	typecount typestatistics
 }
@@ -287,8 +286,8 @@ func (os *Objects) Add(obs ...*Object) {
 
 func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 	for _, o := range obs {
-		if attrtomerge == nil || !os.Merge(attrtomerge, o) {
-			os.objectmutex.Lock()
+		if len(attrtomerge) == 0 || !os.Merge(attrtomerge, o) {
+			os.objectmutex.Lock() // This is due to FindOrAdd consistency
 			os.add(o)
 			os.objectmutex.Unlock()
 		}
@@ -296,25 +295,38 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 }
 
 // Attemps to merge the object into the objects
-func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
-	if _, found := os.FindID(o.ID()); found {
+func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
+	if _, found := os.FindID(source.ID()); found {
 		ui.Fatal().Msg("Object already exists in objects, so we can't merge it")
 	}
 
-	// var deb int
 	var merged bool
-	mergeAttrSuccess := NonExistingAttribute
+
+	sourceType := source.Type()
+
 	if len(attrtomerge) > 0 {
 		for _, mergeattr := range attrtomerge {
-			o.Attr(mergeattr).Iterate(func(lookfor AttributeValue) bool {
+			source.Attr(mergeattr).Iterate(func(lookfor AttributeValue) bool {
+
 				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
-					mergetargets.Iterate(func(mergetarget *Object) bool {
+					mergetargets.Iterate(func(target *Object) bool {
 						var failed bool
-						o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
-							if attr.IsSingle() && mergetarget.HasAttr(attr) {
-								if !CompareAttributeValues(values.First(), mergetarget.Attr(attr).First()) {
+						targetType := target.Type()
+
+						// Test if types mismatch violate this merge
+						if targetType != ObjectTypeOther && sourceType != ObjectTypeOther && targetType != sourceType {
+							// Merge conflict, can't merge different types
+							ui.Trace().Msgf("Merge failure due to type difference, not merging %v of type %v with %v of type %v", source.Label(), sourceType.String(), target.Label(), targetType.String())
+							failed = true
+							return false
+						}
+
+						// Test if any single attribute holding values violate this merge
+						source.AttrIterator(func(attr Attribute, sourceValues AttributeValues) bool {
+							if attr.IsSingle() && target.HasAttr(attr) {
+								if !CompareAttributeValues(sourceValues.First(), target.Attr(attr).First()) {
 									// Conflicting attribute values, we can't merge these
-									ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", o.Label(), mergetarget.Label(), mergeattr.String(), lookfor.String(), attr.String(), values.First().String(), mergetarget.Attr(attr).First().String())
+									ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", source.Label(), target.Label(), mergeattr.String(), lookfor.String(), attr.String(), sourceValues.First().String(), target.Attr(attr).First().String())
 									failed = true
 									return false
 								}
@@ -324,29 +336,29 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 						if failed {
 							return false // break
 						}
+
+						// Test that all mergeapprovers confirm this to be a valid merge
 						for _, mfi := range mergeapprovers {
-							res, err := mfi.mergefunc(o, mergetarget)
+							res, err := mfi.mergefunc(source, target)
 							switch err {
 							case ErrDontMerge:
-								// if !strings.HasPrefix(mfi.name, "QUIET") {
-								// 	ui.Debug().Msgf("Not merging %v with %v on %v, because %v said so", o.Label(), mergetarget.Label(), mergeattr.String(), mfi.name)
-								// }
-
 								return false // break
 							case ErrMergeOnThis, nil:
 								// Let the code below do the merge
 							default:
-								ui.Fatal().Msgf("Error merging %v: %v", o.Label(), err)
+								ui.Fatal().Msgf("Error merging %v: %v", source.Label(), err)
 							}
 							if res != nil {
 								// Custom merge - how do we handle this?
 								ui.Fatal().Msgf("Custom merge function not supported yet")
 							}
 						}
+
 						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-						mergeAttrSuccess = mergeattr
-						mergetarget.Absorb(o)
-						os.ReindexObject(mergetarget, false)
+						attributenums[int(mergeattr)].mergeSuccesses.Add(1)
+
+						target.Absorb(source)
+						os.ReindexObject(target, false)
 						merged = true
 						return false
 					})
@@ -358,19 +370,16 @@ func (os *Objects) Merge(attrtomerge []Attribute, o *Object) bool {
 			}
 		}
 	}
-	if merged {
-		attributenums[int(mergeAttrSuccess)].mergeSuccesses.Add(1)
-	}
 	return merged
 }
 
 func (os *Objects) add(o *Object) {
 	if o.id == 0 {
-		ui.Fatal().Msg("Objects must have a unique ID")
+		panic("Objects must have a unique ID")
 	}
 
 	if _, found := os.objects.LoadOrStore(o.ID(), o); found {
-		ui.Fatal().Msg("Object already exists in objects, so we can't add it")
+		panic("Object already exists in objects, so we can't add it")
 	}
 
 	if os.DefaultValues != nil {

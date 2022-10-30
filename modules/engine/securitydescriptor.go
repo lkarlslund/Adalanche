@@ -226,6 +226,8 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 				if currentPotentialDenySid == allowedSid {
 					sidmatch = true
 				} else {
+					// FIXME
+
 					// This removes a few false positives
 					//
 					// The allowed SID might be a member of one or more groups matching a DENY ACE
@@ -492,15 +494,16 @@ func (a *ACL) IsSortedCorrectly() bool {
 }
 
 type ACE struct {
-	Type  ACEType
-	Flags Flags
+	SID windowssecurity.SID
+
+	Type     ACEType
+	Flags    Flags
+	ACEFlags ACEFlags
 
 	Mask Mask
-	SID  windowssecurity.SID
 
 	ObjectType          uuid.UUID
 	InheritedObjectType uuid.UUID
-	ACEFlags            ACEFlags
 }
 
 type ACEType byte

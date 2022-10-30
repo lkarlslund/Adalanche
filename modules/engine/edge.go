@@ -53,14 +53,11 @@ type EdgeInfo struct {
 }
 
 func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
-	atomic.AddUint64(&EdgePopularity[edge], 1)
 	return eb.set(edge)
 }
 
 func (eb *EdgeBitmap) AtomicSet(edge Edge) {
-	atomic.AddUint64(&EdgePopularity[edge], 1)
-	bits := uint64(1) << (edge % 64)
-	index := int(edge) / 64
+	index, bits := bitIndex(edge)
 
 	for {
 		oldvalue := atomic.LoadUint64(&eb[index])
@@ -89,22 +86,25 @@ func (eb *EdgeBitmap) AtomicOr(edges EdgeBitmap) {
 
 func (eb EdgeBitmap) set(edge Edge) EdgeBitmap {
 	newpm := eb
-	bits := uint64(1) << (edge % 64)
-	newpm[int(edge)/64] = eb[int(edge)/64] | bits
+	index, bits := bitIndex(edge)
+	newpm[index] = eb[index] | bits
 	return newpm
 }
 
 func (eb EdgeBitmap) Clear(edge Edge) EdgeBitmap {
 	newpm := eb
-	bits := uint64(1) << (edge % 64)
-	newpm[int(edge)/64] = eb[int(edge)/64] &^ bits
+	index, bits := bitIndex(edge)
+	newpm[index] = eb[index] &^ bits
 	return newpm
+}
+
+func bitIndex(edge Edge) (int, uint64) {
+	return int(edge) >> 6, uint64(1) << (edge & 63)
 }
 
 func (eb *EdgeBitmap) AtomicClear(edge Edge) {
 	atomic.AddUint64(&EdgePopularity[edge], 1)
-	bits := uint64(1) << (edge % 64)
-	index := int(edge) / 64
+	index, bits := bitIndex(edge)
 
 	for {
 		oldvalue := atomic.LoadUint64(&eb[index])
@@ -174,7 +174,7 @@ func (eb EdgeBitmap) IsBlank() bool {
 func (eb EdgeBitmap) Edges() []Edge {
 	result := make([]Edge, eb.Count())
 	var n int
-	for i := 0; i < len(edgeInfos); i++ {
+	for i := 0; i < len(edgeInfos) && n < len(result); i++ {
 		if eb.IsSet(Edge(i)) {
 			result[n] = Edge(i)
 			n++
@@ -319,8 +319,9 @@ const (
 	In  EdgeDirection = 1
 )
 
-func (m EdgeBitmap) IsSet(method Edge) bool {
-	return (m[method/64] & (1 << (method % 64))) != 0 // Uuuuh, nasty and unreadable
+func (m EdgeBitmap) IsSet(edge Edge) bool {
+	index, bits := bitIndex(edge)
+	return (m[index] & bits) != 0
 }
 
 func (m EdgeBitmap) MaxProbability(source, target *Object) Probability {
@@ -359,16 +360,6 @@ func (m EdgeBitmap) StringSlice() []string {
 		if m.IsSet(Edge(i)) {
 			result[current] = Edge(i).String()
 			current++
-		}
-	}
-	return result
-}
-
-func (m EdgeBitmap) StringBoolMap() map[string]bool {
-	var result = make(map[string]bool)
-	for i := 0; i < len(edgeInfos); i++ {
-		if m.IsSet(Edge(i)) {
-			result["pwn_"+Edge(i).String()] = true
 		}
 	}
 	return result

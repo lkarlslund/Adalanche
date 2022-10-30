@@ -19,12 +19,12 @@ type attributeinfo struct {
 	onget          AttributeGetFunc
 	name           string
 	tags           []string
-	atype          AttributeType
 	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
-	single         bool          // If true, this attribute can not have multiple values
-	unique         bool          // Doing a Find on this attribute will return multiple results
-	merge          bool          // If true, objects can be merged on this attribute
-	hidden         bool          // If true this does not show up in the list of attributes
+	atype          AttributeType
+	single         bool // If true, this attribute can not have multiple values
+	unique         bool // Doing a Find on this attribute will return multiple results
+	merge          bool // If true, objects can be merged on this attribute
+	hidden         bool // If true this does not show up in the list of attributes
 }
 
 type AttributeType uint8
@@ -62,8 +62,8 @@ var (
 	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Single()
 	Description           = NewAttribute("description")
 	SAMAccountName        = NewAttribute("sAMAccountName").Single()
-	ObjectSid             = NewAttribute("objectSid").Single() // Strange yes, but in the final results there are multiple objects with the same SID
-	ObjectGUID            = NewAttribute("objectGUID").Single().Unique()
+	ObjectSid             = NewAttribute("objectSid").Single() // Single, but not unique! Strange yes, but in the final results there are multiple objects with the same SID
+	ObjectGUID            = NewAttribute("objectGUID").Single().Merge().Unique()
 	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Single()
 	SchemaIDGUID          = NewAttribute("schemaIDGUID")
 	RightsGUID            = NewAttribute("rightsGUID")
@@ -160,38 +160,58 @@ func (a Attribute) String() string {
 	if a == NonExistingAttribute {
 		return "N/A"
 	}
-	return attributenums[a].name
+	attributemutex.RLock()
+	result := attributenums[a].name
+	attributemutex.RUnlock()
+	return result
 }
 
 func (a Attribute) Type(t AttributeType) Attribute {
+	attributemutex.Lock()
 	attributenums[a].atype = t
+	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) Single() Attribute {
+	attributemutex.Lock()
 	attributenums[a].single = true
+	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) IsSingle() bool {
-	return attributenums[a].single
+	attributemutex.RLock()
+	result := attributenums[a].single
+	attributemutex.RUnlock()
+	return result
 }
 
 func (a Attribute) Unique() Attribute {
+	attributemutex.Lock()
 	attributenums[a].unique = true
+	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
-	return !attributenums[a].unique
+	attributemutex.RLock()
+	result := !attributenums[a].unique
+	attributemutex.RUnlock()
+	return result
 }
 
 func (a Attribute) IsUnique() bool {
-	return attributenums[a].unique
+	attributemutex.RLock()
+	result := attributenums[a].unique
+	attributemutex.RUnlock()
+	return result
 }
 
 func (a Attribute) Hidden() Attribute {
+	attributemutex.Lock()
 	attributenums[a].hidden = true
+	attributemutex.Unlock()
 	return a
 }
 
@@ -209,37 +229,39 @@ func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
 }
 
 func (a Attribute) Merge() Attribute {
-	ai := attributenums[a]
-	ai.merge = true
-	attributenums[a] = ai
+	attributemutex.Lock()
+	attributenums[a].merge = true
+	attributemutex.Unlock()
 	return a
 }
 
 func AddMergeApprover(name string, mf mergefunc) {
+	attributemutex.Lock()
 	mergeapprovers = append(mergeapprovers, mergeapproverinfo{
 		name:      name,
 		mergefunc: mf,
 	})
+	attributemutex.Unlock()
 }
 
 func (a Attribute) Tag(t string) Attribute {
-	ai := attributenums[a]
-	ai.tags = append(ai.tags, t)
-	attributenums[a] = ai
+	attributemutex.Lock()
+	attributenums[a].tags = append(attributenums[a].tags, t)
+	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) OnSet(onset AttributeSetFunc) Attribute {
-	ai := attributenums[a]
-	ai.onset = onset
-	attributenums[a] = ai
+	attributemutex.Lock()
+	attributenums[a].onset = onset
+	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) OnGet(onget AttributeGetFunc) Attribute {
-	ai := attributenums[a]
-	ai.onget = onget
-	attributenums[a] = ai
+	attributemutex.Lock()
+	attributenums[a].onget = onget
+	attributemutex.Unlock()
 	return a
 }
 

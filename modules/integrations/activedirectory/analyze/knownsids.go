@@ -47,11 +47,16 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 }
 
 func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
-	results, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
-	if found {
-		return results.First()
-	}
-	return nil
+	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
+	var result *engine.Object
+	results.Iterate(func(o *engine.Object) bool {
+		if result == nil || result.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+			// Prefer non-FSP object
+			result = o
+		}
+		return true
+	})
+	return result
 }
 
 func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {

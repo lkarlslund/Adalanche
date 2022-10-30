@@ -651,16 +651,16 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 	return
 }
 
-type pwnquery struct {
+type edgeQuery struct {
 	direction engine.EdgeDirection
-	method    engine.Edge
+	edge      engine.Edge
 	target    NodeFilter
 }
 
-func (p pwnquery) Evaluate(o *engine.Object) bool {
+func (p edgeQuery) Evaluate(o *engine.Object) bool {
 	var result bool
 	o.Edges(p.direction).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
-		if (p.method == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.method) {
+		if (p.edge == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.edge) {
 			if p.target == nil || p.target.Evaluate(target) {
 				result = true
 				return false // return from loop
@@ -671,28 +671,28 @@ func (p pwnquery) Evaluate(o *engine.Object) bool {
 	return result
 }
 
-func (p pwnquery) ToLDAPFilter() string {
+func (p edgeQuery) ToLDAPFilter() string {
 	var result string
 	if p.direction == engine.Out {
 		result += "out"
 	} else {
 		result += "in"
 	}
-	result += "=" + p.method.String()
+	result += "=" + p.edge.String()
 	if p.target != nil {
 		result += "(" + p.target.ToLDAPFilter() + ")"
 	}
 	return result
 }
 
-func (p pwnquery) ToWhereClause() string {
+func (p edgeQuery) ToWhereClause() string {
 	var result string
 	if p.direction == engine.Out {
 		result += "out"
 	} else {
 		result += "in"
 	}
-	result += "=" + p.method.String()
+	result += "=" + p.edge.String()
 	if p.target != nil {
 		result += "(" + p.target.ToWhereClause() + ")"
 	}

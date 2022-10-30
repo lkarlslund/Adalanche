@@ -1373,25 +1373,27 @@ func init() {
 			})
 
 			if computer == nil {
-				return true
+				ui.Warn().Msgf("Machine without computer account: %v", machine.Label())
+				return true // continue
 			}
 
 			// Find all perent containers with GP links
 			var hasparent bool
-			p := computer
 
 			// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/5c7ecdad-469f-4b30-94b3-450b7fff868f
 			allowEnforcedGPOsOnly := false
+
+			currentObject := computer
+			var iteration int
 			for {
-				newparent := p.Parent()
-				var foundparent bool
-				if newparent != nil && newparent.DN() != "" && strings.HasSuffix(p.DN(), newparent.DN()) {
-					p = newparent
-					foundparent = true
-				}
-				if !foundparent {
+				iteration++
+				potentialParent := currentObject.Parent()
+				if potentialParent != nil && potentialParent.DN() != "" && strings.HasSuffix(currentObject.DN(), potentialParent.DN()) {
+					// It's usable
+					currentObject = potentialParent
+				} else {
 					// Fall back to old slow method of looking at DNs
-					p, hasparent = ao.DistinguishedParent(p)
+					currentObject, hasparent = ao.DistinguishedParent(currentObject)
 					if !hasparent {
 						break
 					}
@@ -1399,11 +1401,11 @@ func init() {
 
 				var gpcachelinks engine.AttributeValues
 				var found bool
-				if gpcachelinks, found = p.Get(GPLinkCache); !found {
+				if gpcachelinks, found = currentObject.Get(GPLinkCache); !found {
 					// the hard way
 					gpcachelinks = engine.NoValues{} // We assume there is nothing
 
-					gplinks := strings.Trim(p.OneAttrString(activedirectory.GPLink), " ")
+					gplinks := strings.Trim(currentObject.OneAttrString(activedirectory.GPLink), " ")
 					if len(gplinks) != 0 {
 						// ui.Debug().Msgf("GPlink for %v on container %v: %v", o.DN(), p.DN(), gplinks)
 						if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
@@ -1436,7 +1438,7 @@ func init() {
 							gpcachelinks = collecteddata
 						}
 					}
-					p.Set(GPLinkCache, gpcachelinks)
+					currentObject.Set(GPLinkCache, gpcachelinks)
 				}
 
 				// cached or generated - pairwise pointer to gpo object and int
@@ -1456,7 +1458,7 @@ func init() {
 						gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 					}
 				}
-				gpoptions := p.OneAttrString(activedirectory.GPOptions)
+				gpoptions := currentObject.OneAttrString(activedirectory.GPOptions)
 				if gpoptions == "1" {
 					// inheritance is blocked, so let's not forget that when moving up
 					allowEnforcedGPOsOnly = true
@@ -1465,7 +1467,7 @@ func init() {
 			return true
 		})
 	},
-		"Computers affected by a GPO",
+		"Machines affected by a GPO",
 		engine.AfterMergeLow,
 	)
 

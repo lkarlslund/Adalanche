@@ -275,17 +275,17 @@ func analysisfuncs(ws *webservice) {
 			if strings.HasPrefix(potentialfilter, "pwn_") {
 				prefix := potentialfilter[4 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
-				method := engine.E(prefix)
-				if method == engine.NonExistingEdgeType {
+				edge := engine.E(prefix)
+				if edge == engine.NonExistingEdgeType {
 					continue
 				}
 				switch suffix {
 				case "_f":
-					edges_f = edges_f.Set(method)
+					edges_f = edges_f.Set(edge)
 				case "_m":
-					egdes_m = egdes_m.Set(method)
+					egdes_m = egdes_m.Set(edge)
 				case "_l":
-					edges_l = edges_l.Set(method)
+					edges_l = edges_l.Set(edge)
 				}
 			} else if strings.HasPrefix(potentialfilter, "type_") {
 				prefix := potentialfilter[5 : len(potentialfilter)-2]
@@ -861,13 +861,13 @@ func analysisfuncs(ws *webservice) {
 			result.Statistics[engine.ObjectType(objecttype).String()] += count
 		}
 
-		var pwnlinks int
+		var edgeCount int
 		ws.Objs.Iterate(func(object *engine.Object) bool {
-			pwnlinks += object.Edges(engine.Out).Len()
+			edgeCount += object.Edges(engine.Out).Len()
 			return true
 		})
 		result.Statistics["Total"] = ws.Objs.Len()
-		result.Statistics["PwnConnections"] = pwnlinks
+		result.Statistics["PwnConnections"] = edgeCount
 
 		data, _ := json.MarshalIndent(result, "", "  ")
 		w.Write(data)

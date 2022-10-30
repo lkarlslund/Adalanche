@@ -11,11 +11,13 @@ import (
 
 func getMergeAttributes() []Attribute {
 	var mergeon []Attribute
-	for i, ai := range attributenums {
-		if ai.merge {
+	attributemutex.RLock()
+	for i := range attributenums {
+		if attributenums[i].merge {
 			mergeon = append(mergeon, Attribute(i))
 		}
 	}
+	attributemutex.RUnlock()
 	sort.Slice(mergeon, func(i, j int) bool {
 		isuccess := attributenums[mergeon[i]].mergeSuccesses.Load()
 		jsuccess := attributenums[mergeon[j]].mergeSuccesses.Load()

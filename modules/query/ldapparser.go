@@ -255,7 +255,7 @@ valueloop:
 			if attributename == "_pwnable" || attributename == "in" {
 				direction = engine.In
 			}
-			return s, pwnquery{direction, edge, target}, nil
+			return s, edgeQuery{direction, edge, target}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {

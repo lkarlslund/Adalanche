@@ -170,7 +170,7 @@ func AnalyzePaths(start, end *Object, obs *Objects, lookforedges EdgeBitmap, min
 
 		source.Edges(Out).Range(func(target *Object, edges EdgeBitmap) bool {
 			if _, found := visited[target]; !found {
-				// If this is not a chosen method, skip it
+				// If this is not a chosen edge, skip it
 				detectededges := edges.Intersect(lookforedges)
 
 				if detectededges.IsBlank() {

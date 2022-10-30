@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/OneOfOne/xxhash"
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
@@ -31,20 +32,21 @@ func init() {
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
-	values   AttributeValueMap
-	edges    [2]EdgeConnections
-	parent   *Object
+	values AttributeValueMap
+	// edges  [2]EdgeConnections
+	edges    [2]EdgeConnectionsPlus
 	sdcache  *SecurityDescriptor
-	sid      windowssecurity.SID
+	parent   *Object
 	children ObjectSlice
 
-	id   ObjectID
-	guid uuid.UUID
-	// objectcategoryguid uuid.UUID
-	guidcached bool
-	sidcached  bool
-	isvalid    bool
+	sid windowssecurity.SID
+
+	id         ObjectID
 	objecttype ObjectType
+
+	sidcached atomic.Bool
+
+	status atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
@@ -65,13 +67,18 @@ func NewPreload(preloadAttributes int) *Object {
 }
 
 func (o *Object) ID() ObjectID {
-	o.checkvalid()
+	o.panicIfNotValid()
 	return o.id
 }
 
-func (o *Object) checkvalid() {
-	if !o.isvalid {
-		panic("object is invalidated")
+func (o *Object) IsValid() bool {
+	return o.status.Load() == 1
+}
+
+func (o *Object) panicIfNotValid() {
+	status := o.status.Load()
+	if status != 1 {
+		panic(fmt.Sprintf("object is not valid: %v", status))
 	}
 }
 
@@ -80,12 +87,10 @@ func (o *Object) lockbucket() int {
 }
 
 func (o *Object) lock() {
-	o.checkvalid()
 	threadsafeobjectmutexes[o.lockbucket()].Lock()
 }
 
 func (o *Object) rlock() {
-	o.checkvalid()
 	threadsafeobjectmutexes[o.lockbucket()].RLock()
 }
 
@@ -125,20 +130,32 @@ func (o *Object) unlockwith(o2 *Object) {
 	o.unlock()
 }
 
+var ongoingAbsorbs gsync.MapOf[*Object, *Object]
+
 func (o *Object) Absorb(source *Object) {
 	o.AbsorbEx(source, false)
 }
 
+var absorbLock sync.Mutex
+
 // Absorbs data and Pwn relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
-func (o *Object) AbsorbEx(source *Object, fast bool) {
-	if o == source {
-		ui.Fatal().Msg("Can't absorb myself")
+func (target *Object) AbsorbEx(source *Object, fast bool) {
+	absorbLock.Lock()
+	defer absorbLock.Unlock()
+
+	if target == source {
+		panic("Can't absorb myself")
 	}
 
-	o.lockwith(source)
+	// Keep normies out
+	target.lockwith(source)
 
-	target := o
+	ongoingAbsorbs.Store(source, target)
+	if !source.status.CompareAndSwap(1, 2) {
+		// We're being absorbed, nom nom
+		panic("Can only absorb valid objects")
+	}
 
 	// Fast mode does not merge values, it just relinks the source to the target
 
@@ -155,44 +172,117 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 		})
 	}
 
+	// fmt.Println("----------------------------------------")
 	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
+		if !outgoingTarget.IsValid() {
+			panic("This is bad")
+		}
+		if source == outgoingTarget {
+			panic("Pointing at myself")
+		}
+
+		// fmt.Println(unsafe.Pointer(outgoingTarget))
+
 		// Load edges from target, and merge with source edges
-		target.edges[Out].SetEdges(outgoingTarget, edges)
+		target.edges[Out].setEdges(outgoingTarget, edges)
+		source.edges[Out].del(outgoingTarget)
 
 		// The target has incoming edges, so redirect those
-		outgoingTarget.edges[In].SetEdges(target, edges)
-		outgoingTarget.edges[In].Del(source)
+		moveto := outgoingTarget
+		for moveto.status.Load() == 2 {
+			var success bool
+			moveto, success = ongoingAbsorbs.Load(moveto)
+			if !success {
+				panic("Could not map to next ongoing absorb")
+			}
+		}
+
+		if moveto == target {
+			panic("Moveto pointing at target")
+		}
+		if moveto == source {
+			panic("Moveto pointing at source")
+		}
+
+		moveto.edges[In].setEdges(target, edges)
+		outgoingTarget.edges[In].del(source)
 
 		return true
 	})
 
 	source.edges[In].Range(func(incomingTarget *Object, edges EdgeBitmap) bool {
-		target.edges[In].SetEdges(incomingTarget, edges)
+		if source == incomingTarget {
+			panic("Pointing at myself")
+		}
+
+		target.edges[In].setEdges(incomingTarget, edges)
+		source.edges[In].del(incomingTarget)
 
 		// The target has incoming edges, so redirect those
-		incomingTarget.edges[Out].SetEdges(target, edges)
-		incomingTarget.edges[Out].Del(source)
+		moveto := incomingTarget
+		for moveto.status.Load() == 2 {
+			var success bool
+			moveto, success = ongoingAbsorbs.Load(moveto)
+			if !success {
+				panic("Could not map to next ongoing absorb")
+			}
+		}
+
+		if moveto == target {
+			panic("Moveto pointing at target")
+		}
+		if moveto == source {
+			panic("Moveto pointing at source")
+		}
+
+		moveto.edges[Out].setEdges(target, edges)
+		incomingTarget.edges[Out].del(source)
 
 		return true
 	})
 	// Clear all edges from absorbed object
-	source.edges[Out].init()
-	source.edges[In].init()
+
 	if source.edges[Out].Len() > 0 || source.edges[In].Len() > 0 {
+		source.edges[In].Range(func(o *Object, edges EdgeBitmap) bool {
+			ui.Debug().Msgf("In: %v", o.Label())
+			return true
+		})
+		source.edges[Out].Range(func(o *Object, edges EdgeBitmap) bool {
+			ui.Debug().Msgf("Out: %v", o.Label())
+			return true
+		})
 		panic("WTF")
 	}
 
 	source.children.Iterate(func(child *Object) bool {
-		target.adopt(child)
+		if child.parent != source {
+			panic("Child/parent mismatch")
+		}
+		target.children.Add(child)
+
+		child.parent = target
 		return true
 	})
+	source.children = ObjectSlice{}
 
 	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
 	if source.parent != nil {
-		if target.parent == nil {
-			target.childOf(source.parent)
+		moveto := source.parent
+		for moveto.status.Load() == 2 {
+			var success bool
+			moveto, success = ongoingAbsorbs.Load(moveto)
+			if !success {
+				panic("Not a great day, is it")
+			}
 		}
-		source.parent.removeChild(source)
+
+		if target.parent == nil {
+			target.parent = moveto
+			moveto.children.Add(target)
+		}
+		if moveto == source.parent {
+			moveto.removeChild(source)
+		}
 		source.parent = nil
 	}
 
@@ -209,9 +299,13 @@ func (o *Object) AbsorbEx(source *Object, fast bool) {
 
 	target.objecttype = 0 // Recalculate this
 
-	source.isvalid = false // Invalid object
+	// Nom nommed
+	if !source.status.CompareAndSwap(2, 3) {
+		panic("Unpossible absorption mutation occurred")
+	}
+	ongoingAbsorbs.Delete(source)
 
-	o.unlockwith(source)
+	target.unlockwith(source)
 }
 
 func MergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -400,9 +494,7 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
-	if !o.isvalid {
-		panic("object is invalidated")
-	}
+	o.panicIfNotValid()
 	if attributenums[attr].onget != nil {
 		return attributenums[attr].onget(o, attr)
 	}
@@ -535,7 +627,8 @@ func (o *Object) SetFlex(flexinit ...interface{}) {
 
 var avsPool = sync.Pool{
 	New: func() interface{} {
-		return make(AttributeValueSlice, 0, 16)
+		avs := make(AttributeValueSlice, 0, 16)
+		return &avs
 	},
 }
 
@@ -544,7 +637,7 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 
 	attribute := NonExistingAttribute
 
-	data := avsPool.Get().(AttributeValueSlice)
+	data := *(avsPool.Get().(*AttributeValueSlice))
 
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
@@ -683,7 +776,7 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 		}
 	}
 	data = data[:0]
-	avsPool.Put(data)
+	avsPool.Put(&data)
 }
 
 func (o *Object) Set(a Attribute, values AttributeValues) {
@@ -839,7 +932,7 @@ func (o *Object) init(preloadAttributes int) {
 	o.edges[In].init()
 	o.edges[Out].init()
 	o.values.init(preloadAttributes)
-	o.isvalid = true
+	o.status.Store(1)
 	// onAddObject(o)
 }
 
@@ -928,7 +1021,7 @@ func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
 
 // Return the object's SID
 func (o *Object) SID() windowssecurity.SID {
-	if !o.sidcached {
+	if !o.sidcached.Load() {
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
 				if sid, ok := asid.First().Raw().(windowssecurity.SID); ok {
@@ -936,26 +1029,10 @@ func (o *Object) SID() windowssecurity.SID {
 				}
 			}
 		}
-		o.sidcached = true
+		o.sidcached.Store(true)
 	}
 	sid := o.sid
 	return sid
-}
-
-// Return the object's GUID
-func (o *Object) GUID() uuid.UUID {
-	if !o.guidcached {
-		if aguid, ok := o.get(ObjectGUID); ok {
-			if aguid.Len() == 1 {
-				if guid, ok := aguid.First().Raw().(uuid.UUID); ok {
-					o.guid = guid
-				}
-			}
-		}
-		o.guidcached = true
-	}
-	guid := o.guid
-	return guid
 }
 
 // Look up edge
@@ -965,18 +1042,18 @@ func (o *Object) GUID() uuid.UUID {
 // }
 
 // Register that this object can pwn another object using the given method
-func (o *Object) EdgeTo(target *Object, method Edge) {
-	o.EdgeToEx(target, method, false)
+func (o *Object) EdgeTo(target *Object, edge Edge) {
+	o.EdgeToEx(target, edge, false)
 }
 
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
-	if !force {
-		if o == target { // SID check solves (some) dual-AD analysis problems
-			// We don't care about self owns
-			return
-		}
+func (o *Object) EdgeToEx(target *Object, edge Edge, force bool) {
+	if o == target {
+		// Self-loop not supported
+		return
+	}
 
+	if !force {
 		osid := o.SID()
 
 		// Ignore these, SELF = self own, Creator/Owner always has full rights
@@ -990,9 +1067,17 @@ func (o *Object) EdgeToEx(target *Object, method Edge, force bool) {
 		}
 	}
 
-	if edges, loaded := o.Edges(Out).SetEdge(target, method); !loaded { // Add the connection
-		target.Edges(In).Set(o, edges) // Add the reverse connection too
+	o.Edges(Out).setEdge(target, edge)
+	target.Edges(In).setEdge(o, edge)
+}
+
+// Register that this object can pwn another object using the given method
+func (o *Object) EdgeClear(target *Object, edge Edge) {
+	if o == target {
+		return
 	}
+	o.Edges(Out).clearEdge(target, edge)
+	target.Edges(In).clearEdge(o, edge)
 }
 
 type ObjectEdge struct {
@@ -1000,37 +1085,13 @@ type ObjectEdge struct {
 	e EdgeBitmap
 }
 
-func (o *Object) Edges(direction EdgeDirection) *EdgeConnections {
-	o.checkvalid()
+func (o *Object) Edges(direction EdgeDirection) *EdgeConnectionsPlus {
+	o.panicIfNotValid()
 	return &o.edges[direction]
 }
 
-// func (o *Object) EdgeIteratorRecursiveID(direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, af func(sourceid, targetid ObjectID, edge EdgeBitmap, depth int) bool) {
-// 	o.checkvalid()
-// 	seenobjects := make(map[ObjectID]struct{})
-// 	if excludemyself {
-// 		seenobjects[o.ID()] = struct{}{}
-// 	}
-// 	o.edgeIteratorRecursiveID(direction, edgeMatch, af, seenobjects, 1)
-// }
-
-// func (o *Object) edgeIteratorRecursiveID(direction EdgeDirection, edgeMatch EdgeBitmap, af func(sourceid, targetid ObjectID, edge EdgeBitmap, depth int) bool, appliedTo map[ObjectID]struct{}, depth int) {
-// 	o.Edges(direction).RangeID(func(targetid ObjectID, edge EdgeBitmap) bool {
-// 		if _, found := appliedTo[targetid]; !found {
-// 			edgeMatches := edge.Intersect(edgeMatch)
-// 			if !edgeMatches.IsBlank() {
-// 				appliedTo[targetid] = struct{}{}
-// 				if af(o.ID(), targetid, edgeMatches, depth) {
-// 					targetid.Object().edgeIteratorRecursiveID(direction, edgeMatch, af, appliedTo, depth+1)
-// 				}
-// 			}
-// 		}
-// 		return true
-// 	})
-// }
-
 func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, af func(source, target *Object, edge EdgeBitmap, depth int) bool) {
-	o.checkvalid()
+	o.panicIfNotValid()
 	seenobjects := make(map[*Object]struct{})
 	if excludemyself {
 		seenobjects[o] = struct{}{}

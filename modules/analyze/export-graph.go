@@ -1,7 +1,6 @@
 package analyze
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -23,11 +22,11 @@ func ExportGraphViz(pg engine.Graph, filename string) error {
 		case engine.ObjectTypeComputer:
 			formatting = ""
 		}
-		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.GUID(), object.OneAttr(activedirectory.Name), formatting)
+		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.ID(), object.OneAttr(activedirectory.Name), formatting)
 	}
 	fmt.Fprintln(df, "")
 	for _, connection := range pg.Connections {
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.GUID(), connection.Target.GUID(), connection.JoinedString())
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.ID(), connection.Target.ID(), connection.JoinedString())
 	}
 	fmt.Fprintln(df, "}")
 
@@ -72,16 +71,14 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 
 	// Sort the nodes to get consistency
 	sort.Slice(pg.Nodes, func(i, j int) bool {
-		return bytes.Compare(pg.Nodes[i].Object.GUID().Bytes(), pg.Nodes[j].Object.GUID().Bytes()) == -1
+		return pg.Nodes[i].Object.ID() < pg.Nodes[j].Object.ID()
 	})
 
 	// Sort the connections to get consistency
 	sort.Slice(pg.Connections, func(i, j int) bool {
-		return bytes.Compare(
-			pg.Connections[i].Source.GUID().Bytes(),
-			pg.Connections[i].Source.GUID().Bytes()) == -1 ||
-			bytes.Compare(pg.Connections[i].Target.GUID().Bytes(),
-				pg.Connections[i].Target.GUID().Bytes()) == -1
+		return pg.Connections[i].Source.ID() < pg.Connections[j].Source.ID() ||
+			(pg.Connections[i].Source.ID() == pg.Connections[j].Source.ID() &&
+				pg.Connections[i].Target.ID() < pg.Connections[j].Target.ID())
 	})
 
 	g.Elements = make(CytoElements, len(pg.Nodes)+len(pg.Connections))

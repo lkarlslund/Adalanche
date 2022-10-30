@@ -32,6 +32,8 @@ type progressBar struct {
 	Done       bool
 
 	writer io.Writer
+
+	mu sync.Mutex
 }
 
 var (
