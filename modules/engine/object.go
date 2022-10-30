@@ -76,9 +76,8 @@ func (o *Object) IsValid() bool {
 }
 
 func (o *Object) panicIfNotValid() {
-	status := o.status.Load()
-	if status != 1 {
-		panic(fmt.Sprintf("object is not valid: %v", status))
+	if o.status.Load() != 1 {
+		panic(fmt.Sprintf("object is not valid: %v", o.status.Load()))
 	}
 }
 
