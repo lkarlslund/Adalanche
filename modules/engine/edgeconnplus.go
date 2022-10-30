@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/jfcg/sorty/v2"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -42,9 +43,11 @@ func (e *EdgeConnectionsPlus) Range(af func(key *Object, value EdgeBitmap) bool)
 	if last == 0 {
 		return
 	}
-	for i := 0; i < last && i < len(backing.data); /*BCE*/ i++ {
-		if atomic.LoadUint32(&backing.data[i].alive) == 1 {
-			if !af(backing.data[i].target, backing.data[i].edges) {
+
+	data := backing.data[:last]
+	for i := range data {
+		if atomic.LoadUint32(&data[i].alive) == 1 {
+			if !af(data[i].target, data[i].edges) {
 				break
 			}
 		}
@@ -87,6 +90,14 @@ func (e *EdgeConnectionsPlus) del(target *Object) {
 		if atomic.CompareAndSwapUint32(&conn.alive, 1, 0) {
 			backing := e.getBacking()
 			backing.deleted.Add(1)
+
+			// if backing.deleted.Load() > backing.maxTotal.Load()/2 {
+			// 	e.runlock()
+			// 	e.lock()
+			// 	e.resize()
+			// 	e.unlock()
+			// 	return
+			// }
 		} else {
 			ui.Debug().Msg("Trying to delete edge that is already deleted")
 		}
@@ -237,42 +248,59 @@ func (e *EdgeConnectionsPlus) resize() {
 	if oldBacking == nil {
 		// first time we're getting dirty around there
 		newBacking := Connections{
-			data: make([]Connection, 16),
+			data: make([]Connection, 4),
 		}
 		atomic.StorePointer(&e.backing, unsafe.Pointer(&newBacking))
 		e.growing.Store(0)
 		return
 	}
 
-	newLength := len(oldBacking.data) * 6 / 4
-	if len(oldBacking.data) < 2048 {
-		newLength = len(oldBacking.data) * 2
+	oldMax := int(oldBacking.maxTotal.Load())
+
+	addLength := len(oldBacking.data)
+	if addLength > 8192 {
+		addLength = 8192
 	}
+	newLength := len(oldBacking.data) + addLength
+
+	// Don't add, just keep this size
+	if oldBacking.deleted.Load() > uint32(oldMax)/4 {
+		addLength = 0
+	}
+
 	newData := make([]Connection, newLength)
 	copy(newData, oldBacking.data)
 
 	var deleted uint32
-	oldMax := int(oldBacking.maxTotal.Load())
-	for i := 0; i < oldMax && i < len(newData); i++ {
-		if atomic.LoadUint32(&newData[i].alive) == 0 {
-			newData[i].target = (*Object)(unsafe.Pointer(^uintptr(0))) // Max pointer, sort will move it to the end
+	searchData := newData[:oldMax]
+	for i := range searchData { // BCE
+		if atomic.LoadUint32(&searchData[i].alive) == 0 {
+			searchData[i].target = (*Object)(unsafe.Pointer(^uintptr(0))) // Max pointer, sort will move it to the end
 			deleted++
 		}
 	}
 
-	if deleted != oldBacking.deleted.Load() {
-		ui.Debug().Msgf("Test this")
-	}
-
-	if oldMax < int(deleted) {
-		panic("Logic error")
-	}
-
-	sort.Sort(ConnectionSliceSorter(newData[:oldMax]))
-
+	// sort.Sort(ConnectionSliceSorter(newData[:oldMax]))
+	sorty.MaxGor = 1
+	sorty.Sort(oldMax, func(i, k, r, s int) bool {
+		if uintptr(unsafe.Pointer(newData[i].target)) < uintptr(unsafe.Pointer(newData[k].target)) {
+			if r != s {
+				newData[r], newData[s] = newData[s], newData[r]
+			}
+			return true
+		}
+		return false
+	})
 	// sort.Slice(newData[:oldMax], func(i, j int) bool {
 	// 	return uintptr(unsafe.Pointer(newData[i].target)) < uintptr(unsafe.Pointer(newData[j].target))
 	// })
+
+	// if oldBacking.deleted.Load() > uint32(oldMax)/2 {
+	// 	// More than half was deleted, lets shrink to a new slice
+	// 	shrinkData := make([]Connection, oldMax/2)
+	// 	copy(shrinkData, newData)
+	// 	newData = shrinkData
+	// }
 
 	newBacking := Connections{
 		data:     newData,
