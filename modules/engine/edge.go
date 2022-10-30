@@ -57,6 +57,8 @@ func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
 }
 
 func (eb *EdgeBitmap) AtomicSet(edge Edge) {
+	atomic.AddUint64(&EdgePopularity[edge], 1)
+
 	index, bits := bitIndex(edge)
 
 	for {
@@ -70,16 +72,16 @@ func (eb *EdgeBitmap) AtomicSet(edge Edge) {
 }
 
 func (eb *EdgeBitmap) AtomicOr(edges EdgeBitmap) {
-	index := 0
+	index := len(eb) - 1
 	for {
 		oldvalue := atomic.LoadUint64(&eb[index])
 		newvalue := oldvalue | edges[index]
 		if atomic.CompareAndSwapUint64(&eb[index], oldvalue, newvalue) {
 			// We won the race
-			index++
-			if index == PMBSIZE {
+			if index == 0 {
 				break
 			}
+			index--
 		}
 	}
 }
@@ -103,7 +105,8 @@ func bitIndex(edge Edge) (int, uint64) {
 }
 
 func (eb *EdgeBitmap) AtomicClear(edge Edge) {
-	atomic.AddUint64(&EdgePopularity[edge], 1)
+	atomic.AddUint64(&EdgePopularity[edge], ^uint64(0))
+
 	index, bits := bitIndex(edge)
 
 	for {
@@ -132,7 +135,7 @@ func (eb *EdgeBitmap) AtomicAnd(edges EdgeBitmap) {
 }
 
 func (eb EdgeBitmap) Invert() EdgeBitmap {
-	for index := 0; index <= PMBSIZE; index++ {
+	for index := range eb {
 		eb[index] = ^eb[index]
 	}
 	return eb
@@ -140,7 +143,7 @@ func (eb EdgeBitmap) Invert() EdgeBitmap {
 
 func (eb EdgeBitmap) Intersect(edges EdgeBitmap) EdgeBitmap {
 	var new EdgeBitmap
-	for i := 0; i < PMBSIZE; i++ {
+	for i := range new {
 		new[i] = eb[i] & edges[i]
 	}
 	return new
@@ -148,7 +151,7 @@ func (eb EdgeBitmap) Intersect(edges EdgeBitmap) EdgeBitmap {
 
 func (eb EdgeBitmap) Merge(edges EdgeBitmap) EdgeBitmap {
 	var new EdgeBitmap
-	for i := 0; i < PMBSIZE; i++ {
+	for i := range new {
 		new[i] = eb[i] | edges[i]
 	}
 	return new
@@ -156,14 +159,14 @@ func (eb EdgeBitmap) Merge(edges EdgeBitmap) EdgeBitmap {
 
 func (eb EdgeBitmap) Count() int {
 	var ones int
-	for i := 0; i < PMBSIZE; i++ {
+	for i := range eb {
 		ones += bits.OnesCount64(uint64(eb[i]))
 	}
 	return ones
 }
 
 func (eb EdgeBitmap) IsBlank() bool {
-	for i := 0; i < PMBSIZE; i++ {
+	for i := range eb {
 		if eb[i] != 0 {
 			return false
 		}
