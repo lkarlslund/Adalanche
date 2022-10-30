@@ -392,6 +392,19 @@ func (os *Objects) add(o *Object) {
 	os.typecount[o.Type()]++
 }
 
+func (os *Objects) AddRelaxed(o *Object) {
+	if o.id == 0 {
+		panic("Objects must have a unique ID")
+	}
+
+	if _, found := os.objects.LoadOrStore(o.ID(), o); !found {
+		if os.DefaultValues != nil {
+			o.setFlex(os.DefaultValues...)
+		}
+		os.ReindexObject(o, true)
+	}
+}
+
 // First object added is the root object
 func (os *Objects) Root() *Object {
 	return os.root
