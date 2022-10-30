@@ -232,7 +232,7 @@ func (e *EdgeConnectionsPlus) insert(target *Object, eb EdgeBitmap) {
 	backing := e.getBacking()
 
 	for backing == nil || int(backing.maxTotal.Load()) == len(backing.data) {
-		e.resize()
+		e.maintainBacking(false)
 		backing = e.getBacking()
 	}
 
@@ -240,7 +240,13 @@ func (e *EdgeConnectionsPlus) insert(target *Object, eb EdgeBitmap) {
 	backing.data[int(newMax-1)] = newConnection
 }
 
-func (e *EdgeConnectionsPlus) resize() {
+func (e *EdgeConnectionsPlus) Optimize() {
+	e.lock()
+	e.maintainBacking(true)
+	e.unlock()
+}
+
+func (e *EdgeConnectionsPlus) maintainBacking(keepsize bool) {
 	if !e.growing.CompareAndSwap(0, 1) {
 		panic("growing twice")
 	}
@@ -256,10 +262,12 @@ func (e *EdgeConnectionsPlus) resize() {
 	}
 
 	oldMax := int(oldBacking.maxTotal.Load())
-
-	addLength := len(oldBacking.data)
-	if addLength > 8192 {
-		addLength = 8192
+	var addLength int
+	if !keepsize {
+		addLength = len(oldBacking.data)
+		if addLength > 8192 {
+			addLength = 8192
+		}
 	}
 	newLength := len(oldBacking.data) + addLength
 
