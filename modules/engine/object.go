@@ -135,14 +135,11 @@ func (o *Object) Absorb(source *Object) {
 	o.AbsorbEx(source, false)
 }
 
-var absorbLock sync.Mutex
+var absorbCriticalSection sync.Mutex
 
 // Absorbs data and Pwn relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
 func (target *Object) AbsorbEx(source *Object, fast bool) {
-	absorbLock.Lock()
-	defer absorbLock.Unlock()
-
 	if target == source {
 		panic("Can't absorb myself")
 	}
@@ -172,6 +169,7 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	}
 
 	// fmt.Println("----------------------------------------")
+	absorbCriticalSection.Lock()
 	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
 		if !outgoingTarget.IsValid() {
 			panic("This is bad")
@@ -284,6 +282,7 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 		}
 		source.parent = nil
 	}
+	absorbCriticalSection.Unlock()
 
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 	if source.sdcache != nil && target.sdcache != nil {
