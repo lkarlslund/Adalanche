@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/jfcg/sorty/v2"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -28,6 +27,10 @@ type Connection struct {
 	target *Object
 	alive  uint32
 	edges  EdgeBitmap
+}
+
+func init() {
+	// sorty.MaxGor = 1
 }
 
 func (e *EdgeConnectionsPlus) init() {
@@ -100,6 +103,8 @@ func (e *EdgeConnectionsPlus) del(target *Object) {
 			// }
 		} else {
 			ui.Debug().Msg("Trying to delete edge that is already deleted")
+			backing := e.getBacking()
+			_ = backing
 		}
 	} else {
 		ui.Debug().Msg("Trying to delete edge that could not be found")
@@ -232,7 +237,7 @@ func (e *EdgeConnectionsPlus) insert(target *Object, eb EdgeBitmap) {
 	backing := e.getBacking()
 
 	for backing == nil || int(backing.maxTotal.Load()) == len(backing.data) {
-		e.maintainBacking(false)
+		e.maintainBacking(Grow)
 		backing = e.getBacking()
 	}
 
@@ -240,13 +245,21 @@ func (e *EdgeConnectionsPlus) insert(target *Object, eb EdgeBitmap) {
 	backing.data[int(newMax-1)] = newConnection
 }
 
-func (e *EdgeConnectionsPlus) Optimize() {
+func (e *EdgeConnectionsPlus) Minimize() {
 	e.lock()
-	e.maintainBacking(true)
+	e.maintainBacking(Minimize)
 	e.unlock()
 }
 
-func (e *EdgeConnectionsPlus) maintainBacking(keepsize bool) {
+type sizeModifierFlag uint8
+
+const (
+	Grow sizeModifierFlag = iota
+	Same
+	Minimize
+)
+
+func (e *EdgeConnectionsPlus) maintainBacking(requestedModification sizeModifierFlag) {
 	if !e.growing.CompareAndSwap(0, 1) {
 		panic("growing twice")
 	}
@@ -262,62 +275,95 @@ func (e *EdgeConnectionsPlus) maintainBacking(keepsize bool) {
 	}
 
 	oldMax := int(oldBacking.maxTotal.Load())
-	var addLength int
-	if !keepsize {
-		addLength = len(oldBacking.data)
-		if addLength > 8192 {
-			addLength = 8192
+	oldClean := int(oldBacking.maxClean)
+	oldDeleted := int(oldBacking.deleted.Load())
+
+	var newLength int
+	switch requestedModification {
+	case Grow:
+		growSize := oldMax / 2
+		if growSize > 2048 {
+			growSize = 2048
 		}
-	}
-	newLength := len(oldBacking.data) + addLength
-
-	// Don't add, just keep this size
-	if oldBacking.deleted.Load() > uint32(oldMax)/4 {
-		addLength = 0
-	}
-
-	newData := make([]Connection, newLength)
-	copy(newData, oldBacking.data)
-
-	var deleted uint32
-	searchData := newData[:oldMax]
-	for i := range searchData { // BCE
-		if atomic.LoadUint32(&searchData[i].alive) == 0 {
-			searchData[i].target = (*Object)(unsafe.Pointer(^uintptr(0))) // Max pointer, sort will move it to the end
-			deleted++
-		}
+		newLength = oldMax + growSize
+	case Same:
+		newLength = len(oldBacking.data)
+	case Minimize:
+		newLength = oldMax - oldDeleted
 	}
 
-	// sort.Sort(ConnectionSliceSorter(newData[:oldMax]))
-	sorty.MaxGor = 1
-	sorty.Sort(oldMax, func(i, k, r, s int) bool {
-		if uintptr(unsafe.Pointer(newData[i].target)) < uintptr(unsafe.Pointer(newData[k].target)) {
-			if r != s {
-				newData[r], newData[s] = newData[s], newData[r]
+	if newLength > 0 {
+		newData := make([]Connection, newLength)
+
+		// Place new non-deleted items at the end of the soon-to-be sorted part of the new slice
+		insertEnd := oldMax - oldDeleted
+		insertStart := insertEnd
+		oldDirtyData := oldBacking.data[int(oldBacking.maxClean):oldMax]
+		if oldDeleted == 0 {
+			// Nothing was deleted, so just bulk copy it
+			insertStart = insertEnd - (oldMax - oldClean)
+			copy(newData[insertStart:insertEnd], oldDirtyData)
+		} else {
+			// Pick non-deleted items one by one
+			for i := range oldDirtyData {
+				if oldDirtyData[i].alive == 0 {
+					continue
+				}
+				insertStart--
+				newData[insertStart] = oldDirtyData[i]
 			}
-			return true
 		}
-		return false
-	})
-	// sort.Slice(newData[:oldMax], func(i, j int) bool {
-	// 	return uintptr(unsafe.Pointer(newData[i].target)) < uintptr(unsafe.Pointer(newData[j].target))
-	// })
 
-	// if oldBacking.deleted.Load() > uint32(oldMax)/2 {
-	// 	// More than half was deleted, lets shrink to a new slice
-	// 	shrinkData := make([]Connection, oldMax/2)
-	// 	copy(shrinkData, newData)
-	// 	newData = shrinkData
-	// }
+		// Sort the new items
+		insertedData := newData[insertStart:insertEnd]
 
-	newBacking := Connections{
-		data:     newData,
-		maxClean: uint32(oldMax) - deleted,
-	}
-	newBacking.maxTotal.Store(newBacking.maxClean)
+		sort.Sort(ConnectionSliceSorter(insertedData))
+		// sorty.Sort(len(insertedData), func(i, k, r, s int) bool {
+		// 	if uintptr(unsafe.Pointer(insertedData[i].target)) < uintptr(unsafe.Pointer(insertedData[k].target)) {
+		// 		if r != s {
+		// 			insertedData[r], insertedData[s] = insertedData[s], insertedData[r]
+		// 		}
+		// 		return true
+		// 	}
+		// 	return false
+		// })
 
-	if !atomic.CompareAndSwapPointer(&e.backing, unsafe.Pointer(oldBacking), unsafe.Pointer(&newBacking)) {
-		panic("Backing was changed behind my back")
+		// sort.Slice(insertedData, func(i, j int) bool {
+		// 	return uintptr(unsafe.Pointer(insertedData[i].target)) < uintptr(unsafe.Pointer(insertedData[j].target))
+		// })
+
+		// Merge old and new
+		oldCleanData := oldBacking.data[:int(oldBacking.maxClean)]
+		fixData := newData[:insertEnd]
+		insertData := newData[insertStart:insertEnd]
+		for oc, f, i := 0, 0, 0; oc < len(oldCleanData); {
+			if oldCleanData[oc].alive == 0 {
+				oc++
+				continue
+			}
+			if i < len(insertedData) && uintptr(unsafe.Pointer(insertedData[i].target)) < uintptr(unsafe.Pointer(oldCleanData[oc].target)) {
+				fixData[f] = insertData[i]
+				i++
+			} else {
+				fixData[f] = oldCleanData[oc]
+				oc++
+			}
+			f++
+		}
+
+		newBacking := Connections{
+			data:     newData,
+			maxClean: uint32(insertEnd),
+		}
+		newBacking.maxTotal.Store(newBacking.maxClean)
+
+		if !atomic.CompareAndSwapPointer(&e.backing, unsafe.Pointer(oldBacking), unsafe.Pointer(&newBacking)) {
+			panic("Backing was changed behind my back")
+		}
+	} else {
+		if !atomic.CompareAndSwapPointer(&e.backing, unsafe.Pointer(oldBacking), unsafe.Pointer(uintptr(0))) {
+			panic("Backing was changed behind my back")
+		}
 	}
 	e.growing.Store(0)
 }
