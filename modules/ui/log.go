@@ -74,7 +74,7 @@ func (t Logger) Msgf(format string, args ...interface{}) Logger {
 	var timetext string
 	if Zerotime {
 		elapsed := time.Since(starttime)
-		timetext = fmt.Sprintf("%02.0f:%02.0f:%02.0f.%03d", elapsed.Hours(), elapsed.Minutes(), elapsed.Seconds(), elapsed.Milliseconds()%1000)
+		timetext = fmt.Sprintf("%02d:%02d:%02d.%03d", int(elapsed.Hours()), int(elapsed.Minutes())%60, int(elapsed.Seconds())%60, elapsed.Milliseconds()%1000)
 	} else {
 		timetext = time.Now().Format("15:04:05.000")
 	}
