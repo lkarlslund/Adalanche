@@ -492,7 +492,6 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
-	o.panicIfNotValid()
 	if attributenums[attr].onget != nil {
 		return attributenums[attr].onget(o, attr)
 	}
@@ -501,6 +500,7 @@ func (o *Object) get(attr Attribute) (AttributeValues, bool) {
 
 // Auto locking version
 func (o *Object) Get(attr Attribute) (AttributeValues, bool) {
+	o.panicIfNotValid()
 	return o.get(attr)
 }
 
@@ -517,6 +517,7 @@ func (o *Object) attr(attr Attribute) AttributeValues {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) Attr(attr Attribute) AttributeValues {
+	o.panicIfNotValid()
 	return o.attr(attr)
 }
 
