@@ -123,8 +123,10 @@ require (
 	github.com/open-networks/go-msgraph v0.3.1 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
+	github.com/peterrk/slices v0.0.0-20220825100938-df6f4b667142 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
+	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect

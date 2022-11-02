@@ -163,15 +163,6 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	// fmt.Println("----------------------------------------")
 	absorbCriticalSection.Lock()
 	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
-		if !outgoingTarget.IsValid() {
-			panic("This is bad")
-		}
-		if source == outgoingTarget {
-			panic("Pointing at myself")
-		}
-
-		// fmt.Println(unsafe.Pointer(outgoingTarget))
-
 		// Load edges from target, and merge with source edges
 		target.edges[Out].setEdges(outgoingTarget, edges)
 		source.edges[Out].del(outgoingTarget)

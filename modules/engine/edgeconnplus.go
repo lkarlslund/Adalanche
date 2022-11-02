@@ -1,12 +1,12 @@
 package engine
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"unsafe"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/peterrk/slices"
 )
 
 type EdgeConnectionsPlus struct {
@@ -29,9 +29,13 @@ type Connection struct {
 	edges  EdgeBitmap
 }
 
-func init() {
-	// sorty.MaxGor = 1
-}
+var (
+	connectionSorter = slices.Order[Connection]{
+		RefLess: func(a, b *Connection) bool {
+			return uintptr(unsafe.Pointer(a.target)) < uintptr(unsafe.Pointer(b.target))
+		},
+	}
+)
 
 func (e *EdgeConnectionsPlus) init() {
 
@@ -66,11 +70,12 @@ func (e *EdgeConnectionsPlus) search(wantedKey *Object) *Connection {
 	if backing != nil {
 		atomic.AddUint32(&backing.lookups, 1)
 
-		uintWantedKey := uintptr(unsafe.Pointer(wantedKey))
-		n, found := sort.Find(int(backing.maxClean), func(i int) int {
-			foundKey := uintptr(unsafe.Pointer(backing.data[i].target))
-			return int(uintWantedKey - foundKey)
-		})
+		// uintWantedKey := uintptr(unsafe.Pointer(wantedKey))
+		// n, found := sort.Find(int(backing.maxClean), func(i int) int {
+		// 	foundKey := uintptr(unsafe.Pointer(backing.data[i].target))
+		// 	return int(uintWantedKey - foundKey)
+		// })
+		n, found := connectionSorter.BinarySearch(backing.data[:backing.maxClean], Connection{target: wantedKey})
 		if found {
 			return &backing.data[n]
 		}
@@ -336,7 +341,8 @@ func (e *EdgeConnectionsPlus) maintainBacking(requestedModification sizeModifier
 		// Sort the new items
 		insertedData := newData[insertStart:insertEnd]
 
-		sort.Sort(ConnectionSliceSorter(insertedData))
+		connectionSorter.Sort(insertedData)
+		// sort.Sort(ConnectionSliceSorter(insertedData))
 		// sorty.Sort(len(insertedData), func(i, k, r, s int) bool {
 		// 	if uintptr(unsafe.Pointer(insertedData[i].target)) < uintptr(unsafe.Pointer(insertedData[k].target)) {
 		// 		if r != s {
