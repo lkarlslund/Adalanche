@@ -101,29 +101,21 @@ func (o *Object) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
+var lockwithMu sync.Mutex
+
 func (o *Object) lockwith(o2 *Object) {
-	if o2.id > o.id {
-		o, o2 = o2, o
-	}
-
-	ol := o.lockbucket()
-	o2l := o2.lockbucket()
-
-	o.lock()
-	if ol != o2l {
+	if o.lockbucket() == o2.lockbucket() {
+		o.lock()
+	} else {
+		lockwithMu.Lock() // Prevent deadlocks
+		o.lock()
 		o2.lock()
+		lockwithMu.Unlock()
 	}
 }
 
 func (o *Object) unlockwith(o2 *Object) {
-	if o2.id > o.id {
-		o, o2 = o2, o
-	}
-
-	ol := o.lockbucket()
-	o2l := o2.lockbucket()
-
-	if ol != o2l {
+	if o.lockbucket() != o2.lockbucket() {
 		o2.unlock()
 	}
 	o.unlock()
