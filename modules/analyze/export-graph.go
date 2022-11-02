@@ -137,15 +137,8 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 			cytoedge.Data[key] = value
 		}
 
-		var maxprob engine.Probability
-		for _, edge := range connection.Edges() {
-			prob := edge.Probability(connection.Source, connection.Target)
-			cytoedge.Data["method_"+edge.String()] = prob
-			if prob > maxprob {
-				maxprob = prob
-			}
-		}
-		cytoedge.Data["_maxprob"] = maxprob
+		cytoedge.Data["_maxprob"] = connection.MaxProbability(connection.Source, connection.Target)
+		cytoedge.Data["methods"] = connection.StringSlice()
 
 		g.Elements[i] = cytoedge
 

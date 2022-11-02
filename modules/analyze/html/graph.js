@@ -214,11 +214,16 @@ var randomlayout = {
 }
 
 cytostyle = [{
+    selector: "node, edge",
+    style: {
+        "min-zoomed-font-size": 12,
+        "font-family": "oswald",
+    }
+},{
     selector: "node",
     style: {
-        label: function (ele) { return nodelabel(ele); },
-        color: "white",
-        "min-zoomed-font-size": 12,
+        "label": function (ele) { return nodelabel(ele); },
+        "color": "white",
         "background-width": "80%",
         "background-height": "80%"
     }
@@ -235,13 +240,6 @@ cytostyle = [{
     style: {
         "border-color": "green",
         "border-width": 2
-    }
-},
-{
-    selector: 'node[name="Attacker"]',
-    style: {
-        "background-image": "icons/attacker.svg",
-        "background-color": "purple"
     }
 },
 {
@@ -413,10 +411,11 @@ cytostyle = [{
 {
     selector: "edge",
     style: {
-        // _content: "data(methods)",
-        color: "white",
-        // "curve-style": "haystack",
-        // "curve-style": "bezier",
+        // "label": function (ele) { return edgelabel(ele); }, 
+        "text-wrap": "wrap",
+        // "text-rotation": "autorotate",
+        "text-justification": "center",
+        "color": "white",
         "curve-style": "straight",
         "target-arrow-shape": "triangle"
     }
@@ -485,60 +484,9 @@ cytostyle = [{
     }
 },
 {
-    selector: 'edge[?method_MemberOfGroup]',
-    style: {
-        "target-arrow-color": "orange",
-        "line-color": "orange"
-    }
-},
-{
-    selector: 'edge[?method_MemberOfGroupIndirect]',
-    style: {
-        "target-arrow-color": "darkorange",
-        "line-color": "darkorange"
-    }
-},
-{
-    selector: 'edge[?method_ForeignIdentity]',
-    style: {
-        "target-arrow-color": "lightgreen",
-        "line-color": "lightgreen"
-    }
-},
-{
-    selector: 'edge[?method_ResetPassword]',
-    style: {
-        "target-arrow-color": "red",
-        "line-color": "red"
-    }
-},
-{
-    selector: 'edge[?method_AddMember]',
-    style: {
-        "target-arrow-color": "yellow",
-        "line-color": "yellow"
-    }
-},
-{
-    selector: 'edge[?method_Takeownership]',
-    style: {
-        "target-arrow-color": "lightgreen",
-        "line-color": "lightgreen"
-    }
-},
-{
-    selector: 'edge[method_Owns]',
-    style: {
-        "target-arrow-color": "green",
-        "line-color": "green"
-    }
-},
-{
     selector: "node:selected",
     style: {
         "background-color": "white"
-        // "border-color": "white",
-        // "border-width": 8
     }
 },
 {
@@ -595,10 +543,8 @@ function getGraphlayout(choice) {
     return layout
 }
 
-
-
 function nodelabel(ele) {
-    switch ($("#graphlabels").val()) {
+    switch ($("#nodelabels").val()) {
         case "normal":
             return ele.data("label");
         case "off":
@@ -608,7 +554,21 @@ function nodelabel(ele) {
         case "checksum":
             return hashFnv32a(ele.data("label"), true, undefined);
     }
-    return "error";
+    return "label error";
+}
+
+function edgelabel(ele) {
+    switch ($("#edgelabels").val()) {
+        case "normal":
+            return ele.data("methods").join('|');
+        case "off":
+            return "";
+        case "randomize":
+            return anonymizer.anonymize(data("methods").join('|'));
+        case "checksum":
+            return hashFnv32a(data("methods").join('|'), true, undefined);
+    }
+    return "edge error";
 }
 
 var anonymizer = new DataAnonymizer();
@@ -633,8 +593,8 @@ function renderedge(ele) {
     return rendernode(ele.source()) + rendermethods(ele) + rendernode(ele.target());
 }
 
-function rendermethods(methods) {
-    var prob = edgeprobability(methods);
+function rendermethods(ele) {
+    var prob = edgeprobability(ele);
     var s = '<span class="badge badge-';
     if (prob < 33) {
         s += 'danger';
@@ -644,11 +604,7 @@ function rendermethods(methods) {
         s += 'success';
     }
     s += '">' + prob + '%</span>'
-    for (i in methods.data()) {
-        if (i.startsWith("method_")) {
-            s += '<span class="badge badge-secondary">' + i.substr(7) + '</span>';
-        }
-    }
+    s += ele.data("methods").sort().map(function (el) { return '<span class="badge badge-secondary">' + el + '</span>' }).join('');
     return s
 }
 
@@ -879,13 +835,53 @@ function initgraph(data) {
             newwindow("details", "Edge details", renderedge(this));
         });
 
+        cy.on('mouseover', 'edge', function (event) {
+            if ($("#showedgelabels").prop("checked")) {
+                this.css({
+                    content: this.data("methods").sort().join('\n'),
+                });
+            }
+            // var edge = this;
+            // var ref = edge.popperRef();
+            // // Since tippy constructor requires DOM element/elements, create a placeholder
+            // var dummyDomEle = document.createElement('div');
+            // var tip = tippy(dummyDomEle, {
+            //     getReferenceClientRect: ref.getBoundingClientRect,
+            //     trigger: 'manual', // mandatory
+            //     content: function () { 
+            //         return edge.data("methods").sort().map(function (el) { return '<div class="text-center">' + el + '</div>' }).join('');
+            //     },
+            //     allowHTML: true,
+            //     arrow: true,
+            //     placement: 'bottom',
+            //     hideOnClick: false,
+            //     sticky: "reference",
+            // });
+            // tip.show();
+            // this.tippy = tip;
+        });
+            
+        cy.on('mouseout', 'edge', function (event) {
+            this.css({
+                content: ''
+            });
+            // tip = this.tippy
+            // if (tip) {
+            //     tip.hide();
+            //     tip.destroy();
+            // }
+        });
+ 
+        // cy.on('zoom', function () {
+        //     zoom = cy.zoom();
+        //     console.log(zoom);
+        // });
+
         cy.on('click', function (evt) {
             var evtTarget = evt.target;
             if (evtTarget === cy) {
                 $("#details").hide();
                 $("#route").hide();
-                // $("#optionsdiv").slideUp("fast");
-                // $("#querydiv").slideUp("fast");
             }
         });
     });
@@ -893,8 +889,35 @@ function initgraph(data) {
     // Load data into Cytoscape
     cy.add(data);
 
+    applyEdgeStyles(cy);
+
     getGraphlayout($("#graphlayout").val()).run()
 }
+
+function applyEdgeStyles(cy) {
+    cy.edges().each(function (ele) {
+        color = "white";
+        if (ele.data("methods").includes("MemberOfGroup")) {
+            color = "orange"
+        } else if (ele.data("methods").includes("MemberOfGroupIndirect")) {
+            color = "darkorange"
+        } else if (ele.data("methods").includes("ForeignIdentity")) {
+            color = "lightgreen"
+        } else if (ele.data("methods").includes("ResetPassword")) {
+            color = "red"
+        } else if (ele.data("methods").includes("AddMember")) {
+            color = "yellow"
+        } else if (ele.data("methods").includes("TakeOwnership")) {
+            color = "lightblue"
+        } else if (ele.data("methods").includes("WriteDACL")) {
+            color = "lightblue"
+        } else if (ele.data("methods").includes("Owns")) {
+            color = "blue"
+        }
+        ele.style('target-arrow-color', color);
+        ele.style('line-color', color);
+    });
+};
 
 function findroute(source) {
     var target = cy.$("node.target")

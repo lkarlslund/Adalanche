@@ -25,6 +25,9 @@
   <script src="external/cytoscape-context-menus.js"></script>
   <script src="external/dagre.min.js"></script>
   <script src="external/cytoscape-dagre.js"></script>
+  <script src="external/popper.min.js"></script>
+  <script src="external/tippy.min.js"></script>
+  <script src="external/cytoscape-popper.js"></script>
 
   <script src="external/d3-dispatch.v3.js"></script>
   <script src="external/d3-quadtree.v3.js"></script>
@@ -44,6 +47,7 @@
 
   <script src="anonymizer.js"></script>
   <script src="preferences.js"></script>
+
   <script src="graph.js"></script>
   <script src="custom.js"></script>
 
@@ -205,13 +209,30 @@
               <option value="random">Random</option>
             </select>
 
-            <label for="graphlabels">Graph labels</label>
-            <select class="form-control" id="graphlabels" preference="graph.labels" defaultpref="normal">
+            <div class="mb-5">
+            <label for="nodelabels">Node labels</label>
+            <select class="form-control" id="nodelabels" preference="graph.labels" defaultpref="normal">
               <option value="normal">Normal</option>
               <option value="off">Off</option>
               <option value="randomize">Randomize</option>
               <option value="checksum">Checksum</option>
             </select>
+            </div>
+
+            <div class="mb-5">
+              <div class="custom-switch">
+                <input id="showedgelabels" type="checkbox" autocomplete="off" preference="graph.edgelabels" defaultpref=false>
+                <label class="col" for="showedgelabels">Show edge methods on mouse hover</label>
+              </div>
+            </div>
+
+            <!-- <label for="edgelabels">Edge labels</label>
+            <select class="form-control" id="edgelabels" preference="graph.labels" defaultpref="normal">
+              <option value="normal">Normal</option>
+              <option value="off">Off</option>
+              <option value="randomize">Randomize</option>
+              <option value="checksum">Checksum</option>
+            </select> -->
           </div>
         </details>
         <details class="collapse-panel">
