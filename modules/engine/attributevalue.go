@@ -62,8 +62,8 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 }
 
 type AttributeAndValues struct {
-	AttributeValues
-	Attribute
+	values    AttributeValues
+	attribute Attribute
 }
 
 // AttributeValues can contain one or more values

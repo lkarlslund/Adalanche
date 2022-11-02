@@ -119,6 +119,7 @@ require (
 	github.com/jfcg/sixb v1.3.5 // indirect
 	github.com/jfcg/sorty/v2 v2.0.8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
+	github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/open-networks/go-msgraph v0.3.1 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect

@@ -354,6 +354,8 @@ github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136 h1:+Kk6n+RA
 github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136/go.mod h1:md9fQkOXb+vqf3U+SVAsNfzLvKFK1Q+MJLj2v2sBj+4=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091 h1:6y0mbZnTDDZ8pOl3C/8W8j0a6OGuxNWxU07iZeBRpYg=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091/go.mod h1:JFCoCajhTrJw5YFNm/Xm0o+lt5jhY974icELnvnVFdc=
+github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471 h1:G9NVrY4Rm1p4Jbsina4hImNACxeYYJ4iE2jGEUKT3K0=
+github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471/go.mod h1:UDXqvYw0IMD1tS9gAdVJwgavVjKZqOpMJx1YOpB8L7A=
 github.com/lkarlslund/ldap/v3 v3.4.4-1 h1:dcVlqedaugh0UtxgvgHMn83g4ARrmCupHvJiJ7SQb4c=
 github.com/lkarlslund/ldap/v3 v3.4.4-1/go.mod h1:0wE7xreiGneIlOw9d76AykHNfq/8lNpV8ZO0A/2xnmc=
 github.com/lkarlslund/stringdedup v0.6.2 h1:IcoGuXAuZxjntVnxTi7/C+RFh+gVc5wCyt4gkHp9FxA=
