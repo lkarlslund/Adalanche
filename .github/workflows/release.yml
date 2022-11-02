@@ -21,11 +21,11 @@ jobs:
       run: ./build.ps1
       shell: pwsh
 
-    - name: Archive production artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: Binaries
-        path: binaries/
+    # - name: Archive production artifacts
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: Binaries
+    #     path: binaries/
 
     - uses: "marvinpinto/action-automatic-releases@latest"
       with:
