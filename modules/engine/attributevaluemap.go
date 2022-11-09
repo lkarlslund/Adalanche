@@ -26,6 +26,7 @@ func (ave AttributeValuesEvaluator) LessThan(ave2 AttributeValuesEvaluator) bool
 }
 
 func (avm *AttributeValueMap) init(preloadAttributes int) {
+	avm.m.Init(preloadAttributes)
 	// avm.m = haxmap.New[Attribute, AttributeValues](1)
 	// avm.m = make(map[Attribute]AttributeValues)
 	// avm.m = xsync.NewTypedMapOf[Attribute, AttributeValues](func(a Attribute) uint64 {

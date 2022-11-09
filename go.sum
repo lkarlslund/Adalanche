@@ -356,6 +356,8 @@ github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091 h1:6y0mbZnT
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091/go.mod h1:JFCoCajhTrJw5YFNm/Xm0o+lt5jhY974icELnvnVFdc=
 github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471 h1:G9NVrY4Rm1p4Jbsina4hImNACxeYYJ4iE2jGEUKT3K0=
 github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471/go.mod h1:UDXqvYw0IMD1tS9gAdVJwgavVjKZqOpMJx1YOpB8L7A=
+github.com/lkarlslund/gonk v0.0.0-20221109093557-268a62c7ce0b h1:hS4mnPgbhQnIg3NHz0+wnbzQ2hOsD/589cKPp4zSy6U=
+github.com/lkarlslund/gonk v0.0.0-20221109093557-268a62c7ce0b/go.mod h1:JVKgbXi+vkcXfvUFj4mbyOP51EZRptWVxQOqVHOsDTw=
 github.com/lkarlslund/ldap/v3 v3.4.4-1 h1:dcVlqedaugh0UtxgvgHMn83g4ARrmCupHvJiJ7SQb4c=
 github.com/lkarlslund/ldap/v3 v3.4.4-1/go.mod h1:0wE7xreiGneIlOw9d76AykHNfq/8lNpV8ZO0A/2xnmc=
 github.com/lkarlslund/stringdedup v0.6.2 h1:IcoGuXAuZxjntVnxTi7/C+RFh+gVc5wCyt4gkHp9FxA=
@@ -560,6 +562,8 @@ golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6/go.mod h1:3jZMyOhIsHpP37uCMk
 golang.org/x/exp v0.0.0-20220909182711-5c715a9e8561 h1:MDc5xs78ZrZr3HMQugiXOAkSZtfTpbJLDr/lwfgO53E=
 golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f h1:Al51T6tzvuh3oiwX11vex3QgJ2XTedFPGmbEVh8cdoc=
 golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
+golang.org/x/exp v0.0.0-20221108223516-5d533826c662 h1:QIza2Vre5WI+NE5AQ6Wi2nGDgDOckLCHJdhcM/kxcfw=
+golang.org/x/exp v0.0.0-20221108223516-5d533826c662/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190802002840-cff245a6509b/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
 golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=

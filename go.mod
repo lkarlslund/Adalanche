@@ -119,7 +119,7 @@ require (
 	github.com/jfcg/sixb v1.3.5 // indirect
 	github.com/jfcg/sorty/v2 v2.0.8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
-	github.com/lkarlslund/gonk v0.0.0-20221102145256-2b4b4974a471 // indirect
+	github.com/lkarlslund/gonk v0.0.0-20221109093557-268a62c7ce0b // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/open-networks/go-msgraph v0.3.1 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
@@ -127,7 +127,7 @@ require (
 	github.com/peterrk/slices v0.0.0-20220825100938-df6f4b667142 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
-	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
+	golang.org/x/exp v0.0.0-20221108223516-5d533826c662 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect

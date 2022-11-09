@@ -19,6 +19,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"github.com/lkarlslund/gonk"
 	"github.com/lkarlslund/stringdedup"
 )
 
@@ -53,7 +54,7 @@ var IgnoreBlanks = "_IGNOREBLANKS_"
 
 func NewObject(flexinit ...interface{}) *Object {
 	var result Object
-	result.init(1)
+	result.init(0)
 	result.setFlex(flexinit...)
 
 	return &result
@@ -139,7 +140,6 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	// Keep normies out
 	target.lockwith(source)
 
-	ongoingAbsorbs.Store(source, target)
 	if !source.status.CompareAndSwap(1, 2) {
 		// We're being absorbed, nom nom
 		panic("Can only absorb valid objects")
@@ -162,7 +162,12 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 
 	// fmt.Println("----------------------------------------")
 	absorbCriticalSection.Lock()
+	ongoingAbsorbs.Store(source, target)
 	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
+		if source == outgoingTarget {
+			panic("Pointing at myself")
+		}
+
 		// Load edges from target, and merge with source edges
 		target.edges[Out].setEdges(outgoingTarget, edges)
 		source.edges[Out].del(outgoingTarget)
@@ -265,6 +270,8 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 		}
 		source.parent = nil
 	}
+
+	ongoingAbsorbs.Delete(source)
 	absorbCriticalSection.Unlock()
 
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
@@ -284,7 +291,6 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	if !source.status.CompareAndSwap(2, 3) {
 		panic("Unpossible absorption mutation occurred")
 	}
-	ongoingAbsorbs.Delete(source)
 
 	target.unlockwith(source)
 }
@@ -908,12 +914,15 @@ func (o *Object) Meta() map[string]string {
 
 func (o *Object) init(preloadAttributes int) {
 	o.id = ObjectID(atomic.AddUint32(&idcounter, 1))
-	if preloadAttributes == 0 {
-		preloadAttributes = 1
-	}
 	o.edges[In].init()
 	o.edges[Out].init()
-	o.values.init(preloadAttributes)
+	if preloadAttributes > 0 {
+		o.values.init(preloadAttributes)
+		o.values.m.GrowStrategy(gonk.FourItems)
+	} else {
+		o.values.m.GrowStrategy(gonk.HalfMax2048)
+	}
+	o.values.m.ReindexStrategy(gonk.OnGet)
 	o.status.Store(1)
 	// onAddObject(o)
 }
