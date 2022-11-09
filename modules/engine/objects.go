@@ -310,15 +310,36 @@ func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
 
 				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
 					mergetargets.Iterate(func(target *Object) bool {
-						var failed bool
-						targetType := target.Type()
-
 						// Test if types mismatch violate this merge
+						targetType := target.Type()
 						if targetType != ObjectTypeOther && sourceType != ObjectTypeOther && targetType != sourceType {
 							// Merge conflict, can't merge different types
 							ui.Trace().Msgf("Merge failure due to type difference, not merging %v of type %v with %v of type %v", source.Label(), sourceType.String(), target.Label(), targetType.String())
-							failed = true
-							return false
+							return false // continue
+						}
+
+						var failed bool
+
+						// Test if there are incoming or outgoing edges pointing at each other
+						source.edges[In].Range(func(pointingFrom *Object, value EdgeBitmap) bool {
+							if target == pointingFrom {
+								failed = true
+								return false
+							}
+							return true
+						})
+						if failed {
+							return false // continue
+						}
+						source.edges[Out].Range(func(pointingTo *Object, value EdgeBitmap) bool {
+							if target == pointingTo {
+								failed = true
+								return false
+							}
+							return true
+						})
+						if failed {
+							return false // continue
 						}
 
 						// Test if any single attribute holding values violate this merge
