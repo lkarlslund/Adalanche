@@ -35,7 +35,7 @@ type EdgeAnalyzer struct {
 }
 
 // Increas this when we run out of space
-const PMBSIZE = 2
+const PMBSIZE = 3
 const MAXEDGEPOSSIBLE = PMBSIZE * 64
 
 type EdgeBitmap [PMBSIZE]uint64
