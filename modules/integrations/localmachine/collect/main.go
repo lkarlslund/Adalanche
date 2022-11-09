@@ -376,6 +376,53 @@ func Collect() (localmachine.Info, error) {
 			}
 		}
 	}
+
+	// // Security Logs
+	// slog, err := winevent.NewStream(winevent.EventStreamParams{
+	// 	Channel:  "Security",
+	// 	EventIDs: "4624",
+	// 	BuffSize: 2048000,
+	// }, 0)
+
+	// if err == nil {
+	// 	for {
+	// 		events, _, _, err := slog.Read()
+	// 		if err != nil {
+	// 			// fmt.Println(err)
+	// 			break
+	// 		}
+	// 		for _, event := range events {
+	// 			// fmt.Println(string(event.Buff))
+	// 			doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
+	// 			if err == nil {
+	// 				i := xmlquery.FindOne(doc, "/Event/System/EventID")
+	// 				if i.InnerText() == "4624" {
+	// 					// Version
+	// 					subjectusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectUserSid']`)
+	// 					subjectusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectUserName']`)
+	// 					subjectdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectDomainName']`)
+	// 					targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`)
+	// 					targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`)
+	// 					targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`)
+
+	// 					if subjectdomainname != nil && subjectusername != nil && subjectusersid != nil &&
+	// 						targetdomainname != nil && targetusername != nil && targetusersid != nil {
+	// 						ui.Info().Msgf("%v %v %v -> %v %v %v",
+	// 							subjectdomainname.InnerText(),
+	// 							subjectusername.InnerText(),
+	// 							subjectusersid.InnerText(),
+	// 							targetdomainname.InnerText(),
+	// 							targetusername.InnerText(),
+	// 							targetusersid.InnerText(),
+	// 						)
+	// 					}
+
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+
 	var logininfo localmachine.LoginPopularity
 	for usersid, count := range monthmap {
 		var name, domain string
