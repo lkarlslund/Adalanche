@@ -140,6 +140,8 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	// Keep normies out
 	target.lockwith(source)
 
+	absorbCriticalSection.Lock()
+
 	if !source.status.CompareAndSwap(1, 2) {
 		// We're being absorbed, nom nom
 		panic("Can only absorb valid objects")
@@ -161,7 +163,6 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	}
 
 	// fmt.Println("----------------------------------------")
-	absorbCriticalSection.Lock()
 	ongoingAbsorbs.Store(source, target)
 	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
 		if source == outgoingTarget {
@@ -272,7 +273,6 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	}
 
 	ongoingAbsorbs.Delete(source)
-	absorbCriticalSection.Unlock()
 
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 	if source.sdcache != nil && target.sdcache != nil {
@@ -291,6 +291,8 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	if !source.status.CompareAndSwap(2, 3) {
 		panic("Unpossible absorption mutation occurred")
 	}
+
+	absorbCriticalSection.Unlock()
 
 	target.unlockwith(source)
 }
