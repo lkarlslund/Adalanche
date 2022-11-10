@@ -338,4 +338,4 @@ Different commercial editions with improved functionality are available for purc
 
 ## Happy hunting!
 
-Feedback is welcome -> [@lkarlslund](https://twitter.com/lkarlslund)
+Feedback is welcome -> Mastodon [@lkarlslund](https://infosec.exchange/@lkarlslund) / Twitter [@lkarlslund](https://twitter.com/lkarlslund)
