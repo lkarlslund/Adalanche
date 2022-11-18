@@ -86,25 +86,182 @@ const (
 	SYNCHRONIZE           = 0x00100000
 )
 
-var (
-	NullGUID = uuid.UUID{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-)
+func ParseSDDL(sddl string) (ACL, error) {
+	var result ACL
+	if strings.HasPrefix(sddl, "O:") {
+		// Handle owner
+	}
+	if strings.HasPrefix(sddl, "G:") {
+		// Handle group
+	}
+	if strings.HasPrefix(sddl, "D:") {
+		// Handle DACL
+	}
+	if strings.HasPrefix(sddl, "S:") {
+		// Handle SACL
+	}
+	return result, nil
+}
 
 /*
-Extended rights:
+func parseSDDLid(sddlid string) (windowssecurity.SID, error) {
+	switch sddlid {
+	case "AO": // 		Account operators
+		return windowssecurity.AccountOperatorsSID, nil
+	case "RU": //   	Alias to allow previous Windows 2000
 
-ab721a53-1e2f-11d0-9819-00aa0040529b = change pwd
-00299570-246d-11d0-a768-00aa006e0529 = force reset pwd
-1131f6aa-9c07-11d1-f79f-00c04fc2dcd2 = DS-Replication-Get-Changes
-1131f6ad-9c07-11d1-f79f-00c04fc2dcd2 = DS-Replication-Get-Changes-All
-
-Properties:
-
-bf9679c0-0de6-11d0-a285-00aa003049e2 = member property for groups
-f30e3bc1-9ff0-11d1-b603-0000f80367c1 = GPC-File-Sys-Path
-ms-Mcs-AdmPwd reading
-
+	case "AN": //   	Anonymous logon
+		return windowssecurity.AnonymousLogonSID, nil
+	case "AU": //   	Authenticated users
+		return windowssecurity.AuthenticatedUsersSID, nil
+	case "BA": //   	Built-in administrators
+		return windowssecurity.AdministratorsSID, nil
+	case "BG": //   	Built-in guests
+		return windowssecurity.GuestsSID, nil
+	case "BO": //   	Backup operators
+		return windowssecurity.BackupOperatorsSID, nil
+	case "BU": //   	Built-in users
+		return windowssecurity.UsersSID, nil
+	case "CA": //   	Certificate server administrators
+		return windowssecurity.CertificateServerAdminsSID, nil
+	case "CG": //   	Creator group
+		return windowssecurity.CreatorGoupSID, nil
+	case "CO": //   	Creator owner
+		return windowssecurity.CreatorOwnerSID, nil
+	case "DA": //   	Domain administrators
+		return windowssecurity.DomainAdminsSID, nil
+	case "DC": //   	Domain computers
+		return windowssecurity.DomainComputersSID, nil
+	case "DD": //   	Domain controllers
+		return windowssecurity.DomainControllersSID, nil
+	case "DG": //   	Domain guests
+		return windowssecurity.DomainGuestsSID, nil
+	case "DU": //   	Domain users
+		return windowssecurity.DomainUsersSID, nil
+	case "EA": //   	Enterprise administrators
+		return windowssecurity.EnterpriseAdminsSID, nil
+	case "ED": //   	Enterprise domain controllers
+		return windowssecurity.EnterpriseDomainControllersSID, nil
+	case "WD": //   	Everyone
+		return windowssecurity.EveryoneSID, nil
+	case "PA": //   	Group Policy administrators
+		return windowssecurity.GroupPolicyAdminsSID, nil
+	case "IU": //   	Interactively logged-on user
+		return windowssecurity.InteractiveSID, nil
+	case "LA": //   	Local administrator
+		return windowssecurity.LocalAdministratorSID, nil
+	case "LG": //   	Local guest
+		return windowssecurity.LocalGuestSID, nil
+	case "LS": //   	Local service account
+		return windowssecurity.LocalServiceSID, nil
+	case "SY": //   	Local system
+		return windowssecurity.LocalSystemSID, nil
+	case "NU": //   	Network logon user
+		return windowssecurity.NetworkLogonSID, nil
+	case "NO": //   	Network configuration operators
+		return windowssecurity.NetworkConfigurationOperatorsSID, nil
+	case "NS": //   	Network service account
+		return windowssecurity.NetworkServiceSID, nil
+	case "PO": //   	Printer operators
+		return windowssecurity.PrinterOperatorsSID, nil
+	case "PS": //   	Personal self
+		return windowssecurity.PersonalSelfSID, nil
+	case "PU": //   	Power users
+		return windowssecurity.PowerUsersSID, nil
+	case "RS": //   	RAS servers group
+		return windowssecurity.RASServersSID, nil
+	case "RD": //   	Terminal server users
+		return windowssecurity.TerminalServerUsersSID, nil
+	case "RE": //   	Replicator
+		return windowssecurity.ReplicatorSID, nil
+	case "RC": //   	Restricted code
+		return windowssecurity.RestrictedCodeSID, nil
+	case "SA": //   	Schema administrators
+		return windowssecurity.SchemaAdminsSID, nil
+	case "SO": //   	Server operators
+		return windowssecurity.ServerOperatorsSID, nil
+	case "SU": //   	Service logon user
+		return windowssecurity.ServiceLogonSID, nil
+	}
+	return windowssecurity.SID(""), fmt.Errorf("Unrecognized SDDL identity %v", sddlid)
+}
 */
+
+func parseSDDLACE(sddlace string) (ACE, error) {
+	var result ACE
+
+	return result, nil
+}
+
+func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
+	var result SecurityDescriptor
+	if len(data) < 20 {
+		return SecurityDescriptor{}, errors.New("not enough data")
+	}
+	if data[0] != 1 {
+		return SecurityDescriptor{}, errors.New("unknown Revision")
+	}
+	if data[1] != 0 {
+		return SecurityDescriptor{}, errors.New("unknown Sbz1")
+	}
+	result.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
+	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])
+	if result.Control&CONTROLFLAG_OWNER_DEFAULTED == 0 && OffsetOwner == 0 {
+		ui.Debug().Msgf("ACL has no owner, and does not default")
+	}
+	OffsetGroup := binary.LittleEndian.Uint32(data[8:12])
+	if result.Control&CONTROLFLAG_GROUP_DEFAULTED == 0 && OffsetGroup == 0 {
+		ui.Debug().Msgf("ACL has no group, and does not default")
+	}
+	OffsetSACL := binary.LittleEndian.Uint32(data[12:16])
+	if result.Control&CONTROLFLAG_SACL_PRESENT != 0 && OffsetSACL == 0 {
+		ui.Debug().Msgf("ACL has no SACL, but claims to have it")
+	}
+	OffsetDACL := binary.LittleEndian.Uint32(data[16:20])
+	if result.Control&CONTROLFLAG_DACL_PRESENT != 0 && OffsetDACL == 0 {
+		ui.Debug().Msgf("ACL has no DACL, but claims to have it")
+	}
+	var err error
+	if OffsetOwner > 0 {
+		result.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
+		if err != nil {
+			return result, err
+		}
+	}
+	if OffsetGroup > 0 {
+		result.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
+		if err != nil {
+			return result, err
+		}
+	}
+	if OffsetSACL > 0 {
+		result.SACL, err = ParseACL(data[OffsetSACL:])
+		if err != nil {
+			return result, err
+		}
+	}
+	if OffsetDACL > 0 {
+		result.DACL, err = ParseACL(data[OffsetDACL:])
+		if !result.DACL.IsSortedCorrectly() {
+			result.DACL.HadSortingProblem = true
+			result.DACL.Sort()
+		}
+		if result.DACL.containsdeny {
+			result.DACL.firstinheriteddeny = -1
+			for i := range result.DACL.Entries {
+				if result.DACL.Entries[i].ACEFlags&AceFlagsInherited != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
+					result.DACL.firstinheriteddeny = i
+					break
+				}
+			}
+		}
+		if err != nil {
+			return result, err
+		}
+	}
+
+	return result, nil
+}
 
 func ParseACL(data []byte) (ACL, error) {
 	var acl ACL
@@ -286,7 +443,7 @@ func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUI
 				if s, found := ao.Find(SchemaIDGUID, AttributeValueGUID(g)); found {
 					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
 						cachedset = set
-						if cachedset == NullGUID {
+						if cachedset.IsNil() {
 							cachedset = UnknownGUID
 						}
 					}
@@ -532,76 +689,6 @@ func (a ACE) SortVal() byte {
 		result += 1
 	}
 	return result
-}
-
-func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
-	var result SecurityDescriptor
-	if len(data) < 20 {
-		return SecurityDescriptor{}, errors.New("not enough data")
-	}
-	if data[0] != 1 {
-		return SecurityDescriptor{}, errors.New("unknown Revision")
-	}
-	if data[1] != 0 {
-		return SecurityDescriptor{}, errors.New("unknown Sbz1")
-	}
-	result.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
-	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])
-	if result.Control&CONTROLFLAG_OWNER_DEFAULTED == 0 && OffsetOwner == 0 {
-		ui.Debug().Msgf("ACL has no owner, and does not default")
-	}
-	OffsetGroup := binary.LittleEndian.Uint32(data[8:12])
-	if result.Control&CONTROLFLAG_GROUP_DEFAULTED == 0 && OffsetGroup == 0 {
-		ui.Debug().Msgf("ACL has no group, and does not default")
-	}
-	OffsetSACL := binary.LittleEndian.Uint32(data[12:16])
-	if result.Control&CONTROLFLAG_SACL_PRESENT != 0 && OffsetSACL == 0 {
-		ui.Debug().Msgf("ACL has no SACL, but claims to have it")
-	}
-	OffsetDACL := binary.LittleEndian.Uint32(data[16:20])
-	if result.Control&CONTROLFLAG_DACL_PRESENT != 0 && OffsetDACL == 0 {
-		ui.Debug().Msgf("ACL has no DACL, but claims to have it")
-	}
-	var err error
-	if OffsetOwner > 0 {
-		result.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
-		if err != nil {
-			return result, err
-		}
-	}
-	if OffsetGroup > 0 {
-		result.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
-		if err != nil {
-			return result, err
-		}
-	}
-	if OffsetSACL > 0 {
-		result.SACL, err = ParseACL(data[OffsetSACL:])
-		if err != nil {
-			return result, err
-		}
-	}
-	if OffsetDACL > 0 {
-		result.DACL, err = ParseACL(data[OffsetDACL:])
-		if !result.DACL.IsSortedCorrectly() {
-			result.DACL.HadSortingProblem = true
-			result.DACL.Sort()
-		}
-		if result.DACL.containsdeny {
-			result.DACL.firstinheriteddeny = -1
-			for i := range result.DACL.Entries {
-				if result.DACL.Entries[i].ACEFlags&AceFlagsInherited != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
-					result.DACL.firstinheriteddeny = i
-					break
-				}
-			}
-		}
-		if err != nil {
-			return result, err
-		}
-	}
-
-	return result, nil
 }
 
 func (sd SecurityDescriptor) String(ao *Objects) string {

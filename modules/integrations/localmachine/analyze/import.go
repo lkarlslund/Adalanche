@@ -703,7 +703,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				// if !sd.Group.IsNull() {
 				// 	ui.Warn().Msgf("Share %v has group set to %v", share.Name, sd.Group)
 				// }
-
 				for _, entry := range sd.DACL.Entries {
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						entrysid := entry.SID

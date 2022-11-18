@@ -79,6 +79,11 @@ var (
 		"S-1-5-9":     "Enterprise Domain Controllers",
 		"S-1-5-90-0":  "Windows Manager - Windows Manager Group",
 	}
+	AnonymousLogonSID, _  = ParseStringSID("S-1-5-7")
+	GuestsSID, _          = ParseStringSID("S-1-5-32-546")
+	BackupOperatorsSID, _ = ParseStringSID("S-1-5-32-551")
+	// UsersSID,_=ParseStringSID("")
+	CertificateServerAdminsSID, _ = ParseStringSID("")
 
 	AdministratorsSID, _     = ParseStringSID("S-1-5-32-544")
 	RemoteDesktopUsersSID, _ = ParseStringSID("S-1-5-32-555")
@@ -86,6 +91,7 @@ var (
 
 	OwnerSID, _              = ParseStringSID("S-1-3-4")
 	CreatorOwnerSID, _       = ParseStringSID("S-1-3-0")
+	CreatorGroupSID, _       = ParseStringSID("S-1-3-1")
 	SelfSID, _               = ParseStringSID("S-1-5-10")
 	AuthenticatedUsersSID, _ = ParseStringSID("S-1-5-11")
 	EveryoneSID, _           = ParseStringSID("S-1-1-0")
