@@ -38,11 +38,11 @@ var (
 	adexplorerfile  = Command.Flags().String("adexplorerfile", "", "Import AD objects from SysInternals ADexplorer dump")
 	adexplorerboost = Command.Flags().Bool("adexplorerboost", true, "Boost ADexplorer performance by using loading the binary file into RAM before decoding it")
 
-	server = Command.Flags().String("server", "", "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
-	port   = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
-	domain = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
-	user   = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
-	pass   = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
+	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
+	port    = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
+	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
+	user    = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
+	pass    = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
 
 	tlsmodeString = Command.Flags().String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
@@ -97,8 +97,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 
 	// AUTODETECTION
 	if *autodetect {
-		if *server == "" {
-
+		if len(*servers) == 0 {
 			// We only need to auto-detect the domain if the server is not supplied
 			if *domain == "" {
 				ui.Info().Msg("No domain supplied, auto-detecting")
@@ -118,15 +117,15 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			if *server == "" {
-				// Auto-detect server
-				cname, servers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
-				if err == nil && cname != "" && len(servers) != 0 {
-					*server = strings.TrimRight(servers[0].Target, ".")
-					ui.Info().Msgf("AD controller detected as: %v", *server)
-				} else {
-					return errors.New("AD controller auto-detection failed, use '--server' parameter")
+			// Auto-detect server
+			cname, dnsservers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
+			if err == nil && cname != "" && len(dnsservers) != 0 {
+				for _, dnsserver := range dnsservers {
+					*servers = append(*servers, strings.TrimRight(dnsserver.Target, "."))
 				}
+				ui.Info().Msgf("AD controller(s) detected as: %v", strings.Join(*servers, ", "))
+			} else {
+				return errors.New("AD controller auto-detection failed, use '--server' parameter")
 			}
 
 			if runtime.GOOS != "windows" && *user == "" {
@@ -143,7 +142,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 
 	// END OF AUTODETECTION
 
-	if len(*server) == 0 {
+	if len(*servers) == 0 {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
 
@@ -233,7 +232,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		// Active Directory dump directly from AD controller
 		options := LDAPOptions{
 			Domain:     *domain,
-			Server:     *server,
 			Port:       uint16(*port),
 			AuthMode:   authmode,
 			User:       *user,
@@ -243,14 +241,27 @@ func Execute(cmd *cobra.Command, args []string) error {
 			IgnoreCert: *ignoreCert,
 			Debug:      *ldapdebug,
 		}
-
 		var ad LDAPDumper
 
-		ad = CreateDumper(options)
+		// Find usable DC from list of servers
+		var chosenserver string
+		for _, server := range *servers {
+			options.Server = server
+			ad = CreateDumper(options)
 
-		err := ad.Connect()
-		if err != nil {
-			return errors.Wrap(err, "problem connecting to AD")
+			err := ad.Connect()
+			if err == nil {
+				// Successfull connect
+				chosenserver = server
+				break
+			}
+
+			ui.Warn().Msgf("Problem connecting to DC %v: %v", server, err)
+		}
+		if chosenserver != "" {
+			ui.Info().Msgf("Successfull connect to DC %v", chosenserver)
+		} else {
+			return errors.New("All DCs failed login attempts")
 		}
 
 		var attributes []string
