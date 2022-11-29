@@ -809,6 +809,15 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 					ui.Warn().Msgf("DownLevelLogonName contains dot in domain: %v", dlln)
 				}
 			}
+
+			if o.HasAttr(DataSource) {
+				netbios, _, didsplit := strings.Cut(dlln, "\\")
+				datasource := o.OneAttrString(DataSource)
+				if didsplit && !strings.EqualFold(datasource, netbios) && !strings.HasPrefix(netbios, "NT-") && !strings.HasPrefix(netbios, "NT ") {
+					ui.Warn().Msgf("Object DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
+				}
+			}
+
 			return true
 		})
 	}
