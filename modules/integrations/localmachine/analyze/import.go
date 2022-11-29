@@ -130,6 +130,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		LocalName:          engine.AttributeValueString(cinfo.Machine.Name),
 		DomainName:         engine.AttributeValueString(cinfo.Machine.Domain),
 		DomainJoinedSID:    domainsid,
+		MachineSID:         localsid,
 		IsDomainController: isdomaincontroller,
 		ao:                 ao,
 	}
@@ -313,15 +314,12 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 				memberobject, existing, local := ri.GetSIDObject(membersid, Auto)
 
-				// Collector sometimes returns junk, remove it
-				if strings.HasSuffix(member.Name, "\\") || strings.HasPrefix(member.Name, "S-1-") {
-					// If name resolution fails, you end up with DOMAIN\ and nothing else
-					member.Name = ""
+				// Collector sometimes returns junk, but if we have downlevel logon name we store it
+				if member.Name != "" && !strings.HasSuffix(member.Name, "\\") && !strings.HasPrefix(member.Name, "S-1-") {
+					memberobject.SetFlex(
+						engine.DownLevelLogonName, member.Name,
+					)
 				}
-				memberobject.SetFlex(
-					engine.IgnoreBlanks,
-					engine.DownLevelLogonName, member.Name,
-				)
 
 				memberobject.EdgeTo(groupobject, activedirectory.EdgeMemberOfGroup)
 
@@ -809,6 +807,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 type relativeInfo struct {
 	LocalName          engine.AttributeValue
 	DomainName         engine.AttributeValue
+	MachineSID         windowssecurity.SID
 	DomainJoinedSID    windowssecurity.SID
 	IsDomainController bool
 	ao                 *engine.Objects
@@ -835,9 +834,12 @@ func (ri *relativeInfo) GetSIDObject(targetSID windowssecurity.SID, location Rel
 		if ri.IsDomainController {
 			dataSource = ri.DomainName
 			local = false
-		} else if !ri.DomainName.IsZero() && targetSID.Component(2) == 21 && targetSID.StripRID() == ri.DomainJoinedSID.StripRID() {
-			dataSource = ri.DomainName
-			local = false
+		} else if targetSID.Component(2) == 21 && targetSID.StripRID() != ri.MachineSID {
+			// Universally identifiable, just go with that and let merge fix it
+			assignee, existing := ri.ao.FindOrAdd(
+				activedirectory.ObjectSid, engine.AttributeValueSID(targetSID),
+			)
+			return assignee, existing, false
 		}
 	}
 
