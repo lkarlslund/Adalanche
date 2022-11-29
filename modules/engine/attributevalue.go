@@ -55,6 +55,9 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 		}
 	default:
 		// Fallback
+		if a == nil || b == nil {
+			return a == b
+		}
 		return a.String() == b.String()
 	}
 

@@ -50,10 +50,7 @@ func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
 	var result *engine.Object
 	results.Iterate(func(o *engine.Object) bool {
-		if result == nil || result.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-			// Prefer non-FSP object
-			result = o
-		}
+		result = o
 		return true
 	})
 	return result

@@ -34,20 +34,46 @@ var (
 		}
 		return 50
 	})
-	EdgeWriteAllowedToAct                    = engine.NewEdge("WriteAllowedToAct")
-	EdgeAddMember                            = engine.NewEdge("AddMember")
-	EdgeAddMemberGroupAttr                   = engine.NewEdge("AddMemberGroupAttr")
-	EdgeAddSelfMember                        = engine.NewEdge("AddSelfMember")
-	EdgeReadMSAPassword                      = engine.NewEdge("ReadMSAPassword")
-	EdgeHasMSA                               = engine.NewEdge("HasMSA")
-	EdgeWriteKeyCredentialLink               = engine.NewEdge("WriteKeyCredentialLink")
+	EdgeWriteAllowedToAct       = engine.NewEdge("WriteAllowedToAct")
+	EdgeAddMember               = engine.NewEdge("AddMember")
+	EdgeAddMemberGroupAttr      = engine.NewEdge("AddMemberGroupAttr")
+	EdgeAddSelfMember           = engine.NewEdge("AddSelfMember")
+	EdgeReadMSAPassword         = engine.NewEdge("ReadMSAPassword")
+	EdgeHasMSA                  = engine.NewEdge("HasMSA")
+	EdgeWriteUserAccountControl = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		/*if uac, ok := target.AttrInt(activedirectory.UserAccountControl); ok && uac&0x0002 != 0 { //UAC_ACCOUNTDISABLE
+			// Account is disabled
+			return 0
+		}*/
+		return 50
+	})
+
+	EdgeWriteKeyCredentialLink = engine.NewEdge("WriteKeyCredentialLink").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
+			// Account is disabled
+			var canenable bool
+			source.Edges(engine.Out).Range(func(key *engine.Object, value engine.EdgeBitmap) bool {
+				if key == target {
+					if value.IsSet(EdgeWriteUserAccountControl) {
+						canenable = true
+						return false
+					}
+				}
+				return true
+			})
+			if !canenable {
+				return 0
+			}
+		}
+		return 100
+	})
 	EdgeWriteAttributeSecurityGUID           = engine.NewEdge("WriteAttrSecurityGUID").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 5 }) // Only if you patch the DC, so this will actually never work
 	EdgeSIDHistoryEquality                   = engine.NewEdge("SIDHistoryEquality")
 	EdgeAllExtendedRights                    = engine.NewEdge("AllExtendedRights")
 	EdgeDSReplicationSyncronize              = engine.NewEdge("DSReplSync")
-	EdgeDSReplicationGetChanges              = engine.NewEdge("DSReplGetChngs")
-	EdgeDSReplicationGetChangesAll           = engine.NewEdge("DSReplGetChngsAll")
-	EdgeDSReplicationGetChangesInFilteredSet = engine.NewEdge("DSReplGetChngsInFiltSet")
+	EdgeDSReplicationGetChanges              = engine.NewEdge("DSReplGetChngs").SetDefault(false, false, false)
+	EdgeDSReplicationGetChangesAll           = engine.NewEdge("DSReplGetChngsAll").SetDefault(false, false, false)
+	EdgeDSReplicationGetChangesInFilteredSet = engine.NewEdge("DSReplGetChngsInFiltSet").SetDefault(false, false, false)
 	EdgeDCsync                               = engine.NewEdge("DCsync")
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup")

@@ -691,52 +691,31 @@ func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Objec
 		result, _ := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
 			no := NewObject(
 				ObjectSid, AttributeValueSID(s),
-				DataLoader, "FindOrAddAdjacentSID",
-				IgnoreBlanks,
-				DomainContext, r.Attr(DomainContext),
 			)
-			if !r.SID().IsNull() {
-				if r.SID().StripRID() == s.StripRID() {
-					// Same domain ... hmm!
-				} else {
-					// Other domain, then it's a foreign principal
-					no.SetFlex(ObjectCategorySimple, "Foreign-Security-Principal")
-					if domainContext := r.OneAttrString(DomainContext); domainContext != "" {
-						no.SetFlex(DistinguishedName, "CN="+s.String()+",CN=ForeignSecurityPrincipals,"+domainContext)
-					}
-				}
-			}
 			return no
 		})
 		return result.First()
-	default:
-		if r.HasAttr(DomainContext) {
-			// From outside, we need to find the domain part
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
-				return o.First()
-			}
-		}
-		// From inside same source, that is easy
-		if r.HasAttr(DataSource) {
-			if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
-				return o.First()
-			}
-		}
+	}
 
+	if r.HasAttr(DomainContext) {
+		// From outside, we need to find the domain part
+		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
+			return o.First()
+		}
+	}
+	// From inside same source, that is easy
+	if r.HasAttr(DataSource) {
+		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+			return o.First()
+		}
 	}
 
 	// Not found, we have write lock so create it
-	no := NewObject(ObjectSid, AttributeValueSID(s))
-
-	if s.Component(2) != 21 {
-		no.SetFlex(
-			IgnoreBlanks,
-			DomainContext, r.Attr(DomainContext),
-			DataSource, r.Attr(DataSource),
-		)
-	}
-
-	os.Add(no)
+	no, _ := os.FindOrAdd(ObjectSid, AttributeValueSID(s),
+		IgnoreBlanks,
+		DomainContext, r.Attr(DomainContext),
+		DataSource, r.Attr(DataSource),
+	)
 
 	return no
 }

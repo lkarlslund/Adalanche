@@ -137,16 +137,27 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// We're grabbing the index directly for faster processing here
 	dnindex := globalobjects.GetIndex(DistinguishedName)
 
-	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collition FML
+	mergeon := getMergeAttributes()
+
+	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collision FML
 	sourcemap.Range(func(us string, usao sourceinfo) bool {
 		if us == "" {
 			return true // continue - not these, we'll try to merge at the very end
 		}
 		usao.shard.Iterate(func(addobject *Object) bool {
 			pb.Add(1)
-			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
+			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice ...
+			aosid := addobject.SID()
+			if !aosid.IsBlank() && aosid.Component(2) == 21 {
+				// Always merge these, they might belong elsewhere
+				globalobjects.AddMerge(mergeon, addobject)
+				return true
+			}
 			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
+				// UNLESS it's a predefined one with an objectSID, in that case done merge them at all WTF not a huge fan of this design, Microsoft
+				if !aosid.IsBlank() && aosid.Component(2) != 21 {
+					addobject.SetFlex(DistinguishedName, "mutated="+addobject.OneAttrString(DataSource)+","+dn.String())
+				} else if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 					existing.First().AbsorbEx(addobject, true)
 					return true
 				}
@@ -159,7 +170,6 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	nodatasource, _ := sourcemap.Load("")
 	var i int
-	mergeon := getMergeAttributes()
 	nodatasource.shard.Iterate(func(addobject *Object) bool {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice

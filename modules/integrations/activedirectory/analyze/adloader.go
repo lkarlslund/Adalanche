@@ -103,6 +103,10 @@ func (ld *ADLoader) Init() error {
 					continue // skip deleted object
 				}
 
+				if strings.Contains(o.DN(), ",CN=ForeignSecurityPrincipals,DC=") {
+					continue // skip all foreign security principals
+				}
+
 				if !o.HasAttr(engine.ObjectClass) {
 					if ld.warnhardened {
 						if strings.Contains(o.DN(), ",CN=MicrosoftDNS,") {
