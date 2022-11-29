@@ -19,6 +19,22 @@ type NodeFilter interface {
 	ToWhereClause() string
 }
 
+type FilterObjectType struct {
+	t engine.ObjectType
+}
+
+func (fot FilterObjectType) Evaluate(o *engine.Object) bool {
+	return o.Type() == fot.t
+}
+
+func (fot FilterObjectType) ToLDAPFilter() string {
+	return "(objectType=" + fot.t.String() + ")"
+}
+
+func (fot FilterObjectType) ToWhereClause() string {
+	return ":" + fot.t.String()
+}
+
 // Wraps one Attribute around a queryattribute interface
 type FilterOneAttribute struct {
 	a engine.Attribute
@@ -221,28 +237,28 @@ func (q orquery) ToWhereClause() string {
 	return result
 }
 
-type notquery struct {
+type NotQuery struct {
 	subitem NodeFilter
 }
 
-func (q notquery) Evaluate(o *engine.Object) bool {
+func (q NotQuery) Evaluate(o *engine.Object) bool {
 	return !q.subitem.Evaluate(o)
 }
 
-func (q notquery) ToLDAPFilter() string {
+func (q NotQuery) ToLDAPFilter() string {
 	return "!(" + q.subitem.ToLDAPFilter() + ")"
 }
 
-func (q notquery) ToWhereClause() string {
+func (q NotQuery) ToWhereClause() string {
 	return "UNSUPPORTED!!"
 }
 
-type countModifier struct {
+type CountModifier struct {
 	c     comparatortype
 	value int64
 }
 
-func (cm countModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (cm CountModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	vals, found := o.Get(a)
 	count := 0
 	if found {
@@ -251,20 +267,20 @@ func (cm countModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return cm.c.Compare(int64(count), cm.value)
 }
 
-func (cm countModifier) ToLDAPFilter(a string) string {
+func (cm CountModifier) ToLDAPFilter(a string) string {
 	return a + ":count: " + cm.c.String() + " " + strconv.FormatInt(cm.value, 10)
 }
 
-func (cm countModifier) ToWhereClause(a string) string {
+func (cm CountModifier) ToWhereClause(a string) string {
 	return "COUNT(" + a + ")" + cm.c.String() + " " + strconv.FormatInt(cm.value, 10)
 }
 
-type lengthModifier struct {
+type LengthModifier struct {
 	c     comparatortype
 	value int64
 }
 
-func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (lm LengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	vals, found := o.Get(a)
 	if !found {
 		return lm.c.Compare(0, lm.value)
@@ -280,20 +296,20 @@ func (lm lengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return result
 }
 
-func (lm lengthModifier) ToLDAPFilter(a string) string {
+func (lm LengthModifier) ToLDAPFilter(a string) string {
 	return a + ":length: " + lm.c.String() + " " + strconv.FormatInt(lm.value, 10)
 }
 
-func (lm lengthModifier) ToWhereClause(a string) string {
+func (lm LengthModifier) ToWhereClause(a string) string {
 	return "LENGTH(" + a + ")" + lm.c.String() + " " + strconv.FormatInt(lm.value, 10)
 }
 
-type sinceModifier struct {
+type SinceModifier struct {
 	c  comparatortype
 	ts *timespan.Timespan
 }
 
-func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	vals, found := o.Get(a)
 	if !found {
 		return false
@@ -321,21 +337,21 @@ func (sm sinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return result
 }
 
-func (sm sinceModifier) ToLDAPFilter(a string) string {
+func (sm SinceModifier) ToLDAPFilter(a string) string {
 	return a + ":since: " + sm.c.String() + " " + sm.ts.String()
 }
 
-func (sm sinceModifier) ToWhereClause(a string) string {
+func (sm SinceModifier) ToWhereClause(a string) string {
 	return "SINCE(" + a + ")" + sm.c.String() + " " + sm.ts.String()
 }
 
-type timediffModifier struct {
+type TimediffModifier struct {
 	a2 engine.Attribute
 	c  comparatortype
 	ts *timespan.Timespan
 }
 
-func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	val1s, found := o.Get(a)
 	if !found {
 		return false
@@ -384,19 +400,19 @@ func (td timediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return result
 }
 
-func (td timediffModifier) ToLDAPFilter(a string) string {
+func (td TimediffModifier) ToLDAPFilter(a string) string {
 	return a + ":timediff(" + td.a2.String() + "): " + td.c.String() + td.ts.String()
 }
 
-func (td timediffModifier) ToWhereClause(a string) string {
+func (td TimediffModifier) ToWhereClause(a string) string {
 	return "TIMEIDFF(" + a + "," + td.a2.String() + ")" + td.c.String() + td.ts.String()
 }
 
-type andModifier struct {
+type BinaryAndModifier struct {
 	value int64
 }
 
-func (am andModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (am BinaryAndModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
@@ -404,19 +420,19 @@ func (am andModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return (int64(val) & am.value) == am.value
 }
 
-func (am andModifier) ToLDAPFilter(a string) string {
+func (am BinaryAndModifier) ToLDAPFilter(a string) string {
 	return a + ":and:=" + strconv.FormatInt(am.value, 10)
 }
 
-func (am andModifier) ToWhereClause(a string) string {
+func (am BinaryAndModifier) ToWhereClause(a string) string {
 	return a + " && " + strconv.FormatInt(am.value, 10) + "=" + strconv.FormatInt(am.value, 10)
 }
 
-type orModifier struct {
+type BinaryOrModifier struct {
 	value int64
 }
 
-func (om orModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (om BinaryOrModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
@@ -424,29 +440,29 @@ func (om orModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return int64(val)&om.value != 0
 }
 
-func (om orModifier) ToLDAPFilter(a string) string {
+func (om BinaryOrModifier) ToLDAPFilter(a string) string {
 	return a + ":or:=" + strconv.FormatInt(om.value, 10)
 }
 
-func (om orModifier) ToWhereClause(a string) string {
+func (om BinaryOrModifier) ToWhereClause(a string) string {
 	return a + " || " + strconv.FormatInt(om.value, 10) + "=" + strconv.FormatInt(om.value, 10)
 }
 
-type numericComparator struct {
+type IntegerComparison struct {
 	c     comparatortype
 	value int64
 }
 
-func (nc numericComparator) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (nc IntegerComparison) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	val, _ := o.AttrInt(a)
 	return nc.c.Compare(val, nc.value)
 }
 
-func (nc numericComparator) ToLDAPFilter(a string) string {
+func (nc IntegerComparison) ToLDAPFilter(a string) string {
 	return a + nc.c.String() + strconv.FormatInt(nc.value, 10)
 }
 
-func (nc numericComparator) ToWhereClause(a string) string {
+func (nc IntegerComparison) ToWhereClause(a string) string {
 	return a + nc.c.String() + strconv.FormatInt(nc.value, 10)
 }
 

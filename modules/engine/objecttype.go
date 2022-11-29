@@ -16,6 +16,7 @@ const (
 type ObjectType byte
 
 var (
+	NonExistingObjectType                = ^ObjectType(0)
 	ObjectTypeOther                      = NewObjectType("Other", "")
 	ObjectTypeDomainDNS                  = NewObjectType("DomainDNS", "Domain-DNS")
 	ObjectTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node").SetDefault(Last, false)

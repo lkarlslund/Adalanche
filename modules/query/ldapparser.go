@@ -81,7 +81,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 
 	if result != nil {
 		if invert {
-			result = notquery{result}
+			result = NotQuery{result}
 		}
 		return s, result, nil
 	}
@@ -252,7 +252,7 @@ valueloop:
 				}
 			}
 			direction := engine.Out
-			if attributename == "_pwnable" || attributename == "in" {
+			if strings.EqualFold(attributename, "_pwnable") || strings.EqualFold(attributename, "in") {
 				direction = engine.In
 			}
 			return s, edgeQuery{direction, edge, target}, nil
@@ -302,12 +302,12 @@ valueloop:
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(countModifier{comparator, valuenum})
+		result = genwrapper(CountModifier{comparator, valuenum})
 	case "len", "length":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(lengthModifier{comparator, valuenum})
+		result = genwrapper(LengthModifier{comparator, valuenum})
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
@@ -315,14 +315,14 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			result = genwrapper(sinceModifier{comparator, duration})
+			result = genwrapper(SinceModifier{comparator, duration})
 			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		result = genwrapper(sinceModifier{comparator, duration})
+		result = genwrapper(SinceModifier{comparator, duration})
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
@@ -333,24 +333,24 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			result = genwrapper(timediffModifier{attribute2, comparator, duration})
+			result = genwrapper(TimediffModifier{attribute2, comparator, duration})
 			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		result = genwrapper(timediffModifier{attribute2, comparator, duration})
+		result = genwrapper(TimediffModifier{attribute2, comparator, duration})
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
-		result = genwrapper(andModifier{valuenum})
+		result = genwrapper(BinaryAndModifier{valuenum})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
-		result = genwrapper(orModifier{valuenum})
+		result = genwrapper(BinaryOrModifier{valuenum})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
 		result = genwrapper(recursiveDNmatcher{value, ao})
@@ -397,11 +397,11 @@ valueloop:
 		if numok != nil {
 			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
 		}
-		result = genwrapper(numericComparator{comparator, valuenum})
+		result = genwrapper(IntegerComparison{comparator, valuenum})
 	}
 
 	if invert {
-		result = notquery{result}
+		result = NotQuery{result}
 	}
 
 	return s, result, nil
