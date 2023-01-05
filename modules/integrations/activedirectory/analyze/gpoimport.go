@@ -161,7 +161,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 			// The account targeted
 			target, _ := ao.FindOrAdd(
-				engine.DownLevelLogonName, engine.AttributeValueString(e.Username),
+				engine.SAMAccountName, engine.AttributeValueString(e.Username),
 			)
 
 			// GPO exposes this object
