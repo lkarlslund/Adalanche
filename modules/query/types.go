@@ -172,12 +172,12 @@ func (a LowerStringAttribute) Strings(o *engine.Object) []string {
 	return lo
 }
 
-type andquery struct {
-	subitems []NodeFilter
+type AndQuery struct {
+	Subitems []NodeFilter
 }
 
-func (q andquery) Evaluate(o *engine.Object) bool {
-	for _, query := range q.subitems {
+func (q AndQuery) Evaluate(o *engine.Object) bool {
+	for _, query := range q.Subitems {
 		if !query.Evaluate(o) {
 			return false
 		}
@@ -185,17 +185,17 @@ func (q andquery) Evaluate(o *engine.Object) bool {
 	return true
 }
 
-func (q andquery) ToLDAPFilter() string {
+func (q AndQuery) ToLDAPFilter() string {
 	result := "&"
-	for _, query := range q.subitems {
+	for _, query := range q.Subitems {
 		result += query.ToLDAPFilter()
 	}
 	return result
 }
 
-func (q andquery) ToWhereClause() string {
+func (q AndQuery) ToWhereClause() string {
 	var result string
-	for i, query := range q.subitems {
+	for i, query := range q.Subitems {
 		if i > 0 {
 			result += " AND "
 		}
@@ -204,12 +204,12 @@ func (q andquery) ToWhereClause() string {
 	return result
 }
 
-type orquery struct {
-	subitems []NodeFilter
+type OrQuery struct {
+	Subitems []NodeFilter
 }
 
-func (q orquery) Evaluate(o *engine.Object) bool {
-	for _, query := range q.subitems {
+func (q OrQuery) Evaluate(o *engine.Object) bool {
+	for _, query := range q.Subitems {
 		if query.Evaluate(o) {
 			return true
 		}
@@ -217,17 +217,17 @@ func (q orquery) Evaluate(o *engine.Object) bool {
 	return false
 }
 
-func (q orquery) ToLDAPFilter() string {
+func (q OrQuery) ToLDAPFilter() string {
 	result := "|"
-	for _, query := range q.subitems {
+	for _, query := range q.Subitems {
 		result += query.ToLDAPFilter()
 	}
 	return result
 }
 
-func (q orquery) ToWhereClause() string {
+func (q OrQuery) ToWhereClause() string {
 	result := "("
-	for i, query := range q.subitems {
+	for i, query := range q.Subitems {
 		if i > 0 {
 			result += " OR "
 		}
@@ -238,15 +238,15 @@ func (q orquery) ToWhereClause() string {
 }
 
 type NotQuery struct {
-	subitem NodeFilter
+	Subitem NodeFilter
 }
 
 func (q NotQuery) Evaluate(o *engine.Object) bool {
-	return !q.subitem.Evaluate(o)
+	return !q.Subitem.Evaluate(o)
 }
 
 func (q NotQuery) ToLDAPFilter() string {
-	return "!(" + q.subitem.ToLDAPFilter() + ")"
+	return "!(" + q.Subitem.ToLDAPFilter() + ")"
 }
 
 func (q NotQuery) ToWhereClause() string {
@@ -346,9 +346,9 @@ func (sm SinceModifier) ToWhereClause(a string) string {
 }
 
 type TimediffModifier struct {
-	a2 engine.Attribute
-	c  comparatortype
-	ts *timespan.Timespan
+	A2 engine.Attribute
+	C  comparatortype
+	TS *timespan.Timespan
 }
 
 func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -357,7 +357,7 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 		return false
 	}
 
-	val2s, found := o.Get(td.a2)
+	val2s, found := o.Get(td.A2)
 	if !found {
 		return false
 	}
@@ -390,7 +390,7 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 			return false // break
 		}
 
-		if td.c.Compare(t1.Unix(), td.ts.From(t2).Unix()) {
+		if td.C.Compare(t1.Unix(), td.TS.From(t2).Unix()) {
 			result = true
 			return false // break
 		}
@@ -401,11 +401,11 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 }
 
 func (td TimediffModifier) ToLDAPFilter(a string) string {
-	return a + ":timediff(" + td.a2.String() + "): " + td.c.String() + td.ts.String()
+	return a + ":timediff(" + td.A2.String() + "): " + td.C.String() + td.TS.String()
 }
 
 func (td TimediffModifier) ToWhereClause(a string) string {
-	return "TIMEIDFF(" + a + "," + td.a2.String() + ")" + td.c.String() + td.ts.String()
+	return "TIMEIDFF(" + a + "," + td.A2.String() + ")" + td.C.String() + td.TS.String()
 }
 
 type BinaryAndModifier struct {
@@ -572,22 +572,22 @@ func (hsm hasStringMatch) ToWhereClause(a string) string {
 	return a + "=" + hsm.m
 }
 
-type hasGlobMatch struct {
-	casesensitive bool
-	globstr       string
-	m             glob.Glob
+type HasGlobMatch struct {
+	Casesensitive bool
+	Globstr       string
+	M             glob.Glob
 }
 
-func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (hgm HasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	var result bool
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
-		if !hgm.casesensitive {
-			if hgm.m.Match(strings.ToLower(value.String())) {
+		if !hgm.Casesensitive {
+			if hgm.M.Match(strings.ToLower(value.String())) {
 				result = true
 				return false // break
 			}
 		} else {
-			if hgm.m.Match(value.String()) {
+			if hgm.M.Match(value.String()) {
 				result = true
 				return false // break
 			}
@@ -597,21 +597,21 @@ func (hgm hasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return result
 }
 
-func (hgm hasGlobMatch) ToLDAPFilter(a string) string {
-	return a + ":glob:=" + hgm.globstr
+func (hgm HasGlobMatch) ToLDAPFilter(a string) string {
+	return a + ":glob:=" + hgm.Globstr
 }
 
-func (hgm hasGlobMatch) ToWhereClause(a string) string {
-	return "GLOB(" + a + "," + hgm.globstr + ")"
+func (hgm HasGlobMatch) ToWhereClause(a string) string {
+	return "GLOB(" + a + "," + hgm.Globstr + ")"
 }
 
-type hasRegexpMatch struct {
-	m *regexp.Regexp
+type HasRegexpMatch struct {
+	R *regexp.Regexp
 }
 
-func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result bool) {
+func (hrm HasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result bool) {
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
-		if hrm.m.MatchString(value.String()) {
+		if hrm.R.MatchString(value.String()) {
 			result = true
 			return false // break
 		}
@@ -620,29 +620,29 @@ func (hrm hasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result
 	return
 }
 
-func (hrm hasRegexpMatch) ToLDAPFilter(a string) string {
-	return a + "=/" + hrm.m.String() + "/"
+func (hrm HasRegexpMatch) ToLDAPFilter(a string) string {
+	return a + "=/" + hrm.R.String() + "/"
 }
 
-func (hrm hasRegexpMatch) ToWhereClause(a string) string {
-	return "REGEXP(" + a + ", " + hrm.m.String() + ")"
+func (hrm HasRegexpMatch) ToWhereClause(a string) string {
+	return "REGEXP(" + a + ", " + hrm.R.String() + ")"
 }
 
-type recursiveDNmatcher struct {
-	dn string
-	ao *engine.Objects
+type RecursiveDNmatcher struct {
+	DN string
+	AO *engine.Objects
 }
 
-func (rdn recursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
-	return recursiveDNmatchFunc(o, a, rdn.dn, 10, rdn.ao)
+func (rdn RecursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
+	return recursiveDNmatchFunc(o, a, rdn.DN, 10, rdn.AO)
 }
 
-func (rdn recursiveDNmatcher) ToLDAPFilter(a string) string {
-	return a + ":recursiveDN:=" + rdn.dn
+func (rdn RecursiveDNmatcher) ToLDAPFilter(a string) string {
+	return a + ":recursiveDN:=" + rdn.DN
 }
 
-func (rdn recursiveDNmatcher) ToWhereClause(a string) string {
-	return "RECURSIVEDNMATCH(" + a + ", " + rdn.dn + ")"
+func (rdn RecursiveDNmatcher) ToWhereClause(a string) string {
+	return "RECURSIVEDNMATCH(" + a + ", " + rdn.DN + ")"
 }
 
 func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) (result bool) {
@@ -667,17 +667,17 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 	return
 }
 
-type edgeQuery struct {
-	direction engine.EdgeDirection
-	edge      engine.Edge
-	target    NodeFilter
+type EdgeQuery struct {
+	Direction engine.EdgeDirection
+	Edge      engine.Edge
+	Target    NodeFilter
 }
 
-func (p edgeQuery) Evaluate(o *engine.Object) bool {
+func (p EdgeQuery) Evaluate(o *engine.Object) bool {
 	var result bool
-	o.Edges(p.direction).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
-		if (p.edge == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.edge) {
-			if p.target == nil || p.target.Evaluate(target) {
+	o.Edges(p.Direction).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
+		if (p.Edge == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.Edge) {
+			if p.Target == nil || p.Target.Evaluate(target) {
 				result = true
 				return false // return from loop
 			}
@@ -687,30 +687,30 @@ func (p edgeQuery) Evaluate(o *engine.Object) bool {
 	return result
 }
 
-func (p edgeQuery) ToLDAPFilter() string {
+func (p EdgeQuery) ToLDAPFilter() string {
 	var result string
-	if p.direction == engine.Out {
+	if p.Direction == engine.Out {
 		result += "out"
 	} else {
 		result += "in"
 	}
-	result += "=" + p.edge.String()
-	if p.target != nil {
-		result += "(" + p.target.ToLDAPFilter() + ")"
+	result += "=" + p.Edge.String()
+	if p.Target != nil {
+		result += "(" + p.Target.ToLDAPFilter() + ")"
 	}
 	return result
 }
 
-func (p edgeQuery) ToWhereClause() string {
+func (p EdgeQuery) ToWhereClause() string {
 	var result string
-	if p.direction == engine.Out {
+	if p.Direction == engine.Out {
 		result += "out"
 	} else {
 		result += "in"
 	}
-	result += "=" + p.edge.String()
-	if p.target != nil {
-		result += "(" + p.target.ToWhereClause() + ")"
+	result += "=" + p.Edge.String()
+	if p.Target != nil {
+		result += "(" + p.Target.ToWhereClause() + ")"
 	}
 	return result
 }

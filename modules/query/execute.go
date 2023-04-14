@@ -16,9 +16,9 @@ type IndexSelectorInfo struct {
 func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 	var potentialindexes []IndexSelectorInfo
 	switch t := q.(type) {
-	case andquery:
+	case AndQuery:
 		// Iterate over all subitems
-		for _, st := range t.subitems {
+		for _, st := range t.Subitems {
 			if qo, ok := st.(FilterOneAttribute); ok {
 				if sm, ok := qo.q.(hasStringMatch); ok {
 					// This might be in an index

@@ -65,7 +65,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 		}
 		// Strip )
 		s = s[1:]
-		result = andquery{subqueries}
+		result = AndQuery{subqueries}
 	case '|':
 		s, subqueries, err = parseMultipleLDAPRuneQueries(s[1:], ao)
 		if err != nil {
@@ -76,7 +76,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error
 		}
 		// Strip )
 		s = s[1:]
-		result = orquery{subqueries}
+		result = OrQuery{subqueries}
 	}
 
 	if result != nil {
@@ -255,7 +255,7 @@ valueloop:
 			if strings.EqualFold(attributename, "_pwnable") || strings.EqualFold(attributename, "in") {
 				direction = engine.In
 			}
-			return s, edgeQuery{direction, edge, target}, nil
+			return s, EdgeQuery{direction, edge, target}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
@@ -353,7 +353,7 @@ valueloop:
 		result = genwrapper(BinaryOrModifier{valuenum})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		result = genwrapper(recursiveDNmatcher{value, ao})
+		result = genwrapper(RecursiveDNmatcher{value, ao})
 	default:
 		return nil, nil, errors.New("Unknown modifier " + modifier)
 	}
@@ -370,7 +370,7 @@ valueloop:
 				if err != nil {
 					return nil, nil, err
 				}
-				result = genwrapper(hasRegexpMatch{r})
+				result = genwrapper(HasRegexpMatch{r})
 			} else if strings.ContainsAny(value, "?*") {
 				// glob magic
 				pattern := value
@@ -382,9 +382,9 @@ valueloop:
 					return nil, nil, err
 				}
 				if casesensitive {
-					result = genwrapper(hasGlobMatch{true, pattern, g})
+					result = genwrapper(HasGlobMatch{true, pattern, g})
 				} else {
-					result = genwrapper(hasGlobMatch{false, pattern, g})
+					result = genwrapper(HasGlobMatch{false, pattern, g})
 				}
 			} else {
 				result = genwrapper(hasStringMatch{casesensitive, value})
