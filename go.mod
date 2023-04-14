@@ -1,11 +1,11 @@
 module github.com/lkarlslund/adalanche
 
-go 1.19
+go 1.20
 
 require (
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/OneOfOne/xxhash v1.2.8
-	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20220414055132-a37292614db8
+	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20230201052002-6c5833b989be
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/antchfx/xmlquery v1.3.12
@@ -16,7 +16,7 @@ require (
 	github.com/gofrs/uuid v4.3.0+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/gravwell/gravwell/v3 v3.8.13
-	github.com/icza/gox v0.0.0-20221026131554-a08a8cdc726a
+	github.com/icza/gox v0.0.0-20230330130131-23e1aaac139e
 	github.com/json-iterator/go v1.1.12
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
@@ -29,7 +29,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.17
 	github.com/pkg/errors v0.9.1
 	github.com/rickb777/date v1.20.0 // indirect
-	github.com/rs/zerolog v1.28.0
+	github.com/rs/zerolog v1.29.1
 	github.com/schollz/progressbar/v3 v3.11.0
 	github.com/shirou/gopsutil/v3 v3.22.9
 	github.com/spf13/cobra v1.6.1
@@ -91,7 +91,7 @@ require (
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230221090011-e4bae7ad2296 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
@@ -106,6 +106,8 @@ require (
 	github.com/akyoto/cache v1.0.6
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
+	github.com/lkarlslund/gonk v0.0.0-20230414120804-21c23f637b3d
+	github.com/peterrk/slices v1.0.0
 )
 
 require (
@@ -116,18 +118,14 @@ require (
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/ipfix v1.4.5 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
-	github.com/jfcg/sixb v1.3.5 // indirect
-	github.com/jfcg/sorty/v2 v2.0.8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
-	github.com/lkarlslund/gonk v0.0.0-20221109093557-268a62c7ce0b // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/open-networks/go-msgraph v0.3.1 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
-	github.com/peterrk/slices v0.0.0-20220825100938-df6f4b667142 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
-	golang.org/x/exp v0.0.0-20221108223516-5d533826c662 // indirect
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
