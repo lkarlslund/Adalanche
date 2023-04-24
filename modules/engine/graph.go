@@ -9,49 +9,16 @@ type Graph struct {
 	Connections []GraphEdge // Connection to Methods map
 }
 
-type GraphNode struct {
-	*Object
-	DynamicFields
-	CanExpand int
-	Target    bool
+func (pg *Graph) AddObject(o *Object) {
+	pg.Nodes = append(pg.Nodes, GraphNode{Object: o})
 }
 
-func (n *GraphNode) Set(key string, value interface{}) {
-	if n.DynamicFields == nil {
-		n.DynamicFields = make(DynamicFields)
-	}
-	n.DynamicFields[key] = value
-}
-
-func (n *GraphNode) Get(key string) interface{} {
-	if n.DynamicFields == nil {
-		return nil
-	}
-	return n.DynamicFields[key]
-}
-
-type GraphEdge struct {
-	Source, Target *Object
-	DynamicFields
-	EdgeBitmap
-}
-
-func (e *GraphEdge) Set(key string, value interface{}) {
-	if e.DynamicFields == nil {
-		e.DynamicFields = make(DynamicFields)
-	}
-	e.DynamicFields[key] = value
-}
-
-func (e *GraphEdge) Get(key string) interface{} {
-	if e.DynamicFields == nil {
-		return nil
-	}
-	return e.DynamicFields[key]
-}
-
-type ObjectPair struct {
-	Source, Target *Object
+func (pg *Graph) AddEdge(source, target *Object, e EdgeBitmap) {
+	pg.Connections = append(pg.Connections, GraphEdge{
+		Source:     source,
+		Target:     target,
+		EdgeBitmap: e,
+	})
 }
 
 func (pg *Graph) Merge(npg Graph) {
@@ -168,6 +135,51 @@ func (pg Graph) SCC() [][]*Object {
 	return results
 }
 
+type GraphNode struct {
+	*Object
+	DynamicFields
+	CanExpand int
+	Target    bool
+}
+
+func (n *GraphNode) Set(key string, value interface{}) {
+	if n.DynamicFields == nil {
+		n.DynamicFields = make(DynamicFields)
+	}
+	n.DynamicFields[key] = value
+}
+
+func (n *GraphNode) Get(key string) interface{} {
+	if n.DynamicFields == nil {
+		return nil
+	}
+	return n.DynamicFields[key]
+}
+
+type GraphEdge struct {
+	Source, Target *Object
+	DynamicFields
+	EdgeBitmap
+}
+
+func (e *GraphEdge) Set(key string, value interface{}) {
+	if e.DynamicFields == nil {
+		e.DynamicFields = make(DynamicFields)
+	}
+	e.DynamicFields[key] = value
+}
+
+func (e *GraphEdge) Get(key string) interface{} {
+	if e.DynamicFields == nil {
+		return nil
+	}
+	return e.DynamicFields[key]
+}
+
+type ObjectPair struct {
+	Source, Target *Object
+}
+
 //dfs uses depth first search to loop through the graph and adds each vertex to the stack
 func dfs(neighbours [][]int, visited []bool, stack *[]int, node int) {
 	if !visited[node] {
@@ -227,4 +239,36 @@ func visit(graph [][]int, visited []bool, node int) []int {
 		}
 	}
 	return results
+}
+
+func (pg Graph) AdjacencyMap() map[*Object][]*Object {
+	adjacencyMap := make(map[*Object][]*Object)
+	// Ensure everything is in there
+	for _, node := range pg.Nodes {
+		adjacencyMap[node.Object] = nil
+	}
+
+	// Add every connection
+	for _, connection := range pg.Connections {
+		adjacencyMap[connection.Source] = append(adjacencyMap[connection.Source], connection.Target)
+	}
+	return adjacencyMap
+}
+
+func (pg Graph) PredecessorMap() map[*Object][]*Object {
+	predecessorMap := make(map[*Object][]*Object)
+	// Ensure everything is in there
+	for _, node := range pg.Nodes {
+		predecessorMap[node.Object] = nil
+	}
+
+	// Add every connection
+	for _, connection := range pg.Connections {
+		predecessorMap[connection.Target] = append(predecessorMap[connection.Target], connection.Source)
+	}
+	return predecessorMap
+}
+
+func (pg Graph) Order() int {
+	return len(pg.Nodes)
 }
