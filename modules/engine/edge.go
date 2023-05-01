@@ -196,7 +196,7 @@ type edgeInfo struct {
 	probability                  ProbabilityCalculatorFunction
 	Name                         string
 	Description                  string
-	tags                         []string
+	tags                         map[string]struct{}
 	multi                        bool // If true, this attribute can have multiple values
 	nonunique                    bool // Doing a Find on this attribute will return multiple results
 	merge                        bool // If true, objects can be merged on this attribute
@@ -275,6 +275,21 @@ func (p Edge) Hidden() Edge {
 
 func (p Edge) IsHidden() bool {
 	return edgeInfos[p].hidden
+}
+
+func (p Edge) Tag(t string) Edge {
+	tags := edgeInfos[p].tags
+	if tags == nil {
+		tags = make(map[string]struct{})
+		edgeInfos[p].tags = tags
+	}
+	tags[t] = struct{}{}
+	return p
+}
+
+func (p Edge) HasTag(t string) bool {
+	_, found := edgeInfos[p].tags[t]
+	return found
 }
 
 func LookupEdge(name string) Edge {
