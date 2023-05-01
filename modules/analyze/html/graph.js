@@ -388,27 +388,6 @@ cytostyle = [{
     }
 },
 {
-    selector: 'node[[indegree>4]]',
-    style: {
-        width: 40,
-        height: 40
-    }
-},
-{
-    selector: 'node[[indegree>8]]',
-    style: {
-        width: 60,
-        height: 60
-    }
-},
-{
-    selector: 'node[[indegree>20]]',
-    style: {
-        width: 80,
-        height: 80
-    }
-},
-{
     selector: "edge",
     style: {
         // "label": function (ele) { return edgelabel(ele); }, 
@@ -890,6 +869,7 @@ function initgraph(data) {
     cy.add(data);
 
     applyEdgeStyles(cy);
+    applyNodeStyles(cy);
 
     getGraphlayout($("#graphlayout").val()).run()
 }
@@ -918,6 +898,43 @@ function applyEdgeStyles(cy) {
         ele.style('line-color', color);
     });
 };
+
+function applyNodeStyles(cy) {
+    nodestyle = getpref("graph.nodesize", "incoming")
+
+    if (nodestyle == "equal") {
+        cy.nodes().each(function (ele) {
+            ele.style("width", 40)
+            ele.style("height", 40)
+        });
+    } else {
+        var scale
+        switch (nodestyle) {
+            case "incoming":
+                scale = cy.nodes().maxIndegree(false);
+                break;
+            case "outgoing":
+                scale = cy.nodes().maxOutdegree(false)
+                break;
+        }
+                
+        // Apply node styles
+        cy.nodes().each(function (ele) {
+            var size
+            switch (nodestyle) {
+                case "incoming":
+                    size = ele.indegree();
+                    break;
+                case "outgoing":
+                    size = ele.outdegree();
+                    break;
+            }
+
+            ele.style("width", normalize(size, 0, scale, 40, 100))
+            ele.style("height", normalize(size, 0, scale, 40, 100))
+        });
+    }
+}
 
 function findroute(source) {
     var target = cy.$("node.target")

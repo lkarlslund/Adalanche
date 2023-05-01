@@ -1,8 +1,6 @@
-var prefs = {};
-var prefsloaded = 0;
+var prefs;
 
 function loadprefs() {
-    prefsloaded = 1; // Loading
     $.ajax({
         url: "preferences",
         dataType: "json",
@@ -10,18 +8,22 @@ function loadprefs() {
             prefs = data;
             // Apply all preferences
             $("[preference]").each(function () {
-                val = getpref($(this).attr("preference"), $(this).data("defaultpref"))
-                if (val != null) {
-                    if ($(this).attr("type") == "checkbox") {
-                        $(this).prop("checked", val)
-                    } else {
-                        $(this).val(val)
-                    }
-                }
+                updatecontrol($(this))
             })
             $(document).trigger("preferences.loaded")
         },
     });
+}
+
+function updatecontrol(ele) {
+    val = getpref(ele.attr("preference"), ele.data("defaultpref"))
+    if (val != null) {
+        if (ele.attr("type") == "checkbox") {
+            ele.prop("checked", val)
+        } else {
+            ele.val(val)
+        }
+    }
 }
 
 function onchangepreference(ele) {
@@ -54,3 +56,31 @@ function setpref(key, value) {
     prefs[key] = value;
     saveprefs();
 }
+
+$(function () {
+    // Load preferences
+    loadprefs();
+
+    // Create an observer instance.
+    var prefobserver = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            ele = $(mutation.target)
+            console.log(ele)
+            if (ele.attr("preference") != null) {
+                updatecontrol(ele)
+            }
+        })
+    });
+
+    // Pass in monitoring for everything
+    $('[preference]').each(function () {
+        prefobserver.observe(this, {
+            childList: true,
+        })
+    });
+
+    // Dynamically save preferences
+    $('[preference]').change(function () {
+        onchangepreference($(this));
+    });
+});

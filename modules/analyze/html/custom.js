@@ -473,14 +473,6 @@ $(function () {
         },
     });
 
-    // Load preferences
-    loadprefs();
-
-    // Dynamically save preferences
-    $('[preference]').change(function () {
-        onchangepreference($(this));
-    });
-
     $('#graphlayout').change(function () {
         layout = $(this).val();
         if (cy) {
@@ -489,8 +481,16 @@ $(function () {
         }
     });
 
-    $('#graphlabels').change(function () {
-        cy.style().update();
+    $('#nodesizes').change(function () {
+        if (cy) {
+            applyNodeStyles(cy);
+        }
+    });
+    
+    $('#nodelabels').change(function () {
+        if (cy) {
+            cy.style().update();
+        }
     });
 
     $.ajax({
@@ -635,3 +635,4 @@ $(function () {
     refreshStatus();
     // End of on document loaded function
 });
+

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -48,6 +48,7 @@
   <script src="anonymizer.js"></script>
   <script src="preferences.js"></script>
 
+  <script src="extrafuncs.js"></script>
   <script src="graph.js"></script>
   <script src="custom.js"></script>
 
@@ -217,6 +218,15 @@
               <option value="randomize">Randomize</option>
               <option value="checksum">Checksum</option>
             </select>
+            </div>
+
+            <div class="mb-5">
+              <label for="nodesizes">Node size</label>
+              <select class="form-control" id="nodesizes" preference="graph.nodesize" defaultpref="incoming">
+                <option value="equal">All same size</option>
+                <option value="incoming">Incoming edges</option>
+                <option value="outgoing">Outgoing edges</option>
+              </select>
             </div>
 
             <div class="mb-5">
