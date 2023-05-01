@@ -8,24 +8,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@latest
       with:
         fetch-depth: 0
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@latest
       with:
         go-version: 1.20
 
     - name: Build
       run: ./build.ps1
       shell: pwsh
-
-    # - name: Archive production artifacts
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: Binaries
-    #     path: binaries/
 
     - uses: "marvinpinto/action-automatic-releases@latest"
       with:
