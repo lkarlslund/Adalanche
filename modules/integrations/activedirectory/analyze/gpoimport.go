@@ -23,7 +23,7 @@ var (
 	BinarySize      = engine.NewAttribute("binarySize").Single()
 	ExposedPassword = engine.NewAttribute("exposedPassword")
 
-	EdgeExposesPassword       = engine.NewEdge("ExposesPassword")
+	EdgeExposesPassword       = engine.NewEdge("ExposesPassword").Tag("Escalation")
 	EdgeContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
 	EdgeReadSensitiveData     = engine.NewEdge("ReadSensitiveData")
 	EdgeOwns                  = engine.NewEdge("Owns")
@@ -31,8 +31,8 @@ var (
 	EdgeFileCreate            = engine.NewEdge("FileCreate")
 	EdgeDirCreate             = engine.NewEdge("DirCreate")
 	EdgeFileWrite             = engine.NewEdge("FileWrite")
-	EdgeTakeOwnership         = engine.NewEdge("FileTakeOwnership")
-	EdgeModifyDACL            = engine.NewEdge("FileModifyDACL")
+	EdgeTakeOwnership         = engine.NewEdge("FileTakeOwnership").Tag("Escalation")
+	EdgeModifyDACL            = engine.NewEdge("FileModifyDACL").Tag("Escalation")
 )
 
 func init() {

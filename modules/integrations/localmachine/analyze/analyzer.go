@@ -13,7 +13,7 @@ var (
 	ServiceStart            = engine.NewAttribute("serviceStart")
 	ServiceType             = engine.NewAttribute("serviceType")
 
-	EdgeLocalAdminRights = engine.NewEdge("AdminRights")
+	EdgeLocalAdminRights = engine.NewEdge("AdminRights").Tag("Granted")
 	EdgeLocalRDPRights   = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		var probability engine.Probability
 		/* ENDLESS LOOPS
@@ -32,14 +32,14 @@ var (
 			probability = 30
 		}
 		return probability
-	})
-	EdgeLocalDCOMRights              = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
-	EdgeLocalSMSAdmins               = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 })
-	EdgeLocalSessionLastDay          = engine.NewEdge("SessionLastDay").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 80 })
-	EdgeLocalSessionLastWeek         = engine.NewEdge("SessionLastWeek").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 55 })
-	EdgeLocalSessionLastMonth        = engine.NewEdge("SessionLastMonth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 })
-	EdgeHasServiceAccountCredentials = engine.NewEdge("SvcAccntCreds")
-	EdgeHasAutoAdminLogonCredentials = engine.NewEdge("AutoAdminLogonCreds")
+	}).Tag("Granted").Tag("Escalation")
+	EdgeLocalDCOMRights              = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 }).Tag("Granted")
+	EdgeLocalSMSAdmins               = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 50 }).Tag("Granted")
+	EdgeLocalSessionLastDay          = engine.NewEdge("SessionLastDay").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 80 }).Tag("Escalation")
+	EdgeLocalSessionLastWeek         = engine.NewEdge("SessionLastWeek").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 55 }).Tag("Escalation")
+	EdgeLocalSessionLastMonth        = engine.NewEdge("SessionLastMonth").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 30 }).Tag("Escalation")
+	EdgeHasServiceAccountCredentials = engine.NewEdge("SvcAccntCreds").Tag("Escalation")
+	EdgeHasAutoAdminLogonCredentials = engine.NewEdge("AutoAdminLogonCreds").Tag("Escalation")
 	EdgeRunsExecutable               = engine.NewEdge("RunsExecutable")
 	EdgeHosts                        = engine.NewEdge("Hosts")
 	EdgeExecuted                     = engine.NewEdge("Executed")
@@ -55,15 +55,15 @@ var (
 	EdgeSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")
 	EdgeSeTakeOwnershipPrivilege = engine.NewEdge("SeTakeOwnershipPrivilege")
 
-	EdgeSeAssignPrimaryToken   = engine.NewEdge("SeAssignPrimaryToken")
-	EdgeSeCreateToken          = engine.NewEdge("SeCreateToken")
-	EdgeSeDebug                = engine.NewEdge("SeDebug")
-	EdgeSeImpersonate          = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 })
-	EdgeSeLoadDriver           = engine.NewEdge("SeLoadDriver")
-	EdgeSeManageVolume         = engine.NewEdge("SeManageVolume")
-	EdgeSeTakeOwnership        = engine.NewEdge("SeTakeOwnership")
-	EdgeSeTrustedCredManAccess = engine.NewEdge("SeTrustedCredManAccess")
-	EdgeSeTcb                  = engine.NewEdge("SeTcb")
+	EdgeSeAssignPrimaryToken   = engine.NewEdge("SeAssignPrimaryToken").Tag("Escalation")
+	EdgeSeCreateToken          = engine.NewEdge("SeCreateToken").Tag("Escalation")
+	EdgeSeDebug                = engine.NewEdge("SeDebug").Tag("Escalation")
+	EdgeSeImpersonate          = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 20 }).Tag("Escalation")
+	EdgeSeLoadDriver           = engine.NewEdge("SeLoadDriver").Tag("Escalation")
+	EdgeSeManageVolume         = engine.NewEdge("SeManageVolume").Tag("Escalation")
+	EdgeSeTakeOwnership        = engine.NewEdge("SeTakeOwnership").Tag("Escalation")
+	EdgeSeTrustedCredManAccess = engine.NewEdge("SeTrustedCredManAccess").Tag("Escalation")
+	EdgeSeTcb                  = engine.NewEdge("SeTcb").Tag("Escalation")
 
 	EdgeSeNetworkLogonRight = engine.NewEdge("SeNetworkLogonRight").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 10 })
 	// RDPRight used ... EdgeSeRemoteInteractiveLogonRight = engine.NewEdge("SeRemoteInteractiveLogonRight").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 10 })
@@ -72,14 +72,14 @@ var (
 	// SeDenyInteractiveLogonRight
 	// SeDenyRemoteInteractiveLogonRight
 
-	EdgeSIDCollision = engine.NewEdge("SIDCollision")
+	EdgeSIDCollision = engine.NewEdge("SIDCollision").Tag("Informative")
 
 	DNSHostname         = engine.NewAttribute("dnsHostName")
-	EdgeControlsUpdates = engine.NewEdge("ControlsUpdates")
+	EdgeControlsUpdates = engine.NewEdge("ControlsUpdates").Tag("Affects")
 	WUServer            = engine.NewAttribute("wuServer")
 	SCCMServer          = engine.NewAttribute("sccmServer")
 
-	EdgePublishes = engine.NewEdge("Publishes")
+	EdgePublishes = engine.NewEdge("Publishes").Tag("Informative")
 
 	ObjectTypeShare = engine.NewObjectType("Share", "Share")
 )

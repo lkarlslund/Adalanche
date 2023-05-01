@@ -58,7 +58,7 @@ var (
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
-	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl")
+	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl").Tag("Informative").RegisterProbabilityCalculator(activedirectory.NotAChance)
 
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
