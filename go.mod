@@ -20,7 +20,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
-	github.com/lkarlslund/ldap/v3 v3.4.4-1
+	github.com/lkarlslund/ldap/v3 v3.4.4-2
 	github.com/lkarlslund/stringdedup v0.6.2
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
@@ -92,7 +92,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230221090011-e4bae7ad2296 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
@@ -115,16 +115,25 @@ require (
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
+	github.com/dmarkham/enumer v1.5.8 // indirect
+	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/ipfix v1.4.5 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
+	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
+	github.com/jcmturner/gofork v1.7.6 // indirect
+	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
+	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/miekg/dns v1.1.53 // indirect
 	github.com/open-networks/go-msgraph v0.3.4 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
+	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.7 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect

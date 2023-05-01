@@ -8,7 +8,12 @@ import (
 	"strings"
 	"time"
 
+	osuser "os/user"
+
 	ber "github.com/go-asn1-ber/asn1-ber"
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
@@ -77,10 +82,52 @@ func (ad *AD) Connect() error {
 	case Digest:
 		ui.Debug().Msgf("Doing DIGEST-MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
 		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
+	case KerberosCache:
+		upperDomain := strings.ToUpper(ad.Domain)
+		c, _ := config.NewFromString(fmt.Sprintf(`[libdefaults]
+default_realm = %s
+default_tgs_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
+default_tkt_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
+permitted_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
+allow_weak_crypto = true
+[realms]
+%s = {
+kdc = %s:88
+default_domain = %s
+}`, upperDomain, upperDomain, ad.Server, upperDomain))
+
+		cachefile := os.Getenv("KRB5CCNAME")
+		if cachefile == "" {
+			usr, _ := osuser.Current()
+			cachefile = "/tmp/krb5cc_" + usr.Uid
+		}
+
+		ccache, err := credentials.LoadCCache(cachefile)
+		if err != nil {
+			return err
+		}
+
+		cl, err := client.NewFromCCache(ccache, c)
+		if err != nil {
+			return err
+		}
+
+		ad.conn.Gokrb5GSSAPICCBindCCache(cl, "ldap/"+ad.Server)
 	case NTLM:
 		if ad.User == "" {
 			ui.Debug().Msgf("Doing integrated NTLM auth")
-			err = ad.conn.NTLMSSPIBind()
+
+			// Create a GSSAPI client
+			sspiClient, err := GetSSPIClient()
+			if err != nil {
+				return err
+			}
+
+			// Bind using supplied GSSAPIClient implementation
+			err = ad.conn.GSSAPIBind(sspiClient, "ldap/"+ad.Server, "")
+			if err != nil {
+				return err
+			}
 		} else {
 			ui.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
 			err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)

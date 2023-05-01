@@ -99,11 +99,11 @@ func (i *TLSmode) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-const _AuthModeName = "AnonymousBasicDigestNTLMNTLMPTHNegotiate"
+const _AuthModeName = "AnonymousBasicDigestKerberosCacheNTLMNTLMPTHNegotiate"
 
-var _AuthModeIndex = [...]uint8{0, 9, 14, 20, 24, 31, 40}
+var _AuthModeIndex = [...]uint8{0, 9, 14, 20, 33, 37, 44, 53}
 
-const _AuthModeLowerName = "anonymousbasicdigestntlmntlmpthnegotiate"
+const _AuthModeLowerName = "anonymousbasicdigestkerberoscachentlmntlmpthnegotiate"
 
 func (i AuthMode) String() string {
 	if i >= AuthMode(len(_AuthModeIndex)-1) {
@@ -119,12 +119,13 @@ func _AuthModeNoOp() {
 	_ = x[Anonymous-(0)]
 	_ = x[Basic-(1)]
 	_ = x[Digest-(2)]
-	_ = x[NTLM-(3)]
-	_ = x[NTLMPTH-(4)]
-	_ = x[Negotiate-(5)]
+	_ = x[KerberosCache-(3)]
+	_ = x[NTLM-(4)]
+	_ = x[NTLMPTH-(5)]
+	_ = x[Negotiate-(6)]
 }
 
-var _AuthModeValues = []AuthMode{Anonymous, Basic, Digest, NTLM, NTLMPTH, Negotiate}
+var _AuthModeValues = []AuthMode{Anonymous, Basic, Digest, KerberosCache, NTLM, NTLMPTH, Negotiate}
 
 var _AuthModeNameToValueMap = map[string]AuthMode{
 	_AuthModeName[0:9]:        Anonymous,
@@ -133,21 +134,24 @@ var _AuthModeNameToValueMap = map[string]AuthMode{
 	_AuthModeLowerName[9:14]:  Basic,
 	_AuthModeName[14:20]:      Digest,
 	_AuthModeLowerName[14:20]: Digest,
-	_AuthModeName[20:24]:      NTLM,
-	_AuthModeLowerName[20:24]: NTLM,
-	_AuthModeName[24:31]:      NTLMPTH,
-	_AuthModeLowerName[24:31]: NTLMPTH,
-	_AuthModeName[31:40]:      Negotiate,
-	_AuthModeLowerName[31:40]: Negotiate,
+	_AuthModeName[20:33]:      KerberosCache,
+	_AuthModeLowerName[20:33]: KerberosCache,
+	_AuthModeName[33:37]:      NTLM,
+	_AuthModeLowerName[33:37]: NTLM,
+	_AuthModeName[37:44]:      NTLMPTH,
+	_AuthModeLowerName[37:44]: NTLMPTH,
+	_AuthModeName[44:53]:      Negotiate,
+	_AuthModeLowerName[44:53]: Negotiate,
 }
 
 var _AuthModeNames = []string{
 	_AuthModeName[0:9],
 	_AuthModeName[9:14],
 	_AuthModeName[14:20],
-	_AuthModeName[20:24],
-	_AuthModeName[24:31],
-	_AuthModeName[31:40],
+	_AuthModeName[20:33],
+	_AuthModeName[33:37],
+	_AuthModeName[37:44],
+	_AuthModeName[44:53],
 }
 
 // AuthModeString retrieves an enum value from the enum constants string name.

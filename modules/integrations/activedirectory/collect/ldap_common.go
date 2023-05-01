@@ -10,6 +10,7 @@ const (
 	Anonymous AuthMode = iota
 	Basic
 	Digest
+	KerberosCache
 	NTLM
 	NTLMPTH
 	Negotiate

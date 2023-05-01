@@ -62,7 +62,7 @@ var (
 	collectobjects       = Command.Flags().String("objects", "auto", "Collect Active Directory Objects (users, groups etc)")
 	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
-	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, ntlm, ntlmpth (password is hash), negotiate/sspi")
+	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, kerberoscache, ntlm, ntlmpth (password is hash), negotiate/sspi")
 
 	purgeolddata = Command.Flags().Bool("purgeolddata", false, "Purge existing data from the datapath if connection to DC is successfull")
 
