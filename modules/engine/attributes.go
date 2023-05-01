@@ -19,6 +19,7 @@ type attributeinfo struct {
 	onget          AttributeGetFunc
 	name           string
 	tags           []string
+	description    string
 	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
 	atype          AttributeType
 	single         bool // If true, this attribute can not have multiple values
@@ -270,6 +271,13 @@ func AddMergeApprover(name string, mf mergefunc) {
 func (a Attribute) Tag(t string) Attribute {
 	attributemutex.Lock()
 	attributenums[a].tags = append(attributenums[a].tags, t)
+	attributemutex.Unlock()
+	return a
+}
+
+func (a Attribute) SetDescription(t string) Attribute {
+	attributemutex.Lock()
+	attributenums[a].description = t
 	attributemutex.Unlock()
 	return a
 }
