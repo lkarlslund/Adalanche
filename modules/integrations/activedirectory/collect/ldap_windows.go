@@ -1,7 +1,7 @@
 package collect
 
 import (
-	"github.com/lkarlslund/ldap/v3"
+	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/lkarlslund/ldap/v3/gssapi"
 )
 
