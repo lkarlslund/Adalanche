@@ -86,17 +86,17 @@ function newwindow(id, title, content, height, width) {
         // `< div class="window d-inline-block position-absolute shadow p-5 bg-dark border pointer-events-auto container-fluid window-front" id="window_${id}">
 
         mywindow = $(
-            `<div class="window d-inline-block position-absolute shadow bg-dark border pointer-events-auto window-front" style id="window_${id}">
+            `<div class="window d-inline-block position-absolute shadow bg-dark border pointer-events-auto window-front" id="window_${id}">
             <div class="s ui-resizable-handle ui-resizable-s"></div>
             <div class="e ui-resizable-handle ui-resizable-e"></div>
             <div class="se ui-resizable-handle ui-resizable-se ui-icon ui-icon-gripsmall-diagonal-se"></div>
                 <div id="wrapper" class="p-5 d-inline-block">
                     <div id='header' class='row mb-5'>
-                        <div id="title" class="col"></div>
+                        <div id="title" class="col">${title}</div>
                         <div class="col-auto-1 no-wrap"><!-- button id="rollup" class="btn btn-primary btn-sm">_</button --> <button id="close" class="btn btn-primary btn-sm">X</button></div>
                     </div>
                     <div id="rollup-wrapper" class='overflow-hidden'>
-                        <div class="overflow-auto" id="contents"></div>
+                        <div class="overflow-auto" id="contents">${content}</div>
                     </div>
                 </div>
             </div>`
@@ -156,9 +156,6 @@ function newwindow(id, title, content, height, width) {
 
     }
 
-    $('#title', mywindow).html(title);
-    $('#contents', mywindow).html(content);
-
     if (itsnew) {
         $('#windows').append(mywindow);
 
@@ -171,6 +168,9 @@ function newwindow(id, title, content, height, width) {
         if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-12) {
             $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-12);
         }
+    } else {
+        $('#title', mywindow).html(title);
+        $('#contents', mywindow).html(content);
     }
 
     // Bring to front on mouse down
