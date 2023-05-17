@@ -40,10 +40,14 @@ const (
 	ACETYPE_ACCESS_DENIED_OBJECT  ACEType = 0x06
 
 	// ACE.ACEFlags
-	ACEFLAG_INHERIT_ACE              ACEFlags = 0x02 // Child objects inherit this ACE
-	ACEFLAG_NO_PROPAGATE_INHERIT_ACE ACEFlags = 0x04 // Only the NEXT child inherits this, not further down the line
-	ACEFLAG_INHERIT_ONLY_ACE         ACEFlags = 0x08 // Not valid for this object, only for children
-	ACEFLAG_INHERITED_ACE            ACEFlags = 0x10 // This ACE was interited from parent object
+	ACEFLAG_OBJECT_INHERIT_ACE       ACEFlags = 0x01 // Noncontainer child objects inherit the ACE as an effective ACE. For child objects that are containers, the ACE is inherited as an inherit-only ACE unless the NO_PROPAGATE_INHERIT_ACE bit flag is also set
+	ACEFLAG_INHERIT_ACE              ACEFlags = 0x02 // Child objects that are containers, such as directories, inherit the ACE as an effective ACE. The inherited ACE is inheritable unless the NO_PROPAGATE_INHERIT_ACE bit flag is also set.
+	ACEFLAG_NO_PROPAGATE_INHERIT_ACE ACEFlags = 0x04 // If the ACE is inherited by a child object, the system clears the OBJECT_INHERIT_ACE and CONTAINER_INHERIT_ACE flags in the inherited ACE. This prevents the ACE from being inherited by subsequent generations of objects.
+	ACEFLAG_INHERIT_ONLY_ACE         ACEFlags = 0x08 // Indicates an inherit-only ACE, which does not control access to the object to which it is attached. If this flag is not set, the ACE is an effective ACE that controls access to the object to which it is attached. Both effective and inherit-only ACEs can be inherited depending on the state of the other inheritance flags.
+	ACEFLAG_INHERITED_ACE            ACEFlags = 0x10 // Indicates that the ACE was inherited. The system sets this bit when it propagates an inherited ACE to a child object
+	ACEFLAG_UNKNOWN                  ACEFlags = 0x20 // Unknown
+	ACEFLAG_AUDIT_SUCCESS_ACCESS     ACEFlags = 0x40 // Audit successfull access
+	ACEFLAG_AUDIT_FAILED_ACCESS      ACEFlags = 0x80 // Audit failed access
 
 	// ACE.Flags - present if this is a ACETYPE_ACCESS_*_OBJECT Type
 	OBJECT_TYPE_PRESENT           Flags = 0x01
@@ -249,7 +253,7 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 		if result.DACL.containsdeny {
 			result.DACL.firstinheriteddeny = -1
 			for i := range result.DACL.Entries {
-				if result.DACL.Entries[i].ACEFlags&AceFlagsInherited != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
+				if result.DACL.Entries[i].ACEFlags&ACEFLAG_INHERITED_ACE != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
 					result.DACL.firstinheriteddeny = i
 					break
 				}
@@ -669,24 +673,22 @@ type Flags uint32
 
 type ACEFlags byte
 
-const (
-	AceFlagsObjectInherit      ACEFlags = 1 << iota // 0x01 The access mask is propagated onto child leaf objects
-	AceFlagsContainerInherit                        // 0x02 The access mask is propagated to child container objects
-	AceFlagsNoPropagateInherit                      // 0x04 The access checks do not apply to the object; they only apply to its children
-	AceFlagsInheritOnly                             // 0x08 The access mask is propagated only to child objects. This includes both container and leaf child objects.
-	AceFlagsInherited                               // 0x10 An ACE is inherited from a parent container rather than being explicitly set for an object.
-	AceFlagsUnknown                                 // 0x20 Undocumented
-	AceFlagsAuditSuccessAccess                      // 0x40 Successful access attempts are audited.
-	AceFlagsAuditFailedAccess                       // 0x80 All access attempts are audited.
-)
-
 func (a ACE) SortVal() byte {
 	var result byte
 	if a.ACEFlags&ACEFLAG_INHERITED_ACE != 0 {
 		result += 2
 	}
-	if a.Type == ACETYPE_ACCESS_ALLOWED || a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
+	switch a.Type {
+	case ACETYPE_ACCESS_ALLOWED:
 		result += 1
+	case ACETYPE_ACCESS_DENIED:
+		// result += 0
+	case ACETYPE_ACCESS_ALLOWED_OBJECT:
+		result += 1
+	case ACETYPE_ACCESS_DENIED_OBJECT:
+		// result += 0
+	default:
+		ui.Warn().Msgf("Unknown ACE type %d", a.Type)
 	}
 	return result
 }
