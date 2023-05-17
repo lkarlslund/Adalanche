@@ -35,6 +35,7 @@ var (
 	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
 	AttributeMSDSManagedPasswordId, _               = uuid.FromString("{0e78295a-c6d3-0a40-b491-d62251ffa0a6}")
 	AttributeUserAccountControlGUID, _              = uuid.FromString("{bf967a68-0de6-11d0-a285-00aa003049e2}")
+	AttributePwdLastSetGUID, _                      = uuid.FromString("{bf967a0a-0de6-11d0-a285-00aa003049e2}")
 
 	ExtendedRightCertificateEnroll, _     = uuid.FromString("{0e10c968-78fb-11d2-90d4-00c04f79dc55}")
 	ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("{a05b8cc2-17bc-4802-a710-e7c15ab866a2}")
