@@ -196,3 +196,22 @@ func (os *ObjectSlice) Sort(attr Attribute, reverse bool) {
 
 	sort.Slice(os.objects, orderf)
 }
+
+func (os *ObjectSlice) SortFunc(lessthan func(o, o2 *Object) bool) {
+	sort.Slice(os.objects, func(i int, j int) bool {
+		return lessthan(os.objects[i], os.objects[j])
+	})
+}
+
+func (os *ObjectSlice) Limit(count int) {
+	if count >= 0 {
+		if count > len(os.objects) {
+			os.objects = os.objects[:count]
+		}
+	} else {
+		count = -count
+		if count > len(os.objects) {
+			os.objects = os.objects[len(os.objects)-count:]
+		}
+	}
+}
