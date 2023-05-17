@@ -137,6 +137,7 @@ require (
 	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.7 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/shoenig/go-m1cpu v0.1.4 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
