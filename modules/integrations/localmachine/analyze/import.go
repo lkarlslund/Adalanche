@@ -567,7 +567,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if sd, err := engine.ParseACL(service.RegistryDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
-				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.AceFlagsInheritOnly) == 0 {
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
 					if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
 						// if we have local admin it's already game over so don't map this
 						continue
