@@ -256,7 +256,6 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 | HasServiceAccountCredentials | The object uses the entitys credentials for a locally installed service, and can be extracted if you pwn the machine |
 | HasSPN | The entity has a SPN, and can be kerberoasted by any authenticated user |
 | HasSPNNoPreauth | The entity has a SPN, and can be kerberoasted by an unauthenticated user |
-| InheritsSecurity | This flag simply indicates that the object inherits its security ACL from the parent. If it is moved, the permissins will change to what its new parent dictates |
 | LocalAdminRights | The entity has local administrative rights on the object. This is detected via GPOs or the collector module |
 | LocalDCOMRights | The entity has the right to use DCOM against the object. This is detected via GPOs or the collector module |
 | LocalRDPRights | The entity has the right to RDP to the object. This is detected via GPOs or the collector module. It doesn't mean you pwn the machine, but you can get a session and try to do PrivEsc |
