@@ -90,5 +90,7 @@ var (
 	ScriptPath                  = engine.NewAttribute("scriptPath").Tag("AD").Single()
 	MSPKICertificateNameFlag    = engine.NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD").Type(engine.AttributeTypeInt)
 	PKIExtendedUsage            = engine.NewAttribute("pKIExtendedKeyUsage").Tag("AD")
+	PKIExpirationPeriod         = engine.NewAttribute("pKIExpirationPeriod").Tag("AD")
+	PKIOverlapPeriod            = engine.NewAttribute("pKIOverlapPeriod").Tag("AD")
 	MsDSBehaviourVersion        = engine.NewAttribute("msDS-Behavior-Version").Type(engine.AttributeTypeInt)
 )
