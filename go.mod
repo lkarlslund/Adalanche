@@ -1,6 +1,6 @@
 module github.com/lkarlslund/adalanche
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Microsoft/go-winio v0.6.1
@@ -8,35 +8,35 @@ require (
 	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20230201052002-6c5833b989be
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
-	github.com/antchfx/xmlquery v1.3.15
+	github.com/antchfx/xmlquery v1.3.18
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-asn1-ber/asn1-ber v1.5.4
+	github.com/go-asn1-ber/asn1-ber v1.5.5
 	github.com/go-ini/ini v1.67.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/gravwell/gravwell/v3 v3.8.13
-	github.com/icza/gox v0.0.0-20230330130131-23e1aaac139e
+	github.com/icza/gox v0.0.0-20230924165045-adcb03233bb5
 	github.com/json-iterator/go v1.1.12
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/ldap/v3 v3.4.4-2
-	github.com/lkarlslund/stringdedup v0.6.2
+	github.com/lkarlslund/stringdedup v0.6.3-0.20231023091703-cf3e4d8e8ab3
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-colorable v0.1.13
-	github.com/pierrec/lz4/v4 v4.1.17
+	github.com/pierrec/lz4/v4 v4.1.18
 	github.com/pkg/errors v0.9.1
 	github.com/rickb777/date v1.20.1 // indirect
-	github.com/rs/zerolog v1.29.1
+	github.com/rs/zerolog v1.31.0
 	github.com/schollz/progressbar/v3 v3.13.1
-	github.com/shirou/gopsutil/v3 v3.23.3
+	github.com/shirou/gopsutil/v3 v3.23.9
 	github.com/spf13/cobra v1.7.0
 	github.com/tinylib/msgp v1.1.8
-	golang.org/x/sys v0.8.0
-	golang.org/x/term v0.8.0
-	golang.org/x/text v0.9.0
+	golang.org/x/sys v0.13.0
+	golang.org/x/term v0.13.0
+	golang.org/x/text v0.13.0
 )
 
 require (
@@ -86,12 +86,12 @@ require (
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/scjalliance/comshim v0.0.0-20230315213746-5e51f40bd3b9 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tklauser/go-sysconf v0.3.11 // indirect
-	github.com/tklauser/numcpus v0.6.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.12 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230221090011-e4bae7ad2296 // indirect
+	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/shoenig/go-m1cpu v0.1.4 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/arch v0.3.0 // indirect
