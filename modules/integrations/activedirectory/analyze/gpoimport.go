@@ -127,9 +127,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 			// FIXME: Handle other formats, adding something to catch this here
 			if strings.Contains(line, "cpassword=") && !strings.Contains(line, "cpassword=\"\"") {
-				ui.Debug().Msgf("Found cpassword in %s", item.RelativePath)
-				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
-				unhandledpass = true
+				unhandledpass = true // assume failure
 			}
 			for _, match := range cpasswordusername.FindAllStringSubmatch(line, -1) {
 				ui.Debug().Msgf("Found password in %s", item.RelativePath)
@@ -156,7 +154,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			expobj := ao.AddNew(
 				engine.ObjectCategorySimple, "ExposedPassword",
 				engine.DisplayName, "Exposed password for "+e.Username,
+				engine.Description, "Password is exposed in GPO with GUID "+ginfo.GUID.String(),
+				engine.ObjectGUID, ginfo.GUID,
 				ExposedPassword, e.Password,
+				RelativePath, relativepath,
+				AbsolutePath, filepath.Join(ginfo.Path, relativepath),
 			)
 
 			// The account targeted
@@ -472,6 +474,8 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					groupsid = ""
 					translatedsid, err := TranslateLocalizedNameToSID(groupname)
 					if err != nil {
+						// Maybe it's "administrator"?
+
 						ui.Warn().Msgf("GPO GptTmplInf Memberof non-SID group %v translation failed (PLEASE CONTRIBUTE): %v", groupname, err)
 					} else {
 						groupsid = translatedsid.String()
