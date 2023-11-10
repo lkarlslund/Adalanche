@@ -521,11 +521,19 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			if service.Account != "" {
 				nameparts := strings.Split(service.Account, "\\")
 				// account can be USER, .\USER, DOMAIN\USER (come on!)
-				if len(nameparts) == 2 && (nameparts[0] == "." || strings.EqualFold(nameparts[0], cinfo.Machine.Domain)) {
-					svcaccount, _ = ao.FindOrAdd(
-						engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[1]),
-					)
-					svcaccount.SetFlex(engine.DataSource, uniquesource)
+				if len(nameparts) == 2 {
+					if nameparts[0] == "." || strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
+						// .\Name or MACHINE\Name
+						svcaccount, _ = ao.FindOrAdd(
+							engine.DownLevelLogonName, engine.AttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[1]),
+						)
+						svcaccount.SetFlex(engine.DataSource, uniquesource)
+					} else {
+						// DOMAIN\Name
+						svcaccount, _ = ao.FindOrAdd(
+							engine.DownLevelLogonName, engine.AttributeValueString(service.Account),
+						)
+					}
 				} else if len(nameparts) == 1 {
 					// no \\ in name, just a user name!? this COULD be wrong, might be a DOMAIN account?
 					svcaccount, _ = ao.FindOrAdd(
