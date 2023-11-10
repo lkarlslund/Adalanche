@@ -483,6 +483,9 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
+	if attr == NonExistingAttribute {
+		return NoValues{}, false
+	}
 	if attributenums[attr].onget != nil {
 		return attributenums[attr].onget(o, attr)
 	}
