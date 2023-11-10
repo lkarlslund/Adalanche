@@ -46,7 +46,7 @@ var (
 	GPCFileSysPath             = engine.NewAttribute("gPCFileSysPath").Tag("AD").Merge()
 	SchemaIDGUID               = engine.NewAttribute("schemaIDGUID").Tag("AD").Type(engine.AttributeTypeGUID)
 	PossSuperiors              = engine.NewAttribute("possSuperiors")
-	SystemPossSuperiors        = engine.NewAttribute("possSuperiors")
+	SystemPossSuperiors        = engine.NewAttribute("systemPossSuperiors")
 	SubClassOf                 = engine.NewAttribute("subClassOf").Tag("AD")
 	SystemMayContain           = engine.NewAttribute("systemMayContain")
 	SystemMustContain          = engine.NewAttribute("systemMustContain")
