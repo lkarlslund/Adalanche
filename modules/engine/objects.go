@@ -11,6 +11,7 @@ import (
 	"github.com/akyoto/cache"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -629,22 +630,7 @@ func (os *Objects) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, 
 }
 
 func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
-	var dn = o.DN()
-	for {
-		firstcomma := strings.Index(dn, ",")
-		if firstcomma == -1 {
-			return nil, false // At the top
-		}
-		if firstcomma > 0 {
-			if dn[firstcomma-1] == '\\' {
-				// False alarm, strip it an go on
-				dn = dn[firstcomma+1:]
-				continue
-			}
-		}
-		dn = dn[firstcomma+1:]
-		break
-	}
+	dn := util.ParentDistinguishedName(o.DN())
 
 	// Use object chaining if possible
 	directparent := o.Parent()

@@ -11,6 +11,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -43,12 +44,14 @@ var (
 	ValidateWriteSelfMembership, _ = uuid.FromString("{bf9679c0-0de6-11d0-a285-00aa003049e2}")
 	ValidateWriteSPN, _            = uuid.FromString("{f3a64788-5306-11d1-a9c5-0000f80367c1}")
 
-	ObjectGuidUser               = uuid.UUID{0xbf, 0x96, 0x7a, 0xba, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidComputer           = uuid.UUID{0xbf, 0x96, 0x7a, 0x86, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidGroup              = uuid.UUID{0xbf, 0x96, 0x7a, 0x9c, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	ObjectGuidDomain             = uuid.UUID{0x19, 0x19, 0x5a, 0x5a, 0x6d, 0xa0, 0x11, 0xd0, 0xaf, 0xd3, 0x00, 0xc0, 0x4f, 0xd9, 0x30, 0xc9}
-	ObjectGuidGPO                = uuid.UUID{0xf3, 0x0e, 0x3b, 0xc2, 0x9f, 0xf0, 0x11, 0xd1, 0xb6, 0x03, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
-	ObjectGuidOU                 = uuid.UUID{0xbf, 0x96, 0x7a, 0xa5, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	ObjectGuidUser, _            = uuid.FromString("{bf967aba-0de6-11d0-a285-00aa003049e2")
+	ObjectGuidComputer, _        = uuid.FromString("{bf967a86-0de6-11d0-a285-00aa003049e2")
+	ObjectGuidGroup, _           = uuid.FromString("{bf967a9c-0de6-11d0-a285-00aa003049e2")
+	ObjectGuidDomain, _          = uuid.FromString("{19195a5a-6da0-11d0-afd3-00c04fd930c9")
+	ObjectGuidDNSZone, _         = uuid.FromString("{e0fa1e8b-9b45-11d0-afdd-00c04fd930c9")
+	ObjectGuidDNSNode, _         = uuid.FromString("{e0fa1e8c-9b45-11d0-afdd-00c04fd930c9")
+	ObjectGuidGPO, _             = uuid.FromString("{f30e3bc2-9ff0-11d1-b603-0000f80367c1")
+	ObjectGuidOU, _              = uuid.FromString("{bf967aa5-0de6-11d0-a285-00aa003049e2")
 	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
 	AdministratorsSID, _           = windowssecurity.ParseStringSID("S-1-5-32-544")
@@ -829,27 +832,43 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
 		ao.Iterate(func(o *engine.Object) bool {
+			potentialorphan := o
+			for {
+				if potentialorphan.Parent() != nil {
+					return true
+				}
 
-			if o.Parent() != nil {
-				return true
-			}
+				if potentialorphan == ao.Root() {
+					return true
+				}
 
-			if o == ao.Root() {
-				return true
-			}
+				if parent, found := ao.DistinguishedParent(potentialorphan); found {
+					potentialorphan.ChildOf(parent)
+					return true
+				}
 
-			if parent, found := ao.DistinguishedParent(o); found {
-				o.ChildOf(parent)
-			} else {
-				dn := o.DN()
-				if o.Type() == engine.ObjectTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
+				dn := potentialorphan.DN()
+				if potentialorphan.Type() == engine.ObjectTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
 					// Top of some AD we think, hook to top of browsable tree
 					o.ChildOf(ao.Root())
 					return true
 				}
-				ui.Debug().Msgf("AD object %v (%v) has no parent :-(", o.Label(), o.DN())
+
+				// Create a synthetic parent
+				parentdn := util.ParentDistinguishedName(potentialorphan.DN())
+				if parentdn == "" {
+					return true
+				}
+
+				ui.Debug().Msgf("AD object %v (%v) has no parent :-( - creating synthetic object", o.Label(), o.DN())
+
+				newparent := ao.AddNew(
+					engine.DistinguishedName, parentdn,
+					engine.Description, "Synthetic parent object",
+				)
+				potentialorphan.ChildOf(newparent)
+				potentialorphan = newparent // loop, to ensure new objects also have parents
 			}
-			return true
 		})
 	},
 		"applying parent/child relationships",

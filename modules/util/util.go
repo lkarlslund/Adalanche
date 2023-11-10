@@ -122,6 +122,25 @@ func ExtractNetbiosFromBase(dn string) string {
 	return netbios
 }
 
+func ParentDistinguishedName(dn string) string {
+	for {
+		firstcomma := strings.Index(dn, ",")
+		if firstcomma == -1 {
+			return "" // At the top
+		}
+		if firstcomma > 0 {
+			if dn[firstcomma-1] == '\\' {
+				// False alarm, strip it and go on
+				dn = dn[firstcomma+1:]
+				continue
+			}
+		}
+		dn = dn[firstcomma+1:]
+		break
+	}
+	return dn
+}
+
 func ExtractDomainContextFromDistinguishedName(dn string) string {
 	elements := strings.Split(dn, ",")
 	last := len(elements)
