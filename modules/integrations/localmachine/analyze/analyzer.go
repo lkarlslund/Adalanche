@@ -72,7 +72,7 @@ var (
 	// SeDenyInteractiveLogonRight
 	// SeDenyRemoteInteractiveLogonRight
 
-	EdgeSIDCollision = engine.NewEdge("SIDCollision").Tag("Informative")
+	EdgeSIDCollision = engine.NewEdge("SIDCollision").Tag("Informative").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 0 })
 
 	DNSHostname         = engine.NewAttribute("dnsHostName")
 	EdgeControlsUpdates = engine.NewEdge("ControlsUpdates").Tag("Affects")
