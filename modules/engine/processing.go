@@ -147,21 +147,23 @@ func Merge(aos []*Objects) (*Objects, error) {
 		usao.shard.Iterate(func(addobject *Object) bool {
 			pb.Add(1)
 			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice ...
-			aosid := addobject.SID()
-			if !aosid.IsBlank() && aosid.Component(2) == 21 {
-				// Always merge these, they might belong elsewhere
-				globalobjects.AddMerge(mergeon, addobject)
-				return true
-			}
+
+			// FIXME - THIS ISN'T WORKING
+			// aosid := addobject.SID()
+			// if !aosid.IsBlank() && aosid.Component(2) == 21 {
+			// 	// Always merge these, they might belong elsewhere
+			// 	globalobjects.AddMerge(mergeon, addobject)
+			// 	return true
+			// }
+
+			// Skip duplicate DNs entirely, just absorb them (solves the issue of duplicates due to shared configuration context etc)
 			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-				// UNLESS it's a predefined one with an objectSID, in that case done merge them at all WTF not a huge fan of this design, Microsoft
-				if !aosid.IsBlank() && aosid.Component(2) != 21 {
-					addobject.SetFlex(DistinguishedName, "mutated="+addobject.OneAttrString(DataSource)+","+dn.String())
-				} else if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
+				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
 					existing.First().AbsorbEx(addobject, true)
 					return true
 				}
 			}
+
 			globalobjects.Add(addobject)
 			return true
 		})
