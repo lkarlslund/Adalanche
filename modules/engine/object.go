@@ -689,6 +689,16 @@ func (o *Object) setFlex(flexinit ...interface{}) {
 				continue
 			}
 			data = append(data, AttributeValueTime(v))
+		case uuid.UUID:
+			if ignoreblanks && v.IsNil() {
+				continue
+			}
+			data = append(data, AttributeValueGUID(v))
+		case *uuid.UUID:
+			if ignoreblanks && v.IsNil() {
+				continue
+			}
+			data = append(data, AttributeValueGUID(*v))
 		case *bool:
 			if v == nil {
 				continue
