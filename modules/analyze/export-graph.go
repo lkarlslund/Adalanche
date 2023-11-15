@@ -35,7 +35,7 @@ func ExportGraphViz(pg engine.Graph, filename string) error {
 
 type MethodMap map[string]bool
 
-type MapStringInterface map[string]interface{}
+type MapStringInterface map[string]any
 
 type CytoGraph struct {
 	FormatVersion            string        `json:"format_version"`
@@ -88,7 +88,7 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 
 		newnode := CytoFlatElement{
 			Group: "nodes",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"id":    fmt.Sprintf("n%v", object.ID()),
 				"label": object.Label(),
 				"type":  object.Type().String(),

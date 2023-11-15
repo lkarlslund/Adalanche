@@ -9,7 +9,7 @@ import (
 )
 
 type Prefs struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
 var prefmutex sync.Mutex
@@ -17,7 +17,7 @@ var prefmutex sync.Mutex
 func (p *Prefs) Load() error {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
-	p.data = make(map[string]interface{})
+	p.data = make(map[string]any)
 
 	rawprefs, err := ioutil.ReadFile("preferences.json")
 	if errors.Is(err, os.ErrNotExist) {
@@ -41,13 +41,13 @@ func (p *Prefs) Save() error {
 	return err
 }
 
-func (p *Prefs) Set(key string, val interface{}) {
+func (p *Prefs) Set(key string, val any) {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
 	p.data[key] = val
 }
 
-func (p *Prefs) Get(key string) interface{} {
+func (p *Prefs) Get(key string) any {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
 	return p.data[key]

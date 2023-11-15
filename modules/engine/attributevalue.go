@@ -147,7 +147,7 @@ func (avo AttributeValueOne) StringSlice() []string {
 
 type AttributeValue interface {
 	String() string
-	Raw() interface{}
+	Raw() any
 	IsZero() bool
 }
 
@@ -164,7 +164,7 @@ func (avo AttributeValueObject) String() string {
 	return (*Object)(avo.Object).Label() + " (object)"
 }
 
-func (avo AttributeValueObject) Raw() interface{} {
+func (avo AttributeValueObject) Raw() any {
 	return (*Object)(avo.Object)
 }
 
@@ -181,7 +181,7 @@ func (as AttributeValueString) String() string {
 	return string(as)
 }
 
-func (as AttributeValueString) Raw() interface{} {
+func (as AttributeValueString) Raw() any {
 	return string(as)
 }
 
@@ -195,7 +195,7 @@ func (ab AttributeValueBlob) String() string {
 	return fmt.Sprintf("% x", []byte(ab))
 }
 
-func (ab AttributeValueBlob) Raw() interface{} {
+func (ab AttributeValueBlob) Raw() any {
 	return []byte(ab)
 }
 
@@ -212,7 +212,7 @@ func (ab AttributeValueBool) String() string {
 	return "false"
 }
 
-func (ab AttributeValueBool) Raw() interface{} {
+func (ab AttributeValueBool) Raw() any {
 	return bool(ab)
 }
 
@@ -226,7 +226,7 @@ func (as AttributeValueInt) String() string {
 	return strconv.FormatInt(int64(as), 10)
 }
 
-func (as AttributeValueInt) Raw() interface{} {
+func (as AttributeValueInt) Raw() any {
 	return int64(as)
 }
 
@@ -240,7 +240,7 @@ func (as AttributeValueTime) String() string {
 	return time.Time(as).Format("20060102150405")
 }
 
-func (as AttributeValueTime) Raw() interface{} {
+func (as AttributeValueTime) Raw() any {
 	return time.Time(as)
 }
 
@@ -254,7 +254,7 @@ func (as AttributeValueSID) String() string {
 	return windowssecurity.SID(as).String()
 }
 
-func (as AttributeValueSID) Raw() interface{} {
+func (as AttributeValueSID) Raw() any {
 	return windowssecurity.SID(as)
 }
 
@@ -268,7 +268,7 @@ func (as AttributeValueGUID) String() string {
 	return (uuid.UUID)(as).String()
 }
 
-func (as AttributeValueGUID) Raw() interface{} {
+func (as AttributeValueGUID) Raw() any {
 	return uuid.UUID(as)
 }
 

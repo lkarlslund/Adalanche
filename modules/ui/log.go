@@ -68,7 +68,7 @@ type Logger struct {
 	pterm  pterm.PrefixPrinter
 }
 
-func (t Logger) Msgf(format string, args ...interface{}) Logger {
+func (t Logger) Msgf(format string, args ...any) Logger {
 	outputMutex.Lock()
 
 	var timetext string

@@ -21,7 +21,7 @@ type typestatistics [256]int
 
 type Objects struct {
 	root          *Object
-	DefaultValues []interface{}
+	DefaultValues []any
 	objects       gsync.MapOf[ObjectID, *Object]
 	multiindexes  map[AttributePair]*MultiIndex // Uses a map for storage considerations
 
@@ -42,7 +42,7 @@ func NewObjects() *Objects {
 	return &os
 }
 
-func (os *Objects) AddDefaultFlex(data ...interface{}) {
+func (os *Objects) AddDefaultFlex(data ...any) {
 	os.DefaultValues = append(os.DefaultValues, data...)
 }
 
@@ -272,7 +272,7 @@ func (os *Objects) Filter(evaluate func(o *Object) bool) *Objects {
 	return result
 }
 
-func (os *Objects) AddNew(flexinit ...interface{}) *Object {
+func (os *Objects) AddNew(flexinit ...any) *Object {
 	o := NewObject(flexinit...)
 	if os.DefaultValues != nil {
 		o.setFlex(os.DefaultValues...)
@@ -504,7 +504,7 @@ func (os *Objects) IterateParallel(each func(o *Object) bool, parallelFuncs int)
 	wg.Wait()
 }
 
-func (os *Objects) MergeOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (*Object, bool) {
+func (os *Objects) MergeOrAdd(attribute Attribute, value AttributeValue, flexinit ...any) (*Object, bool) {
 	results, found := os.FindMultiOrAdd(attribute, value, func() *Object {
 		// Add this is not found
 		return NewObject(append(flexinit, attribute, value)...)
@@ -530,7 +530,7 @@ func (os *Objects) FindOrAddObject(o *Object) bool {
 	return found
 }
 
-func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...interface{}) (*Object, bool) {
+func (os *Objects) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...any) (*Object, bool) {
 	o, found := os.FindMultiOrAdd(attribute, value, func() *Object {
 		return NewObject(append(flexinit, attribute, value)...)
 	})
@@ -553,7 +553,7 @@ func (os *Objects) FindTwo(attribute Attribute, value AttributeValue, attribute2
 	return results.First(), results.Len() == 1
 }
 
-func (os *Objects) FindTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...interface{}) (o *Object, found bool) {
+func (os *Objects) FindTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...any) (o *Object, found bool) {
 	results, found := os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, func() *Object {
 		return NewObject(append(flexinit, attribute, value, attribute2, value2)...)
 	})

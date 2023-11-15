@@ -921,7 +921,7 @@ func analysisfuncs(ws *webservice) {
 		case "GET":
 			json.NewEncoder(w).Encode(prefs.data)
 		case "POST":
-			newprefs := make(map[string]interface{})
+			newprefs := make(map[string]any)
 			err := json.NewDecoder(r.Body).Decode(&newprefs)
 			if err != nil {
 				w.WriteHeader(500)

@@ -52,7 +52,7 @@ type Object struct {
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
 
-func NewObject(flexinit ...interface{}) *Object {
+func NewObject(flexinit ...any) *Object {
 	var result Object
 	result.init(0)
 	result.setFlex(flexinit...)
@@ -526,7 +526,7 @@ func (o *Object) OneAttrString(attr Attribute) string {
 	return a.First().String()
 }
 
-func (o *Object) OneAttrRaw(attr Attribute) interface{} {
+func (o *Object) OneAttrRaw(attr Attribute) any {
 	a := o.Attr(attr)
 	if a == nil {
 		return nil
@@ -614,18 +614,18 @@ func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
 	}
 }
 
-func (o *Object) SetFlex(flexinit ...interface{}) {
+func (o *Object) SetFlex(flexinit ...any) {
 	o.setFlex(flexinit...)
 }
 
 var avsPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		avs := make(AttributeValueSlice, 0, 16)
 		return &avs
 	},
 }
 
-func (o *Object) setFlex(flexinit ...interface{}) {
+func (o *Object) setFlex(flexinit ...any) {
 	var ignoreblanks bool
 
 	attribute := NonExistingAttribute

@@ -305,8 +305,8 @@ func (c *ControlInteger) String() string {
 	return fmt.Sprintf("Control Type: %v  Critiality: %t  Control Value: %v", c.ControlType, c.Criticality, c.ControlValue)
 }
 
-func LDAPtoMaptringInterface(e *ldap.Entry) map[string]interface{} {
-	result := make(map[string]interface{})
+func LDAPtoMaptringInterface(e *ldap.Entry) map[string]any {
+	result := make(map[string]any)
 	for _, attribute := range e.Attributes {
 		if len(attribute.Values) == 1 {
 			result[attribute.Name] = attribute.Values[0]

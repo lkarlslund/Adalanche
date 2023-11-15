@@ -2,7 +2,7 @@ package engine
 
 import "github.com/lkarlslund/adalanche/modules/ui"
 
-type DynamicFields map[string]interface{}
+type DynamicFields map[string]any
 
 type Graph struct {
 	Nodes       []GraphNode
@@ -142,14 +142,14 @@ type GraphNode struct {
 	Target    bool
 }
 
-func (n *GraphNode) Set(key string, value interface{}) {
+func (n *GraphNode) Set(key string, value any) {
 	if n.DynamicFields == nil {
 		n.DynamicFields = make(DynamicFields)
 	}
 	n.DynamicFields[key] = value
 }
 
-func (n *GraphNode) Get(key string) interface{} {
+func (n *GraphNode) Get(key string) any {
 	if n.DynamicFields == nil {
 		return nil
 	}
@@ -162,14 +162,14 @@ type GraphEdge struct {
 	EdgeBitmap
 }
 
-func (e *GraphEdge) Set(key string, value interface{}) {
+func (e *GraphEdge) Set(key string, value any) {
 	if e.DynamicFields == nil {
 		e.DynamicFields = make(DynamicFields)
 	}
 	e.DynamicFields[key] = value
 }
 
-func (e *GraphEdge) Get(key string) interface{} {
+func (e *GraphEdge) Get(key string) any {
 	if e.DynamicFields == nil {
 		return nil
 	}

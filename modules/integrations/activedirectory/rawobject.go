@@ -76,7 +76,7 @@ func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
 
 // Performance hack
 var avsPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make(engine.AttributeValueSlice, 0, 16)
 	},
 }
