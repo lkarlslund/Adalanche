@@ -107,10 +107,10 @@ var fcoselayout = {
     // - "draft" only applies spectral layout 
     // - "default" improves the quality with incremental layout (fast cooling rate)
     // - "proof" improves the quality with incremental layout (slow cooling rate) 
-    quality: "default",
+    quality: "proof",
     // Use random node positions at beginning of layout
     // if this is set to false, then quality option must be "proof"
-    randomize: true,
+    randomize: false,
     // Whether or not to animate the layout
     animate: false,
     // Duration of animation in ms, if enabled
@@ -231,7 +231,7 @@ var cosebilkentlayout = {
     // Padding on fit
     padding: 10,
     // Whether to enable incremental mode
-    randomize: true,
+    randomize: false,
     // Node repulsion (non overlapping) multiplier
     nodeRepulsion: 4500,
     // Ideal (intra-graph) edge length
@@ -562,17 +562,7 @@ function getGraphlayout(choice) {
     var layout = cy.layout(layouttemplate)
 
     layout.on("layoutstart", function (event) {
-        $("#status").html(`<div>Running graph layout</div>
-            <div class= "p-10" >
-            <div class="sk-center sk-chase">
-                <div class="sk-chase-dot"></div>
-                <div class="sk-chase-dot"></div>
-                <div class="sk-chase-dot"></div>
-                <div class="sk-chase-dot"></div>
-                <div class="sk-chase-dot"></div>
-                <div class="sk-chase-dot"></div>
-            </div>
-            </div>`).show()
+        busystatus("Running graph layout")
     })
     layout.on("layoutstop", function (event) {
         $("#status").hide()

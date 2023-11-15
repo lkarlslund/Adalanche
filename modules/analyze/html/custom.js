@@ -64,9 +64,18 @@ function setquery(
 }
 
 function set_querymode(mode) {
-    $('#querymode_normal').prop('checked', mode == 'normal');
-    $('#querymode_reverse').prop('checked', mode == 'reverse');
-    $('#querymode_sourcetarget').prop('checked', mode == 'sourcetarget');
+    mode = mode.toLowerCase();
+    console.log('set_querymode', mode);
+    if (mode == 'normal') {
+        $('#querymode_normal').prop('checked', true).change();
+    } else if (mode == 'reverse') {
+        $('#querymode_reverse').prop('checked', true).change();
+    } else if (mode == 'sourcetarget') {
+        $('#querymode_sourcetarget').prop('checked', true).change();
+    }
+    // $('#querymode_normal').prop('checked', mode == 'normal').change();
+    // $('#querymode_reverse').prop('checked', mode == 'reverse').change();
+    // $('#querymode_sourcetarget').prop('checked', mode == 'sourcetarget').change();
 }
 
 
@@ -82,30 +91,22 @@ function newwindow(id, title, content, height, width) {
 
     // add the new one
     if (mywindow.length == 0) {
-       itsnew = true;
-        // `< div class="window d-inline-block position-absolute shadow p-5 bg-dark border pointer-events-auto container-fluid window-front" id="window_${id}">
-
         mywindow = $(
-            `<div class="window d-inline-block position-absolute shadow bg-dark border pointer-events-auto window-front" id="window_${id}">
+            `<div class="window bg-dark d-inline-block position-absolute shadow border pointer-events-auto window-front" id="window_${id}">
             <div class="s ui-resizable-handle ui-resizable-s"></div>
             <div class="e ui-resizable-handle ui-resizable-e"></div>
             <div class="se ui-resizable-handle ui-resizable-se ui-icon ui-icon-gripsmall-diagonal-se"></div>
-                <div id="wrapper" class="p-5 d-inline-block">
-                    <div id='header' class='row mb-5'>
-                        <div id="title" class="col">${title}</div>
-                        <div class="col-auto-1 no-wrap"><!-- button id="rollup" class="btn btn-primary btn-sm">_</button --> <button id="close" class="btn btn-primary btn-sm">X</button></div>
-                    </div>
-                    <div id="rollup-wrapper" class='overflow-hidden'>
-                        <div class="overflow-auto" id="contents">${content}</div>
-                    </div>
-                </div>
+            <div id='header' class='mb-1 bg-primary text-dark p-1'>
+                <span id="title" class="col">${title}</span><span id="close" class="border float-end cursor-pointer">X</span>
+            </div>
+            <div class="overflow-auto p-1" id="contents">${content}</div>
             </div>`
         );
 
         // roll up
-        $('#rollup', mywindow).click(function (event) {
-            $('#rollup-wrapper', $(this).parents('.window')).slideToggle('slow', 'swing');
-        });
+        // $('#rollup', mywindow).click(function (event) {
+        //     $('#rollup-wrapper', $(this).parents('.window')).slideToggle('slow', 'swing');
+        // });
 
         // closing
         $('#close', mywindow).click(function (event) {
@@ -117,7 +118,6 @@ function newwindow(id, title, content, height, width) {
             cancel: '#contents',
         });
 
-
         mywindow.resizable({
             containment: '#windows',
             handles: {
@@ -127,9 +127,10 @@ function newwindow(id, title, content, height, width) {
             },
             create: function (event, ui) { 
                 // ui has no data
+                console.log("window created");
             },
             resize: function (event, ui) {
-                // console.log(event)
+                console.log(event);
                 $('#contents', ui.element).width(ui.size.width-12);
                 $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-12);
             },
@@ -154,9 +155,6 @@ function newwindow(id, title, content, height, width) {
             mywindow.width(maxwidth)
         }
 
-    }
-
-    if (itsnew) {
         $('#windows').append(mywindow);
 
         // Fix initial content size
@@ -185,11 +183,11 @@ function newwindow(id, title, content, height, width) {
     return itsnew;
 }
 
-function analyze(e) {
+function busystatus(busytext) {
     $('#status')
         .html(
-            `<div class="text-center">Analyzing</div>
-            <div class="p-10">
+            `<div class="text-center pb-3">`+busytext+`</div>
+            <div class="p-2">
         <div class="sk-center sk-chase">
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
@@ -201,6 +199,10 @@ function analyze(e) {
             </div>`
         )
         .show();
+}
+
+function analyze(e) {
+    busystatus("Analyzing")
 
     $.ajax({
         type: 'POST',
@@ -232,7 +234,7 @@ function analyze(e) {
                     data.links +
                     ' edges ' +
                     (!data.reversed ? 'from' : 'to') +
-                    ':<hr/><table class="w-full">';
+                    ':<hr/><table class="w-100">';
                 for (var objecttype in data.resulttypes) {
                     info += '<tr><td class="text-right pr-5">'+ data.resulttypes[objecttype] + '</td><td>' + objecttype + '</td></tr>';
                 }
@@ -246,9 +248,9 @@ function analyze(e) {
 
                 if (
                     $('#hideoptionsonanalysis').prop('checked') &&
-                    $('#optionswrap').prop('width') != 0
+                    $('#optionspanel').prop('width') != 0
                 ) {
-                    $('#optionswrap').animate({ width: 'toggle' }, 400);
+                    $('#optionspanel').animate({ width: 'toggle' }, 400);
                 }
 
                 if (
@@ -272,6 +274,7 @@ function analyze(e) {
 }
 
 function refreshStatus() {
+    var lastwasidle = false
     $.ajax({
         type: "GET",
         url: "/progress",
@@ -280,6 +283,7 @@ function refreshStatus() {
         success: function (progressbars) {
             $("#offlineblur").hide()
             if (progressbars.length > 0) {
+                lastwasidle = false
                 keepProgressbars = new Set()
                 for (i in progressbars) {
                     progressbar = progressbars[i]
@@ -308,11 +312,16 @@ function refreshStatus() {
                     }
                 })
 
+                $("#upperstatus").show()
                 $("#progressbars").show()
                 $("#backendstatus").html("Adalanche is processing")
             } else {
-                $("#progressbars").empty().hide()
-                $("#backendstatus").html("Adalanche backend is idle")
+                if (!lastwasidle) {
+                    $("#progressbars").empty().hide()
+                    $("#backendstatus").html("Adalanche backend is idle")
+                    $("#upperstatus").fadeOut("slow")
+                }
+                lastwasidle = true
             }
         },
         error: function (xhr, status, error) {
@@ -333,8 +342,8 @@ $(function () {
         $('#infowrap').animate({ width: 'toggle' }, 400);
     });
 
-    $('#optionspop').on('click', function () {
-        $('#optionswrap').animate({ width: 'toggle' }, 400);
+    $('#optionstogglevisibility').on('click', function () {
+        $('#optionspanel').animate({ width: 'toggle' }, 400);
     });
 
     // autosize($('#querytext'));
@@ -498,15 +507,15 @@ $(function () {
         url: '/filteroptions',
         dataType: 'json',
         success: function (data) {
-            buttons = `<table class="w-full">`;
+            buttons = `<table class="w-100">`;
             data.methods.sort((a, b) => (a.name > b.name) ? 1 : -1)
             for (i in data.methods) {
                 method = data.methods[i];
 
-                buttons += '<tr class="pb-5">';
+                buttons += '<tr class="pb-1">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle" lookup="`+method.name+`">` +
+                    `<td class="overflow-hidden font-size-12 w-100" lookup="`+method.name+`">` +
                     method.name;
                 `</td>`;
 
@@ -524,7 +533,7 @@ $(function () {
                     method.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
-                    `<input type="checkbox" data-column="middle" data-default=` + method.defaultenabled_m +` ` +
+                    ` <input type="checkbox" data-column="middle" data-default=` + method.defaultenabled_m +` ` +
                     (method.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
@@ -536,7 +545,7 @@ $(function () {
                     method.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
-                    `<input type="checkbox" data-column="last" data-default=` + method.defaultenabled_l +` ` +
+                    ` <input type="checkbox" data-column="last" data-default=` + method.defaultenabled_l +` ` +
                     (method.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
@@ -555,17 +564,17 @@ $(function () {
             $('#pwnfilter').html(buttons);
 
             data.objecttypes.sort((a, b) => (a.name > b.name) ? 1 : -1)
-            buttons = `<table class="w-full">`;
+            buttons = `<table class="w-100">`;
             for (i in data.objecttypes) {
                 objecttype = data.objecttypes[i];
 
-                buttons += '<tr class="pb-5">';
+                buttons += '<tr class="pb-1">';
 
                 buttons +=
-                    `<td class="overflow-hidden font-size-12 align-middle" lookup="`+objecttype.name+`">` +
+                    `<td class="overflow-hidden font-size-12 w-100" lookup="`+objecttype.name+`">` +
                     objecttype.name;
                 `</td>`;
-                buttons += '<td class="checkbox-button no-wrap pb-5">';
+                buttons += '<td class="checkbox-button no-wrap">';
 
                 buttons +=
                     `<input type="checkbox" data-column="first" data-default=` + objecttype.defaultenabled_f +` ` +
@@ -580,7 +589,7 @@ $(function () {
                     objecttype.lookup +
                     `_f" class ="btn btn-sm mb-0">F</label>`;
                 buttons +=
-                    `<input type="checkbox" data-column="middle" data-default=` + objecttype.defaultenabled_m +` `+
+                    ` <input type="checkbox" data-column="middle" data-default=` + objecttype.defaultenabled_m +` `+
                     (objecttype.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
                     objecttype.lookup +
@@ -592,7 +601,7 @@ $(function () {
                     objecttype.lookup +
                     `_m" class ="btn btn-sm mb-0">M</label>`;
                 buttons +=
-                    `<input type="checkbox" data-column="last" data-default=` + objecttype.defaultenabled_l +` `+
+                    ` <input type="checkbox" data-column="last" data-default=` + objecttype.defaultenabled_l +` `+
                     (objecttype.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
                     objecttype.lookup +

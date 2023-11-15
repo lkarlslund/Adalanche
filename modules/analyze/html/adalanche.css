@@ -2,9 +2,78 @@
   /* SpinKit */
   --sk-size: 50px;
   --sk-color: white;
-  /* Halfmoon */
-  --primary-color: var(--yellow-color);
-  --secondary-color: var(--indigo-color);
+  /* Halfmoon / BootStrap */
+  --bs-primary-hue: var(--bs-yellow-hue);
+    --bs-primary-saturation: var(--bs-yellow-saturation);
+    --bs-primary-100-hsl: var(--bs-yellow-100-hsl);
+    --bs-primary-200-hsl: var(--bs-yellow-200-hsl);
+    --bs-primary-300-hsl: var(--bs-yellow-300-hsl);
+    --bs-primary-400-hsl: var(--bs-yellow-400-hsl);
+    --bs-primary-500-hsl: var(--bs-yellow-500-hsl);
+    --bs-primary-600-hsl: var(--bs-yellow-600-hsl);
+    --bs-primary-700-hsl: var(--bs-yellow-700-hsl);
+    --bs-primary-800-hsl: var(--bs-yellow-800-hsl);
+    --bs-primary-900-hsl: var(--bs-yellow-900-hsl);
+    --bs-primary-100: var(--bs-yellow-100);
+    --bs-primary-200: var(--bs-yellow-200);
+    --bs-primary-300: var(--bs-yellow-300);
+    --bs-primary-400: var(--bs-yellow-400);
+    --bs-primary-500: var(--bs-yellow-500);
+    --bs-primary-600: var(--bs-yellow-600);
+    --bs-primary-700: var(--bs-yellow-700);
+    --bs-primary-800: var(--bs-yellow-800);
+    --bs-primary-900: var(--bs-yellow-900);
+    --bs-primary-hsl: var(--bs-yellow-hsl);
+    --bs-primary: var(--bs-yellow);
+    --bs-primary-foreground-hsl: var(--bs-yellow-foreground-hsl);
+    --bs-primary-foreground: var(--bs-yellow-foreground);
+    --bs-primary-text-emphasis-hsl: var(--bs-yellow-text-emphasis-hsl);
+    --bs-primary-text-emphasis: var(--bs-yellow-text-emphasis);
+    --bs-primary-hover-bg: var(--bs-yellow-hover-bg);
+    --bs-primary-active-bg: var(--bs-yellow-active-bg);
+    --bs-primary-bg-subtle: var(--bs-yellow-bg-subtle);
+    --bs-primary-border-subtle: var(--bs-yellow-border-subtle);
+    --bs-primary-checkbox-svg: var(--bs-yellow-checkbox-svg);
+    --bs-primary-dash-svg: var(--bs-yellow-dash-svg);
+    --bs-primary-radio-svg: var(--bs-yellow-radio-svg);
+    --bs-primary-switch-svg: var(--bs-yellow-switch-svg);
+
+  --bs-secondary-hue: var(--bs-orange-hue);
+    --bs-secondary-saturation: var(--bs-orange-saturation);
+    --bs-secondary-100-hsl: var(--bs-orange-100-hsl);
+    --bs-secondary-200-hsl: var(--bs-orange-200-hsl);
+    --bs-secondary-300-hsl: var(--bs-orange-300-hsl);
+    --bs-secondary-400-hsl: var(--bs-orange-400-hsl);
+    --bs-secondary-500-hsl: var(--bs-orange-500-hsl);
+    --bs-secondary-600-hsl: var(--bs-orange-600-hsl);
+    --bs-secondary-700-hsl: var(--bs-orange-700-hsl);
+    --bs-secondary-800-hsl: var(--bs-orange-800-hsl);
+    --bs-secondary-900-hsl: var(--bs-orange-900-hsl);
+    --bs-secondary-100: var(--bs-orange-100);
+    --bs-secondary-200: var(--bs-orange-200);
+    --bs-secondary-300: var(--bs-orange-300);
+    --bs-secondary-400: var(--bs-orange-400);
+    --bs-secondary-500: var(--bs-orange-500);
+    --bs-secondary-600: var(--bs-orange-600);
+    --bs-secondary-700: var(--bs-orange-700);
+    --bs-secondary-800: var(--bs-orange-800);
+    --bs-secondary-900: var(--bs-orange-900);
+    --bs-secondary-hsl: var(--bs-orange-hsl);
+    --bs-secondary: var(--bs-orange);
+    --bs-secondary-foreground-hsl: var(--bs-orange-foreground-hsl);
+    --bs-secondary-foreground: var(--bs-orange-foreground);
+    --bs-secondary-text-emphasis-hsl: var(--bs-orange-text-emphasis-hsl);
+    --bs-secondary-text-emphasis: var(--bs-orange-text-emphasis);
+    --bs-secondary-hover-bg: var(--bs-orange-hover-bg);
+    --bs-secondary-active-bg: var(--bs-orange-active-bg);
+    --bs-secondary-bg-subtle: var(--bs-orange-bg-subtle);
+    --bs-secondary-border-subtle: var(--bs-orange-border-subtle);
+    --bs-secondary-checkbox-svg: var(--bs-orange-checkbox-svg);
+    --bs-secondary-dash-svg: var(--bs-orange-dash-svg);
+    --bs-secondary-radio-svg: var(--bs-orange-radio-svg);
+    --bs-secondary-switch-svg: var(--bs-orange-switch-svg);
+
+  --bs-body-font-family: Oswald;
 }
 
 @font-face {
@@ -13,14 +82,8 @@
 }
 
 body {
-  font-family: Oswald;
-  font-variant: normal;
   overflow: hidden;
     z-index: -2;
-}
-
-button, input, optgroup, select, textarea {
-  font-family: Oswald;
 }
 
 .no-wrap {
@@ -95,6 +158,8 @@ button, input, optgroup, select, textarea {
   z-index: 40;
 }
 
+
+
 #outerquery {
   position: absolute;
   left: 50%;
@@ -117,8 +182,32 @@ button, input, optgroup, select, textarea {
   margin-right: 5px;
 }
 
-.input-group div {
-  margin-bottom: 5px;
+.z-0 {
+  z-index: 0;
+}
+
+.z-10 {
+  z-index: 10;
+}
+
+.z-20 {
+  z-index: 20;
+}
+
+.z-30 {
+  z-index: 30;
+}
+
+.z-40 {
+  z-index: 40;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 
 .checkbox-button input[type='checkbox'],
@@ -128,5 +217,6 @@ button, input, optgroup, select, textarea {
 
 .checkbox-button input[type='checkbox']:checked+label.btn,
 .checkbox-button input[type='radio']:checked+label.btn {
-  background-color: var(--primary-color);
+  background-color: var(--bs-primary);
+  color: var(--bs-dark);
 }

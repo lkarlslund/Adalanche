@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" data-bs-theme="dark">
 
 <head>
   <title>Adalanche - Graph Analytics Platform</title>
@@ -7,45 +7,46 @@
 
   <link rel="icon" type="image/png" href="icons/adalanche-favicon.png" />
 
-  <link rel="stylesheet" href="external/halfmoon-variables.min.css" />
+  <link rel="stylesheet" href="external/halfmoon-ui/halfmoon.css" />
+
   <link rel="stylesheet" href="external/spinkit.css" />
-  <link rel="stylesheet" href="external/cytoscape-context-menus.css" />
-  <link rel="stylesheet" href="external/jqueryui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="external/graph/cytoscape-context-menus.css" />
+  <link rel="stylesheet" href="external/jquery-ui-1.13.2.custom/jquery-ui.css" />
   <link rel="stylesheet" href="external/tippy.css" />
   <link rel="stylesheet" href="external/jstree/themes/default-dark/style.min.css" />
   <!-- we put everything custom here, so we can override earlier variables -->
   <link rel="stylesheet" href="adalanche.css" />
   
-  <script src="external/jquery-3.6.0.min.js"></script>
-  <script src="external/jqueryui/jquery-ui.min.js"></script>
+  <script src="external/jquery-3.7.1.min.js"></script>
+  <script src="external/popper.min.js"></script>
+  <script src="external/tippy.min.js"></script>
+  <script src="external/jquery-ui-1.13.2.custom/jquery-ui.min.js"></script>
   <script src="external/jstree/jstree.min.js"></script>
   <script src="external/autosize.js"></script>
 
-  <script src="external/cytoscape.min.js"></script>
-  <script src="external/cytoscape-context-menus.js"></script>
-  <script src="external/popper.min.js"></script>
-  <script src="external/tippy.min.js"></script>
-  <script src="external/cytoscape-popper.js"></script>
+  <script src="external/graph/cytoscape.min.js"></script>
+  <script src="external/graph/cytoscape-context-menus.js"></script>
+  <script src="external/graph/cytoscape-popper.js"></script>
 
-  <script src="external/d3-dispatch.v3.js"></script>
-  <script src="external/d3-quadtree.v3.js"></script>
-  <script src="external/d3-timer.v3.js"></script>
-  <script src="external/d3-force.v3.js"></script>
-  <script src="external/d3-force-reuse.js"></script>
-  <script src="external/d3-force-sampled.js"></script>
+  <script src="external/graph/d3-dispatch.v3.js"></script>
+  <script src="external/graph/d3-quadtree.v3.js"></script>
+  <script src="external/graph/d3-timer.v3.js"></script>
+  <script src="external/graph/d3-force.v3.js"></script>
+  <script src="external/graph/d3-force-reuse.js"></script>
+  <script src="external/graph/d3-force-sampled.js"></script>
   <script>
     window['d3-force'] = d3
   </script>
-  {{/* <script src="external/cytoscape-d3-force.js"></script> */}}
-  <script src="external/cytoscape-d3-force-sampled.js"></script>
+  {{/* <script src="external/graph/cytoscape-d3-force.js"></script> */}}
+  <script src="external/graph/cytoscape-d3-force-sampled.js"></script>
 
   <!-- Cytoscape layout engines -->
-  <script src="external/layout-base.js"></script>
-  <script src="external/cose-base.js"></script>
-  <script src="external/cytoscape-fcose.js"></script>
-  <script src="external/cytoscape-cose-bilkent.js"></script>
-  <script src="external/dagre.min.js"></script>
-  <script src="external/cytoscape-dagre.js"></script>
+  <script src="external/graph/layout-base.js"></script>
+  <script src="external/graph/cose-base.js"></script>
+  <script src="external/graph/cytoscape-fcose.js"></script>
+  <script src="external/graph/cytoscape-cose-bilkent.js"></script>
+  <script src="external/graph/dagre.min.js"></script>
+  <script src="external/graph/cytoscape-dagre.js"></script>
 
   <script src="anonymizer.js"></script>
   <script src="preferences.js"></script>
@@ -68,114 +69,111 @@
 
   <div id="offlineblur" class="fullscreen z-40"></div>
 
-  <div id="upperstatus" class="border bg-dark p-5 shadow pointer-events-auto z-50">
-    <div id="backendstatus" class="text-center w-full pl-20 pr-20">Loading UI ...</div>
+  <div id="upperstatus" class="border bg-dark p-1 shadow pe-auto z-50">
+    <div id="backendstatus" class="text-center w-100 pl-20 pr-20">Loading UI ...</div>
     <div id="progressbars"></div>
   </div>
 
-  <div id="overlay" class="fullscreen z-30 pointer-events-none">
+  <div id="overlay" class="fullscreen z-30 pe-none">
     <div id="lower-left">
-      <div id="about">
+      <div id="about" class="pb-2">
         <div><img src="icons/adalanche-logo.svg" height="26px"> <span
           id="programinfo">Adalanche</span></div>
         <div>
-          <span id="programlink" class="pointer-events-auto"><img src="icons/twitter.svg" height="16px"> <a 
+          <span id="programlink" class="pe-auto"><img src="icons/twitter.svg" height="16px"> <a 
             href="https://twitter.com/lkarlslund">@lkarlslund</a></span>
         </div>
       </div>
-      <div id="commandbuttons" class="pt-10 pointer-events-auto"><button id="explore" class="btn btn-primary">Explore</button></div>
+      <div id="commandbuttons" class="pt-10 pe-auto"><button id="explore" class="btn btn-primary">Explore</button></div>
     </div>
     <!-- <div id="infobar" class="float-left">
-      <div id="infowrap" class="fw-250 h-full pointer-events-auto">
+      <div id="infowrap" class="fw-250 h-full pe-auto">
         <div id="infocontent" class="fw-250 bg-dark h-full overflow-y-auto">
         </div>
-      </div><div id="infopop" class="d-inline-block align-top bg-dark border p-10 xrotated-text-90 pointer-events-auto">
+      </div><div id="infopop" class="d-inline-block align-top bg-dark border p-10 xrotated-text-90 pe-auto">
         Information
       </div>
     </div> -->
-    <div id="optionsbar" class="float-right">
-      <div id="optionspop" class="d-inline-block align-top bg-dark border p-10 xrotated-text-90 pointer-events-auto">
+    <div id="options" class="float-end">
+      <div id="optionstogglevisibility" class="d-inline-block align-top bs-bg-dark border p-1 pe-auto">
         Options
       </div>
-      <div id="optionswrap" class="fw-250 accordion">
-        <div id="optionscontent" class="fw-250 collapse-group fullheight overflow-y-auto pointer-events-auto">
-            <div class="bg-dark">
-            <details class="collapse-panel">
-              <summary class="collapse-header" id="headingTwo">
-                Analysis options
-              </summary>
-              <div class="collapse-content">
+      <div id="optionspanel" class="bg-dark fw-250 fullheight overflow-y-auto pe-auto">
+        <div id="optionscontent" class="w-100">
+          <details class="collapse-panel">
+            <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
+              Analysis
+            </summary>
+              <div id="analysis" class="collapse-panel p-1">
                 <form id="analysisoptionsform">
                 <div class="row justify-content-between">
                   <label class="col" for="querymode_group">Mode</label>
                   <div class="col btn-group btn-group-sm checkbox-button" id="querymode_group" role="group"
                     aria-label="Mode">
-                    <input type="radio" name="mode" id="querymode_normal" value="normal" autocomplete="off" checked />
-                    <label class="btn btn-sm" for="querymode_normal">Normal</label>
-                    <input type="radio" name="mode" id="querymode_reverse" value="reverse" autocomplete="off" />
-                    <label class="btn btn-sm" for="querymode_reverse">Reverse</label>
-                    <input type="radio" name="mode" id="querymode_sourcetarget" value="sourcetarget" autocomplete="off" />
-                    <label class="btn btn-sm" for="querymode_sourcetarget">SrcTgt</label>
+                    <input type="radio" name="mode" id="querymode_normal" class="btn-check" value="normal" autocomplete="off" checked />
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_normal">Normal</label>
+                    <input type="radio" name="mode" id="querymode_reverse" class="btn-check" value="reverse" autocomplete="off" />
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_reverse">Reverse</label>
+                    <input type="radio" name="mode" id="querymode_sourcetarget" class="btn-check" value="sourcetarget" autocomplete="off" />
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_sourcetarget">SrcTgt</label>
                   </div>
                 </div>
 
-                <div class="input-group">
-                  <div class="custom-switch">
-                    <input id="force" type="checkbox" name="force" autocomplete="off"
-                      preference="analysis.too.much.data.force" defaultpref=false>
-                    <label class="col" for="force">Force too much data</label>
-                  </div>
+                <div class="form-check">
+                  <input class="form-check-input" id="force" type="checkbox" name="force" autocomplete="off"
+                    preference="analysis.too.much.data.force" defaultpref=false>
+                  <label class="form-check-label" for="force">Force too much data</label>
+                </div>
 
-                  <div class="custom-switch">
-                    <input id="prune" type="checkbox" name="prune" autocomplete="off"
-                      preference="analysis.prune.islands" defaultpref=false>
-                    <label class="col" for="prune">Prune Island Nodes</label>
-                  </div>
+                <div class="form-check">
+                  <input class="form-check-input" id="prune" type="checkbox" name="prune" autocomplete="off"
+                    preference="analysis.prune.islands" defaultpref=false>
+                  <label class="form-check-label" for="prune">Prune Island Nodes</label>
+                </div>
 
-                  <div class="custom-switch">
-                    <input id="backlinks" type="checkbox" name="backlinks" autocomplete="off"
-                      preference="analysis.include.backlinks" defaultpref=false>
-                    <label class="col" for="backlinks">Include backlinks</label>
-                  </div>
+                <div class="form-check">
+                  <input class="form-check-input" id="backlinks" type="checkbox" name="backlinks" autocomplete="off"
+                    preference="analysis.include.backlinks" defaultpref=false>
+                  <label class="form-check-label" for="backlinks">Include backlinks</label>
+                </div>
 
-                  <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">Analysis depth</span>
-                  </div>
+                <div class="row">
+                  <div class="col">
+                  <label for="maxdepth" class="col-form-label">Analysis depth</label>
+                </div>
+                <div class="col">
                   <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99"
-                    preference="analysis.max.depth" class="form-control text-right">
+                  preference="analysis.max.depth" class="form-control text-right">
+                  </div>
                 </div>
 
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">Max outgoing</span>
-                  </div>
+                <div class="row">
+                  <div class="col">
+                    <label for="maxoutgoing" class="col-form-label">Max outgoing</label>
+                </div>
+                <div class="col">
                   <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="50"
                     preference="analysis.max.ootgoing" class="form-control text-right">
-                  <!-- <div class="input-group-append">
-                  <span class="input-group-text">connections</span>
-                </div> -->
                 </div>
 
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">Min probability</span>
-                  </div>
+                <div class="row">
+                  <div class="col">
+                    <label for="minprobability" class="col-form-label">Min probability</label>
+                </div>
+                <div class="col">
                   <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0"
                     preference="analysis.min.probability" class="form-control text-right">
-                  <div class="input-group-append">
-                    <span class="input-group-text">%</span>
-                  </div>
+                  <span class="float-end">%</span>
                 </div>
 
               </form>
               </div>
             </details>
             <details class="collapse-panel">
-              <summary class="collapse-header">
+              <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
                 Edges
               </summary>
-              <div class="collapse-content">
+              <div class="collapse-content p-1">
                 <form id="analysispwnform">
                 <div id="pwnfilter">
                   Loading ...
@@ -184,10 +182,10 @@
               </div>
             </details>
             <details class="collapse-panel">
-              <summary class="collapse-header">
+              <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
                 Nodes
               </summary>
-              <div class="collapse-content">
+              <div class="collapse-content p-1">
                 <form id="analysistypeform">
                 <div id="objecttypefilter">
                   Loading ...
@@ -198,10 +196,10 @@
         </details>
         <!-- end of data submitted on analysis -->
         <details class="collapse-panel">
-          <summary class="collapse-header">
+          <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
             Visualization
           </summary>
-          <div class="collapse-content">
+          <div class="collapse-content p-1">
             <label for="graphlayout">Choose layout</label>
             <select class="form-control" id="graphlayout" preference="graph.layout" defaultpref="fcose">
               <option value="fcose">FCOSE</option>
@@ -213,7 +211,7 @@
               <option value="random">Random</option>
             </select>
 
-            <div class="mb-5">
+            <div class="mb-1">
             <label for="nodelabels">Node labels</label>
             <select class="form-control" id="nodelabels" preference="graph.labels" defaultpref="normal">
               <option value="normal">Normal</option>
@@ -223,7 +221,7 @@
             </select>
             </div>
 
-            <div class="mb-5">
+            <div class="mb-1">
               <label for="nodesizes">Node size</label>
               <select class="form-control" id="nodesizes" preference="graph.nodesize" defaultpref="incoming">
                 <option value="equal">All same size</option>
@@ -232,10 +230,10 @@
               </select>
             </div>
 
-            <div class="mb-5">
-              <div class="custom-switch">
-                <input id="showedgelabels" type="checkbox" autocomplete="off" preference="graph.edgelabels" defaultpref=false>
-                <label class="col" for="showedgelabels">Show edge methods on mouse hover</label>
+            <div class="mb-1">
+              <div class="form-check">
+                <input class="form-check-input" id="showedgelabels" type="checkbox" autocomplete="off" preference="graph.edgelabels" defaultpref=false>
+                <label class="form-check-label" for="showedgelabels">Show edge methods on mouse hover</label>
               </div>
             </div>
 
@@ -249,26 +247,26 @@
           </div>
         </details>
         <details class="collapse-panel">
-          <summary class="collapse-header">
+          <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
             Options
           </summary>
-          <div class="collapse-content">
+          <div class="collapse-content p-1">
             <div class="input-group">
-              <div class="custom-switch">
-                <input id="hideoptionsonanalysis" type="checkbox" name="hideoptionsonanalysis" autocomplete="off"
+              <div class="form-check">
+                <input class="form-check-input" id="hideoptionsonanalysis" type="checkbox" name="hideoptionsonanalysis" autocomplete="off"
                   preference="ui.hide.options.on.analysis" defaultpref=true>
-                <label class="col" for="hideoptionsonanalysis">Hide options on analysis</label>
+                <label class="form-check-label" for="hideoptionsonanalysis">Hide options on analysis</label>
               </div>
-              <div class="custom-switch">
-                <input id="hidequeryonanalysis" type="checkbox" name="hidequeryonanalysis" autocomplete="off"
+              <div class="form-check">
+                <input class="form-check-input" id="hidequeryonanalysis" type="checkbox" name="hidequeryonanalysis" autocomplete="off"
                   preference="ui.hide.query.on.analysis" defaultpref=true>
-                <label class="col" for="hidequeryonanalysis">Hide query panel on analysis</label>
+                <label class="form-check-label" for="hidequeryonanalysis">Hide query panel on analysis</label>
               </div>
 
-              <div class="custom-switch">
-                <input id="runqueryonstartup" type="checkbox" name="runqueryonstartup" autocomplete="off"
+              <div class="form-check">
+                <input class="form-check-input" id="runqueryonstartup" type="checkbox" name="runqueryonstartup" autocomplete="off"
                   preference="ui.run.query.on.startup" defaultpref=true>
-                <label class="col" for="runqueryonstartup">Run query on startup</label>
+                <label class="form-check-label" for="runqueryonstartup">Run query on startup</label>
               </div>
             </div>
           </div>
@@ -278,22 +276,22 @@
     </div>
   </div>
 
-  <div id="status" class="border bg-dark p-5 shadow pointer-events-auto z-50">
+  <div id="status" class="border bg-dark p-2 shadow pe-auto z-50">
   </div>
 
-  <div id="outerquery" class="card border mr-0 mb-0 mt-0 p-0 pointer-events-auto">
-    <div id="querypop" class="text-center pl-20 pr-20">LDAP Query</div>
-    <div id="querydiv" class="p-10">
+  <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-10">
+    <div id="querypop" class="text-center ps-4 pe-4">LDAP Query</div>
+    <div id="querydiv" class="p-1">
       <form id="queryform" class="m-0">
-        <textarea id="querytext" class="form-control w-300 mb-5" name="query" rows=4></textarea>
+        <textarea id="querytext" class="form-control mb-1" style="width: 300px" name="query" rows=4></textarea>
+        <!-- <textarea id="queryinclude" class="form-control w-300 mb-1" name="queryinclude" rows=4></textarea> -->
+        <!-- <textarea id="queryexclude" class="form-control w-300 mb-1" name="queryexclude" rows=4></textarea> -->
+        <!-- <textarea id="queryexcludelast" class="form-control w-300 mb-1" name="queryexcludelast" rows=4></textarea> -->
         <div id="queryerror"></div>
         <div id="querybuttons" class="mt-2">
-          <div id="queriesdropdown" class="dropdown dropup with-arrow">
-            <button id="queriesbutton" data-toggle="dropdown" class="btn btn-primary btn-sm" type="button"
-              aria-haspopup="true" aria-expanded="false">
-              Sample Queries <i class="fa fa-angle-down ml-5" aria-hidden="true"></i>
-            </button>
-            <div id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh"
+          <div id="queriesdropdown" class="dropup float-start">
+            <button id="queriesbutton" data-bs-toggle="dropdown" class="btn btn-primary btn-sm dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">Sample Queries</button>
+            <ul id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh"
               aria-labelledby="queriesbutton">
               <li id="defaultquery" class="dropdown-item"
                 query="(&(dataLoader=Active Directory)(objectCategory=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))"
@@ -357,9 +355,9 @@
               <li class="dropdown-item"
                 query="(&(objectCategory=Machine)(out=MachineAccount,(userAccountControl:1.2.840.113556.1.4.803:=4096))(_limit=100))"
                 mode="Normal" depth=99>Servers or Workstations (100 random)</li>
-            </div>
+              </ul>
           </div>
-          <button id="analyzebutton" type="button" class="btn btn-sm float-right" onclick="analyze();">Analyze</button>
+          <button id="analyzebutton" type="button" class="btn btn-outline-primary btn-sm float-end" onclick="analyze();">Analyze</button>
         </div>
       </form>
     </div>
@@ -367,6 +365,6 @@
   </div>
 </body>
 
-<script src="external/halfmoon.min.js"></script>
+<script src="external/bootstrap/js/bootstrap.min.js"></script>
 
 </html>
