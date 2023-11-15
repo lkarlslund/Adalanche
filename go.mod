@@ -99,13 +99,13 @@ require (
 	gopkg.in/nullbio/null.v6 v6.0.0-20161116030900-40264a2e6b79 // indirect
 	gopkg.in/toast.v1 v1.0.0-20180812000517-0a84660828b2 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
 	github.com/akyoto/cache v1.0.6
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
+	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0
 )
@@ -115,7 +115,6 @@ require (
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
-	github.com/dmarkham/enumer v1.5.8 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
@@ -128,14 +127,12 @@ require (
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
-	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/miekg/dns v1.1.53 // indirect
 	github.com/open-networks/go-msgraph v0.3.4 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
-	github.com/pascaldekloe/name v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
