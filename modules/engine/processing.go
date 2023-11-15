@@ -182,6 +182,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 			}
 		}
 		if i%16384 == 0 {
+			// Refresh the list of attributes, ordered by most successfull first
 			mergeon = getMergeAttributes()
 		}
 		globalobjects.AddMerge(mergeon, addobject)
