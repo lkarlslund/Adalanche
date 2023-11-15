@@ -360,10 +360,15 @@ func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
 						}
 
 						// Test that all mergeapprovers confirm this to be a valid merge
+						if source.SID().String() == "S-1-5-21-1912508229-386351500-4206070068-4522" {
+							ui.Trace().Msgf("Gotcha")
+						}
+
 						for _, mfi := range mergeapprovers {
 							res, err := mfi.mergefunc(source, target)
 							switch err {
 							case ErrDontMerge:
+								ui.Trace().Msgf("Merge approver %v rejected merging %v with %v on attribute %v", mfi.name, source.Label(), target.Label(), mergeattr.String())
 								return false // break
 							case ErrMergeOnThis, nil:
 								// Let the code below do the merge
@@ -671,39 +676,54 @@ func (os *Objects) FindOrAddSID(s windowssecurity.SID) *Object {
 	return o.First()
 }
 
-func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object) *Object {
-	switch s.Component(2) {
-	case 21: // Full "domain" SID
-		result, _ := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
+func (os *Objects) FindOrAddAdjacentSID(s windowssecurity.SID, r *Object, flexinit ...any) *Object {
+	sidobject, _ := os.FindOrAddAdjacentSIDFound(s, r, flexinit...)
+	return sidobject
+}
+
+func (os *Objects) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Object, flexinit ...any) (*Object, bool) {
+	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
+	if r.Type() == ObjectTypeMachine && r.HasAttr(DataSource) {
+		// See if we can find it relative to the computer
+		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+			return o.First(), true
+		}
+	}
+
+	// Let's assume it's not relative to a computer, and therefore truly unique
+	if s.Component(2) == 21 && s.Component(3) != 0 {
+		result, found := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
 			no := NewObject(
 				ObjectSid, AttributeValueSID(s),
 			)
+			no.SetFlex(flexinit...)
 			return no
 		})
-		return result.First()
+		return result.First(), found
 	}
 
+	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
 	if r.HasAttr(DomainContext) {
-		// From outside, we need to find the domain part
 		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
-			return o.First()
+			return o.First(), true
 		}
 	}
-	// From inside same source, that is easy
+
+	// Use the objects datasource as the relative reference
 	if r.HasAttr(DataSource) {
 		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
-			return o.First()
+			return o.First(), true
 		}
 	}
 
-	// Not found, we have write lock so create it
-	no, _ := os.FindOrAdd(ObjectSid, AttributeValueSID(s),
+	// Not found, so fall back to just looking up the SID
+	no, found := os.FindOrAdd(ObjectSid, AttributeValueSID(s),
 		IgnoreBlanks,
 		DomainContext, r.Attr(DomainContext),
 		DataSource, r.Attr(DataSource),
 	)
 
-	return no
+	return no, found
 }
 
 func findMostLocal(os []*Object) *Object {
