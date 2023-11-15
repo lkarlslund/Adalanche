@@ -68,19 +68,10 @@ func analysisfuncs(ws *webservice) {
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
 	ws.Router.HandleFunc("/validatequery", func(w http.ResponseWriter, r *http.Request) {
-		rest, _, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
-		if rest != "" {
-			if rest[0] != ',' {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte("Expecting comma as a seperator before exclude query"))
-				return
-			}
-			if _, err := query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
+		querytext := strings.Trim(r.URL.Query().Get("query"), " \n\r")
+		if querytext != "" {
+			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
+			if err != nil {
 				w.WriteHeader(400) // bad request
 				w.Write([]byte(err.Error()))
 				return
@@ -88,6 +79,7 @@ func analysisfuncs(ws *webservice) {
 		}
 		w.Write([]byte("ok"))
 	})
+
 	// Returns JSON descruibing an object located by distinguishedName, sid or guid
 	ws.Router.HandleFunc("/details/{locateby}/{id}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -173,8 +165,9 @@ func analysisfuncs(ws *webservice) {
 		}
 		// w.WriteHeader(200)
 	})
+
 	// Graph based query analysis - core functionality
-	ws.Router.HandleFunc("/cytograph.json", func(w http.ResponseWriter, r *http.Request) {
+	ws.Router.HandleFunc("/analyzegraph", func(w http.ResponseWriter, r *http.Request) {
 		vars := make(map[string]string)
 		err := json.NewDecoder(r.Body).Decode(&vars)
 		if err != nil {
@@ -194,10 +187,13 @@ func analysisfuncs(ws *webservice) {
 
 		prune, _ := util.ParseBool(vars["prune"])
 
-		querystr := vars["query"]
-		if querystr == "" {
-			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+		queryinclude := vars["query"]
+		if queryinclude == "" {
+			queryinclude = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
+
+		queryexclude := vars["queryexclude"]
+		queryexcludelast := vars["queryexcludelast"]
 
 		maxdepth := 99
 		if maxdepthval, err := strconv.Atoi(vars["maxdepth"]); err == nil {
@@ -220,14 +216,12 @@ func analysisfuncs(ws *webservice) {
 		force, _ := util.ParseBool(vars["force"])
 		backlinks, _ := util.ParseBool(vars["backlinks"])
 
-		var includeobjects *engine.Objects
-		var excludeobjects *engine.Objects
-
-		var excludequery query.NodeFilter
+		var includequery, excludequery, excludelastquery query.NodeFilter
+		var includeobjects, excludeobjects, excludelastobjects *engine.Objects
 
 		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
 		if expanddn := vars["expanddn"]; expanddn != "" {
-			querystr = `(distinguishedName=` + expanddn + `)`
+			queryinclude = `(distinguishedName=` + expanddn + `)`
 			maxoutgoing = 0
 			maxdepth = 1
 			force = true
@@ -240,21 +234,27 @@ func analysisfuncs(ws *webservice) {
 						}*/
 		}
 
-		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
+		includequery, err = query.ParseLDAPQueryStrict(queryinclude, ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
+			w.Write([]byte("Error parsing include query: " + err.Error()))
 			return
 		}
-		if rest != "" {
-			if rest[0] != ',' {
+
+		if queryexclude != "" {
+			excludequery, err = query.ParseLDAPQueryStrict(queryexclude, ws.Objs)
+			if err != nil {
 				w.WriteHeader(400) // bad request
-				encoder.Encode(fmt.Sprintf("Error parsing ldap query: %v", err))
+				w.Write([]byte("Error parsing exclude query: " + err.Error()))
 				return
 			}
-			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
+		}
+
+		if queryexcludelast != "" {
+			excludelastquery, err = query.ParseLDAPQueryStrict(queryexcludelast, ws.Objs)
+			if err != nil {
 				w.WriteHeader(400) // bad request
-				encoder.Encode(fmt.Sprintf("Error parsing ldap query: %v", err))
+				w.Write([]byte("Error parsing exclude last query: " + err.Error()))
 				return
 			}
 		}
@@ -263,6 +263,10 @@ func analysisfuncs(ws *webservice) {
 
 		if excludequery != nil {
 			excludeobjects = query.Execute(excludequery, ws.Objs)
+		}
+
+		if excludelastquery != nil {
+			excludelastobjects = query.Execute(excludelastquery, ws.Objs)
 		}
 
 		// var methods engine.EdgeBitmap
@@ -318,7 +322,7 @@ func analysisfuncs(ws *webservice) {
 		var pg engine.Graph
 		if mode == "sourcetarget" {
 			if includeobjects.Len() == 0 || excludeobjects == nil || excludeobjects.Len() == 0 {
-				fmt.Fprintf(w, "You must use two queries (source and target), seperated by commas. Each must return at least one object.")
+				fmt.Fprintf(w, "You must use two queries (source = include and target = exclude). Each must return at least one object.")
 			}
 
 			// We dont support this yet, so merge all of them
@@ -337,6 +341,7 @@ func analysisfuncs(ws *webservice) {
 			opts := engine.NewAnalyzeObjectsOptions()
 			opts.IncludeObjects = includeobjects
 			opts.ExcludeObjects = excludeobjects
+			opts.ExcludeLastObjects = excludelastobjects
 			opts.MethodsF = edges_f
 			opts.MethodsM = egdes_m
 			opts.MethodsL = edges_l

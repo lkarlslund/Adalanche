@@ -206,7 +206,7 @@ function analyze(e) {
 
     $.ajax({
         type: 'POST',
-        url: 'cytograph.json',
+        url: 'analyzegraph',
         contentType: 'charset=utf-8',
         data: JSON.stringify(
             $('#queryform, #analysisoptionsform, #analysispwnform, #analysistypeform')
@@ -423,7 +423,7 @@ $(function () {
     // $('[data-toggle="tooltip"]').tooltip()
 
     var changetimer;
-    $('#querytext').on('input', function () {
+    $('#querytext, #queryexclude, #queryexcludelast').on('input', function (e) {
         clearTimeout(changetimer);
         changetimer = setTimeout(function () {
             // check query for errors when user has been idle for 200ms
@@ -431,7 +431,7 @@ $(function () {
                 type: 'GET',
                 url: '/validatequery',
                 data: {
-                    query: $('#querytext').val(),
+                    query: e.target.value,
                 },
                 success: function (data) {
                     console.log(data);

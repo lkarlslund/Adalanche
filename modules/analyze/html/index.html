@@ -281,12 +281,30 @@
 
   <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-10">
     <div id="querypop" class="text-center ps-4 pe-4">LDAP Query</div>
-    <div id="querydiv" class="p-1">
+    <div id="querydiv" class="p-1" style="width: 40vw;">
       <form id="queryform" class="m-0">
-        <textarea id="querytext" class="form-control mb-1" style="width: 300px" name="query" rows=4></textarea>
-        <!-- <textarea id="queryinclude" class="form-control w-300 mb-1" name="queryinclude" rows=4></textarea> -->
-        <!-- <textarea id="queryexclude" class="form-control w-300 mb-1" name="queryexclude" rows=4></textarea> -->
-        <!-- <textarea id="queryexcludelast" class="form-control w-300 mb-1" name="queryexcludelast" rows=4></textarea> -->
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button id="querybutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#query-pane" type="button">Query</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button id="queryexcludebutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#queryexclude-pane" type="button">Exclude</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button id="queryexcludelastbutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#queryexcludelast-pane" type="button">Exclude Last</button>
+          </li>
+        </ul>
+        <div class="tab-content" id="query-tabs-content">
+          <div class="tab-pane active" id="query-pane">
+            <textarea id="querytext" class="form-control mb-1" name="query" rows=4></textarea>
+          </div>
+          <div class="tab-pane" id="queryexclude-pane">
+            <textarea id="queryexclude" class="form-control mb-1" name="queryexclude" rows=4></textarea>
+          </div>
+          <div class="tab-pane" id="queryexcludelast-pane">
+            <textarea id="queryexcludelast" class="form-control mb-1" name="queryexcludelast" rows=4></textarea>
+          </div>          
+        </div>
         <div id="queryerror"></div>
         <div id="querybuttons" class="mt-2">
           <div id="queriesdropdown" class="dropup float-start">

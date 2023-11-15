@@ -26,6 +26,7 @@ func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 type AnalyzeObjectsOptions struct {
 	IncludeObjects         *Objects
 	ExcludeObjects         *Objects
+	ExcludeLastObjects     *Objects
 	ObjectTypesF           []ObjectType
 	ObjectTypesM           []ObjectType
 	ObjectTypesL           []ObjectType
@@ -309,12 +310,24 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 					delete(connectionsmap, pair)
 					pb.Add(1)
 					removed++
-				} else if detectobjecttypes != nil {
+					continue
+				}
+				if detectobjecttypes != nil {
 					if _, found := detectobjecttypes[pair.Target.Type()]; !found {
 						// No matches on LastMethods
 						delete(connectionsmap, pair)
 						pb.Add(1)
 						removed++
+						continue
+					}
+				}
+				if opts.ExcludeLastObjects != nil {
+					// does it exist in the exclude last list
+					if _, found := opts.ExcludeLastObjects.FindID(pair.Target.ID()); found {
+						delete(connectionsmap, pair)
+						pb.Add(1)
+						removed++
+						continue
 					}
 				}
 			}
@@ -324,7 +337,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) (pg Graph) {
 			break
 		}
 
-		ui.Debug().Msgf("Post graph object filtering remove %v nodes", removed)
+		ui.Debug().Msgf("Post graph object filtering removed %v nodes", removed)
 
 		weremovedsomething = true
 	}
