@@ -105,6 +105,7 @@ require (
 	github.com/akyoto/cache v1.0.6
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
+	github.com/gammazero/deque v0.2.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0
