@@ -198,7 +198,7 @@ func analysisfuncs(ws *webservice) {
 		middlequerytext := vars["middlequery"]
 		endquerytext := vars["endquery"]
 
-		maxdepth := 99
+		maxdepth := -1
 		if maxdepthval, err := strconv.Atoi(vars["maxdepth"]); err == nil {
 			maxdepth = maxdepthval
 		}
