@@ -107,22 +107,16 @@
               <div id="analysis" class="collapse-panel p-1">
                 <form id="analysisoptionsform">
                 <div class="row justify-content-between">
-                  <label class="col" for="querymode_group">Mode</label>
+                  <label class="col" for="querymode_group">Query direction</label>
                   <div class="col btn-group btn-group-sm checkbox-button" id="querymode_group" role="group"
                     aria-label="Mode">
                     <input type="radio" name="mode" id="querymode_normal" class="btn-check" value="normal" autocomplete="off" checked />
-                    <label class="btn btn-outline-primary btn-sm" for="querymode_normal">Normal</label>
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_normal">Incoming</label>
                     <input type="radio" name="mode" id="querymode_reverse" class="btn-check" value="reverse" autocomplete="off" />
-                    <label class="btn btn-outline-primary btn-sm" for="querymode_reverse">Reverse</label>
-                    <input type="radio" name="mode" id="querymode_sourcetarget" class="btn-check" value="sourcetarget" autocomplete="off" />
-                    <label class="btn btn-outline-primary btn-sm" for="querymode_sourcetarget">SrcTgt</label>
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_reverse">Outgoing</label>
+                    <!-- <input type="radio" name="mode" id="querymode_sourcetarget" class="btn-check" value="sourcetarget" autocomplete="off" />
+                    <label class="btn btn-outline-primary btn-sm" for="querymode_sourcetarget">SrcTgt</label> -->
                   </div>
-                </div>
-
-                <div class="form-check">
-                  <input class="form-check-input" id="force" type="checkbox" name="force" autocomplete="off"
-                    preference="analysis.too.much.data.force" defaultpref=false>
-                  <label class="form-check-label" for="force">Force too much data</label>
                 </div>
 
                 <div class="form-check">
@@ -136,6 +130,16 @@
                     preference="analysis.include.backlinks" defaultpref=false>
                   <label class="form-check-label" for="backlinks">Include backlinks</label>
                 </div>
+
+                  <div class="row">
+                    <div class="col">
+                      <label for="nodelimit" class="col-form-label">Node limit</label>
+                    </div>
+                    <div class="col">
+                      <input id="nodelimit" type="number" name="nodelimit" min="100" max="5000" value="2000"
+                        preference="analysis.node.limit" class="form-control text-right">
+                    </div>
+                  </div>
 
                 <div class="row">
                   <div class="col">
@@ -285,24 +289,24 @@
       <form id="queryform" class="m-0">
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button id="querybutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#query-pane" type="button">Query</button>
+            <button id="querybutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#startquery-pane" type="button">Start Query</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button id="queryexcludebutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#queryexclude-pane" type="button">Exclude</button>
+            <button id="queryexcludebutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#middlequery-pane" type="button">Middle Query</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button id="queryexcludelastbutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#queryexcludelast-pane" type="button">Exclude Last</button>
+            <button id="queryexcludelastbutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#endquery-pane" type="button">End Query</button>
           </li>
         </ul>
         <div class="tab-content" id="query-tabs-content">
-          <div class="tab-pane active" id="query-pane">
+          <div class="tab-pane active" id="startquery-pane">
             <textarea id="querytext" class="form-control mb-1" name="query" rows=4></textarea>
           </div>
-          <div class="tab-pane" id="queryexclude-pane">
-            <textarea id="queryexclude" class="form-control mb-1" name="queryexclude" rows=4></textarea>
+          <div class="tab-pane" id="middlequery-pane">
+            <textarea id="queryexclude" class="form-control mb-1" name="middlequery" rows=4></textarea>
           </div>
-          <div class="tab-pane" id="queryexcludelast-pane">
-            <textarea id="queryexcludelast" class="form-control mb-1" name="queryexcludelast" rows=4></textarea>
+          <div class="tab-pane" id="endquery-pane">
+            <textarea id="queryexcludelast" class="form-control mb-1" name="endquery" rows=4></textarea>
           </div>          
         </div>
         <div id="queryerror"></div>

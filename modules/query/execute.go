@@ -7,9 +7,9 @@ import (
 )
 
 type IndexSelectorInfo struct {
-	a          engine.Attribute
 	match      string
 	results    engine.ObjectSlice
+	a          engine.Attribute
 	queryIndex int
 }
 

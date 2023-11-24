@@ -3,7 +3,6 @@ package analyze
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"sync"
 )
@@ -19,7 +18,7 @@ func (p *Prefs) Load() error {
 	defer prefmutex.Unlock()
 	p.data = make(map[string]any)
 
-	rawprefs, err := ioutil.ReadFile("preferences.json")
+	rawprefs, err := os.ReadFile("preferences.json")
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -37,7 +36,7 @@ func (p *Prefs) Save() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile("preferences.json", rawprefs, 0600)
+	err = os.WriteFile("preferences.json", rawprefs, 0600)
 	return err
 }
 

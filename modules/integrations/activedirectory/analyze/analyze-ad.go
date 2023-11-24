@@ -1581,10 +1581,12 @@ func init() {
 				if !found {
 					if stringsid, _, found := strings.Cut(member.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
-						if sid, err := windowssecurity.ParseStringSID(stringsid[3:]); err == nil {
+						stringsid, _, _ = strings.Cut(stringsid[3:], "\\") // remote CN= and \=ACNF:guid
+
+						if sid, err := windowssecurity.ParseStringSID(stringsid); err == nil {
 							memberobject = ao.FindOrAddAdjacentSID(sid, object)
 						} else {
-							ui.Warn().Msgf("Could not extract SID from Foreign-Security-Principal %v: %v", object.DN(), err)
+							ui.Warn().Msgf("Could not extract SID from Foreign-Security-Principal %v: %v", member.String(), err)
 						}
 					}
 					if memberobject == nil {
@@ -1673,6 +1675,53 @@ func init() {
 			engine.AfterMerge,
 		)
 	*/
+
+	type sidinfo struct {
+		domainContext string
+	}
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		// Find all domains, save info so we can see if an object is "local" or not
+		sidmap := make(map[windowssecurity.SID]sidinfo)
+		ao.Filter(func(o *engine.Object) bool {
+			return o.HasAttr(activedirectory.ObjectSid) && o.Type() == engine.ObjectTypeDomainDNS
+		}).Iterate(func(domain *engine.Object) bool {
+			sid := domain.SID()
+			domainContext := domain.OneAttrString(engine.DomainContext)
+			sidmap[sid] = sidinfo{
+				domainContext: domainContext,
+			}
+			return true
+		})
+
+		ao.Filter(func(o *engine.Object) bool {
+			return o.HasAttr(activedirectory.ObjectSid)
+		}).Iterate(func(object *engine.Object) bool {
+			sid := object.SID()
+			if object.HasAttr(engine.DomainContext) {
+				domainContext := object.OneAttrString(engine.DomainContext)
+				domaininfo, found := sidmap[sid.StripRID()]
+				if found && domaininfo.domainContext != domainContext {
+					// it's foreign, find the local one
+					nativeObjects, found := ao.FindTwoMulti(
+						engine.ObjectSid, engine.AttributeValueSID(sid),
+						engine.DomainContext, engine.AttributeValueString(domainContext),
+					)
+					if found {
+						nativeobject := nativeObjects.First()
+						nativeobject.EdgeTo(object, activedirectory.EdgeForeignIdentity)
+						// Inherit the type from the original
+						if !object.HasAttr(activedirectory.ObjectCategorySimple) {
+							object.SetFlex(activedirectory.ObjectCategorySimple, nativeobject.Attr(activedirectory.ObjectCategorySimple))
+						}
+					}
+				}
+			}
+			return true
+		})
+	}, "Link foreign security principals to their native objects",
+		engine.AfterMergeLow,
+	)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		var warnlines int

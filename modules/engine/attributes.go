@@ -37,6 +37,7 @@ const (
 	AttributeTypeFloat
 	AttributeTypeBool
 	AttributeTypeTime
+	AttributeTypeTime100NS
 	AttributeTypeSID
 	AttributeTypeGUID
 	AttributeTypeBlob

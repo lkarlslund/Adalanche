@@ -43,6 +43,7 @@ var (
 	EdgeRunsExecutable               = engine.NewEdge("RunsExecutable")
 	EdgeHosts                        = engine.NewEdge("Hosts")
 	EdgeExecuted                     = engine.NewEdge("Executed")
+	EdgeMemberOfGroup                = engine.NewEdge("MemberOfGroup")
 	EdgeFileWrite                    = engine.NewEdge("FileWrite")
 	EdgeFileRead                     = engine.NewEdge("FileRead")
 	EdgeShares                       = engine.NewEdge("Shares").Describe("Machine offers a file share")

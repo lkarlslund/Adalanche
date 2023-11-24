@@ -474,7 +474,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
 
-		serviceobject.EdgeTo(localservicesgroup, engine.EdgeMemberOfGroup)
+		serviceobject.EdgeTo(localservicesgroup, EdgeMemberOfGroup)
 
 		machine.EdgeTo(serviceobject, EdgeHosts)
 

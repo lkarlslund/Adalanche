@@ -2,7 +2,6 @@ package analyze
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"net/http"
 	"sort"
@@ -29,10 +28,10 @@ func analysisfuncs(ws *webservice) {
 		type filterinfo struct {
 			Name            string `json:"name"`
 			Lookup          string `json:"lookup"`
+			Description     string `json:"description"`
 			DefaultEnabledF bool   `json:"defaultenabled_f"`
 			DefaultEnabledM bool   `json:"defaultenabled_m"`
 			DefaultEnabledL bool   `json:"defaultenabled_l"`
-			Description     string `json:"description"`
 		}
 		type returnobject struct {
 			ObjectTypes []filterinfo `json:"objecttypes"`
@@ -183,17 +182,21 @@ func analysisfuncs(ws *webservice) {
 		if mode == "" {
 			mode = "normal"
 		}
-		reverse := (mode != "normal")
+
+		direction := engine.In
+		if mode != "normal" {
+			direction = engine.Out
+		}
 
 		prune, _ := util.ParseBool(vars["prune"])
 
-		queryinclude := vars["query"]
-		if queryinclude == "" {
-			queryinclude = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+		startquerytext := vars["query"]
+		if startquerytext == "" {
+			startquerytext = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
 
-		queryexclude := vars["queryexclude"]
-		queryexcludelast := vars["queryexcludelast"]
+		middlequerytext := vars["middlequery"]
+		endquerytext := vars["endquery"]
 
 		maxdepth := 99
 		if maxdepthval, err := strconv.Atoi(vars["maxdepth"]); err == nil {
@@ -213,18 +216,18 @@ func analysisfuncs(ws *webservice) {
 		}
 
 		alldetails, _ := util.ParseBool(vars["alldetails"])
-		force, _ := util.ParseBool(vars["force"])
+		// force, _ := util.ParseBool(vars["force"])
 		backlinks, _ := util.ParseBool(vars["backlinks"])
+		nodelimit, _ := strconv.Atoi(vars["nodelimit"])
 
-		var includequery, excludequery, excludelastquery query.NodeFilter
-		var includeobjects, excludeobjects, excludelastobjects *engine.Objects
+		opts := NewAnalyzeObjectsOptions()
 
 		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
 		if expanddn := vars["expanddn"]; expanddn != "" {
-			queryinclude = `(distinguishedName=` + expanddn + `)`
+			startquerytext = `(distinguishedName=` + expanddn + `)`
 			maxoutgoing = 0
 			maxdepth = 1
-			force = true
+			nodelimit = 1000
 
 			// tricky this is - if we're expanding a node it's suddenly the target, so we need to reverse the mode
 			/*			if mode == "normal" {
@@ -234,15 +237,15 @@ func analysisfuncs(ws *webservice) {
 						}*/
 		}
 
-		includequery, err = query.ParseLDAPQueryStrict(queryinclude, ws.Objs)
+		opts.StartFilter, err = query.ParseLDAPQueryStrict(startquerytext, ws.Objs)
 		if err != nil {
 			w.WriteHeader(400) // bad request
 			w.Write([]byte("Error parsing include query: " + err.Error()))
 			return
 		}
 
-		if queryexclude != "" {
-			excludequery, err = query.ParseLDAPQueryStrict(queryexclude, ws.Objs)
+		if middlequerytext != "" {
+			opts.MiddleFilter, err = query.ParseLDAPQueryStrict(middlequerytext, ws.Objs)
 			if err != nil {
 				w.WriteHeader(400) // bad request
 				w.Write([]byte("Error parsing exclude query: " + err.Error()))
@@ -250,23 +253,13 @@ func analysisfuncs(ws *webservice) {
 			}
 		}
 
-		if queryexcludelast != "" {
-			excludelastquery, err = query.ParseLDAPQueryStrict(queryexcludelast, ws.Objs)
+		if endquerytext != "" {
+			opts.EndFilter, err = query.ParseLDAPQueryStrict(endquerytext, ws.Objs)
 			if err != nil {
 				w.WriteHeader(400) // bad request
 				w.Write([]byte("Error parsing exclude last query: " + err.Error()))
 				return
 			}
-		}
-
-		includeobjects = query.Execute(includequery, ws.Objs)
-
-		if excludequery != nil {
-			excludeobjects = query.Execute(excludequery, ws.Objs)
-		}
-
-		if excludelastquery != nil {
-			excludelastobjects = query.Execute(excludelastquery, ws.Objs)
 		}
 
 		// var methods engine.EdgeBitmap
@@ -319,69 +312,35 @@ func analysisfuncs(ws *webservice) {
 			edges_l = engine.AllEdgesBitmap
 		}
 
-		var pg engine.Graph
-		if mode == "sourcetarget" {
-			if includeobjects.Len() == 0 || excludeobjects == nil || excludeobjects.Len() == 0 {
-				fmt.Fprintf(w, "You must use two queries (source = include and target = exclude). Each must return at least one object.")
-			}
+		opts.Objects = ws.Objs
+		opts.MethodsF = edges_f
+		opts.MethodsM = egdes_m
+		opts.MethodsL = edges_l
+		opts.ObjectTypesF = objecttypes_f
+		opts.ObjectTypesM = objecttypes_m
+		opts.ObjectTypesL = objecttypes_l
+		opts.Direction = direction
+		opts.MaxDepth = maxdepth
+		opts.MaxOutgoingConnections = maxoutgoing
+		opts.MinProbability = engine.Probability(minprobability)
+		opts.PruneIslands = prune
+		opts.Backlinks = backlinks
+		opts.NodeLimit = nodelimit
+		results := AnalyzeObjects(opts)
 
-			// We dont support this yet, so merge all of them
-			combinedmethods := edges_f.Merge(egdes_m).Merge(edges_l)
-
-			includeobjects.Iterate(func(source *engine.Object) bool {
-				excludeobjects.Iterate(func(target *engine.Object) bool {
-					newpg := engine.AnalyzePaths(source, target, ws.Objs, combinedmethods, engine.Probability(minprobability), maxdepth)
-					pg.Merge(newpg)
-					return true
-				})
-				return true
-			})
-			// pg = engine.AnalyzePaths(includeobjects.First(), excludeobjects.First(), ws.Objs, combinedmethods, engine.Probability(minprobability), 1)
-		} else {
-			opts := engine.NewAnalyzeObjectsOptions()
-			opts.IncludeObjects = includeobjects
-			opts.ExcludeObjects = excludeobjects
-			opts.ExcludeLastObjects = excludelastobjects
-			opts.MethodsF = edges_f
-			opts.MethodsM = egdes_m
-			opts.MethodsL = edges_l
-			opts.ObjectTypesF = objecttypes_f
-			opts.ObjectTypesM = objecttypes_m
-			opts.ObjectTypesL = objecttypes_l
-			opts.Reverse = reverse
-			opts.MaxDepth = maxdepth
-			opts.MaxOutgoingConnections = maxoutgoing
-			opts.MinProbability = engine.Probability(minprobability)
-			opts.PruneIslands = prune
-			opts.Backlinks = backlinks
-			pg = engine.AnalyzeObjects(opts)
+		for _, postprocessor := range PostProcessors {
+			results.Graph = postprocessor(results.Graph)
 		}
-
-		for _, postprocessor := range engine.PostProcessors {
-			pg = postprocessor(pg)
-		}
-		/*
-			clusters := pg.SCC()
-			for i, cluster := range clusters {
-				if len(cluster) == 1 {
-					continue
-				}
-				ui.Debug().Msgf("Cluster %v has %v members:", i, len(cluster))
-				for _, member := range cluster {
-					ui.Debug().Msgf("%v", member.DN())
-				}
-			}
-		*/
 		var targets int
 
 		var objecttypes [256]int
 
-		for _, node := range pg.Nodes {
-			if node.Target {
+		for node := range results.Graph.Nodes() {
+			if results.Graph.Get(node, "target") == true {
 				targets++
 				continue
 			}
-			objecttypes[node.Object.Type()]++
+			objecttypes[node.Type()]++
 		}
 
 		resulttypes := make(map[string]int)
@@ -391,32 +350,7 @@ func analysisfuncs(ws *webservice) {
 			}
 		}
 
-		if len(pg.Nodes) > 1000 && !force {
-			w.WriteHeader(413) // too big payload response
-			errormsg := fmt.Sprintf("Too much data :-( %v target nodes can ", targets)
-			if mode != "normal" || strings.HasPrefix(mode, "sourcetarget") {
-				errormsg += "can pwn"
-			} else {
-				errormsg += "be can pwned by"
-			}
-			errormsg += fmt.Sprintf(" %v total nodes<br>", len(pg.Nodes)-targets)
-			var notfirst bool
-			for objecttype, count := range resulttypes {
-				if notfirst {
-					errormsg += ", "
-				}
-				errormsg += fmt.Sprintf("%v %v", count, objecttype)
-				notfirst = true
-			}
-
-			// FIUXME - POST AS JSON BROKE THIS
-			// errormsg += fmt.Sprintf(". Use force option to potentially crash your browser or <a href=\"%v\">download a GML file.</a>", "/export-graph?format=xgmml&"+r.URL.RawQuery)
-
-			fmt.Fprintf(w, errormsg)
-			return
-		}
-
-		cytograph, err := GenerateCytoscapeJS(pg, alldetails)
+		cytograph, err := GenerateCytoscapeJS(results.Graph, alldetails)
 		if err != nil {
 			w.WriteHeader(500)
 			encoder.Encode("Error during graph creation")
@@ -431,6 +365,7 @@ func analysisfuncs(ws *webservice) {
 			Targets int `json:"targets"`
 			Total   int `json:"total"`
 			Links   int `json:"links"`
+			Removed int `json:"removed"`
 
 			Elements *CytoElements `json:"elements"`
 		}{
@@ -439,8 +374,9 @@ func analysisfuncs(ws *webservice) {
 			ResultTypes: resulttypes,
 
 			Targets: targets,
-			Total:   len(pg.Nodes),
-			Links:   len(pg.Connections),
+			Total:   results.Graph.Order(),
+			Links:   results.Graph.Size(),
+			Removed: results.Removed,
 
 			Elements: &cytograph.Elements,
 		}
@@ -451,195 +387,193 @@ func analysisfuncs(ws *webservice) {
 			encoder.Encode("Error during JSON encoding")
 		}
 	})
+	/*
+	   	ws.Router.HandleFunc("/export-graph", func(w http.ResponseWriter, r *http.Request) {
+	   		uq := r.URL.Query()
 
-	ws.Router.HandleFunc("/export-graph", func(w http.ResponseWriter, r *http.Request) {
-		uq := r.URL.Query()
+	   		format := uq.Get("format")
+	   		if format == "" {
+	   			format = "xgmml"
+	   		}
 
-		format := uq.Get("format")
-		if format == "" {
-			format = "xgmml"
-		}
+	   		mode := uq.Get("mode")
+	   		if mode == "" {
+	   			mode = "normal"
+	   		}
+	   		direction := engine.In
+	   		if mode != "normal" {
+	   			direction = engine.Out
+	   		}
 
-		mode := uq.Get("mode")
-		if mode == "" {
-			mode = "normal"
-		}
-		reverse := (mode != "normal")
+	   		querystr := uq.Get("query")
+	   		if querystr == "" {
+	   			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
+	   		}
 
-		querystr := uq.Get("query")
-		if querystr == "" {
-			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
-		}
+	   		maxdepth := 99
+	   		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
+	   			maxdepth = maxdepthval
+	   		}
 
-		maxdepth := 99
-		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
-			maxdepth = maxdepthval
-		}
+	   		maxoutgoing := -1
+	   		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
+	   			maxoutgoing = maxoutgoingval
+	   		}
 
-		maxoutgoing := -1
-		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
-			maxoutgoing = maxoutgoingval
-		}
+	   		alldetails, err := util.ParseBool(uq.Get("alldetails"))
+	   		if err != nil {
+	   			alldetails = true
+	   		}
 
-		alldetails, err := util.ParseBool(uq.Get("alldetails"))
-		if err != nil {
-			alldetails = true
-		}
+	   		rest, includequery, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
+	   		if err != nil {
+	   			w.WriteHeader(400) // bad request
+	   			w.Write([]byte(err.Error()))
+	   			return
+	   		}
+	   		if rest != "" {
+	   			if rest[0] != ',' {
+	   				w.WriteHeader(400) // bad request
+	   				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
+	   				return
+	   			}
+	   			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
+	   				w.WriteHeader(400) // bad request
+	   				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
+	   				return
+	   			}
+	   		}
 
-		var includeobjects *engine.Objects
-		var excludeobjects *engine.Objects
+	   		includeobjects = query.Execute(includequery, ws.Objs)
 
-		var excludequery query.NodeFilter
+	   		if excludequery != nil {
+	   			excludeobjects = query.Execute(excludequery, ws.Objs)
+	   		}
 
-		rest, includequery, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
-		if rest != "" {
-			if rest[0] != ',' {
-				w.WriteHeader(400) // bad request
-				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
-				return
-			}
-			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
-				w.WriteHeader(400) // bad request
-				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
-				return
-			}
-		}
+	   		var selectededges []engine.Edge
+	   		for potentialedge, values := range uq {
+	   			if edge := engine.E(potentialedge); edge != engine.NonExistingEdgeType {
+	   				enabled, _ := util.ParseBool(values[0])
+	   				if len(values) == 1 && enabled {
+	   					selectededges = append(selectededges, edge)
+	   				}
+	   			}
+	   		}
+	   		// If everything is deselected, select everything
+	   		if len(selectededges) == 0 {
+	   			selectededges = engine.AllEdgesSlice()
+	   		}
 
-		includeobjects = query.Execute(includequery, ws.Objs)
+	   		var methods engine.EdgeBitmap
+	   		for _, m := range selectededges {
+	   			methods = methods.Set(m)
+	   		}
 
-		if excludequery != nil {
-			excludeobjects = query.Execute(excludequery, ws.Objs)
-		}
+	   		// Defaults
+	   		opts := NewAnalyzeObjectsOptions()
+	   		opts.Objects = ws.Objs
+	   		opts.MethodsF = methods
+	   		opts.MethodsM = methods
+	   		opts.MethodsL = methods
+	   		opts.Direction = direction
+	   		opts.MaxDepth = maxdepth
+	   		opts.MaxOutgoingConnections = maxoutgoing
+	   		opts.MinProbability = 0
 
-		var selectededges []engine.Edge
-		for potentialedge, values := range uq {
-			if edge := engine.E(potentialedge); edge != engine.NonExistingEdgeType {
-				enabled, _ := util.ParseBool(values[0])
-				if len(values) == 1 && enabled {
-					selectededges = append(selectededges, edge)
-				}
-			}
-		}
-		// If everything is deselected, select everything
-		if len(selectededges) == 0 {
-			selectededges = engine.AllEdgesSlice()
-		}
+	   		results := AnalyzeObjects(opts)
 
-		var methods engine.EdgeBitmap
-		for _, m := range selectededges {
-			methods = methods.Set(m)
-		}
+	   		// Make browser download this
+	   		filename := "analysis-" + time.Now().Format(time.RFC3339)
 
-		opts := engine.NewAnalyzeObjectsOptions()
-		opts.IncludeObjects = includeobjects
-		opts.ExcludeObjects = excludeobjects
-		opts.MethodsF = methods
-		opts.MethodsM = methods
-		opts.MethodsL = methods
-		opts.Reverse = reverse
-		opts.MaxDepth = maxdepth
-		opts.MaxOutgoingConnections = maxoutgoing
-		opts.MinProbability = 0
+	   		switch format {
+	   		case "gml":
+	   			filename += ".gml"
+	   		case "xgmml":
+	   			filename += ".xgmml"
+	   		}
 
-		pg := engine.AnalyzeObjects(opts)
+	   		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 
-		// Make browser download this
-		filename := "analysis-" + time.Now().Format(time.RFC3339)
+	   		switch format {
+	   		case "gml":
+	   			// Lets go
+	   			w.Write([]byte("graph\n[\n"))
 
-		switch format {
-		case "gml":
-			filename += ".gml"
-		case "xgmml":
-			filename += ".xgmml"
-		}
+	   			for node, _ := range results.Graph.Nodes() {
+	   				fmt.Fprintf(w,
+	   					`  node
+	     [
+	       id %v
+	       label %v
+	   	distinguishedName %v
+	   `, node.ID(), node.Label(), node.DN())
 
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	   				if alldetails {
+	   					node.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
+	   						valuesjoined := strings.Join(values.StringSlice(), ", ")
+	   						if util.IsASCII(valuesjoined) {
+	   							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
+	   						}
+	   						return true
+	   					})
+	   				}
+	   				fmt.Fprintf(w, "  ]\n")
+	   			}
 
-		switch format {
-		case "gml":
-			// Lets go
-			w.Write([]byte("graph\n[\n"))
+	   			for connection, edge := range results.Graph.Edges() {
+	   				fmt.Fprintf(w,
+	   					`  edge
+	     [
+	       source %v
+	       target %v
+	   	label "%v"
+	     ]
+	   `, connection.Source.ID(), connection.Target.ID(), edge.JoinedString())
+	   			}
 
-			for id, node := range pg.Nodes {
-				fmt.Fprintf(w,
-					`  node
-  [
-    id %v
-    label %v
-	distinguishedName %v
-`, id, node.Label(), node.DN())
+	   			w.Write([]byte("]\n"))
 
-				if alldetails {
-					node.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
-						valuesjoined := strings.Join(values.StringSlice(), ", ")
-						if util.IsASCII(valuesjoined) {
-							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
-						}
-						return true
-					})
-				}
-				fmt.Fprintf(w, "  ]\n")
-			}
+	   		case "xgmml":
+	   			graph := NewXGMMLGraph()
 
-			for _, pwn := range pg.Connections {
-				fmt.Fprintf(w,
-					`  edge
-  [
-    source %v
-    target %v
-	label "%v"
-  ]
-`, pwn.Source.ID(), pwn.Target.ID(), methods.JoinedString())
-			}
+	   			for node := range results.Graph.Nodes() {
+	   				object := node
+	   				xmlnode := XGMMLNode{
+	   					Id:    object.ID(),
+	   					Label: object.Label(),
+	   				}
 
-			w.Write([]byte("]\n"))
+	   				if alldetails {
+	   					object.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
+	   						if values != nil {
+	   							valuesjoined := strings.Join(values.StringSlice(), ", ")
+	   							if util.IsASCII(valuesjoined) {
+	   								xmlnode.Attributes = append(xmlnode.Attributes, XGMMLAttribute{
+	   									Name:  attribute.String(),
+	   									Value: valuesjoined,
+	   								})
+	   							}
+	   						}
+	   						return true
+	   					})
+	   				}
+	   				graph.Nodes = append(graph.Nodes, xmlnode)
+	   			}
 
-		case "xgmml":
-			graph := NewXGMMLGraph()
-
-			for _, node := range pg.Nodes {
-				object := node.Object
-				xmlnode := XGMMLNode{
-					Id:    object.ID(),
-					Label: object.Label(),
-				}
-
-				if alldetails {
-					object.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
-						if values != nil {
-							valuesjoined := strings.Join(values.StringSlice(), ", ")
-							if util.IsASCII(valuesjoined) {
-								xmlnode.Attributes = append(xmlnode.Attributes, XGMMLAttribute{
-									Name:  attribute.String(),
-									Value: valuesjoined,
-								})
-							}
-						}
-						return true
-					})
-				}
-				graph.Nodes = append(graph.Nodes, xmlnode)
-			}
-
-			for _, pwn := range pg.Connections {
-				graph.Edges = append(graph.Edges, XGMMLEdge{
-					Source: pwn.Source.ID(),
-					Target: pwn.Target.ID(),
-					Label:  pwn.JoinedString(),
-				})
-			}
-			fmt.Fprint(w, xml.Header)
-			xe := xml.NewEncoder(w)
-			xe.Indent("", "  ")
-			xe.Encode(graph)
-		}
-	})
-
+	   			for connection, edge := range results.Graph.Edges() {
+	   				graph.Edges = append(graph.Edges, XGMMLEdge{
+	   					Source: connection.Source.ID(),
+	   					Target: connection.Target.ID(),
+	   					Label:  edge.JoinedString(),
+	   				})
+	   			}
+	   			fmt.Fprint(w, xml.Header)
+	   			xe := xml.NewEncoder(w)
+	   			xe.Indent("", "  ")
+	   			xe.Encode(graph)
+	   		}
+	   	})
+	*/
 	ws.Router.HandleFunc("/query/objects/{query}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		querystr := vars["query"]

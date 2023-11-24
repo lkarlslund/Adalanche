@@ -295,6 +295,11 @@ func (os *Objects) AddMerge(attrtomerge []Attribute, obs ...*Object) {
 	}
 }
 
+func (os *Objects) Contains(o *Object) bool {
+	_, found := os.FindID(o.ID())
+	return found
+}
+
 // Attemps to merge the object into the objects
 func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
 	if _, found := os.FindID(source.ID()); found {

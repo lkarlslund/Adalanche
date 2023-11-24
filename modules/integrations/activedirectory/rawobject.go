@@ -94,7 +94,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
-		case AccountExpires, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime:
+		case CreationTime, AccountExpires, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime:
 			// Just use string encoding
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
 				if attribute == PwdLastSet && intval == 0 {

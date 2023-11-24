@@ -2,8 +2,8 @@ package analyze
 
 import (
 	"embed"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"text/template"
@@ -97,16 +97,19 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 	w.Router.Path("/").HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		indexfile, err := w.UnionFS.Open("index.html")
 		if err != nil {
-			ui.Fatal().Msgf("Could not open index.html: %v", err)
+			ui.Error().Msgf("Could not open index.html: %v", err)
 		}
-		rawindex, _ := ioutil.ReadAll(indexfile)
+		rawindex, _ := io.ReadAll(indexfile)
 		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
 
-		indextemplate.Execute(rw, struct {
+		err = indextemplate.Execute(rw, struct {
 			AdditionalHeaders []string
 		}{
 			AdditionalHeaders: w.AdditionalHeaders,
 		})
+		if err != nil {
+			ui.Error().Msgf("Could not render template index.html: %v", err)
+		}
 	})
 	w.Router.PathPrefix("/").Handler(http.FileServer(http.FS(w.UnionFS)))
 
@@ -126,7 +129,7 @@ func (w *webservice) ServeTemplate(rw http.ResponseWriter, req *http.Request, pa
 	if err != nil {
 		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
 	}
-	rawtemplate, _ := ioutil.ReadAll(templatefile)
+	rawtemplate, _ := io.ReadAll(templatefile)
 	template, err := template.New(path).Parse(string(rawtemplate))
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)

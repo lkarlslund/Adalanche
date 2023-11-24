@@ -3,20 +3,19 @@ package analyze
 import (
 	"fmt"
 	"os"
-	"sort"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/version"
 )
 
-func ExportGraphViz(pg engine.Graph, filename string) error {
+func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename string) error {
 	df, _ := os.Create(filename)
 	defer df.Close()
 
 	fmt.Fprintln(df, "digraph G {")
-	for _, node := range pg.Nodes {
-		object := node.Object
+	for object, _ := range pg.Nodes() {
 		var formatting = ""
 		switch object.Type() {
 		case engine.ObjectTypeComputer:
@@ -25,8 +24,8 @@ func ExportGraphViz(pg engine.Graph, filename string) error {
 		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.ID(), object.OneAttr(activedirectory.Name), formatting)
 	}
 	fmt.Fprintln(df, "")
-	for _, connection := range pg.Connections {
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source.ID(), connection.Target.ID(), connection.JoinedString())
+	for connection, edge := range pg.Edges() {
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source, connection.Target, edge.JoinedString())
 	}
 	fmt.Fprintln(df, "}")
 
@@ -54,11 +53,11 @@ type CytoGraphData struct {
 type CytoElements []CytoFlatElement
 
 type CytoFlatElement struct {
-	Group string             `json:"group"` // nodes or edges
 	Data  MapStringInterface `json:"data"`
+	Group string             `json:"group"` // nodes or edges
 }
 
-func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
+func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
 		GeneratedBy:              version.ProgramVersionShort(),
@@ -69,23 +68,23 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 		},
 	}
 
-	// Sort the nodes to get consistency
-	sort.Slice(pg.Nodes, func(i, j int) bool {
-		return pg.Nodes[i].Object.ID() < pg.Nodes[j].Object.ID()
-	})
+	/*
+		// Sort the nodes to get consistency
+		sort.Slice(pg.Nodes, func(i, j int) bool {
+			return pg.Nodes[i].Node.ID() < pg.Nodes[j].Node.ID()
+		})
 
-	// Sort the connections to get consistency
-	sort.Slice(pg.Connections, func(i, j int) bool {
-		return pg.Connections[i].Source.ID() < pg.Connections[j].Source.ID() ||
-			(pg.Connections[i].Source.ID() == pg.Connections[j].Source.ID() &&
-				pg.Connections[i].Target.ID() < pg.Connections[j].Target.ID())
-	})
+		// Sort the connections to get consistency
+		sort.Slice(pg.Connections, func(i, j int) bool {
+			return pg.Connections[i].Source.ID() < pg.Connections[j].Source.ID() ||
+				(pg.Connections[i].Source.ID() == pg.Connections[j].Source.ID() &&
+					pg.Connections[i].Target.ID() < pg.Connections[j].Target.ID())
+		})
+	*/
 
-	g.Elements = make(CytoElements, len(pg.Nodes)+len(pg.Connections))
+	g.Elements = make(CytoElements, pg.Order()+pg.Size())
 	var i int
-	for _, node := range pg.Nodes {
-		object := node.Object
-
+	for object, df := range pg.Nodes() {
 		newnode := CytoFlatElement{
 			Group: "nodes",
 			Data: map[string]any{
@@ -95,7 +94,7 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 			},
 		}
 
-		for key, value := range node.DynamicFields {
+		for key, value := range df {
 			newnode.Data[key] = value
 		}
 
@@ -111,11 +110,11 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 			}
 		}
 
-		if node.Target {
+		if df["target"] == true {
 			newnode.Data["_querytarget"] = true
 		}
-		if node.CanExpand != 0 {
-			newnode.Data["_canexpand"] = node.CanExpand
+		if df["canexpand"] != 0 {
+			newnode.Data["_canexpand"] = df["canexpand"]
 		}
 
 		g.Elements[i] = newnode
@@ -123,7 +122,7 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 		i++
 	}
 
-	for _, connection := range pg.Connections {
+	for connection, edge := range pg.Edges() {
 		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
@@ -133,12 +132,12 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 			},
 		}
 
-		for key, value := range connection.DynamicFields {
-			cytoedge.Data[key] = value
-		}
+		// for key, value := range edge.DynamicFields {
+		// 	cytoedge.Data[key] = value
+		// }
 
-		cytoedge.Data["_maxprob"] = connection.MaxProbability(connection.Source, connection.Target)
-		cytoedge.Data["methods"] = connection.StringSlice()
+		cytoedge.Data["_maxprob"] = edge.MaxProbability(connection.Source, connection.Target)
+		cytoedge.Data["methods"] = edge.StringSlice()
 
 		g.Elements[i] = cytoedge
 
@@ -148,7 +147,7 @@ func GenerateCytoscapeJS(pg engine.Graph, alldetails bool) (CytoGraph, error) {
 	return g, nil
 }
 
-func ExportCytoscapeJS(pg engine.Graph, filename string) error {
+func ExportCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename string) error {
 	g, err := GenerateCytoscapeJS(pg, false)
 	if err != nil {
 		return err
@@ -163,7 +162,7 @@ func ExportCytoscapeJS(pg engine.Graph, filename string) error {
 		return err
 	}
 	defer df.Close()
-	df.Write(data)
+	_, err = df.Write(data)
 
-	return nil
+	return err
 }
