@@ -15,41 +15,44 @@ var EdgeMemberOfGroup = engine.NewEdge("MemberOfGroup") // Get rid of this
 
 func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 	return AnalyzeObjectsOptions{
-		MethodsF:               engine.AllEdgesBitmap,
-		MethodsM:               engine.AllEdgesBitmap,
-		MethodsL:               engine.AllEdgesBitmap,
-		Direction:              engine.In,
-		MaxDepth:               -1,
-		MaxOutgoingConnections: -1,
-		MinProbability:         0,
-		PruneIslands:           false,
+		MethodsF:                  engine.AllEdgesBitmap,
+		MethodsM:                  engine.AllEdgesBitmap,
+		MethodsL:                  engine.AllEdgesBitmap,
+		Direction:                 engine.In,
+		MaxDepth:                  -1,
+		MaxOutgoingConnections:    -1,
+		MinEdgeProbability:        0,
+		MinAccumulatedProbability: 0,
+		PruneIslands:              false,
 	}
 }
 
 type AnalyzeObjectsOptions struct {
-	Objects                *engine.Objects
-	StartFilter            query.NodeFilter
-	MiddleFilter           query.NodeFilter
-	EndFilter              query.NodeFilter
-	ObjectTypesF           []engine.ObjectType
-	ObjectTypesM           []engine.ObjectType
-	ObjectTypesL           []engine.ObjectType
-	MethodsL               engine.EdgeBitmap
-	MethodsM               engine.EdgeBitmap
-	MethodsF               engine.EdgeBitmap
-	MaxDepth               int
-	MaxOutgoingConnections int
-	Direction              engine.EdgeDirection
-	Backlinks              bool // Full backlinks
-	Fuzzlevel              int  // Backlink depth
-	MinProbability         engine.Probability
-	PruneIslands           bool
-	NodeLimit              int
+	Objects                   *engine.Objects
+	StartFilter               query.NodeFilter
+	MiddleFilter              query.NodeFilter
+	EndFilter                 query.NodeFilter
+	ObjectTypesF              []engine.ObjectType
+	ObjectTypesM              []engine.ObjectType
+	ObjectTypesL              []engine.ObjectType
+	MethodsL                  engine.EdgeBitmap
+	MethodsM                  engine.EdgeBitmap
+	MethodsF                  engine.EdgeBitmap
+	MaxDepth                  int
+	MaxOutgoingConnections    int
+	Direction                 engine.EdgeDirection
+	Backlinks                 bool // Full backlinks
+	Fuzzlevel                 int  // Backlink depth
+	MinEdgeProbability        engine.Probability
+	MinAccumulatedProbability engine.Probability
+	PruneIslands              bool
+	NodeLimit                 int
 }
 
 type GraphNode struct {
-	CanExpand  int
-	roundadded int
+	CanExpand              int
+	roundadded             int
+	accumulatedprobability float32 // 0-1
 }
 
 type PostProcessorFunc func(pg graph.Graph[*engine.Object, engine.EdgeBitmap]) graph.Graph[*engine.Object, engine.EdgeBitmap]
@@ -92,7 +95,8 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 		for o := range pg.Nodes() {
 			if ei, found := extrainfo[o]; !found || ei.roundadded == 0 {
 				extrainfo[o] = (&GraphNode{
-					roundadded: processinground,
+					roundadded:             processinground,
+					accumulatedprobability: 1,
 				})
 			}
 		}
@@ -157,13 +161,21 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					}
 				}
 
+				// Edge probability
 				var maxprobability engine.Probability
 				if opts.Direction == engine.In {
 					maxprobability = detectededges.MaxProbability(nextobject, currentobject)
 				} else {
 					maxprobability = detectededges.MaxProbability(currentobject, nextobject)
 				}
-				if maxprobability < engine.Probability(opts.MinProbability) {
+				if maxprobability < engine.Probability(opts.MinEdgeProbability) {
+					// Too unlikeliy, so we skip it
+					return true // continue
+				}
+
+				// Accumulated node probability
+				accumulatedprobability := ei.accumulatedprobability * float32(maxprobability) / 100
+				if accumulatedprobability < float32(opts.MinAccumulatedProbability)/100 {
 					// Too unlikeliy, so we skip it
 					return true // continue
 				}
@@ -203,6 +215,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					newconnectionsmap[graph.NodePair[*engine.Object]{
 						Source: currentobject,
 						Target: nextobject}] = detectededges
+				}
+
+				extrainfo[nextobject] = &GraphNode{
+					roundadded:             processinground + 1,
+					accumulatedprobability: ei.accumulatedprobability * float32(maxprobability) / 100,
 				}
 
 				return true
@@ -285,13 +302,6 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 		}
 
 		processinground++
-		for o := range pg.Nodes() {
-			if ei, found := extrainfo[o]; !found || ei.roundadded == 0 {
-				extrainfo[o] = (&GraphNode{
-					roundadded: processinground,
-				})
-			}
-		}
 	}
 	pb.Finish()
 

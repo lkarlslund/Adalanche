@@ -208,6 +208,11 @@ func analysisfuncs(ws *webservice) {
 			minprobability = minprobabilityval
 		}
 
+		minaccprobability := 0
+		if minaccprobabilityval, err := strconv.Atoi(vars["minaccprobability"]); err == nil {
+			minaccprobability = minaccprobabilityval
+		}
+
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
 		maxoutgoing := -1
@@ -322,7 +327,8 @@ func analysisfuncs(ws *webservice) {
 		opts.Direction = direction
 		opts.MaxDepth = maxdepth
 		opts.MaxOutgoingConnections = maxoutgoing
-		opts.MinProbability = engine.Probability(minprobability)
+		opts.MinEdgeProbability = engine.Probability(minprobability)
+		opts.MinAccumulatedProbability = engine.Probability(minaccprobability)
 		opts.PruneIslands = prune
 		opts.Backlinks = backlinks
 		opts.NodeLimit = nodelimit

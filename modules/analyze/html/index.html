@@ -86,6 +86,9 @@
       </div>
       <div id="commandbuttons" class="pt-10 pe-auto"><button id="explore" class="btn btn-primary">Explore</button></div>
     </div>
+
+    <div id="toasts" class="toast-container position-fixed bottom-0 end-0 p-3">
+    </div>
     <!-- <div id="infobar" class="float-left">
       <div id="infowrap" class="fw-250 h-full pe-auto">
         <div id="infocontent" class="fw-250 bg-dark h-full overflow-y-auto">
@@ -143,35 +146,46 @@
 
                 <div class="row">
                   <div class="col">
-                  <label for="maxdepth" class="col-form-label">Analysis depth</label>
-                </div>
-                <div class="col">
-                  <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99"
-                  preference="analysis.max.depth" class="form-control text-right">
+                    <label for="maxdepth" class="col-form-label">Analysis depth</label>
+                  </div>
+                  <div class="col">
+                    <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99"
+                    preference="analysis.max.depth" class="form-control text-right">
                   </div>
                 </div>
 
                 <div class="row">
                   <div class="col">
                     <label for="maxoutgoing" class="col-form-label">Max outgoing</label>
-                </div>
-                <div class="col">
-                  <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="50"
-                    preference="analysis.max.ootgoing" class="form-control text-right">
+                  </div>
+                  <div class="col">
+                    <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="50"
+                      preference="analysis.max.ootgoing" class="form-control text-right">
+                  </div>
                 </div>
 
                 <div class="row">
                   <div class="col">
-                    <label for="minprobability" class="col-form-label">Min probability</label>
-                </div>
-                <div class="col">
-                  <input id="minprobability" type="number" name="minprobability" min="0" max="100" value="0"
-                    preference="analysis.min.probability" class="form-control text-right">
-                  <span class="float-end">%</span>
+                    <label for="minprobability" class="col-form-label">Min edge probability %</label>
+                  </div>
+                  <div class="col">
+                    <input id="minprobability" type="number" length=3 name="minprobability" min="0" max="100" value="0"
+                      preference="analysis.min.probability" class="form-control text-right">
+                  </div>
                 </div>
 
-              </form>
+                <div class="row">
+                  <div class="col">
+                    <label for="minaccprobability" class="col-form-label">Min accumulated probability %</label>
+                  </div>
+                  <div class="col">
+                    <input id="minaccprobability" type="number" size=3 name="minaccprobability" min="0" max="100" value="0"
+                      preference="analysis.min.accumulated.probability" class="form-control text-right">
+                  </div>
+                </div>
               </div>
+
+              </form>
             </details>
             <details class="collapse-panel">
               <summary class="collapse-header bg-primary text-dark p-1 border-bottom">

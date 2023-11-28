@@ -335,6 +335,23 @@ function refreshStatus() {
     setTimeout(refreshStatus, 1000);
 }
 
+function toast(title, contents) {
+    toastcontent = $(`<div id="live-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                                <div class="toast-header">
+                                    <img src="..." class="rounded me-2" alt="...">
+                                        <strong class="me-auto">`+title+`</strong>
+                                        <!--small>Just now</small-->
+                                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                                </div>
+                                <div class="toast-body">
+                                    `+contents+`
+                                </div>
+                            </div>`);
+    $("#toasts").append(toastcontent);
+    const toast = bootstrap.Toast.getOrCreateInstance(toastcontent);
+    toast.show();
+}
+
 // When we´re ready ...
 $(function () {
     // Initial GUI setup

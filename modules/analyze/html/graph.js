@@ -274,7 +274,7 @@ cytostyle = [{
         "min-zoomed-font-size": 12,
         "font-family": "oswald",
     }
-},{
+}, {
     selector: "node",
     style: {
         "label": function (ele) { return nodelabel(ele); },
@@ -326,13 +326,13 @@ cytostyle = [{
         "background-color": "lightgreen"
     }
 },
-    {
-        selector: 'node[type="GroupManagedServiceAccount"]',
-        style: {
-            "background-image": "icons/manage_accounts_black_24dp.svg",
-            "background-color": "lightgreen"
-        }
-    },
+{
+    selector: 'node[type="GroupManagedServiceAccount"]',
+    style: {
+        "background-image": "icons/manage_accounts_black_24dp.svg",
+        "background-color": "lightgreen"
+    }
+},
 {
     selector: 'node[type="ForeignSecurityPrincipal"]',
     style: {
@@ -364,14 +364,14 @@ cytostyle = [{
         "background-color": "lightblue"
     }
 },
-    {
-        selector: 'node[type="Executable"]',
-        style: {
-            shape: "rectangle",
-            "background-image": "icons/binary-code-binary-svgrepo-com.svg",
-            "background-color": "lightgreen"
-        }
-    },
+{
+    selector: 'node[type="Executable"]',
+    style: {
+        shape: "rectangle",
+        "background-image": "icons/binary-code-binary-svgrepo-com.svg",
+        "background-color": "lightgreen"
+    }
+},
 
 {
     selector: 'node[type="GroupPolicyContainer"]',
@@ -636,8 +636,163 @@ function rendermethods(ele) {
 }
 
 function rendernode(ele) {
-    var s = '<div>' + nodelabel(ele);
-    if (ele.data("engine.SAMAccountName")) s += ' (' + ele.data("engine.SAMAccountName") + ')';
+    var s = '<div>';
+
+    switch (ele.data("type")) {
+        case "User":
+            // selector: 'node[type="User"][!_disabled]',
+            //     style: {
+            //     "background-image": "icons/person-fill.svg",
+            //         "background-color": "green"
+            // }
+            // selector: 'node[type="User"][?_disabled]',
+            //     style: {
+            //     "background-image": "icons/no_accounts_black_48dp.svg",
+            //         "background-color": "darkgreen"
+            // }
+            s += '<img src="icons/person-fill.svg" class="rounded-circle bg-yellow" width="24" height="24">';
+            break;
+        case "Group":
+            // selector: 'node[type="Group"]',
+            //     style: {
+            //     shape: "cut-rectangle",
+            //         "background-image": "icons/people-fill.svg",
+            //             "background-color": "orange"
+            // }
+            s += '<img src="icons/people-fill.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "ManagedServiceAccount":
+            // selector: 'node[type="ManagedServiceAccount"]',
+            //     style: {
+            //     "background-image": "icons/manage_accounts_black_24dp.svg",
+            //         "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/manage_accounts_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "GroupManagedServiceAccount":
+            // selector: 'node[type="GroupManagedServiceAccount"]',
+            //     style: {
+            //     "background-image": "icons/manage_accounts_black_24dp.svg",
+            //         "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/manage_accounts_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "ForeignSecurityPrincipal":
+            // selector: 'node[type="ForeignSecurityPrincipal"]',
+            //     style: {
+            //     "background-image": "icons/badge_black_24dp.svg",
+            //         "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/badge_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Service":
+            // selector: 'node[type="Service"]',
+            //     style: {
+            //     shape: "diamond",
+            //         "background-image": "icons/service.svg",
+            //             "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/service.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Directory":
+            // selector: 'node[type="Directory"]',
+            //     style: {
+            //     shape: "diamond",
+            //         "background-image": "icons/source_black_24dp.svg",
+            //             "background-color": "lightblue"
+            // }
+            s += '<img src="icons/source_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "File":
+            // selector: 'node[type="File"]',
+            //     style: {
+            //     shape: "diamond",
+            //         "background-image": "icons/article_black_24dp.svg",
+            //             "background-color": "lightblue"
+            // }
+            s += '<img src="icons/article_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Executable":
+            // selector: 'node[type="Executable"]',
+            //     style: {
+            //     shape: "rectangle",
+            //         "background-image": "icons/binary-code-binary-svgrepo-com.svg",
+            //             "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/binary-code-binary-svgrepo-com.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "GroupPolicyContainer":
+            // selector: 'node[type="GroupPolicyContainer"]',
+            //     style: {
+            //     shape: "rectangle",
+            //         "background-image": "icons/gpo.svg",
+            //             "background-color": "purple"
+            // }
+            s += '<img src="icons/gpo.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "OrganizationalUnit":
+            // selector: 'node[type="OrganizationalUnit"]',
+            //     style: {
+            //     shape: "rectangle",
+            //         "background-image": "icons/source_black_24dp.svg",
+            //             "background-color": "lightgray"
+            // }
+            s += '<img src="icons/source_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Container":
+            // selector: 'node[type="Container"]',
+            //     style: {
+            //     shape: "rectangle",
+            //         "background-image": "icons/folder_black_24dp.svg",
+            //             "background-color": "lightgray"
+            // }
+            s += '<img src="icons/folder_black_24dp.svg" class="rounded-circle" width="24" height="24">';
+            break;
+
+        case "CertificateTemplate":
+            // selector: 'node[type="CertificateTemplate"]',
+            //     style: {
+            //     shape: "rectangle",
+            //         "background-image": "icons/certificate.svg",
+            //             "background-color": "pink"
+            // }
+            s += '<img src="icons/certificate.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "DNSNode":
+            //         selector: 'node[type="DNSNode"]',
+            //             style: {
+            //             shape: "rectangle",
+            //                 "background-image": "icons/dns.svg",
+            // }
+            s += '<img src="icons/dns.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Computer":
+            // selector: 'node[type="Computer"]',
+            //     style: {
+            //     shape: "round-octagon",
+            //         "background-image": "icons/tv-fill.svg",
+            //             "background-color": "lightgreen"
+            // }
+            s += '<img src="icons/tv-fill.svg" class="rounded-circle" width="24" height="24">';
+            break;
+        case "Machine":
+            // selector: 'node[type="Machine"]',
+            //             style: {
+            //             shape: "round-octagon",
+            //                 "background-image": "icons/tv-fill.svg",
+            //                     "background-color": "teal"
+            //         }
+            s += '<img src="icons/tv-fill.svg" class="rounded-circle" width="24" height="24">';
+            break;
+    }
+
+
+    s += nodelabel(ele);
+    if (ele.data("engine.downLevelLogonName")) {
+        s += ' (' + ele.data("engine.downLevelLogonName") + ')';
+    } else if (ele.data("engine.SAMAccountName")) {
+        s += ' (' + ele.data("engine.SAMAccountName") + ')';
+    }
     s += '</div>';
     if (ele.data("distinguishedName")) s += '<div>' + ele.data("distinguishedName") + '</div>';
     return s
@@ -777,14 +932,7 @@ function initgraph(data) {
                             analyze();
                         },
                         error: function (xhr, status, error) {
-                            halfmoon.initStickyAlert({
-                                content: "There was a problem doing node lookup in the backend",
-                                title: "Node not found in backend",
-                                alertType: "alert-danger",
-                                fillType: "filled",
-                                hasDismissButton: true,
-                                timeShown: 5000
-                            });
+                            toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
                         }
                     })
                 }
@@ -814,14 +962,7 @@ function initgraph(data) {
                             analyze();
                         },
                         error: function (xhr, status, error) {
-                            halfmoon.initStickyAlert({
-                                content: "There was a problem doing node lookup in the backend",
-                                title: "Node not found in backend",
-                                alertType: "alert-danger",
-                                fillType: "filled",
-                                hasDismissButton: true,
-                                timeShown: 5000
-                            });
+                            toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
                         }
                     })
                 },
@@ -887,7 +1028,7 @@ function initgraph(data) {
             // tip.show();
             // this.tippy = tip;
         });
-            
+
         cy.on('mouseout', 'edge', function (event) {
             this.css({
                 content: ''
@@ -898,7 +1039,7 @@ function initgraph(data) {
             //     tip.destroy();
             // }
         });
- 
+
         // cy.on('zoom', function () {
         //     zoom = cy.zoom();
         //     console.log(zoom);
@@ -965,7 +1106,7 @@ function applyNodeStyles(cy) {
                 scale = cy.nodes().maxOutdegree(false)
                 break;
         }
-                
+
         // Apply node styles
         cy.nodes().each(function (ele) {
             var size
@@ -1028,13 +1169,6 @@ function findroute(source) {
             `Route from ` + nodelabel(source) + ` to ` + nodelabel(target) + ` - ` + pathprobability.toFixed(2) + `% probability`,
             routecontents)
     } else {
-        halfmoon.initStickyAlert({
-            content: "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.",
-            title: "No route found",
-            alertType: "alert-danger",
-            fillType: "filled",
-            hasDismissButton: true,
-            timeShown: 5000
-        });
+        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.");
     }
 }
