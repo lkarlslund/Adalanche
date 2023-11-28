@@ -1123,7 +1123,8 @@ func init() {
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
-			if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
+			if object.SID().Components() == 7 && object.SID().StripRID() == domainsid && object.Type() != engine.ObjectTypeGroup {
+				// if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
 				object.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			}
 			authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
@@ -1316,7 +1317,7 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {
-			if object.HasAttrValue(engine.Name, engine.AttributeValueString("Protected Users")) && object.SID().RID() == 525 { // "Protected Users"
+			if object.SID().Component(2) == 21 && object.SID().RID() == 525 { // "Protected Users"
 				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
 						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
