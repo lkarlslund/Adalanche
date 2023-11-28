@@ -7,6 +7,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 var SortBy engine.Attribute = engine.NonExistingAttribute
@@ -24,6 +25,7 @@ func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 		MinEdgeProbability:        0,
 		MinAccumulatedProbability: 0,
 		PruneIslands:              false,
+		DontExpandAUEO:            true,
 	}
 }
 
@@ -41,12 +43,12 @@ type AnalyzeObjectsOptions struct {
 	MaxDepth                  int
 	MaxOutgoingConnections    int
 	Direction                 engine.EdgeDirection
-	Backlinks                 bool // Full backlinks
-	Fuzzlevel                 int  // Backlink depth
+	Backlinks                 int // Backlink depth
 	MinEdgeProbability        engine.Probability
 	MinAccumulatedProbability engine.Probability
 	PruneIslands              bool
 	NodeLimit                 int
+	DontExpandAUEO            bool
 }
 
 type GraphNode struct {
@@ -90,7 +92,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	// Convert to our working graph
 	processinground := 1
 	query.Execute(opts.StartFilter, opts.Objects).Iterate(func(o *engine.Object) bool {
-		pg.Set(o, "target", true)
+		pg.SetNodeData(o, "target", true)
 
 		for o := range pg.Nodes() {
 			if ei, found := extrainfo[o]; !found || ei.roundadded == 0 {
@@ -144,6 +146,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 
 			newconnectionsmap := make(map[graph.NodePair[*engine.Object]]engine.EdgeBitmap) // Pwn Connection between objects
 
+			if opts.Direction == engine.In && opts.DontExpandAUEO && (currentobject.SID() == windowssecurity.EveryoneSID || currentobject.SID() == windowssecurity.AuthenticatedUsersSID) {
+				// Don't expand Authenticated Users or Everyone
+				continue
+			}
+
 			// Iterate over ever edges
 			currentobject.Edges(opts.Direction).Range(func(nextobject *engine.Object, eb engine.EdgeBitmap) bool {
 				// If this is not a chosen edge, skip it
@@ -189,13 +196,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 				// SKIP THIS IF
 				if
 				// We're not including backlinks
-				!opts.Backlinks &&
-					// It's found
-					found &&
+				found &&
 					// This is not the first round
 					processinground > 1 &&
 					// It was found in an earlier round
-					extrainfo[nextobject] != nil && extrainfo[nextobject].roundadded+opts.Fuzzlevel <= processinground &&
+					extrainfo[nextobject] != nil && extrainfo[nextobject].roundadded+opts.Backlinks <= processinground &&
 					// If SIDs match between objects, it's a cross forest/domain link and we want to see it
 					(currentobject.SID().IsNull() || nextobject.SID().IsNull() || currentobject.SID().Component(2) != 21 || currentobject.SID() != nextobject.SID()) {
 					// skip it
@@ -339,12 +344,12 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 			outernodemap[outernode] = struct{}{}
 		}
 
-		for pair, endedge := range pg.Edges() {
+		pg.IterateEdges(func(source, target *engine.Object, endedge engine.EdgeBitmap) bool {
 			var endnode *engine.Object
 			if opts.Direction == engine.In {
-				endnode = pair.Source
+				endnode = source
 			} else {
-				endnode = pair.Target
+				endnode = target
 			}
 			if _, found := outernodemap[endnode]; found {
 				// Outer node
@@ -353,7 +358,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					pg.DeleteNode(endnode)
 					pb.Add(1)
 					removed++
-					continue
+					return true
 				}
 				if detectobjecttypes != nil {
 					if _, found := detectobjecttypes[endnode.Type()]; !found {
@@ -361,7 +366,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 						pg.DeleteNode(endnode)
 						pb.Add(1)
 						removed++
-						continue
+						return true
 					}
 				}
 				if opts.EndFilter != nil && !opts.EndFilter.Evaluate(endnode) {
@@ -369,10 +374,11 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					pg.DeleteNode(endnode)
 					pb.Add(1)
 					removed++
-					continue
+					return true
 				}
 			}
-		}
+			return true
+		})
 
 		if removed == 0 {
 			break
@@ -449,7 +455,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	pg.Nodes() // Trigger cleanup, important otherwise they get readded below
 	for eo, ei := range extrainfo {
 		if pg.HasNode(eo) && ei.CanExpand > 0 {
-			pg.Set(eo, "canexpand", ei.CanExpand)
+			pg.SetNodeData(eo, "canexpand", ei.CanExpand)
 		}
 	}
 

@@ -222,8 +222,12 @@ func analysisfuncs(ws *webservice) {
 
 		alldetails, _ := util.ParseBool(vars["alldetails"])
 		// force, _ := util.ParseBool(vars["force"])
-		backlinks, _ := util.ParseBool(vars["backlinks"])
+
+		backlinks, _ := strconv.Atoi(vars["backlinks"])
+
 		nodelimit, _ := strconv.Atoi(vars["nodelimit"])
+
+		dontexpandaueo, _ := util.ParseBool(vars["dont-expand-au-eo"])
 
 		opts := NewAnalyzeObjectsOptions()
 
@@ -332,6 +336,7 @@ func analysisfuncs(ws *webservice) {
 		opts.PruneIslands = prune
 		opts.Backlinks = backlinks
 		opts.NodeLimit = nodelimit
+		opts.DontExpandAUEO = dontexpandaueo
 		results := AnalyzeObjects(opts)
 
 		for _, postprocessor := range PostProcessors {
@@ -342,7 +347,7 @@ func analysisfuncs(ws *webservice) {
 		var objecttypes [256]int
 
 		for node := range results.Graph.Nodes() {
-			if results.Graph.Get(node, "target") == true {
+			if results.Graph.GetNodeData(node, "target") == true {
 				targets++
 				continue
 			}

@@ -125,18 +125,12 @@
                 <div class="form-check">
                   <input class="form-check-input" id="prune" type="checkbox" name="prune" autocomplete="off"
                     preference="analysis.prune.islands" defaultpref=false>
-                  <label class="form-check-label" for="prune">Prune Island Nodes</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="form-check-input" id="backlinks" type="checkbox" name="backlinks" autocomplete="off"
-                    preference="analysis.include.backlinks" defaultpref=false>
-                  <label class="form-check-label" for="backlinks">Include backlinks</label>
+                  <label class="form-check-label" for="prune" data-bs-toggle='tooltip' data-bs-title='Remove nodes that are not connected to anything'>Prune Island Nodes</label>
                 </div>
 
                   <div class="row">
                     <div class="col">
-                      <label for="nodelimit" class="col-form-label">Node limit</label>
+                      <label for="nodelimit" class="col-form-label" data-bs-toggle='tooltip' data-bs-title='In order to prevent browser crashes, you should probably keep this under 2500'>Node limit</label>
                     </div>
                     <div class="col">
                       <input id="nodelimit" type="number" name="nodelimit" min="100" max="5000" value="2000"
@@ -146,7 +140,7 @@
 
                 <div class="row">
                   <div class="col">
-                    <label for="maxdepth" class="col-form-label">Analysis depth</label>
+                    <label for="maxdepth" class="col-form-label" data-bs-toggle='tooltip' data-bs-title='How many steps away from the targets should be searched'>Analysis depth</label>
                   </div>
                   <div class="col">
                     <input id="maxdepth" type="number" name="maxdepth" min="0" max="99" value="99"
@@ -156,7 +150,7 @@
 
                 <div class="row">
                   <div class="col">
-                    <label for="maxoutgoing" class="col-form-label">Max outgoing</label>
+                    <label for="maxoutgoing" class="col-form-label" data-bs-toggle='tooltip' data-bs-title='If a node has more than this amount of edges, drop some of them to keep output less cluttered (you will lose some insights)'>Max outgoing edges</label>
                   </div>
                   <div class="col">
                     <input id="maxoutgoing" type="number" name="maxoutgoing" min="0" max="5000" value="50"
@@ -166,7 +160,7 @@
 
                 <div class="row">
                   <div class="col">
-                    <label for="minprobability" class="col-form-label">Min edge probability %</label>
+                    <label for="minprobability" class="col-form-label" data-bs-toggle='tooltip' data-bs-title='The minimum probability for an edge to be included, 0 for all edges even just informative ones'>Min edge probability %</label>
                   </div>
                   <div class="col">
                     <input id="minprobability" type="number" length=3 name="minprobability" min="0" max="100" value="0"
@@ -176,13 +170,32 @@
 
                 <div class="row">
                   <div class="col">
-                    <label for="minaccprobability" class="col-form-label">Min accumulated probability %</label>
+                    <label for="minaccprobability" class="col-form-label" data-bs-toggle='tooltip' data-bs-title='The minimum accumulated probability for an edge to be included, eg. two steps with 50% and 50% will give an accumulated probability of 25%'>Min accumulated probability %</label>
                   </div>
                   <div class="col">
                     <input id="minaccprobability" type="number" size=3 name="minaccprobability" min="0" max="100" value="0"
                       preference="analysis.min.accumulated.probability" class="form-control text-right">
                   </div>
                 </div>
+
+                <!-- <div class="row">
+                  <div class="col">
+                    <label for="backlinks" class="col-form-label" data-bs-toggle='tooltip'
+                      data-bs-title='The number of backlinks to include, recommended to keep this 0 to avoid unneccessary clutter'>Backlink steps</label>
+                  </div>
+                  <div class="col">
+                    <input id="backlinks" type="number" size=3 name="backlinks" min="0" max="100" value="0"
+                      preference="analysis.backlink.count" class="form-control text-right">
+                  </div>
+                </div> -->
+
+                <div class="form-check">
+                  <input class="form-check-input" id="dont-expand-au-eo" type="checkbox" name="dont-expand-au-eo" autocomplete="off"
+                    preference="analysis.dontexpandaueo" defaultpref=true>
+                  <label class="form-check-label" for="dont-expand-au-eo" data-bs-toggle='tooltip'
+                    data-bs-title='Expanding these groups usually gives an unreasonable amount of data in the graph'>Don't expand "Domain Users" / "Everyone"</label>
+                </div>
+
               </div>
 
               </form>

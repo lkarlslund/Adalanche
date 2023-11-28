@@ -20,16 +20,21 @@ type NodePair[NodeType GraphNodeInterface[NodeType]] struct {
 	Target NodeType
 }
 
+type Edge[EdgeType GraphEdgeInterface[EdgeType]] struct {
+	Edge EdgeType
+	Data map[string]any
+}
+
 type Graph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
 	nodes              map[NodeType]map[string]any
-	edges              map[NodePair[NodeType]]EdgeType
+	edges              map[NodePair[NodeType]]Edge[EdgeType]
 	cleanupEdgesNeeded bool
 }
 
 func NewGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]]() Graph[NodeType, EdgeType] {
 	return Graph[NodeType, EdgeType]{
 		nodes: make(map[NodeType]map[string]any),
-		edges: make(map[NodePair[NodeType]]EdgeType),
+		edges: make(map[NodePair[NodeType]]Edge[EdgeType]),
 	}
 }
 
@@ -57,7 +62,7 @@ func (pg *Graph[NodeType, EdgeType]) DeleteNode(find NodeType) error {
 }
 
 // Sets a custom value on a node, adding it to the graph if it's not already there
-func (pg *Graph[NodeType, EdgeType]) Set(node NodeType, key string, value any) error {
+func (pg *Graph[NodeType, EdgeType]) SetNodeData(node NodeType, key string, value any) error {
 	fields := pg.nodes[node]
 	if fields == nil {
 		fields = make(map[string]any)
@@ -67,7 +72,7 @@ func (pg *Graph[NodeType, EdgeType]) Set(node NodeType, key string, value any) e
 	return nil
 }
 
-func (pg *Graph[NodeType, EdgeType]) Get(node NodeType, key string) any {
+func (pg *Graph[NodeType, EdgeType]) GetNodeData(node NodeType, key string) any {
 	fields, found := pg.nodes[node]
 	if !found {
 		return nil
@@ -91,28 +96,60 @@ func (pg *Graph[NodeType, EdgeType]) autoCleanupEdges() {
 	pg.cleanupEdgesNeeded = false
 }
 
-func (pg *Graph[NodeType, EdgeType]) Edges() map[NodePair[NodeType]]EdgeType {
-	pg.autoCleanupEdges()
-	return pg.edges
+func (pg *Graph[NodeType, EdgeType]) IterateEdges(ef func(NodeType, NodeType, EdgeType) bool) {
+	for pair, edge := range pg.edges {
+		if !ef(pair.Source, pair.Target, edge.Edge) {
+			break
+		}
+	}
 }
 
+// func (pg *Graph[NodeType, EdgeType]) Edges() map[NodePair[NodeType]]EdgeType {
+// 	pg.autoCleanupEdges()
+// 	return pg.edges
+// }
+
 // AddEdge adds an edge between two nodes, and ensures that both nodes exist
-func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, e EdgeType) {
+func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, edge EdgeType) {
 	pg.AddNode(source)
 	pg.AddNode(target)
-	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = e
+	existing, _ := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	existing.Edge = edge
+	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
 }
 
 // GetEdge returns the edge between two nodes
-func (pg *Graph[NodeType, EdgeType]) GetEdge(source, target NodeType) (e EdgeType, found bool) {
+func (pg *Graph[NodeType, EdgeType]) GetEdge(source, target NodeType) (EdgeType, bool) {
 	pg.autoCleanupEdges()
-	e, found = pg.edges[NodePair[NodeType]{Source: source, Target: target}]
-	return
+	e, found := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	return e.Edge, found
 }
 
 // DeleteEdge removes an edge
 func (pg *Graph[NodeType, EdgeType]) DeleteEdge(source, target NodeType) {
 	delete(pg.edges, NodePair[NodeType]{Source: source, Target: target})
+}
+
+// Sets a custom value on a node, adding it to the graph if it's not already there
+func (pg *Graph[NodeType, EdgeType]) SetEdgeData(source, target NodeType, key string, value any) error {
+	edge := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	if edge.Data == nil {
+		edge.Data = make(map[string]any)
+		pg.edges[NodePair[NodeType]{Source: source, Target: target}] = edge
+	}
+	edge.Data[key] = value
+	return nil
+}
+
+func (pg *Graph[NodeType, EdgeType]) GetEdgeData(source, target NodeType, key string) any {
+	edge, found := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	if !found {
+		return nil
+	}
+	if edge.Data == nil {
+		return nil
+	}
+	return edge.Data[key]
 }
 
 // Merge combines two graphs
@@ -125,8 +162,16 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 
 	for otherconnection, otheredge := range npg.edges {
 		if ouredge, found := pg.edges[otherconnection]; found {
-			mergededge := ouredge.Merge(otheredge)
-			pg.edges[otherconnection] = mergededge
+			mergededge := ouredge.Edge.Merge(otheredge.Edge)
+			mergeddata := ouredge.Data
+			if mergeddata == nil {
+				mergeddata = otheredge.Data
+			} else if otheredge.Data != nil {
+				for k, v := range otheredge.Data {
+					mergeddata[k] = v
+				}
+			}
+			pg.edges[otherconnection] = Edge[EdgeType]{Edge: mergededge, Data: mergeddata}
 		} else {
 			pg.edges[otherconnection] = otheredge
 		}

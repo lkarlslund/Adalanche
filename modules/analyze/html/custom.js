@@ -238,7 +238,11 @@ function analyze(e) {
                 for (var objecttype in data.resulttypes) {
                     info += '<tr><td class="text-right pr-5">'+ data.resulttypes[objecttype] + '</td><td>' + objecttype + '</td></tr>';
                 }
-                info += '<tr><td class="text-right pr-5">' + data.total + '</td><td>total nodes in analysis</td></tr></table>';
+                info += '<tr><td class="text-right pr-5">' + data.total + '</td><td>total nodes in analysis</td></tr>';
+                if (data.removed>0) {
+                    info += '<tr><td class="text-right pr-5"><b>' + data.removed + '</b></td><td><b>nodes were removed by node limiter</b></td></tr>';
+                }
+                info += '</table>';
 
                 newwindow('results', 'Query results', info);
 
@@ -361,6 +365,10 @@ $(function () {
 
     $('#optionstogglevisibility').on('click', function () {
         $('#optionspanel').animate({ width: 'toggle' }, 400);
+    });
+
+    $("[data-bs-toggle='tooltip']").each(function () {
+        new bootstrap.Tooltip($(this));
     });
 
     // autosize($('#querytext'));

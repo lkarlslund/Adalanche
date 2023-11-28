@@ -24,9 +24,11 @@ func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename 
 		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.ID(), object.OneAttr(activedirectory.Name), formatting)
 	}
 	fmt.Fprintln(df, "")
-	for connection, edge := range pg.Edges() {
-		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", connection.Source, connection.Target, edge.JoinedString())
-	}
+
+	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap) bool {
+		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", source, target, edge.JoinedString())
+		return true
+	})
 	fmt.Fprintln(df, "}")
 
 	return nil
@@ -122,13 +124,13 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 		i++
 	}
 
-	for connection, edge := range pg.Edges() {
+	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap) bool {
 		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
-				"id":     fmt.Sprintf("e%v-%v", connection.Source.ID(), connection.Target.ID()),
-				"source": fmt.Sprintf("n%v", connection.Source.ID()),
-				"target": fmt.Sprintf("n%v", connection.Target.ID()),
+				"id":     fmt.Sprintf("e%v-%v", source.ID(), target.ID()),
+				"source": fmt.Sprintf("n%v", source.ID()),
+				"target": fmt.Sprintf("n%v", target.ID()),
 			},
 		}
 
@@ -136,13 +138,14 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 		// 	cytoedge.Data[key] = value
 		// }
 
-		cytoedge.Data["_maxprob"] = edge.MaxProbability(connection.Source, connection.Target)
+		cytoedge.Data["_maxprob"] = edge.MaxProbability(source, target)
 		cytoedge.Data["methods"] = edge.StringSlice()
 
 		g.Elements[i] = cytoedge
 
 		i++
-	}
+		return true
+	})
 
 	return g, nil
 }
