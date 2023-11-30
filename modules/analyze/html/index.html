@@ -327,13 +327,13 @@
         </ul>
         <div class="tab-content" id="query-tabs-content">
           <div class="tab-pane active" id="startquery-pane">
-            <textarea id="querytext" class="form-control mb-1" name="query" rows=4></textarea>
+            <textarea id="querytext" class="form-control mb-1" name="query" rows=4 data-bs-toggle='tooltip' data-bs-title='Node selector query for the first nodes (targets)'></textarea>
           </div>
           <div class="tab-pane" id="middlequery-pane">
-            <textarea id="queryexclude" class="form-control mb-1" name="middlequery" rows=4></textarea>
+            <textarea id="queryexclude" class="form-control mb-1" name="middlequery" rows=4 data-bs-toggle='tooltip' data-bs-title='Node selector query for following nodes in the graph, including the last ones'></textarea>
           </div>
           <div class="tab-pane" id="endquery-pane">
-            <textarea id="queryexcludelast" class="form-control mb-1" name="endquery" rows=4></textarea>
+            <textarea id="queryexcludelast" class="form-control mb-1" name="endquery" rows=4 data-bs-toggle='tooltip' data-bs-title='Node selector query for last nodes'></textarea>
           </div>          
         </div>
         <div id="queryerror"></div>
