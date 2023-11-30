@@ -23,7 +23,6 @@ var (
 	ObjectTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone").SetDefault(Last, false)
 	ObjectTypeUser                       = NewObjectType("User", "Person")
 	ObjectTypeGroup                      = NewObjectType("Group", "Group")
-	ObjectTypeForeignSecurityPrincipal   = NewObjectType("ForeignSecurityPrincipal", "Foreign-Security-Principal")
 	ObjectTypeGroupManagedServiceAccount = NewObjectType("GroupManagedServiceAccount", "ms-DS-Group-Managed-Service-Account")
 	ObjectTypeManagedServiceAccount      = NewObjectType("ManagedServiceAccount", "ms-DS-Managed-Service-Account")
 	ObjectTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit").SetDefault(Last, false)

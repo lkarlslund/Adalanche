@@ -218,10 +218,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -237,10 +233,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -256,10 +248,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -275,10 +263,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -295,10 +279,6 @@ func init() {
 	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -314,10 +294,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -668,10 +644,6 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
-				return true
-			}
-
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
 				return true
@@ -1098,6 +1070,8 @@ func init() {
 			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
+		authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
+
 		ncname, netbiosname, dnsroot, domainsid, err := FindDomain(ao)
 		if err != nil {
 			ui.Fatal().Msgf("Could not get needed domain information (%v), aborting", err)
@@ -1127,7 +1101,6 @@ func init() {
 				// if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
 				object.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			}
-			authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
 				object.SetValues(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
@@ -1628,6 +1601,7 @@ func init() {
 	}, "Permissions that lets someone modify userAccountControl", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
+		edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
 		ao.IterateParallel(func(o *engine.Object) bool {
 			// Object that is member of something
 			if o.Type() != engine.ObjectTypeGroup {
@@ -1635,8 +1609,8 @@ func init() {
 			}
 
 			// Search from all groups towards incoming memberships
-			o.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity), true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
-				if depth > 1 && member.Type() != engine.ObjectTypeGroup && member.Type() != engine.ObjectTypeForeignSecurityPrincipal {
+			o.EdgeIteratorRecursive(engine.In, edgematch, true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+				if depth > 1 && member.Type() != engine.ObjectTypeGroup {
 					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
 				}
 				return true
