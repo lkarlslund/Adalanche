@@ -14,7 +14,7 @@
 
 #### **How can I help?**
 
-* Provide feedback - positive or negative - via Twitter to [@lkarlslund](https://twitter.com/lkarlslund)
+* Provide feedback - positive or negative - via Twitter to [@lkarlslund](https://twitter.com/lkarlslund), Mastodon to [@lkarlslund](https://infosec.exchange/@lkarlslund), or bugreports via [GitHub](https://github.com/lkarlslund/Adalanche/issues).
 
 * If you feel that Adalanche brings value, consider buying one of the commercial editions from [NetSection](https://www.netsection.com). The commercial editions ensure that the open source edition of Adalanche will continue development.
 
