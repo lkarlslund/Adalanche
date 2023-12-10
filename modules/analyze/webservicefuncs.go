@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -892,8 +893,102 @@ func analysisfuncs(ws *webservice) {
 	})
 
 	// Shutdown
+
+	ws.Router.HandleFunc("/export-words", func(w http.ResponseWriter, r *http.Request) {
+		split := r.URL.Query().Get("split") == "true"
+
+		// Set header for download as a text file
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Disposition", "attachment; filename=adalanche-wordlist.txt")
+
+		scrapeatttributes := []engine.Attribute{
+			engine.DistinguishedName,
+			engine.LookupAttribute("name"),
+			engine.LookupAttribute("displayName"),
+			engine.LookupAttribute("adminDescription"),
+			engine.LookupAttribute("company"),
+			engine.LookupAttribute("co"),
+			engine.LookupAttribute("department"),
+			engine.LookupAttribute("description"),
+			engine.LookupAttribute("extensionAttribute1"),
+			engine.LookupAttribute("extensionAttribute2"),
+			engine.LookupAttribute("extensionAttribute3"),
+			engine.LookupAttribute("extensionAttribute4"),
+			engine.LookupAttribute("extensionAttribute5"),
+			engine.LookupAttribute("extensionAttribute6"),
+			engine.LookupAttribute("extensionAttribute7"),
+			engine.LookupAttribute("extensionAttribute8"),
+			engine.LookupAttribute("extensionAttribute9"),
+			engine.LookupAttribute("extensionAttribute10"),
+			engine.LookupAttribute("extensionAttribute11"),
+			engine.LookupAttribute("extensionAttribute12"),
+			engine.LookupAttribute("extensionAttribute13"),
+			engine.LookupAttribute("extensionAttribute14"),
+			engine.LookupAttribute("extensionAttribute15"),
+			engine.LookupAttribute("extraColumns"),
+			engine.LookupAttribute("givenName"),
+			engine.LookupAttribute("importedFrom"),
+			engine.LookupAttribute("l"),
+			engine.LookupAttribute("mail"),
+			engine.LookupAttribute("mailNickname"),
+			engine.LookupAttribute("mobile"),
+			engine.LookupAttribute("msRTCSIP-Line"),
+			engine.LookupAttribute("msRTCSIP"),
+			engine.LookupAttribute("ou"),
+			engine.LookupAttribute("physicalDeliveryOfficeName"),
+			engine.LookupAttribute("postalCode"),
+			engine.LookupAttribute("proxyAddresses"),
+			engine.LookupAttribute("sAMAccountName"),
+			engine.LookupAttribute("sn"),
+			engine.LookupAttribute("streetAddress"),
+			engine.LookupAttribute("targetAddress"),
+			engine.LookupAttribute("title"),
+			engine.LookupAttribute("userPrincipalName"),
+		}
+
+		pb := ui.ProgressBar("Extracting words", ws.Objs.Len())
+		wordmap := make(map[string]struct{})
+		ws.Objs.Iterate(func(object *engine.Object) bool {
+			pb.Add(1)
+			for _, attr := range scrapeatttributes {
+				if attr != engine.NonExistingAttribute {
+					values, found := object.Get(attr)
+					if found {
+						values.Iterate(func(val engine.AttributeValue) bool {
+							for _, word := range extractwords(val.String(), split) {
+								wordmap[strings.Trim(word, " \n\r\t")] = struct{}{}
+							}
+							return true
+						})
+					}
+				}
+			}
+			return true
+		})
+		pb.Finish()
+		words := make([]string, 0, len(wordmap))
+		for word := range wordmap {
+			words = append(words, word)
+		}
+		slices.Sort(words)
+		for _, word := range words {
+			fmt.Fprintf(w, "%s\n", word)
+		}
+	})
+
+	// Shutdown
 	ws.Router.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
 		ws.quit <- true
 	})
 
+}
+
+func extractwords(input string, split bool) []string {
+	result := []string{input}
+	if split {
+		result = append(result, strings.FieldsFunc(input, func(r rune) bool {
+			return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == ',' || r == ';' || r == ':' || r == '.' || r == '!' || r == '?' || r == '(' || r == ')' || r == '{' || r == '}' || r == '[' || r == ']' || r == '&' || r == '|' || r == '^' || r == '+' || r == '-' || r == '=' || r == '/' || r == '*' || r == '%' || r == '<' || r == '>' || r == '~'
+		})...)
+	}
+	return result
 }
