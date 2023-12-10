@@ -94,11 +94,9 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
-		case CreationTime, AccountExpires, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime:
-			// Just use string encoding
+		case CreationTime, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime, BadPasswordTime:
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-				if attribute == PwdLastSet && intval == 0 {
-					// ui.Warn().Msg("PwdLastSet is 0")
+				if intval == 0 {
 					attributevalue = engine.AttributeValueInt(intval)
 				} else {
 					t := util.FiletimeToTime(uint64(intval))
@@ -107,7 +105,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
 			}
-		case WhenChanged, WhenCreated, DsCorePropagationData,
+		case AccountExpires, WhenChanged, WhenCreated, DsCorePropagationData,
 			MsExchLastUpdateTime, MsExchPolicyLastAppliedTime, MsExchWhenMailboxCreated,
 			GWARTLastModified, SpaceLastComputed:
 

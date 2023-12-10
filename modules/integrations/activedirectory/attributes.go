@@ -17,6 +17,7 @@ var (
 	GroupType                  = engine.NewAttribute("groupType").Tag("AD").Single()
 	MemberOf                   = engine.NewAttribute("memberOf").Tag("AD")
 	Member                     = engine.NewAttribute("member").Tag("AD")
+	BadPasswordTime            = engine.NewAttribute("badPasswordTime").Tag("AD").Type(engine.AttributeTypeTime100NS)
 	CreationTime               = engine.NewAttribute("creationTime").Tag("AD").Type(engine.AttributeTypeTime100NS)
 	AccountExpires             = engine.NewAttribute("accountExpires").Tag("AD").Type(engine.AttributeTypeTime100NS)
 	RepsTo                     = engine.NewAttribute("repsTo").Tag("AD")
