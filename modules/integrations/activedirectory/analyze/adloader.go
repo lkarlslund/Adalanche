@@ -84,7 +84,7 @@ func (ld *ADLoader) Init() error {
 					if dnc, found := item.object.Attributes["defaultNamingContext"]; found {
 						// There's a special place for people who do this
 						item.object.DistinguishedName = "cn=RootDSE," + dnc[0]
-						item.object.Attributes["objectCategorySimple"] = []string{"rootdse"}
+						item.object.Attributes["type"] = []string{"rootdse"}
 					} else {
 						// We want the RootDSE KTHX, but ignore everything else
 						ui.Warn().Msg("Empty DN, ignoring!")

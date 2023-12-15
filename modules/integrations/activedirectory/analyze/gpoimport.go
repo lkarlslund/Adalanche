@@ -68,7 +68,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			AbsolutePath, absolutepath,
 			RelativePath, relativepath,
 			engine.DisplayName, relativepath,
-			engine.ObjectCategorySimple, objecttype,
+			engine.Type, objecttype,
 			BinarySize, item.Size,
 			activedirectory.WhenChanged, item.Timestamp,
 		)
@@ -152,7 +152,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 		for _, e := range exposed {
 			// New object to contain the sensitive data
 			expobj := ao.AddNew(
-				engine.ObjectCategorySimple, "ExposedPassword",
+				engine.Type, "ExposedPassword",
 				engine.DisplayName, "Exposed password for "+e.Username,
 				engine.Description, "Password is exposed in GPO with GUID "+ginfo.GUID.String(),
 				engine.ObjectGUID, ginfo.GUID,
@@ -260,7 +260,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				}
 				// Create new synthetic object
 				sob := engine.NewObject(
-					engine.ObjectCategorySimple, engine.AttributeValueString("Script"),
+					engine.Type, engine.AttributeValueString("Script"),
 					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
 					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
@@ -280,7 +280,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				// Create new synthetic object
 				sob := engine.NewObject(
 					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.ObjectCategorySimple, engine.AttributeValueString("Script"),
+					engine.Type, engine.AttributeValueString("Script"),
 					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)

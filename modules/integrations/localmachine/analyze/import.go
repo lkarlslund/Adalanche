@@ -78,7 +78,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		engine.NewAttribute("productSuite"), cinfo.Machine.ProductSuite,
 		engine.NewAttribute("productType"), cinfo.Machine.ProductType,
 		engine.ObjectSid, localsid,
-		engine.ObjectCategorySimple, engine.AttributeValueString("Machine"),
+		engine.Type, engine.AttributeValueString("Machine"),
 		engine.NewAttribute("connectivity"), cinfo.Network.InternetConnectivity,
 	)
 
@@ -139,12 +139,12 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	machine.SetFlex(engine.DataSource, uniquesource)
 
 	everyone, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Auto)
-	everyone.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
+	everyone.SetFlex(engine.Type, "Group") // This could go wrong
 
 	everyone.ChildOf(machine)
 
 	authenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.AuthenticatedUsersSID, Auto)
-	authenticatedusers.SetFlex(engine.ObjectCategorySimple, "Group") // This could go wrong
+	authenticatedusers.SetFlex(engine.Type, "Group") // This could go wrong
 	authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
 
 	authenticatedusers.ChildOf(machine)
@@ -221,6 +221,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			pwn = EdgeSeTrustedCredManAccess
 		case "SeTcbPrivilege":
 			pwn = EdgeSeTcb
+		case "SeIncreaseQuotaPrivilege", "SeSystemProfilePrivilege", "SeSecurityPrivilege", "SeSystemtimePrivilege", "SeProfileSingleProcessPrivilege", "SeIncreaseBasePriorityPrivilege", "SeCreatePagefilePrivilege", "SeShutdownPrivilege", "SeAuditPrivilege", "SeSystemEnvironmentPrivilege", "SeChangeNotifyPrivilege", "SeRemoteShutdownPrivilege", "SeUndockPrivilege", "SeCreateGlobalPrivilege", "SeIncreaseWorkingSetPrivilege", "SeTimeZonePrivilege", "SeCreateSymbolicLinkPrivilege", "SeInteractiveLogonRight", "SeDenyInteractiveLogonRight", "SeDenyRemoteInteractiveLogonRight", "SeBatchLogonRight", "SeServiceLogonRight", "SeDelegateSessionUserImpersonatePrivilege", "SeLockMemoryPrivilege", "SeDenyNetworkLogonRight", "SeTrustedCredManAccessPrivilege", "SeDenyBatchLogonRight", "SeDenyServiceLogonRight", "SeRelabelPrivilege":
+			// No edge
+		case "SeEnableDelegationPrivilege":
+			ui.Trace().Msgf("SeEnableDelegationPrivilege hit")
 		default:
 			continue
 		}
@@ -255,7 +259,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				user := ao.AddNew(
 					engine.IgnoreBlanks,
 					activedirectory.ObjectSid, engine.AttributeValueSID(usid),
-					activedirectory.ObjectCategorySimple, "Person",
+					activedirectory.Type, "Person",
 					activedirectory.DisplayName, user.FullName,
 					activedirectory.Name, user.Name,
 					activedirectory.UserAccountControl, uac,
@@ -285,7 +289,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				activedirectory.ObjectSid, engine.AttributeValueSID(groupsid),
 				activedirectory.Name, group.Name,
 				activedirectory.Description, group.Comment,
-				engine.ObjectCategorySimple, "Group",
+				engine.Type, "Group",
 				engine.DataSource, uniquesource,
 			)
 			groupobject.ChildOf(groupscontainer)
@@ -360,7 +364,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 
 		user := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
-			engine.ObjectCategorySimple, "Person",
+			engine.Type, "Person",
 		)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
 			user.SetFlex(
@@ -442,7 +446,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			engine.NetbiosDomain, engine.AttributeValueString(cinfo.Machine.DefaultDomain),
 			activedirectory.SAMAccountName, cinfo.Machine.DefaultUsername,
 			engine.DownLevelLogonName, cinfo.Machine.DefaultDomain+"\\"+cinfo.Machine.DefaultUsername,
-			activedirectory.ObjectCategorySimple, "Person",
+			activedirectory.Type, "Person",
 		)
 		machine.EdgeTo(user, EdgeHasAutoAdminLogonCredentials)
 	}
@@ -468,7 +472,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			activedirectory.Description, service.Description,
 			ServiceStart, int64(service.Start),
 			ServiceType, int64(service.Type),
-			activedirectory.ObjectCategorySimple, "Service",
+			activedirectory.Type, "Service",
 		)
 
 		ao.Add(serviceobject)
@@ -514,7 +518,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				svcaccount.ChildOf(serviceobject)
 			}
 			if serviceaccountSID.Component(2) < 21 {
-				svcaccount.SetFlex(activedirectory.ObjectCategorySimple, "Group")
+				svcaccount.SetFlex(activedirectory.Type, "Group")
 			}
 		}
 		if svcaccount == nil {
@@ -615,7 +619,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		serviceimageobject := engine.NewObject(
 			activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
 			AbsolutePath, service.ImageExecutable,
-			engine.ObjectCategorySimple, "Executable",
+			engine.Type, "Executable",
 		)
 		ao.Add(serviceimageobject)
 		serviceimageobject.EdgeTo(serviceobject, EdgeExecuted)
@@ -680,7 +684,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	// SHARES
 	if len(cinfo.Shares) > 0 {
 		computershares := ao.AddNew(
-			activedirectory.ObjectCategorySimple, "Container",
+			activedirectory.Type, "Container",
 			activedirectory.DisplayName, "Shares",
 		)
 		computershares.ChildOf(machine)
@@ -692,7 +696,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				AbsolutePath, share.Path,
 				engine.Description, share.Remark,
 				ShareType, share.Type,
-				engine.ObjectCategorySimple, "Share",
+				engine.Type, "Share",
 			)
 
 			machine.EdgeTo(shareobject, EdgeShares)
@@ -740,7 +744,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.IgnoreBlanks,
 				activedirectory.DisplayName, share.Path,
 				AbsolutePath, share.Path,
-				engine.ObjectCategorySimple, "Directory",
+				engine.Type, "Directory",
 			)
 
 			pathobject.ChildOf(machine)

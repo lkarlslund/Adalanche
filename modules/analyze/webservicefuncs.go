@@ -680,7 +680,7 @@ func analysisfuncs(ws *webservice) {
 			if object.Type() == engine.ObjectTypeUser &&
 				object.OneAttrString(engine.MetaWorkstation) != "1" &&
 				object.OneAttrString(engine.MetaServer) != "1" &&
-				object.OneAttrString(engine.MetaAccountDisabled) != "1" {
+				object.OneAttrString(engine.MetaAccountActive) == "1" {
 				lastlogin, _ := object.AttrTime(activedirectory.LastLogon)
 				lastlogints, _ := object.AttrTime(activedirectory.LastLogonTimestamp)
 				last, _ := object.AttrTime(activedirectory.PwdLastSet)
@@ -713,9 +713,9 @@ func analysisfuncs(ws *webservice) {
 					Unconstrained: object.OneAttrString(engine.MetaUnconstrainedDelegation) == "1",
 					Workstation:   object.OneAttrString(engine.MetaWorkstation) == "1",
 					Server:        object.OneAttrString(engine.MetaServer) == "1",
-					Enabled:       object.OneAttrString(engine.MetaAccountDisabled) != "1",
+					Enabled:       object.OneAttrString(engine.MetaAccountActive) == "1",
 					CantChangePwd: object.OneAttrString(engine.MetaPasswordCantChange) == "1",
-					NoExpirePwd:   object.OneAttrString(engine.MetaPasswordNoExpire) == "1",
+					NoExpirePwd:   object.OneAttrString(engine.MetaPasswordNeverExpires) == "1",
 					NoRequirePwd:  object.OneAttrString(engine.MetaPasswordNotRequired) == "1",
 					HasLAPS:       object.OneAttrString(engine.MetaLAPSInstalled) == "1",
 				}

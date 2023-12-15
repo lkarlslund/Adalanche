@@ -23,20 +23,23 @@ var (
 	DSReplicationSyncronize                 = uuid.UUID{0x11, 0x31, 0xf6, 0xab, 0x9c, 0x07, 0x11, 0xd1, 0xf7, 0x9f, 0x00, 0xc0, 0x4f, 0xc2, 0xdc, 0xd2}
 	DSReplicationGetChangesInFilteredSet, _ = uuid.FromString("{89e95b76-444d-4c62-991a-0facbeda640c}")
 
-	AttributeMember                                 = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
-	AttributeSetGroupMembership, _                  = uuid.FromString("{BC0AC240-79A9-11D0-9020-00C04FC2D4CF}")
-	AttributeSIDHistory                             = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+	AttributeMember                = uuid.UUID{0xbf, 0x96, 0x79, 0xc0, 0x0d, 0xe6, 0x11, 0xd0, 0xa2, 0x85, 0x00, 0xaa, 0x00, 0x30, 0x49, 0xe2}
+	AttributeSetGroupMembership, _ = uuid.FromString("{BC0AC240-79A9-11D0-9020-00C04FC2D4CF}")
+	AttributeSIDHistory            = uuid.UUID{0x17, 0xeb, 0x42, 0x78, 0xd1, 0x67, 0x11, 0xd0, 0xb0, 0x02, 0x00, 0x00, 0xf8, 0x03, 0x67, 0xc1}
+
 	AttributeAllowedToActOnBehalfOfOtherIdentity, _ = uuid.FromString("{3F78C3E5-F79A-46BD-A0B8-9D18116DDC79}")
-	AttributeMSDSGroupMSAMembership                 = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
-	AttributeGPLink, _                              = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
-	AttributeMSDSKeyCredentialLink, _               = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
-	AttributeSecurityGUIDGUID, _                    = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
-	AttributeAltSecurityIdentitiesGUID, _           = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
-	AttributeProfilePathGUID, _                     = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
-	AttributeScriptPathGUID, _                      = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
-	AttributeMSDSManagedPasswordId, _               = uuid.FromString("{0e78295a-c6d3-0a40-b491-d62251ffa0a6}")
-	AttributeUserAccountControlGUID, _              = uuid.FromString("{bf967a68-0de6-11d0-a285-00aa003049e2}")
-	AttributePwdLastSetGUID, _                      = uuid.FromString("{bf967a0a-0de6-11d0-a285-00aa003049e2}")
+	AttributeAllowedToDelegateTo, _                 = uuid.FromString("{800d94d7-b7a1-42a1-b14d-7cae1423d07f}")
+
+	AttributeMSDSGroupMSAMembership       = uuid.UUID{0x88, 0x8e, 0xed, 0xd6, 0xce, 0x04, 0xdf, 0x40, 0xb4, 0x62, 0xb8, 0xa5, 0x0e, 0x41, 0xba, 0x38}
+	AttributeGPLink, _                    = uuid.FromString("{F30E3BBE-9FF0-11D1-B603-0000F80367C1}")
+	AttributeMSDSKeyCredentialLink, _     = uuid.FromString("{5B47D60F-6090-40B2-9F37-2A4DE88F3063}")
+	AttributeSecurityGUIDGUID, _          = uuid.FromString("{bf967924-0de6-11d0-a285-00aa003049e2}")
+	AttributeAltSecurityIdentitiesGUID, _ = uuid.FromString("{00FBF30C-91FE-11D1-AEBC-0000F80367C1}")
+	AttributeProfilePathGUID, _           = uuid.FromString("{bf967a05-0de6-11d0-a285-00aa003049e2}")
+	AttributeScriptPathGUID, _            = uuid.FromString("{bf9679a8-0de6-11d0-a285-00aa003049e2}")
+	AttributeMSDSManagedPasswordId, _     = uuid.FromString("{0e78295a-c6d3-0a40-b491-d62251ffa0a6}")
+	AttributeUserAccountControlGUID, _    = uuid.FromString("{bf967a68-0de6-11d0-a285-00aa003049e2}")
+	AttributePwdLastSetGUID, _            = uuid.FromString("{bf967a0a-0de6-11d0-a285-00aa003049e2}")
 
 	ExtendedRightCertificateEnroll, _     = uuid.FromString("{0e10c968-78fb-11d2-90d4-00c04f79dc55}")
 	ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("{a05b8cc2-17bc-4802-a710-e7c15ab866a2}")
@@ -64,9 +67,10 @@ var (
 
 	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl").Tag("Informative").RegisterProbabilityCalculator(activedirectory.NotAChance)
 
-	NetBIOSName = engine.NewAttribute("nETBIOSName")
-	NCName      = engine.NewAttribute("nCName")
-	DNSRoot     = engine.NewAttribute("dnsRoot")
+	NetBIOSName       = engine.NewAttribute("nETBIOSName")
+	NCName            = engine.NewAttribute("nCName")
+	DNSRoot           = engine.NewAttribute("dnsRoot")
+	MemberOfRecursive = engine.NewAttribute("memberOfRecursive")
 
 	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
 	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid").Merge()
@@ -445,10 +449,11 @@ func init() {
 		})
 	}, "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account", engine.BeforeMergeFinal)
 
+	// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
-			if o.Type() != engine.ObjectTypeComputer {
+			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -457,13 +462,58 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
-					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAllowedToAct) // Success rate?
+					// This does NOT requires the SeEnableDelegationPrivilege set on the DC for the user doing it!!
+					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAllowedToAct)
 				}
 			}
 			return true
 		})
-	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity on a computer to enable any SPN enabled user to impersonate anyone else`, engine.BeforeMergeFinal)
+	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account to enable any SPN enabled user to impersonate it`, engine.BeforeMergeFinal)
 
+	EdgeRBCD := engine.NewEdge("RBCD")
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		ao.Iterate(func(o *engine.Object) bool {
+			// Only computers
+			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
+				return true
+			}
+			o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
+				// Each of these is a SID, so find that SID and add an edge
+				sd := val.Raw().(*engine.SecurityDescriptor)
+				ui.Debug().Msgf("Found msDS-AllowedToActOnBehalfOfOtherIdentity on %v as %v", o.DN(), sd.String(ao))
+				for _, acl := range sd.DACL.Entries {
+					if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, EdgeRBCD)
+					}
+				}
+				// o.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), EdgeRBCD)
+				return true
+			})
+			return true
+		})
+	}, `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`, engine.BeforeMergeFinal)
+	/*
+		// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
+		Loader.AddProcessor(func(ao *engine.Objects) {
+			ao.Iterate(func(o *engine.Object) bool {
+				// Only computers
+				if o.Type() != engine.ObjectTypeComputer {
+					return true
+				}
+				sd, err := o.SecurityDescriptor()
+				if err != nil {
+					return true
+				}
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToDelegateTo, ao) {
+						// Also requires the SeEnableDelegationPrivilege set on the DC for the user doing it!!
+						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
+					}
+				}
+				return true
+			})
+		}, `Modify the msDS-AllowedToDelegateTo (Constrained Delegation) on a computer to enable any SPN enabled user to impersonate anyone else`, engine.BeforeMergeFinal)
+	*/
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
@@ -732,6 +782,8 @@ func init() {
 	}, "Has the Voodoo Bit set", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
+		// DCsyncObject := ao.AddNew()
+
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeDomainDNS {
 				return true
@@ -786,7 +838,7 @@ func init() {
 				DomainJoinedSID, sid,
 				engine.IgnoreBlanks,
 				engine.Name, computeraccount.Attr(engine.Name),
-				activedirectory.ObjectCategorySimple, "Machine",
+				activedirectory.Type, "Machine",
 				DnsHostName, computeraccount.Attr(DnsHostName),
 			)
 			// ui.Debug().Msgf("Added machine for SID %v", sid.String())
@@ -1047,7 +1099,7 @@ func init() {
 					engine.Name, engine.AttributeValueString(name),
 					engine.ObjectSid, engine.AttributeValueSID(binsid),
 					engine.ObjectClass, engine.AttributeValueString("person"), engine.AttributeValueString("user"), engine.AttributeValueString("top"),
-					engine.ObjectCategorySimple, engine.AttributeValueString("Group"),
+					engine.Type, engine.AttributeValueString("Group"),
 				))
 			}
 		}
@@ -1138,22 +1190,23 @@ func init() {
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
-				if uac&engine.UAC_ACCOUNTDISABLE != 0 {
-					object.SetValues(engine.MetaAccountDisabled, engine.AttributeValueInt(1))
+
+				accountActive := uac&engine.UAC_ACCOUNTDISABLE == 0
+				if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok && accountActive {
+					if !exp.IsZero() && time.Now().After(exp) {
+						accountActive = false
+					}
 				}
-				if uac&engine.UAC_PASSWD_CANT_CHANGE != 0 {
-					object.SetValues(engine.MetaPasswordCantChange, engine.AttributeValueInt(1))
-				}
-				if uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0 {
-					object.SetValues(engine.MetaPasswordNoExpire, engine.AttributeValueInt(1))
-				}
-				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
-					object.SetValues(engine.MetaPasswordNotRequired, engine.AttributeValueInt(1))
-				}
+
+				object.SetValues(engine.MetaAccountActive, engine.AttributeValueBool(accountActive))
+				object.SetValues(engine.MetaPasswordCantChange, engine.AttributeValueBool(uac&engine.UAC_PASSWD_CANT_CHANGE != 0))
+				object.SetValues(engine.MetaPasswordNeverExpires, engine.AttributeValueBool(uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0))
+				object.SetValues(engine.MetaPasswordNotRequired, engine.AttributeValueBool(uac&engine.UAC_PASSWD_NOTREQD != 0))
+
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
 					// find the machine object for this
-					machine, found := ao.FindTwo(engine.ObjectCategorySimple, engine.AttributeValueString("Machine"),
+					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
 						DomainJoinedSID, engine.AttributeValueSID(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
@@ -1279,12 +1332,12 @@ func init() {
 
 			object.SetFlex(
 				engine.ObjectCategoryGUID, objectcategoryguid,
-				engine.ObjectCategorySimple, simple,
+				engine.Type, simple,
 			)
 			return true
 		})
 	},
-		"Set ObjectCategorySimple (for Type call) to Active Directory objects",
+		"Set type (for Type call) to Active Directory objects",
 		engine.BeforeMergeLow,
 	)
 
@@ -1536,7 +1589,7 @@ func init() {
 					group = engine.NewObject(
 						engine.IgnoreBlanks,
 						engine.DistinguishedName, memberof,
-						engine.ObjectCategorySimple, engine.AttributeValueString("Group"),
+						engine.Type, engine.AttributeValueString("Group"),
 						engine.ObjectClass, engine.AttributeValueString("top"), engine.AttributeValueString("group"),
 						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
 						engine.Description, engine.AttributeValueString("Synthetic group"),
@@ -1617,6 +1670,24 @@ func init() {
 			})
 			return true
 		}, 0)
+
+		ao.IterateParallel(func(o *engine.Object) bool {
+			var groups []engine.AttributeValue
+			o.Edges(engine.Out).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
+				if edge.IsSet(activedirectory.EdgeMemberOfGroupIndirect) || edge.IsSet(activedirectory.EdgeMemberOfGroup) {
+					dn := target.Attr(engine.DistinguishedName)
+					if dn.First() != nil {
+						groups = append(groups, dn.First())
+					}
+				}
+				return true
+			})
+			if len(groups) > 0 {
+				o.SetValues(MemberOfRecursive, groups...)
+			}
+			return true
+		}, 0)
+
 	},
 		"MemberOfIndirect resolution",
 		engine.AfterMerge,
@@ -1686,8 +1757,8 @@ func init() {
 						nativeobject := nativeObjects.First()
 						nativeobject.EdgeTo(object, activedirectory.EdgeForeignIdentity)
 						// Inherit the type from the original
-						if !object.HasAttr(activedirectory.ObjectCategorySimple) {
-							object.SetFlex(activedirectory.ObjectCategorySimple, nativeobject.Attr(activedirectory.ObjectCategorySimple))
+						if !object.HasAttr(activedirectory.Type) {
+							object.SetFlex(activedirectory.Type, nativeobject.Attr(activedirectory.Type))
 						}
 					}
 				}

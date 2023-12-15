@@ -20,7 +20,7 @@ func LinkSCCM(ao *engine.Objects) {
 			for _, host := range hosts {
 				servers, found := ao.FindTwoMulti(
 					DNSHostname, engine.AttributeValueString(host),
-					engine.ObjectCategorySimple, engine.AttributeValueString("Machine"),
+					engine.Type, engine.AttributeValueString("Machine"),
 				)
 				if !found {
 					ui.Warn().Msgf("Could not find controlling WSUS or SCCM server %v for %v", host, o.Label())

@@ -41,6 +41,7 @@ const (
 	AttributeTypeSID
 	AttributeTypeGUID
 	AttributeTypeBlob
+	AttributeTypeSecurityDescriptor
 )
 
 type mergeapproverinfo struct {
@@ -58,7 +59,7 @@ var (
 	DistinguishedName     = NewAttribute("distinguishedName").Single().Unique()
 	ObjectClass           = NewAttribute("objectClass")
 	ObjectCategory        = NewAttribute("objectCategory").Single()
-	ObjectCategorySimple  = NewAttribute("objectCategorySimple").Single()
+	Type                  = NewAttribute("type").Single()
 	Name                  = NewAttribute("name").Single()
 	DisplayName           = NewAttribute("displayName").Single()
 	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Single()
@@ -94,10 +95,10 @@ var (
 	MetaHasSPN                  = NewAttribute("_hasspn")
 	MetaPasswordAge             = NewAttribute("_passwordage")
 	MetaLastLoginAge            = NewAttribute("_lastloginage")
-	MetaAccountDisabled         = NewAttribute("_accountdisabled")
-	MetaPasswordCantChange      = NewAttribute("_passwordcantchange")
-	MetaPasswordNotRequired     = NewAttribute("_passwordnotrequired")
-	MetaPasswordNoExpire        = NewAttribute("_passwordnoexpire")
+	MetaAccountActive           = NewAttribute("accountActive")
+	MetaPasswordCantChange      = NewAttribute("passwordCantChange")
+	MetaPasswordNotRequired     = NewAttribute("passwordNotRequired").Type(AttributeTypeBool)
+	MetaPasswordNeverExpires    = NewAttribute("passwordNeverExpires").Type(AttributeTypeBool)
 	MetaLinux                   = NewAttribute("_linux")
 	MetaWindows                 = NewAttribute("_windows")
 	MetaWorkstation             = NewAttribute("_workstation")

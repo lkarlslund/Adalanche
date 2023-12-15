@@ -27,24 +27,25 @@ var (
 	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
-			return 0
+			return 25
 		}
 		return 50
 	}).Tag("Pivot")
 	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
 			// Account is disabled
-			return 0
+			return 25
 		}
 		return 50
 	}).Tag("Pivot")
-	EdgeWriteAllowedToAct       = engine.NewEdge("WriteAllowedToAct").Tag("Pivot")
-	EdgeAddMember               = engine.NewEdge("AddMember").Tag("Pivot")
-	EdgeAddMemberGroupAttr      = engine.NewEdge("AddMemberGroupAttr").Tag("Pivot")
-	EdgeAddSelfMember           = engine.NewEdge("AddSelfMember").Tag("Pivot")
-	EdgeReadMSAPassword         = engine.NewEdge("ReadMSAPassword").Tag("Pivot")
-	EdgeHasMSA                  = engine.NewEdge("HasMSA").Tag("Granted")
-	EdgeWriteUserAccountControl = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+	EdgeWriteAllowedToAct        = engine.NewEdge("WriteAllowedToAct").Tag("Pivot")
+	EdgeWriteAllowedToDelegateTo = engine.NewEdge("WriteAllowedToDelegTo").Tag("Pivot")
+	EdgeAddMember                = engine.NewEdge("AddMember").Tag("Pivot")
+	EdgeAddMemberGroupAttr       = engine.NewEdge("AddMemberGroupAttr").Tag("Pivot")
+	EdgeAddSelfMember            = engine.NewEdge("AddSelfMember").Tag("Pivot")
+	EdgeReadMSAPassword          = engine.NewEdge("ReadMSAPassword").Tag("Pivot")
+	EdgeHasMSA                   = engine.NewEdge("HasMSA").Tag("Granted")
+	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		/*if uac, ok := target.AttrInt(activedirectory.UserAccountControl); ok && uac&0x0002 != 0 { //UAC_ACCOUNTDISABLE
 			// Account is disabled
 			return 0

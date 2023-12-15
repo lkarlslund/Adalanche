@@ -47,7 +47,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 	globalobjects := NewObjects()
 	globalroot := NewObject(
 		Name, AttributeValueString("Adalanche root node"),
-		ObjectCategorySimple, AttributeValueString("Root"),
+		Type, AttributeValueString("Root"),
 	)
 	globalobjects.SetRoot(globalroot)
 	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))

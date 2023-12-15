@@ -275,3 +275,19 @@ func (as AttributeValueGUID) Raw() any {
 func (as AttributeValueGUID) IsZero() bool {
 	return uuid.UUID(as).IsNil()
 }
+
+type AttributeValueSecurityDescriptor struct {
+	SD *SecurityDescriptor
+}
+
+func (as AttributeValueSecurityDescriptor) String() string {
+	return as.SD.StringNoLookup()
+}
+
+func (as AttributeValueSecurityDescriptor) Raw() any {
+	return as.SD
+}
+
+func (as AttributeValueSecurityDescriptor) IsZero() bool {
+	return len(as.SD.DACL.Entries) == 0
+}

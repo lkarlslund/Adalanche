@@ -29,9 +29,9 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
-	result := engine.NewPreload(len(r.Attributes))
+	newobject := engine.NewPreload(len(r.Attributes))
 
-	result.SetFlex(
+	newobject.SetFlex(
 		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 
@@ -52,11 +52,11 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 
 		encodedvals := EncodeAttributeData(attribute, values)
 		if encodedvals != nil {
-			result.Set(attribute, encodedvals)
+			newobject.Set(attribute, encodedvals)
 		}
 	}
 
-	return result
+	return newobject
 }
 
 func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
@@ -176,6 +176,14 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			sid, _, _ := windowssecurity.BytesToSID([]byte(value))
 			attributevalue = engine.AttributeValueSID(sid)
+		case MSDSAllowedToActOnBehalfOfOtherIdentity, FRSRootSecurity, MSDFSLinkSecurityDescriptorv2,
+			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
+			sd, err := engine.CacheOrParseSecurityDescriptor([]byte(value))
+			if err == nil {
+				attributevalue = engine.AttributeValueSecurityDescriptor{sd}
+			} else {
+				ui.Warn().Msgf("Failed to convert attribute %v value %2x to security descriptor: %v", attribute.String(), []byte(value), err)
+			}
 		default:
 			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
 			if value == "true" || value == "TRUE" {

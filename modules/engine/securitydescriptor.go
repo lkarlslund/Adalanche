@@ -316,6 +316,14 @@ func (a ACL) String(ao *Objects) string {
 	return result
 }
 
+func (a ACL) StringNoLookup() string {
+	result := fmt.Sprintf("ACL revision %v:\n", a.Revision)
+	for _, ace := range a.Entries {
+		result += "ACE: " + ace.StringNoLookup() + "\n"
+	}
+	return result
+}
+
 func ParseACLentry(odata []byte) (ACE, []byte, error) {
 	var ace ACE
 	var err error
@@ -620,6 +628,113 @@ func (a ACE) String(ao *Objects) string {
 	return result
 }
 
+func (a ACE) StringNoLookup() string {
+	var result string
+	switch a.Type {
+	case ACETYPE_ACCESS_ALLOWED:
+		result += "Allow"
+	case ACETYPE_ACCESS_ALLOWED_OBJECT:
+		result += "Allow object"
+	case ACETYPE_ACCESS_DENIED:
+		result += "Deny"
+	case ACETYPE_ACCESS_DENIED_OBJECT:
+		result += "Deny object"
+	default:
+		result += fmt.Sprintf("Unknown %v", a.Type)
+	}
+
+	result += " " + a.SID.String()
+
+	if a.Flags&OBJECT_TYPE_PRESENT != 0 {
+		// ui.Debug().Msgf("Looking for right %v", a.ObjectType)
+		result += " OBJECT_TYPE_PRESENT"
+		result += " " + a.ObjectType.String()
+	}
+	if a.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 {
+		// ui.Debug().Msgf("Looking for right %v", a.InheritedObjectType)
+		// if o, found := AllRights[a.InheritedObjectType]; found {
+		// 	result += fmt.Sprintf(" inherited RIGHT %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
+		// } else
+		result += "INHERITED_OBJECT_TYPE_PRESENT "
+		if a.InheritedObjectType.IsNil() {
+			result += a.InheritedObjectType.String()
+		} else {
+			result += " " + a.InheritedObjectType.String()
+		}
+	}
+
+	result += fmt.Sprintf("MASK %08x", a.Mask)
+
+	var rights []string
+	if a.Mask&RIGHT_GENERIC_READ == RIGHT_GENERIC_READ {
+		rights = append(rights, "GENERIC_READ")
+	}
+	if a.Mask&RIGHT_GENERIC_WRITE == RIGHT_GENERIC_WRITE {
+		rights = append(rights, "GENERIC_WRITE")
+	}
+	if a.Mask&RIGHT_GENERIC_EXECUTE == RIGHT_GENERIC_EXECUTE {
+		rights = append(rights, "GENERIC_EXECUTE")
+	}
+	if a.Mask&RIGHT_GENERIC_ALL == RIGHT_GENERIC_ALL {
+		rights = append(rights, "GENERIC_ALL")
+	}
+	if a.Mask&RIGHT_MAXIMUM_ALLOWED == RIGHT_MAXIMUM_ALLOWED {
+		rights = append(rights, "MAXIMUM_ALLOWED")
+	}
+	if a.Mask&RIGHT_ACCESS_SYSTEM_SECURITY == RIGHT_ACCESS_SYSTEM_SECURITY {
+		rights = append(rights, "ACCESS_SYSTEM_SECURITY")
+	}
+	if a.Mask&RIGHT_SYNCRONIZE == RIGHT_SYNCRONIZE {
+		rights = append(rights, "SYNCRONIZE")
+	}
+	if a.Mask&RIGHT_WRITE_OWNER == RIGHT_WRITE_OWNER {
+		rights = append(rights, "WRITE_OWNER")
+	}
+	if a.Mask&RIGHT_WRITE_DACL == RIGHT_WRITE_DACL {
+		rights = append(rights, "WRITE_DACL")
+	}
+	if a.Mask&RIGHT_READ_CONTROL == RIGHT_READ_CONTROL {
+		rights = append(rights, "READ_CONTROL")
+	}
+	if a.Mask&RIGHT_DELETE == RIGHT_DELETE {
+		rights = append(rights, "DELETE")
+	}
+	if a.Mask&RIGHT_DS_CONTROL_ACCESS == RIGHT_DS_CONTROL_ACCESS {
+		rights = append(rights, "DS_CONTROL_ACCESS")
+	}
+
+	if a.Mask&RIGHT_DS_VOODOO_BIT == RIGHT_DS_VOODOO_BIT {
+		rights = append(rights, "DS_VOODOO_BIT")
+	}
+
+	if a.Mask&RIGHT_DS_LIST_OBJECT == RIGHT_DS_LIST_OBJECT {
+		rights = append(rights, "DS_LIST_OBJECT")
+	}
+	if a.Mask&RIGHT_DS_DELETE_TREE == RIGHT_DS_DELETE_TREE {
+		rights = append(rights, "DS_DELETE_TREE")
+	}
+	if a.Mask&RIGHT_DS_WRITE_PROPERTY == RIGHT_DS_WRITE_PROPERTY {
+		rights = append(rights, "DS_WRITE_PROPERTY")
+	}
+	if a.Mask&RIGHT_DS_READ_PROPERTY == RIGHT_DS_READ_PROPERTY {
+		rights = append(rights, "DS_READ_PROPERTY")
+	}
+	if a.Mask&RIGHT_DS_WRITE_PROPERTY_EXTENDED == RIGHT_DS_WRITE_PROPERTY_EXTENDED {
+		rights = append(rights, "DS_WRITE_PROPERTY_EXTENDED")
+	}
+	if a.Mask&RIGHT_DS_LIST_CONTENTS == RIGHT_DS_LIST_CONTENTS {
+		rights = append(rights, "DS_LIST_CONTENTS")
+	}
+	if a.Mask&RIGHT_DS_DELETE_CHILD == RIGHT_DS_DELETE_CHILD {
+		rights = append(rights, "DS_DELETE_CHILD")
+	}
+	if a.Mask&RIGHT_DS_CREATE_CHILD == RIGHT_DS_CREATE_CHILD {
+		rights = append(rights, "DS_CREATE_CHILD")
+	}
+	result += " " + strings.Join(rights, " | ")
+	return result
+}
+
 type SecurityDescriptor struct {
 	Owner   windowssecurity.SID
 	Group   windowssecurity.SID
@@ -738,6 +853,55 @@ func (sd SecurityDescriptor) String(ao *Objects) string {
 	}
 	if sd.Control&CONTROLFLAG_SACL_PRESENT != 0 {
 		result += "DACL:\n" + sd.SACL.String(ao)
+	}
+	return result
+}
+
+func (sd SecurityDescriptor) StringNoLookup() string {
+	var result string
+	var flags []string
+	if sd.Control&CONTROLFLAG_OWNER_DEFAULTED != 0 {
+		flags = append(flags, "OWNER_DEFAULTED")
+	}
+	if sd.Control&CONTROLFLAG_GROUP_DEFAULTED != 0 {
+		flags = append(flags, "GROUP_DEFAULTED")
+	}
+	if sd.Control&CONTROLFLAG_DACL_PRESENT != 0 {
+		flags = append(flags, "DACL_PRESENT")
+	}
+	if sd.Control&CONTROLFLAG_DACL_DEFAULTED != 0 {
+		flags = append(flags, "DACL_DEFAULTED")
+	}
+	if sd.Control&CONTROLFLAG_SACL_PRESENT != 0 {
+		flags = append(flags, "SACL_PRESENT")
+	}
+	if sd.Control&CONTROLFLAG_SACL_DEFAULTED != 0 {
+		flags = append(flags, "SACL_DEFAULTED")
+	}
+	if sd.Control&CONTROLFLAG_DACL_AUTO_INHERITED != 0 {
+		flags = append(flags, "DACL_AUTO_INHERITED")
+	}
+	if sd.Control&CONTROLFLAG_SACL_AUTO_INHERITED != 0 {
+		flags = append(flags, "SACL_AUTO_INHERITED")
+	}
+	if sd.Control&CONTROLFLAG_DACL_PROTECTED != 0 {
+		flags = append(flags, "DACL_PROTECTED")
+	}
+	if sd.Control&CONTROLFLAG_SACL_PROTECTED != 0 {
+		flags = append(flags, "SACL_PROTECTED")
+	}
+	result = "SecurityDescriptor: " + strings.Join(flags, " | ") + "\n"
+	if !sd.Owner.IsNull() {
+		result += "Owner: " + sd.Owner.String() + "\n"
+	}
+	if !sd.Group.IsNull() {
+		result += "Group: " + sd.Group.String() + "\n"
+	}
+	if sd.Control&CONTROLFLAG_DACL_PRESENT != 0 {
+		result += "DACL:\n" + sd.DACL.StringNoLookup()
+	}
+	if sd.Control&CONTROLFLAG_SACL_PRESENT != 0 {
+		result += "DACL:\n" + sd.SACL.StringNoLookup()
 	}
 	return result
 }

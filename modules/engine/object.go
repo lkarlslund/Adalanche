@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/OneOfOne/xxhash"
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
@@ -439,7 +438,7 @@ func (o *Object) Type() ObjectType {
 		return o.objecttype
 	}
 
-	category := o.Attr(ObjectCategorySimple)
+	category := o.Attr(Type)
 
 	if category.Len() == 0 {
 		return ObjectTypeOther
@@ -467,8 +466,8 @@ func (o *Object) AttrString(attr Attribute) []string {
 }
 
 func (o *Object) AttrRendered(attr Attribute) AttributeValues {
-	if attr == ObjectCategory && o.HasAttr(ObjectCategorySimple) {
-		return o.Attr(ObjectCategorySimple)
+	if attr == ObjectCategory && o.HasAttr(Type) {
+		return o.Attr(Type)
 	}
 	return o.Attr(attr)
 }
@@ -795,6 +794,10 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
 	}
 
+	if a == NTSecurityDescriptor {
+		o.sdcache = values.First().Raw().(*SecurityDescriptor)
+	}
+
 	if a == DownLevelLogonName {
 		// There's been so many problems with DLLN that we're going to just check for these
 		if values.Len() != 1 {
@@ -835,22 +838,9 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		})
 	}
 
-	if a == ObjectCategory || a == ObjectCategorySimple {
+	if a == ObjectCategory || a == Type {
 		// Clear objecttype cache attribute
 		o.objecttype = 0
-	}
-
-	// Cache the NTSecurityDescriptor
-	if a == NTSecurityDescriptor {
-		if values.Len() != 1 {
-			panic(fmt.Sprintf("Asked to set %v security descriptors on %v", values.Len(), o.Label()))
-		} else {
-			sd := values.First()
-			if err := o.cacheSecurityDescriptor([]byte(sd.Raw().(string))); err != nil {
-				ui.Error().Msgf("Problem parsing security descriptor for %v: %v", o.DN(), err)
-			}
-		}
-		return // We dont store the raw version, just the decoded one, KTHX
 	}
 
 	// Deduplication of values
@@ -1007,32 +997,6 @@ func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 }
 
 var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor attribute!?")
-
-// Parse and cache security descriptor
-func (o *Object) cacheSecurityDescriptor(rawsd []byte) error {
-	if len(rawsd) == 0 {
-		return ErrEmptySecurityDescriptorAttribute
-	}
-
-	securitydescriptorcachemutex.RLock()
-	cacheindex := xxhash.Checksum64(rawsd)
-	if sd, found := securityDescriptorCache[cacheindex]; found {
-		securitydescriptorcachemutex.RUnlock()
-		o.sdcache = sd
-		return nil
-	}
-	securitydescriptorcachemutex.RUnlock()
-
-	securitydescriptorcachemutex.Lock()
-	sd, err := ParseSecurityDescriptor([]byte(rawsd))
-	if err == nil {
-		o.sdcache = &sd
-		securityDescriptorCache[cacheindex] = &sd
-	}
-
-	securitydescriptorcachemutex.Unlock()
-	return err
-}
 
 // Return the object's SID
 func (o *Object) SID() windowssecurity.SID {
