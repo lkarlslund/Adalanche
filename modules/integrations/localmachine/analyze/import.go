@@ -223,8 +223,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			pwn = EdgeSeTcb
 		case "SeIncreaseQuotaPrivilege", "SeSystemProfilePrivilege", "SeSecurityPrivilege", "SeSystemtimePrivilege", "SeProfileSingleProcessPrivilege", "SeIncreaseBasePriorityPrivilege", "SeCreatePagefilePrivilege", "SeShutdownPrivilege", "SeAuditPrivilege", "SeSystemEnvironmentPrivilege", "SeChangeNotifyPrivilege", "SeRemoteShutdownPrivilege", "SeUndockPrivilege", "SeCreateGlobalPrivilege", "SeIncreaseWorkingSetPrivilege", "SeTimeZonePrivilege", "SeCreateSymbolicLinkPrivilege", "SeInteractiveLogonRight", "SeDenyInteractiveLogonRight", "SeDenyRemoteInteractiveLogonRight", "SeBatchLogonRight", "SeServiceLogonRight", "SeDelegateSessionUserImpersonatePrivilege", "SeLockMemoryPrivilege", "SeDenyNetworkLogonRight", "SeTrustedCredManAccessPrivilege", "SeDenyBatchLogonRight", "SeDenyServiceLogonRight", "SeRelabelPrivilege":
 			// No edge
+			continue
 		case "SeEnableDelegationPrivilege":
 			ui.Trace().Msgf("SeEnableDelegationPrivilege hit")
+			continue
 		default:
 			continue
 		}
