@@ -12,15 +12,15 @@ import (
 func getMergeAttributes() []Attribute {
 	var mergeon []Attribute
 	attributemutex.RLock()
-	for i := range attributenums {
-		if attributenums[i].merge {
+	for i := range attributeinfos {
+		if attributeinfos[i].merge {
 			mergeon = append(mergeon, Attribute(i))
 		}
 	}
 	attributemutex.RUnlock()
 	sort.Slice(mergeon, func(i, j int) bool {
-		isuccess := attributenums[mergeon[i]].mergeSuccesses.Load()
-		jsuccess := attributenums[mergeon[j]].mergeSuccesses.Load()
+		isuccess := attributeinfos[mergeon[i]].mergeSuccesses.Load()
+		jsuccess := attributeinfos[mergeon[j]].mergeSuccesses.Load()
 		return jsuccess < isuccess
 	})
 	return mergeon

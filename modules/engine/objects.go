@@ -387,7 +387,7 @@ func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
 						}
 
 						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-						attributenums[int(mergeattr)].mergeSuccesses.Add(1)
+						attributeinfos[int(mergeattr)].mergeSuccesses.Add(1)
 
 						target.Absorb(source)
 						os.ReindexObject(target, false)

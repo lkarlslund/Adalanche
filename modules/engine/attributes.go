@@ -51,7 +51,7 @@ type mergeapproverinfo struct {
 }
 
 var mergeapprovers []mergeapproverinfo
-var attributenums []attributeinfo
+var attributeinfos []attributeinfo
 
 var (
 	NonExistingAttribute = ^Attribute(0)
@@ -171,10 +171,10 @@ func NewAttribute(name string) Attribute {
 		return attribute
 	}
 
-	newindex := Attribute(len(attributenums))
+	newindex := Attribute(len(attributeinfos))
 	attributenames[lowername] = newindex
 	attributenames[name] = newindex
-	attributenums = append(attributenums, attributeinfo{
+	attributeinfos = append(attributeinfos, attributeinfo{
 		name: name,
 	})
 	attributemutex.Unlock()
@@ -187,62 +187,62 @@ func (a Attribute) String() string {
 		return "N/A"
 	}
 	attributemutex.RLock()
-	result := attributenums[a].name
+	result := attributeinfos[a].name
 	attributemutex.RUnlock()
 	return result
 }
 
 func (a Attribute) Type(t AttributeType) Attribute {
 	attributemutex.Lock()
-	attributenums[a].atype = t
+	attributeinfos[a].atype = t
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) Single() Attribute {
 	attributemutex.Lock()
-	attributenums[a].single = true
+	attributeinfos[a].single = true
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) IsSingle() bool {
 	attributemutex.RLock()
-	result := attributenums[a].single
+	result := attributeinfos[a].single
 	attributemutex.RUnlock()
 	return result
 }
 
 func (a Attribute) Unique() Attribute {
 	attributemutex.Lock()
-	attributenums[a].unique = true
+	attributeinfos[a].unique = true
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) IsNonUnique() bool {
 	attributemutex.RLock()
-	result := !attributenums[a].unique
+	result := !attributeinfos[a].unique
 	attributemutex.RUnlock()
 	return result
 }
 
 func (a Attribute) IsUnique() bool {
 	attributemutex.RLock()
-	result := attributenums[a].unique
+	result := attributeinfos[a].unique
 	attributemutex.RUnlock()
 	return result
 }
 
 func (a Attribute) Hidden() Attribute {
 	attributemutex.Lock()
-	attributenums[a].hidden = true
+	attributeinfos[a].hidden = true
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) IsHidden() bool {
-	return attributenums[a].hidden
+	return attributeinfos[a].hidden
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
@@ -256,7 +256,7 @@ func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
 
 func (a Attribute) Merge() Attribute {
 	attributemutex.Lock()
-	attributenums[a].merge = true
+	attributeinfos[a].merge = true
 	attributemutex.Unlock()
 	return a
 }
@@ -272,28 +272,28 @@ func AddMergeApprover(name string, mf mergefunc) {
 
 func (a Attribute) Tag(t string) Attribute {
 	attributemutex.Lock()
-	attributenums[a].tags = append(attributenums[a].tags, t)
+	attributeinfos[a].tags = append(attributeinfos[a].tags, t)
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) SetDescription(t string) Attribute {
 	attributemutex.Lock()
-	attributenums[a].description = t
+	attributeinfos[a].description = t
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) OnSet(onset AttributeSetFunc) Attribute {
 	attributemutex.Lock()
-	attributenums[a].onset = onset
+	attributeinfos[a].onset = onset
 	attributemutex.Unlock()
 	return a
 }
 
 func (a Attribute) OnGet(onget AttributeGetFunc) Attribute {
 	attributemutex.Lock()
-	attributenums[a].onget = onget
+	attributeinfos[a].onget = onget
 	attributemutex.Unlock()
 	return a
 }
@@ -318,9 +318,19 @@ func (a Attribute) IsMeta() bool {
 func Attributes() []Attribute {
 	var results []Attribute
 	attributemutex.RLock()
-	for i := range attributenums {
+	for i := range attributeinfos {
 		results = append(results, Attribute(i))
 	}
 	attributemutex.RUnlock()
 	return results
+}
+
+func AttributeInfos() []attributeinfo {
+	result := make([]attributeinfo, len(attributeinfos))
+	attributemutex.RLock()
+	for i := 0; i < len(attributeinfos); i++ {
+		result[i] = attributeinfos[i]
+	}
+	attributemutex.RUnlock()
+	return result
 }

@@ -196,12 +196,12 @@ type edgeInfo struct {
 	probability                  ProbabilityCalculatorFunction
 	Name                         string
 	Description                  string
-	tags                         map[string]struct{}
-	multi                        bool // If true, this attribute can have multiple values
-	nonunique                    bool // Doing a Find on this attribute will return multiple results
-	merge                        bool // If true, objects can be merged on this attribute
-	hidden                       bool // If true, this attribute is not shown in the UI
-	defaultf, defaultm, defaultl bool
+	Tags                         map[string]struct{}
+	Multi                        bool // If true, this attribute can have multiple values
+	Nonunique                    bool // Doing a Find on this attribute will return multiple results
+	Merge                        bool // If true, objects can be merged on this attribute
+	Hidden                       bool // If true, this attribute is not shown in the UI
+	DefaultF, DefaultM, DefaultL bool
 }
 
 func NewEdge(name string) Edge {
@@ -228,9 +228,9 @@ func NewEdge(name string) Edge {
 
 	edgeInfos = append(edgeInfos, &edgeInfo{
 		Name:     name,
-		defaultf: true,
-		defaultm: true,
-		defaultl: true,
+		DefaultF: true,
+		DefaultM: true,
+		DefaultL: true,
 	})
 	edgeNames[lowername] = newindex
 	edgeMutex.Unlock()
@@ -246,49 +246,49 @@ func (p Edge) String() string {
 }
 
 func (p Edge) DefaultF() bool {
-	return edgeInfos[p].defaultf
+	return edgeInfos[p].DefaultF
 }
 
 func (p Edge) DefaultM() bool {
-	return edgeInfos[p].defaultm
+	return edgeInfos[p].DefaultM
 }
 
 func (p Edge) DefaultL() bool {
-	return edgeInfos[p].defaultl
+	return edgeInfos[p].DefaultL
 }
 
 func (p Edge) SetDefault(f, m, l bool) Edge {
 	edgeMutex.Lock()
-	edgeInfos[p].defaultf = f
-	edgeInfos[p].defaultm = m
-	edgeInfos[p].defaultl = l
+	edgeInfos[p].DefaultF = f
+	edgeInfos[p].DefaultM = m
+	edgeInfos[p].DefaultL = l
 	edgeMutex.Unlock()
 	return p
 }
 
 func (p Edge) Hidden() Edge {
 	edgeMutex.Lock()
-	edgeInfos[p].hidden = true
+	edgeInfos[p].Hidden = true
 	edgeMutex.Unlock()
 	return p
 }
 
 func (p Edge) IsHidden() bool {
-	return edgeInfos[p].hidden
+	return edgeInfos[p].Hidden
 }
 
 func (p Edge) Tag(t string) Edge {
-	tags := edgeInfos[p].tags
+	tags := edgeInfos[p].Tags
 	if tags == nil {
 		tags = make(map[string]struct{})
-		edgeInfos[p].tags = tags
+		edgeInfos[p].Tags = tags
 	}
 	tags[t] = struct{}{}
 	return p
 }
 
 func (p Edge) HasTag(t string) bool {
-	_, found := edgeInfos[p].tags[t]
+	_, found := edgeInfos[p].Tags[t]
 	return found
 }
 
@@ -301,15 +301,21 @@ func LookupEdge(name string) Edge {
 	return NonExistingEdgeType
 }
 
-func E(name string) Edge {
-	return LookupEdge(name)
-}
-
-func AllEdgesSlice() []Edge {
+func Edges() []Edge {
 	result := make([]Edge, len(edgeInfos))
 	edgeMutex.RLock()
 	for i := 0; i < len(edgeInfos); i++ {
 		result[i] = Edge(i)
+	}
+	edgeMutex.RUnlock()
+	return result
+}
+
+func EdgeInfos() []edgeInfo {
+	result := make([]edgeInfo, len(edgeInfos))
+	edgeMutex.RLock()
+	for i := 0; i < len(edgeInfos); i++ {
+		result[i] = *edgeInfos[i]
 	}
 	edgeMutex.RUnlock()
 	return result

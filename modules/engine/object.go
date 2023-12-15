@@ -485,8 +485,8 @@ func (o *Object) get(attr Attribute) (AttributeValues, bool) {
 	if attr == NonExistingAttribute {
 		return NoValues{}, false
 	}
-	if attributenums[attr].onget != nil {
-		return attributenums[attr].onget(o, attr)
+	if attributeinfos[attr].onget != nil {
+		return attributeinfos[attr].onget(o, attr)
 	}
 	return o.values.Get(attr)
 }
@@ -948,7 +948,7 @@ func (o *Object) String() string {
 		if attr == NTSecurityDescriptor {
 			return true // continue
 		}
-		result += "  " + attributenums[attr].name + ":\n"
+		result += "  " + attributeinfos[attr].name + ":\n"
 		values.Iterate(func(value AttributeValue) bool {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {
