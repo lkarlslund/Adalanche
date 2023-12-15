@@ -246,7 +246,7 @@ valueloop:
 			if edgename == "*" {
 				edge = engine.AnyEdgeType
 			} else {
-				edge = engine.E(edgename)
+				edge = engine.LookupEdge(edgename)
 				if edge == engine.NonExistingEdgeType {
 					return nil, nil, fmt.Errorf("Could not convert value %v to edge", edgename)
 				}

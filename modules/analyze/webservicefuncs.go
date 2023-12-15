@@ -40,7 +40,7 @@ func analysisfuncs(ws *webservice) {
 		}
 		var results returnobject
 
-		for _, edge := range engine.AllEdgesSlice() {
+		for _, edge := range engine.Edges() {
 			if !edge.IsHidden() {
 				results.Methods = append(results.Methods, filterinfo{
 					Name:            edge.String(),
@@ -282,7 +282,7 @@ func analysisfuncs(ws *webservice) {
 			if strings.HasPrefix(potentialfilter, "pwn_") {
 				prefix := potentialfilter[4 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
-				edge := engine.E(prefix)
+				edge := engine.LookupEdge(prefix)
 				if edge == engine.NonExistingEdgeType {
 					continue
 				}
