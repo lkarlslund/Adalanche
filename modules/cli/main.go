@@ -68,7 +68,7 @@ func Run() error {
 	if err != nil {
 		ui.Error().Msgf("Invalid log level: %v - use one of: %v", *loglevel, ui.LogLevelStrings())
 	} else {
-		ui.SetDefaultLoglevel(ll)
+		ui.SetLoglevel(ll)
 	}
 
 	if *logfile != "" {
