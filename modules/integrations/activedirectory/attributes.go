@@ -61,6 +61,7 @@ var (
 	ObjectSid                               = engine.NewAttribute("objectSid").Tag("AD").Merge().Single().Type(engine.AttributeTypeSID)
 	CreatorSID                              = engine.NewAttribute("mS-DS-CreatorSID").Tag("AD").Single().Type(engine.AttributeTypeSID)
 	MSDSAllowedToActOnBehalfOfOtherIdentity = engine.NewAttribute("msDS-AllowedToActOnBehalfOfOtherIdentity").Tag("AD").Type(engine.AttributeTypeSecurityDescriptor)
+	MSDSAllowedToDelegateTo                 = engine.NewAttribute("msDS-AllowedToDelegateTo").Tag("AD")
 	FRSRootSecurity                         = engine.NewAttribute("fRSRootSecurity").Tag("AD").Type(engine.AttributeTypeSecurityDescriptor)
 	MSDFSLinkSecurityDescriptorv2           = engine.NewAttribute("msDFS-LinkSecurityDescriptorv2").Tag("AD").Type(engine.AttributeTypeSecurityDescriptor)
 	PKIEnrollmentAccess                     = engine.NewAttribute("pKIEnrollmentAccess").Tag("AD")

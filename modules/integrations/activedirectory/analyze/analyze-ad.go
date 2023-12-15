@@ -470,7 +470,7 @@ func init() {
 		})
 	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account to enable any SPN enabled user to impersonate it`, engine.BeforeMergeFinal)
 
-	EdgeRBCD := engine.NewEdge("RBCD")
+	EdgeRBCD := engine.NewEdge("RBConstrainedDeleg")
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
@@ -479,19 +479,43 @@ func init() {
 			}
 			o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
 				// Each of these is a SID, so find that SID and add an edge
-				sd := val.Raw().(*engine.SecurityDescriptor)
-				ui.Debug().Msgf("Found msDS-AllowedToActOnBehalfOfOtherIdentity on %v as %v", o.DN(), sd.String(ao))
-				for _, acl := range sd.DACL.Entries {
-					if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
-						ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, EdgeRBCD)
+				if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
+					// ui.Debug().Msgf("Found msDS-AllowedToActOnBehalfOfOtherIdentity on %v as %v", o.DN(), sd.String(ao))
+					for _, acl := range sd.DACL.Entries {
+						if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
+							ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, EdgeRBCD)
+						}
 					}
 				}
-				// o.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), EdgeRBCD)
 				return true
 			})
 			return true
 		})
 	}, `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`, engine.BeforeMergeFinal)
+
+	EdgeCD := engine.NewEdge("ConstrainedDeleg")
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		ao.Iterate(func(o *engine.Object) bool {
+			// Only computers
+			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
+				return true
+			}
+			o.Attr(activedirectory.MSDSAllowedToDelegateTo).Iterate(func(val engine.AttributeValue) bool {
+				// Each of these is a SID, so find that SID and add an edge
+				// sd := val.Raw().(*engine.SecurityDescriptor)
+				ui.Debug().Msgf("Found msDS-AllowedToDelegate on %v as %v", o.DN(), val.String())
+				if target, found := ao.Find(activedirectory.ServicePrincipalName, val); found {
+					o.EdgeTo(target, EdgeCD)
+				} else {
+					ui.Error().Msgf("Could not find constrained delegation SPN %v in the AD", val.String())
+				}
+
+				return true
+			})
+			return true
+		})
+	}, `Someone is listed in the msDS-AllowedToDelegate (Constrained Delegation) on an account`, engine.BeforeMergeFinal)
+
 	/*
 		// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
 		Loader.AddProcessor(func(ao *engine.Objects) {
@@ -577,8 +601,7 @@ func init() {
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
-				sd, err := engine.ParseSecurityDescriptor([]byte(msads.String()))
-				if err == nil {
+				if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok {
 					for _, acl := range sd.DACL.Entries {
 						if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
 							ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadMSAPassword)
