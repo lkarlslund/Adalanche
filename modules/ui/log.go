@@ -35,15 +35,19 @@ const (
 )
 
 var (
-	defaultLogLevel = LevelInfo
-	clearneeded     bool
+	logLevel    = LevelInfo
+	clearneeded bool
 
 	Zerotime  bool
 	starttime = time.Now()
 )
 
-func SetDefaultLoglevel(i LogLevel) {
-	defaultLogLevel = i
+func SetLoglevel(i LogLevel) {
+	logLevel = i
+}
+
+func GetLoglevel() LogLevel {
+	return logLevel
 }
 
 var logfile *os.File
@@ -82,7 +86,7 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 	if logfile != nil && logfilelevel <= t.ll {
 		fmt.Fprintf(logfile, timetext+" "+t.ll.String()+" "+format+"\n", args...)
 	}
-	if defaultLogLevel <= t.ll {
+	if logLevel <= t.ll {
 		if clearneeded {
 			pterm.Fprinto(t.pterm.Writer, strings.Repeat(" ", pterm.GetTerminalWidth()))
 			pterm.Fprinto(t.pterm.Writer)
@@ -111,7 +115,7 @@ func (t Logger) Msg(msg string) Logger {
 }
 
 func (t Logger) Err(e error) Logger {
-	if defaultLogLevel <= t.ll {
+	if logLevel <= t.ll {
 		t.Msgf("Error: %v", e.Error())
 	}
 	return t
