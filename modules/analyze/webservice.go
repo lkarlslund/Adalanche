@@ -62,6 +62,11 @@ func NewWebservice() *webservice {
 	// Add stock functions
 	analysisfuncs(ws)
 
+	// Add debug functions
+	if ui.GetLoglevel() >= ui.LevelDebug {
+		debugfuncs(ws)
+	}
+
 	return ws
 }
 
