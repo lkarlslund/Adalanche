@@ -11,11 +11,15 @@ Adalanche gives instant results, showing you what permissions users and groups h
 
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
-### Download
+## Get Adalanche
 
 Adalanche is an all-in-one binary - it collects information from Active Directory or from local Windows machines and can the analyze the collected data. If you're only doing AD analysis, just grab the binary for your preferred platform. Later you can deploy the dedicated collector .exe for your Windows member machines via a GPO or other orchestration and get even more insight.
 
-Download either the latest release or the build of the latest commit from [Releases](https://github.com/lkarlslund/Adalanche/releases). Usually running with the latest commit is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
+You have three options to get Adalanche up and running on your system:
+
+### Download
+
+Download either the latest [release](https://github.com/lkarlslund/Adalanche/releases/latest) or recent [development build](https://github.com/lkarlslund/Adalanche/releases/tag/devbuild). Usually running with the latest development build is fine, but there might be a problem here and there. Releases are considered stable and are for the less adventurous.
 
 ### Build it yourself
 
@@ -28,7 +32,19 @@ If you prefer full control, you can roll your own on any supported platform (Win
 
 Resulting binaries are available in the 'binaries' subfolder.
 
-## First run - full auto
+### Purchase signed and validated binaries
+
+You can also purchase a commercial version of Adalanche from [NetSection](https://www.netsection.com) which is a signed binary on the Windows platform.
+
+## Get some results
+
+You can either use some sample data to just play around, or you can collect data from a real Active Directory domain.
+
+### Run with sample data
+
+If you're not keen on running foreign tools against your Active Directory, there are sample data available in [this](https://github.com/lkarlslund/adalanche-sampledata) repository.
+
+### Easy mode / full auto
 
 If you're running Adalanche on a Windows domain joined machine should just work *without any parameters*, as Adalanche tries to autodetect as much as it can. Under this scenario, and with parameters given, you will run in a collect-analyze mode (collect from Active Directory, then analyze).
 
@@ -36,20 +52,18 @@ For more advanced use (recommended) first collect, with proper options. All your
 
 See program options for other possibilities (help or command --help).
 
-## Collecting data
-
-### Active Directory
+### Collecting data from Active Directory
 The primary source of data is from Active Directory, and is intiated with this command:
 
 <code>adalanche collect activedirectory [--options ...]</code>
 
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if Adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
 
-LDAPS (TLS over port 636) is default. If you're on a lab, and you haven't set up CA yet, you will get connection errors because the computer doesn't trust the AD cert. Either disable certificate validation with the "--ignorecert" switch, or change protocol to LDAP with <code>--tlsmode NoTLS --port 389</code> options.
+LDAP (unencrypted port 389) is default. You can switch to TLS (port 636) with <code>--tlsmode tls</code> option. 
 
 Example to create data files file for contoso.local coming from your Linux pwnage box using TLS port 636, ignoring certs and using NTLM auth:
 
-<code>adalanche collect activedirectory --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
+<code>adalanche collect activedirectory --tlsmode tls --ignorecert --domain contoso.local --authdomain CONTOSO --username joe --password Hunter42</code>
 
 From domain joined Windows member using current user:
 
@@ -61,7 +75,7 @@ From domain joined Windows machine using other credentials than logged in:
 
 There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing Adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
 
-### LDAP RESULT CODE 49
+__Note: LDAP RESULT CODE 49__
 
 *There is a limitation in the LDAP library that Adalanche uses, which can result in this error: "LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
 
@@ -69,11 +83,11 @@ This is usually "Channel Binding" or "Signing" requirements for SSL enabled conn
 
 Here are suggested alternative solutions:
 
-#### Dump data over plaintext LDAP
+#### Dump data over plaintext LDAP (default mode)
 
 Use this command:
 
-<code>adalanche collect activedirectory --port 389 --tlsmode NoTLS</code>
+<code>adalanche collect activedirectory</code>
 
 #### Dump data using SysInternals AD Explorer
 
@@ -140,66 +154,59 @@ Depending on whether you're over or underwhelmed by the results, you can do adju
 
 #### Pre-defined searches
 
-To ease the learning experience, there are a number of sample queries built into 'Adalanche'. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
+To ease the learning experience, there are a number of sample queries built into Adalanche. You access these by pressing the "Sample queries" button, and choosing one. This should give you some idea of how to do queries.
 
 #### Analysis Options
 
 <img src="readme-images/analysis-options.png" width="50%">
 
-Mode allows you to switch between:
-- In normal mode you select target nodes, and Adalanche figures out who can reach these target nodes (most common search)
-- In reverse mode you select target nodes, and Adalanche figures out what impact they have (What can "Domain Users" do?)
-- The SrcTgt mode consists of TWO queries separated by commas, and it allows you to do a path search from the source(s) to the target(s). You target selection should be limited to no more than 5 of each, as the query results in S*T searches to be run in the engine.
+Query direction:
+- In "incoming" mode you select target nodes, and Adalanche figures out who can reach these target nodes (most common search)
+- In "outgoing" mode you select target nodes, and Adalanche figures out what impact they have (like what can "Domain Users" do?)
 
-If your query returns more than 1000 objects, Adalanche will reject the query, because it has the potential to crash your browser. Using the "Force too much data" allows you to override this, and depending on your browser and computer, you might get away with more data. On my setup using Firefox, 2500 objects is unproblematic, but much more is possible but requires a lot of patience for the graph lauout to run.
+If your query returns more than 2500 objects (default), Adalanche will limit the output and give you the results that fit within the limit. This limitation is because it has the potential to crash your browser, and is not an Adalanche restriction - feel free to adjust as needed.
 
-Remember, you might get too many results. Limit the selection of target nodes with (&(attribute=something)(_limit=10)) to just get the first 10 target nodes (see LDAP queries below)
+Remember, you might get too many results. Limit the selection of target nodes with (&(attribute=something)(_limit<10)) to just get the first 10 target nodes (see LDAP queries below)
 
-Prune island nodes removes unconnecteded objects in the results.
+The "Prune island nodes" option removes nodes that have no edges from the results.
 
-Backlinks also shows edges to "higher ranking" results in your search, and has the potential to show you other interesting edges otherwise hidden. It does tend to result in a ball of yarn in the graph, but is useful in some cases.
+Analysis depth allows you do limit how many edges from the target selection is returned. Setting this to 0 will only result in the query targets (don't prune islands here, otherwise you'll get nothing), setting it to 1 results on only neighbouring edges to be returned. Quite useful if you get too much data back, blank is no restrictions.
 
-Analysis depth allows you do limit how many edges from the target selection is returned. Setting this to 0 will only result in the query targets (don't prune islands here, otherwise you'll get nothing), setting it to 1 results on only neighbouring edges to be returned. Quite useful if you get too much data back.
+Max outgoing edges limits how many outgoing edges are allowed from an object, and can help limit results for groups and objects that have many assignments. Adalanche tries it best to limit this in a logical way.
 
-Max outgoing limits how many outgoing edges are allowed from an object, and can help limit results for groups and objects that have many assignments.
+Each edge has a probability of success, and you can limit the graph by choosing the minimum probability per edge or overall/accumulated probability of current edge.
 
-#### Analysis Methods
+#### Edges
 
-Press the "Analysis Methods" tab to allow you to do edge based filtering. 
+Press the "Edges" tab to allow you to do edge based filtering. 
 
 <img src="readme-images/analysis-methods.png" width="50%">
 
 FML is not the usual abbreviation, but represents First, Middle and Last. Disabling the "Middle" selector, will also prevent "Last" in the results, unless it's picked up as the "First" due to the way the search is done.
 
-#### Analysis Objects
+#### Nodes
 
 <img src="readme-images/object-types.png" width="50%">
 
-This works the same way as the "Analysis Methods" limiter above.
+This works the same way as the "Edges" limiter above.
 
 #### LDAP query pop-out
 When you press the "LDAP Query" tab on the bottom portion of the page, and you get the search interface:
 
 <img src="readme-images/ldap-query.png" width="50%">
 
-You enter a query for things you want to search for. Optionally you can also add a secondary exclude query, seperating the include and expclude quereries with a comma. Things matching in the exclude query will *never* get added to the results.
-
-Sample search:
-
-<code>(objectClass=person),(name=*group*)</code>
-
-Selects all objects with objectClass attribute set to person as targets, but will never add any objects where the name attribute matches the glob pattern *group* to the connected result objects. As you can match on edges too, this can become both complicated and powerful :-)
+You enter a query for things you want to search for, with the "start query" setting your targets. Optionally you can also add a secondary query the following nodes must match. If you put a filter in the "end query" then nodes not matching this will be removed from the outer objects (end of graph).
 
 ### Operational theory
 
-*Adalanche* works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
+Adalanche works a bit differently than other tools, as it dumps everything it can from an Active Directory server, which it then saves to a highly compressed binary cache files for later use. This dump can be done by any unprivileged user, unless the Active Directory has been hardened to prevent this (rare).
 
-If you collect GPOs I recommend using a Domain Admin, as GPOs are often restricted to apply only to certain computers, and regular users can't read the files. This will limit the results that could have been gathered from GPOs.
+If you collect GPOs I recommend using a Domain Admin account, as GPOs are often restricted to apply only to certain computers, and regular users can't read the files. This will limit the results that could have been gathered from GPOs.
 
-The analysis phase is done on all cache file, so you do not have to be connected to the systems when doing analysis. This way you can explore different scenarios, and ask questions not easily answered otherwise.
+The analysis phase is done on all collected data files, so you do not have to be connected to the systems when doing analysis. This way you can explore different scenarios, and ask questions not easily answered otherwise.
 
 ### Analysis / Visualization
-The tool works like an interactive map in your browser, and defaults to a ldap search query that shows you how to become "Domain Admin" or "Enterprise Admin" (i.e. member of said group or takeover of an account which is either a direct or indirect member of these groups.
+The tool works like an interactive map in your browser, and defaults to a ldap search query that shows you how to become "Domain Admin" or "Enterprise Admin" (i.e. member of said group or takeover of an account which is either a direct or indirect member of these groups).
 
 ### LDAP queries
 The tool has its own LDAP query parser, and makes it easy to search for other objects to take over, by using a familiar search language.
@@ -226,6 +233,8 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - custom extensible match: caseExactMatch - switches text searches (exact, glob) to case sensitive mode
 
 ## Detectors and what they mean
+
+This list is not exhaustive.
 
 | Detector | Explanation |
 | -------- | ----------- |
@@ -298,42 +307,23 @@ If there's a connection from source to target, you'll get the entire attack path
 
 <img src="readme-images/found-route.png" width="50%">
 
-You can also pick any object on the graph, and to a normal or reverse search from it.
+You can also pick any object on the graph, and perform an inbound or outbound search from it.
 
-## Current limitations
+## Current status
 
-- A large AD with 500.000 objects results in a file approximately 250MB in size
-- Adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not.
+- A large AD with 500.000 objects results in a file approximately 250MB in size, but much larger ADs work fine too, just add more hardware
+- Adalanche requires a reasonable amount of memory - loading and analyzing the above AD will use about 2.5GB RAM - but RAM is cheap, getting pwned is not
 - There are probably mistakes, false positives and stuff I've overlooked. Feedback is welcome!
 - There is an unsolved challenge with services that require multiple ACLs to pass (for instance Cert servers only lets members of "Users that can enroll" group use enrollment, while the Certificate Template lets "Domain Users" enroll - this looks like "Domain Users" can enroll to Adalanche). The same problem arises with fileshares, so this analysis is not done yet.
 
-## Frequently Asked Question: How does this compare to BloodHound?
+### Further reading on Active Directory attacks
 
-Since this is a frequent question, here's a short list of things I know that differentiate. I haven't looked at BloodHound for a long while, and haven't used it all while doing Adalanche - I wanted to try to figure things out myself and not be opinionated because of designs from others.
-
-| Feature | Adalanche | BloodHound |
-| ------- | --------- | ---------- |
-| OS compatibility | Win/OSX/Linux | Win/OSX/Linux |
-| Prerequisites | None | Python, Neo4J, .Net (SharpHound) |
-| Initial setup | None | See above |
-| GUI | Browser based | Electron based app |
-| Data Limitations | RAM bound | None |
-| Queries | Extended LDAP syntax + options | Neo4J Cypher |
-| Predefined queries | Yes | Yes |
-| Helping the world since | 2020 | 2016 |
-| Detected as malware | No* | Yes (false positive!) |
-
-*so far
-
-## Shoutouts
-To everyone messing around with Active Directory - the team behind BloodHound, Will Schroeder @harmj0y, Sean Metcalf @PyroTek3, plus many others that I forgot. The MS API documentation kinda helped, and also other obscure places (stackoverflow FTW) where I dug up technical stuff
-
-If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at [PayloadsAllTheThings Active Directory section](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md)
+If you need inspiration on how to use a detected attack path I can highly recommend that you take a look at both the [PayloadsAllTheThings Active Directory](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md) and [HackTricks Active Directory Methodology](https://book.hacktricks.xyz/windows-hardening/active-directory-methodology) sites.
 
 ## Commercial Editions
 
-Different commercial editions with improved functionality are available for purchase from [NetSection](https://www.netsection.com).
+Commercial editions with improved functionality are available for purchase from [NetSection](https://www.netsection.com). This is what funds the open source edition.
 
 ## Happy hunting!
 
-Feedback is welcome -> Mastodon [@lkarlslund](https://infosec.exchange/@lkarlslund) / Twitter [@lkarlslund](https://twitter.com/lkarlslund)
+Feedback is welcome -> Mastodon [@lkarlslund](https://infosec.exchange/@lkarlslund) / Twitter [@lkarlslund](https://twitter.com/lkarlslund) / LinkedIn [Lars Karlslund](https://www.linkedin.com/in/lkarlslund/)
