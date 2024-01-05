@@ -20,7 +20,7 @@ import (
 
 var (
 	wrapcollector = &cobra.Command{}
-	datapath      = wrapcollector.Flags().String("outputpath", "", "Dump output JSON file in this folder")
+	datapath      = wrapcollector.Flags().String("outputpath", ".", "Dump output JSON file in this folder")
 	loglevel      = wrapcollector.Flags().String("loglevel", "info", "Console log level")
 	logfile       = wrapcollector.Flags().String("logfile", "", "Log file")
 	logfilelevel  = wrapcollector.Flags().String("logfilelevel", "info", "Log file log level")
@@ -49,19 +49,21 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	outputpath := *datapath
 
-	err = os.MkdirAll(outputpath, 0600)
-	if err != nil {
-		return fmt.Errorf("Problem accessing output folder: %v", err)
+	if outputpath == "" {
+		ui.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
+		outputpath = "."
+	}
+
+	if _, err := os.Stat(outputpath); os.IsNotExist(err) && outputpath != "." {
+		err = os.MkdirAll(outputpath, 0600)
+		if err != nil {
+			return fmt.Errorf("Problem accessing output folder: %v", err)
+		}
 	}
 
 	info, err := collect.Collect()
 	if err != nil {
 		return err
-	}
-
-	if outputpath == "" {
-		ui.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
-		outputpath = "."
 	}
 
 	targetname := info.Machine.Name + localmachine.Suffix
