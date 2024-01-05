@@ -86,8 +86,8 @@ function newwindow(id, title, content, height, width) {
     var mywindow = $(`#windows #window_${id}`);
     var itsnew = false;
 
-    var maxheight = $(window).height() * 0.8;
-    var maxwidth = $(window).width() * 0.5;
+    var maxheight = $(window).height() * 0.9;
+    var maxwidth = $(window).width() * 0.6;
 
     // add the new one
     if (mywindow.length == 0) {
@@ -102,6 +102,8 @@ function newwindow(id, title, content, height, width) {
             <div class="overflow-auto p-1" id="contents">${content}</div>
             </div>`
         );
+
+        $('#windows').append(mywindow);
 
         // roll up
         // $('#rollup', mywindow).click(function (event) {
@@ -132,7 +134,7 @@ function newwindow(id, title, content, height, width) {
             resize: function (event, ui) {
                 console.log(event);
                 $('#contents', ui.element).width(ui.size.width-12);
-                $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-12);
+                $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-24);
             },
 
             maxHeight: maxheight,
@@ -155,16 +157,14 @@ function newwindow(id, title, content, height, width) {
             mywindow.width(maxwidth)
         }
 
-        $('#windows').append(mywindow);
-
         // Fix initial content size
         
         if ($('#contents', mywindow).width() > maxwidth-12) {
             $('#contents', mywindow).width(maxwidth-12);
         }
 
-        if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-12) {
-            $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-12);
+        if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-24) {
+            $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-24);
         }
     } else {
         $('#title', mywindow).html(title);
