@@ -124,7 +124,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 		}
 	}()
 
-	ui.Info().Msgf("Listening - navigate to %v ... (ctrl-c or similar to quit)", bind)
+	ui.Info().Msgf("Listening - navigate to http://%v/ ... (ctrl-c or similar to quit)", bind)
 
 	return nil
 }
