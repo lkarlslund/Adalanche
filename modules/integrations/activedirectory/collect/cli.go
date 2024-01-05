@@ -39,12 +39,12 @@ var (
 	adexplorerboost = Command.Flags().Bool("adexplorerboost", true, "Boost ADexplorer performance by using loading the binary file into RAM before decoding it")
 
 	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
-	port    = Command.Flags().Int("port", 636, "LDAP port to connect to (389 or 636 typical)")
+	port    = Command.Flags().Int("port", -1, "LDAP port to connect to (389 or 636 typical, -1 for auto based on tlsmode)")
 	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
 	user    = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
 	pass    = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
 
-	tlsmodeString = Command.Flags().String("tlsmode", "TLS", "Transport mode (TLS, StartTLS, NoTLS)")
+	tlsmodeString = Command.Flags().String("tlsmode", "NoTLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
 	ignoreCert = Command.Flags().Bool("ignorecert", false, "Disable certificate checks")
 
@@ -88,6 +88,14 @@ func PreRun(cmd *cobra.Command, args []string) error {
 	tlsmode, err = TLSmodeString(*tlsmodeString)
 	if err != nil {
 		return fmt.Errorf("unknown TLS mode %v", tlsmode)
+	}
+
+	if *port == -1 {
+		if tlsmode == TLS {
+			*port = 636
+		} else {
+			*port = 389
+		}
 	}
 
 	authmode, err = AuthModeString(*AuthmodeString)
