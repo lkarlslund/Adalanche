@@ -500,18 +500,36 @@ func init() {
 			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
 				return true
 			}
-			o.Attr(activedirectory.MSDSAllowedToDelegateTo).Iterate(func(val engine.AttributeValue) bool {
-				// Each of these is a SID, so find that SID and add an edge
-				// sd := val.Raw().(*engine.SecurityDescriptor)
-				ui.Debug().Msgf("Found msDS-AllowedToDelegate on %v as %v", o.DN(), val.String())
-				if target, found := ao.Find(activedirectory.ServicePrincipalName, val); found {
-					o.EdgeTo(target, EdgeCD)
-				} else {
-					ui.Error().Msgf("Could not find constrained delegation SPN %v in the AD", val.String())
-				}
+			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok {
+				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
+					o.Attr(activedirectory.MSDSAllowedToDelegateTo).Iterate(func(val engine.AttributeValue) bool {
+						// Each of these is a SID, so find that SID and add an edge
+						// sd := val.Raw().(*engine.SecurityDescriptor)
+						ui.Debug().Msgf("Found msDS-AllowedToDelegate on %v as %v", o.DN(), val.String())
+						_, host, split := strings.Cut(val.String(), "/")
+						if !split {
+							ui.Error().Msgf("Constrained delegation SPN %v does not contain /", val.String())
+							return true // continue
+						}
+						if strings.Contains(host, "/") {
+							ui.Error().Msgf("Constrained delegation host name %v still contains /", val.String())
+							return true // continue
+						}
+						if !strings.Contains(host, ".") {
+							host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
+						}
+						if target, found := ao.FindTwo(DnsHostName, engine.AttributeValueString(host),
+							engine.Type, engine.AttributeValueString("Machine"),
+						); found {
+							o.EdgeTo(target, EdgeCD)
+						} else {
+							ui.Error().Msgf("Could not find constrained delegation SPN %v target (looked for machine %v) in the AD", val.String(), host)
+						}
 
-				return true
-			})
+						return true
+					})
+				}
+			}
 			return true
 		})
 	}, `Someone is listed in the msDS-AllowedToDelegate (Constrained Delegation) on an account`, engine.BeforeMergeFinal)
