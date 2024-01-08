@@ -1,12 +1,14 @@
 package windowssecurity
 
 import (
+	"crypto/sha1"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 	"unsafe"
 
 	"github.com/lkarlslund/adalanche/modules/dedup"
@@ -41,8 +43,8 @@ func BytesToSID(data []byte) (SID, []byte, error) {
 	if subauthoritycount > 15 {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
-	length := 8 + 4*subauthoritycount
-	return SID(dedup.D.BS(data[2:length])), data[length:], nil
+	sidend := 8 + 4*subauthoritycount
+	return SID(dedup.D.BS(data[2:sidend])), data[sidend:], nil
 }
 
 func ParseStringSID(input string) (SID, error) {
@@ -84,6 +86,14 @@ func ParseStringSID(input string) (SID, error) {
 		binary.LittleEndian.PutUint32(sid[6+4*i:], uint32(subauthority))
 	}
 	return SID(dedup.D.S(string(sid))), nil
+}
+
+func MustParseStringSID(input string) SID {
+	sid, err := ParseStringSID(input)
+	if err != nil {
+		panic(err)
+	}
+	return sid
 }
 
 func (sid SID) IsNull() bool {
@@ -191,4 +201,16 @@ func SIDFromPtr(data uintptr) (SID, error) {
 
 	copy(sid, bytes[2:len(sid)])
 	return SID(sid), nil
+}
+
+// Calculate a Windows service SID by converting servicename to uppercase, converting to Unicode 16, running through SHA1, and then converting to SID
+func ServiceNameToServiceSID(servicename string) SID {
+	use := utf16.Encode([]rune(strings.ToUpper(servicename)))
+	rawbytes := (*[16384]byte)(unsafe.Pointer(&use[0]))[:len(use)*2]
+	huse := sha1.Sum(rawbytes)
+	var sidbytes [30]byte
+	sidbytes[5] = 5
+	sidbytes[6] = 80
+	copy(sidbytes[10:], huse[:])
+	return SID(sidbytes[:])
 }
