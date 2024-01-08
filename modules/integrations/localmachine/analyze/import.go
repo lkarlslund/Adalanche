@@ -219,6 +219,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			pwn = EdgeSeTakeOwnership
 		case "SeTrustedCredManAccess":
 			pwn = EdgeSeTrustedCredManAccess
+		case "SeMachineAccountPrivilege":
+		// Join machine to domain
+
+		// pwn = EdgeSeMachineAccount
 		case "SeTcbPrivilege":
 			pwn = EdgeSeTcb
 		case "SeIncreaseQuotaPrivilege", "SeSystemProfilePrivilege", "SeSecurityPrivilege", "SeSystemtimePrivilege", "SeProfileSingleProcessPrivilege", "SeIncreaseBasePriorityPrivilege", "SeCreatePagefilePrivilege", "SeShutdownPrivilege", "SeAuditPrivilege", "SeSystemEnvironmentPrivilege", "SeChangeNotifyPrivilege", "SeRemoteShutdownPrivilege", "SeUndockPrivilege", "SeCreateGlobalPrivilege", "SeIncreaseWorkingSetPrivilege", "SeTimeZonePrivilege", "SeCreateSymbolicLinkPrivilege", "SeInteractiveLogonRight", "SeDenyInteractiveLogonRight", "SeDenyRemoteInteractiveLogonRight", "SeBatchLogonRight", "SeServiceLogonRight", "SeDelegateSessionUserImpersonatePrivilege", "SeLockMemoryPrivilege", "SeDenyNetworkLogonRight", "SeTrustedCredManAccessPrivilege", "SeDenyBatchLogonRight", "SeDenyServiceLogonRight", "SeRelabelPrivilege":
