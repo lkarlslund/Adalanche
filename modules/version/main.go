@@ -8,7 +8,7 @@ var (
 	Program    = "Adalanche Open Source"
 	Commit     = ""
 	Version    = ""
-	Copyright  = "(c) 2020-2022 Lars Karlslund"
+	Copyright  = "(c) 2020-2024 Lars Karlslund"
 	Disclaimer = "This program comes with ABSOLUTELY NO WARRANTY"
 )
 
