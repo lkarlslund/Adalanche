@@ -67,16 +67,23 @@ var (
 
 	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl").Tag("Informative").RegisterProbabilityCalculator(activedirectory.NotAChance)
 
-	NetBIOSName       = engine.NewAttribute("nETBIOSName")
-	NCName            = engine.NewAttribute("nCName")
-	DNSRoot           = engine.NewAttribute("dnsRoot")
+	NetBIOSName = engine.NewAttribute("nETBIOSName")
+	NCName      = engine.NewAttribute("nCName")
+	DNSRoot     = engine.NewAttribute("dnsRoot")
+
 	MemberOfRecursive = engine.NewAttribute("memberOfRecursive")
 
-	ObjectTypeMachine   = engine.NewObjectType("Machine", "Machine")
-	DomainJoinedSID     = engine.NewAttribute("domainJoinedSid").Merge()
-	DnsHostName         = engine.NewAttribute("dnsHostName")
-	EdgeAuthenticatesAs = engine.NewEdge("AuthenticatesAs")
-	EdgeMachineAccount  = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
+	ObjectTypeMachine    = engine.NewObjectType("Machine", "Machine")
+	DomainJoinedSID      = engine.NewAttribute("domainJoinedSid").Merge()
+	DnsHostName          = engine.NewAttribute("dnsHostName")
+	EdgeAuthenticatesAs  = engine.NewEdge("AuthenticatesAs")
+	EdgeInheritsSecurity = engine.NewEdge("InheritsSecurity").SetDefault(true, true, false)
+
+	CertificateTemplates   = engine.NewAttribute("certificateTemplates")
+	PublishedBy            = engine.NewAttribute("publishedBy")
+	PublishedByDnsHostName = engine.NewAttribute("publishedByDnsHostName")
+
+	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		return -1 // Just informative
 	}).Describe("Indicates this is the domain joined computer account belonging to the machine")
 )
@@ -152,6 +159,17 @@ func init() {
 			return true
 		})
 	}, "Reading local admin passwords via LAPS", engine.BeforeMergeFinal)
+
+	Loader.AddProcessor(func(ao *engine.Objects) {
+		ao.Iterate(func(o *engine.Object) bool {
+			if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
+				if parentobject, found := ao.DistinguishedParent(o); found {
+					parentobject.EdgeTo(o, EdgeInheritsSecurity)
+				}
+			}
+			return true
+		})
+	}, "Indicator that object inherits security from the container it is within", engine.BeforeMergeFinal)
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
@@ -1731,6 +1749,52 @@ func init() {
 
 	},
 		"MemberOfIndirect resolution",
+		engine.AfterMerge,
+	)
+
+	Loader.AddProcessor(
+		func(ao *engine.Objects) {
+			ao.Iterate(func(o *engine.Object) bool {
+				if o.Type() == engine.ObjectTypePKIEnrollmentService {
+
+					// Templates that is offered for enrollment
+					o.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
+
+						templates, found := ao.FindTwoMulti(engine.Name, templatename,
+							engine.ObjectClass, engine.AttributeValueString("pKICertificateTemplate"))
+
+						if found {
+							alreadyset := false
+							templates.Iterate(func(template *engine.Object) bool {
+								if !engine.CompareAttributeValues(template.OneAttr(engine.DomainContext), o.OneAttr(engine.DomainContext)) {
+									return true // continue
+								}
+
+								if alreadyset {
+									ui.Warn().Msgf("Found multiple templates for %s", templatename)
+								}
+
+								template.SetFlex(
+									PublishedBy, engine.AttributeValueString(o.DN()),
+									PublishedByDnsHostName, o.Attr(activedirectory.DNSHostName),
+								)
+
+								alreadyset = true
+								return true
+							})
+							if !alreadyset {
+								ui.Warn().Msgf("Found no matching template for %s", templatename)
+							}
+						} else {
+							ui.Warn().Msgf("Template %s not found", templatename)
+						}
+						return true
+					})
+				}
+				return true
+			})
+		},
+		"Certificate template publishing status",
 		engine.AfterMerge,
 	)
 

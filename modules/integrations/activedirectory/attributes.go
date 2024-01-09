@@ -99,4 +99,5 @@ var (
 	PKIExpirationPeriod                     = engine.NewAttribute("pKIExpirationPeriod").Tag("AD")
 	PKIOverlapPeriod                        = engine.NewAttribute("pKIOverlapPeriod").Tag("AD")
 	MsDSBehaviourVersion                    = engine.NewAttribute("msDS-Behavior-Version").Type(engine.AttributeTypeInt)
+	DNSHostName                             = engine.NewAttribute("dnsHostName").Tag("AD")
 )
