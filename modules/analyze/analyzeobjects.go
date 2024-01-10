@@ -53,7 +53,7 @@ type AnalyzeObjectsOptions struct {
 
 type GraphNode struct {
 	CanExpand              int
-	roundadded             int
+	processRound           int
 	accumulatedprobability float32 // 0-1
 }
 
@@ -90,14 +90,14 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	extrainfo := make(map[*engine.Object]*GraphNode)
 
 	// Convert to our working graph
-	processinground := 1
+	currentRound := 1
 	query.Execute(opts.StartFilter, opts.Objects).Iterate(func(o *engine.Object) bool {
 		pg.SetNodeData(o, "target", true)
 
 		for o := range pg.Nodes() {
-			if ei, found := extrainfo[o]; !found || ei.roundadded == 0 {
+			if ei, found := extrainfo[o]; !found || ei.processRound == 0 {
 				extrainfo[o] = (&GraphNode{
-					roundadded:             processinground,
+					processRound:           currentRound,
 					accumulatedprobability: 1,
 				})
 			}
@@ -119,9 +119,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	}
 
 	pb := ui.ProgressBar("Analyzing graph", opts.MaxDepth)
-	for opts.MaxDepth >= processinground || opts.MaxDepth == -1 {
+	for opts.MaxDepth >= currentRound || opts.MaxDepth == -1 {
 		pb.Add(1)
-		if processinground == 2 {
+		if currentRound == 2 {
 			detectedges = opts.MethodsM
 			detectobjecttypes = nil
 			if len(opts.ObjectTypesM) > 0 {
@@ -132,7 +132,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 			}
 		}
 
-		ui.Debug().Msgf("Processing round %v with %v total objects and %v connections", processinground, pg.Order(), pg.Size())
+		ui.Debug().Msgf("Processing round %v with %v total objects and %v connections", currentRound, pg.Order(), pg.Size())
 
 		nodesatstartofround := pg.Order()
 
@@ -140,7 +140,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 			// All nodes need to be processed in the next round
 			ei := extrainfo[currentobject]
 
-			if ei == nil /* just added */ || ei.roundadded != processinground /* already processed */ {
+			if ei.processRound != currentRound /* shouldn't be processed this round */ {
 				continue
 			}
 
@@ -198,9 +198,9 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 				// We're not including backlinks
 				found &&
 					// This is not the first round
-					processinground > 1 &&
+					currentRound > 1 &&
 					// It was found in an earlier round
-					extrainfo[nextobject] != nil && extrainfo[nextobject].roundadded+opts.Backlinks <= processinground &&
+					extrainfo[nextobject] != nil && extrainfo[nextobject].processRound+opts.Backlinks <= currentRound &&
 					// If SIDs match between objects, it's a cross forest/domain link and we want to see it
 					(currentobject.SID().IsNull() || nextobject.SID().IsNull() || currentobject.SID().Component(2) != 21 || currentobject.SID() != nextobject.SID()) {
 					// skip it
@@ -222,9 +222,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 						Target: nextobject}] = detectededges
 				}
 
-				extrainfo[nextobject] = &GraphNode{
-					roundadded:             processinground + 1,
-					accumulatedprobability: ei.accumulatedprobability * float32(maxprobability) / 100,
+				if currentRound != 1 && extrainfo[nextobject] == nil {
+					// First round is special, as we process the targets
+					// All the other rounds, we can assume that nextobjects are new in the graph
+					extrainfo[nextobject] = &GraphNode{
+						processRound:           currentRound + 1,
+						accumulatedprobability: ei.accumulatedprobability * float32(maxprobability) / 100,
+					}
 				}
 
 				return true
@@ -299,14 +303,14 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 				ei.CanExpand = len(newconnectionsmap) - added
 			}
 		}
-		ui.Debug().Msgf("Processing round %v yielded %v new objects", processinground, pg.Order()-nodesatstartofround)
+		ui.Debug().Msgf("Processing round %v yielded %v new objects", currentRound, pg.Order()-nodesatstartofround)
 
 		if nodesatstartofround == pg.Order() {
 			// Nothing was added, we're done
 			break
 		}
 
-		processinground++
+		currentRound++
 	}
 	pb.Finish()
 
@@ -363,6 +367,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 				if detectobjecttypes != nil {
 					if _, found := detectobjecttypes[endnode.Type()]; !found {
 						// No matches on LastMethods
+						ui.Debug().Msgf("Removing %v of type %v because not in list of %v", endnode.DN(), endnode.Type(), detectobjecttypes)
 						pg.DeleteNode(endnode)
 						pb.Add(1)
 						removed++
@@ -410,13 +415,13 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 			}
 			for _, outernode := range outernodes {
 				pointedtobysomeone[outernode] = struct{}{}
-				if maxround < extrainfo[outernode].roundadded {
-					maxround = extrainfo[outernode].roundadded
+				if maxround < extrainfo[outernode].processRound {
+					maxround = extrainfo[outernode].processRound
 				}
 			}
 
 			for _, outernode := range outernodes {
-				if extrainfo[outernode].roundadded == maxround {
+				if extrainfo[outernode].processRound == maxround {
 					pg.DeleteNode(outernode)
 					pb.Add(1)
 					lefttoremove--
