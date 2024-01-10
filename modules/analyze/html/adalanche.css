@@ -107,14 +107,16 @@ body {
   height: 100vh;
   position: absolute;
   pointer-events: none;
-  z-index: 30;
+  z-index: 100;
 }
 
 .window {
+  position: absolute; /* required for z-index to work */
   pointer-events: auto;
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: column;
+  z-index: 30;
 }
 
 .window-wrapper {

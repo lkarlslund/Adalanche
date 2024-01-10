@@ -131,10 +131,11 @@ function newwindow(id, title, content, height, width) {
         });
 
         interact("#window_" + id)
-            .origin('parent')
+            // .origin('self')
             .resizable({
                 edges: { left: true, right: true, bottom: true, top: true },
                 margin: 5,
+                origin: self,
                 listeners: {
                     move(event) {
                         var target = event.target
