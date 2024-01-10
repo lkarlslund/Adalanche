@@ -14,7 +14,7 @@ require (
 	github.com/go-ini/ini v1.67.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.4.0+incompatible
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/gravwell/gravwell/v3 v3.8.13
 	github.com/icza/gox v0.0.0-20230924165045-adcb03233bb5
 	github.com/json-iterator/go v1.1.12
@@ -26,16 +26,15 @@ require (
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-colorable v0.1.13
-	github.com/pierrec/lz4/v4 v4.1.18
+	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/pkg/errors v0.9.1
-	github.com/rickb777/date v1.20.1 // indirect
 	github.com/rs/zerolog v1.31.0
 	github.com/schollz/progressbar/v3 v3.13.1
-	github.com/shirou/gopsutil/v3 v3.23.9
-	github.com/spf13/cobra v1.7.0
-	github.com/tinylib/msgp v1.1.8
-	golang.org/x/sys v0.14.0
-	golang.org/x/term v0.14.0
+	github.com/shirou/gopsutil/v3 v3.23.12
+	github.com/spf13/cobra v1.8.0
+	github.com/tinylib/msgp v1.1.9
+	golang.org/x/sys v0.16.0
+	golang.org/x/term v0.16.0
 	golang.org/x/text v0.14.0
 )
 
@@ -82,6 +81,7 @@ require (
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/pterm/pterm v0.12.59
+	github.com/rickb777/date v1.20.5 // indirect
 	github.com/rickb777/plural v1.4.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/scjalliance/comshim v0.0.0-20230315213746-5e51f40bd3b9 // indirect
