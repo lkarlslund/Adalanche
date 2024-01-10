@@ -73,75 +73,118 @@ function set_querymode(mode) {
     } else if (mode == 'sourcetarget') {
         $('#querymode_sourcetarget').prop('checked', true).change();
     }
-    // $('#querymode_normal').prop('checked', mode == 'normal').change();
-    // $('#querymode_reverse').prop('checked', mode == 'reverse').change();
-    // $('#querymode_sourcetarget').prop('checked', mode == 'sourcetarget').change();
 }
 
+function dragMoveListener(event) {
+    var target = event.target,
+        // keep the dragged position in the data-x/data-y attributes
+        x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx,
+        y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+    // translate the element
+    target.style.webkitTransform =
+        target.style.transform =
+        'translate(' + x + 'px, ' + y + 'px)';
+
+    // update the posiion attributes
+    target.setAttribute('data-x', x);
+    target.setAttribute('data-y', y);
+
+    if (!target.classList.contains('window-front')) {
+        console.log($('.window-front'));
+        $('.window-front').removeClass('window-front');
+        console.log($('.window-front'));
+        target.classList.add('window-front');
+    }
+}
 
 function newwindow(id, title, content, height, width) {
-    // Other windows are not in from
-    $('#windows div').removeClass('window-front');
+    // Other windows are not in front
+    console.log($('.window-front'));
+    $('.window-front').removeClass('window-front');
+    console.log($('.window-front'));
 
     var mywindow = $(`#windows #window_${id}`);
     var itsnew = false;
 
-    var maxheight = $(window).height() * 0.9;
+    var maxheight = $(window).height() * 0.8;
     var maxwidth = $(window).width() * 0.6;
 
     // add the new one
     if (mywindow.length == 0) {
         mywindow = $(
-            `<div class="window bg-dark d-inline-block position-absolute shadow border pointer-events-auto window-front" id="window_${id}">
-            <div class="s ui-resizable-handle ui-resizable-s"></div>
-            <div class="e ui-resizable-handle ui-resizable-e"></div>
-            <div class="se ui-resizable-handle ui-resizable-se ui-icon ui-icon-gripsmall-diagonal-se"></div>
-            <div id='header' class='mb-1 bg-primary text-dark p-1'>
-                <span id="title" class="col">${title}</span><span id="close" class="border float-end cursor-pointer">X</span>
+            `<div class="window bg-dark shadow border pointer-events-auto window-front" id="window_${id}">
+            <div id='header' class='window-header mb-1 bg-primary text-dark p-1'>
+            <span id="title" class="col">${title}</span><span id="close" class="border float-end cursor-pointer">X</span>
             </div>
-            <div class="overflow-auto p-1" id="contents">${content}</div>
+            <div class="window-wrapper">
+            <div class="window-content p-1" id="contents">${content}</div>
+            </div>
             </div>`
         );
 
         $('#windows').append(mywindow);
-
-        // roll up
-        // $('#rollup', mywindow).click(function (event) {
-        //     $('#rollup-wrapper', $(this).parents('.window')).slideToggle('slow', 'swing');
-        // });
 
         // closing
         $('#close', mywindow).click(function (event) {
             $(this).parents('.window').remove();
         });
 
-        mywindow.draggable({
-            scroll: false,
-            cancel: '#contents',
-        });
+        interact("#window_" + id)
+            .origin('parent')
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                margin: 5,
+                listeners: {
+                    move(event) {
+                        var target = event.target
+                        var x = (parseFloat(target.getAttribute('data-x')) || 0)
+                        var y = (parseFloat(target.getAttribute('data-y')) || 0)
 
-        mywindow.resizable({
-            containment: '#windows',
-            handles: {
-                'se': '.se',
-                'e': '.e',
-                's': '.s',
-            },
-            create: function (event, ui) { 
-                // ui has no data
-                console.log("window created");
-            },
-            resize: function (event, ui) {
-                console.log(event);
-                $('#contents', ui.element).width(ui.size.width-12);
-                $('#contents', ui.element).height(ui.size.height-$('#header', ui.element).height()-24);
-            },
+                        // update the element's style
+                        target.style.width = event.rect.width + 'px'
+                        target.style.height = event.rect.height + 'px'
 
-            maxHeight: maxheight,
-            maxWidth: maxwidth,
-            minHeight: 150,
-            minWidth: 200,
-        });
+                        if (!target.classList.contains('window-front')) {
+                            $('.window-front').removeClass('window-front');
+                            target.classList.add('window-front');
+                        }
+
+                        // translate when resizing from top or left edges
+                        x += event.deltaRect.left
+                        y += event.deltaRect.top
+
+                        target.style.transform = 'translate(' + x + 'px,' + y + 'px)'
+
+                        target.setAttribute('data-x', x)
+                        target.setAttribute('data-y', y)
+                    }
+                },
+                modifiers: [
+                    // keep the edges inside the parent
+                    interact.modifiers.restrictEdges({
+                        outer: 'parent'
+                    }),
+
+                    // min and max size
+                    interact.modifiers.restrictSize({
+                        min: { width: 200, height: 150 },
+                        max: { width: maxwidth, height: maxheight },
+                    })
+                ],
+
+                inertia: true
+            })
+            .draggable({
+                onmove : window.dragMoveListener,
+                modifiers: [
+                    interact.modifiers.restrictRect({
+                        restriction: 'parent',
+                        endOnly: true
+                    })
+                ],
+                allowFrom: '.window-header',
+            })
 
         if (height) {
             mywindow.height(height);
@@ -157,18 +200,10 @@ function newwindow(id, title, content, height, width) {
             mywindow.width(maxwidth)
         }
 
-        // Fix initial content size
-        
-        if ($('#contents', mywindow).width() > maxwidth-12) {
-            $('#contents', mywindow).width(maxwidth-12);
-        }
-
-        if ($('#contents', mywindow).height() > maxheight-$('#header', mywindow).height()-24) {
-            $('#contents', mywindow).height(maxheight-$('#header', mywindow).height()-24);
-        }
     } else {
         $('#title', mywindow).html(title);
         $('#contents', mywindow).html(content);
+        mywindow.addClass('window-front');
     }
 
     // Bring to front on mouse down

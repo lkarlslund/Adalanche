@@ -112,6 +112,16 @@ body {
 
 .window {
   pointer-events: auto;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.window-wrapper {
+  overflow: auto;
+}
+
+.window-content {
 }
 
 .window-front {
@@ -157,8 +167,6 @@ body {
   transform: translate(-50%, -50%);
   z-index: 40;
 }
-
-
 
 #outerquery {
   position: absolute;
