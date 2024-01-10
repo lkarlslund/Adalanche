@@ -222,7 +222,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 						Target: nextobject}] = detectededges
 				}
 
-				if currentRound != 1 && extrainfo[nextobject] == nil {
+				if currentRound != 1 || extrainfo[nextobject] == nil {
 					// First round is special, as we process the targets
 					// All the other rounds, we can assume that nextobjects are new in the graph
 					extrainfo[nextobject] = &GraphNode{
