@@ -15,14 +15,15 @@ function BuildVariants {
       $env:GOOS = $currentos
       
       # More sensible naming for x64
-      if ($currentarch -eq "amd64") {
-        $currentarch = "x64"
+      $namearch = $currentarch
+      if ($namearch -eq "amd64") {
+        $namearch = "x64"
       }
 
-      go build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$currentarch-$VERSION$suffix $compileflags $path
+      go build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$namearch-$VERSION$suffix $compileflags $path
       if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
       {
-        cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$currentarch-$VERSION$suffix.bom.json -main $path .
+        cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json -main $path .
       }
     }
   }
