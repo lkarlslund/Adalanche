@@ -25,7 +25,7 @@ function BuildVariants {
 Set-Location $PSScriptRoot
 
 $COMMIT = git rev-parse --short HEAD
-$VERSION = git describe --tags --exclude latest
+$VERSION = git describe --tags --exclude latest --exclude devbuild
 $DIRTYFILES = git status --porcelain
 
 if ("$DIRTYFILES" -ne "") {
