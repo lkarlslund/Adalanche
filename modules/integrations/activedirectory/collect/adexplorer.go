@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -89,7 +91,7 @@ func (o *ADEXObject) SkipData(r binstruct.Reader) error {
 	if skip < 0 {
 		return fmt.Errorf("invalid object size %v", o.Size)
 	}
-	_, err := r.Seek(skip, os.SEEK_CUR)
+	_, err := r.Seek(skip, io.SeekCurrent)
 	return err
 }
 
@@ -125,21 +127,24 @@ func (o *ADEXObject) GetValues(r binstruct.Reader, attr []ADEXProperty, offsetca
 type AttributeDecoder struct {
 	attributeType ADEXAttributeType
 	position      int64
-	size          uint32
-	results       []string
+	// size          uint32
+	results []string
 }
 
 func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
-	r.Seek(int64(ad.position), os.SEEK_SET)
+	_, err := r.Seek(int64(ad.position), io.SeekStart)
+	if err != nil {
+		return err
+	}
 
 	count, err := r.ReadUint32()
 	if err != nil {
 		return err
 	}
 
-	ad.results = make([]string, count, count)
+	ad.results = make([]string, count)
 
-	var localoffsets []uint32
+	var localoffsets []int32
 
 	for i := 0; i < int(count); i++ {
 		var value string
@@ -159,9 +164,9 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 
 			// First read the offsets
 			if i == 0 {
-				localoffsets = make([]uint32, count, count)
-				for i := range localoffsets {
-					localoffsets[i], err = r.ReadUint32()
+				localoffsets = make([]int32, count)
+				for j := range localoffsets {
+					localoffsets[j], err = r.ReadInt32()
 					if err != nil {
 						return err
 					}
@@ -170,7 +175,12 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 
 			thispos := ad.position + int64(localoffsets[i])
 
-			r.Seek(thispos, os.SEEK_SET)
+			_, err = r.Seek(int64(thispos), io.SeekStart)
+			if err != nil {
+				ui.Error().Msgf("AD Explorer reader seeking to %v failed: %v, UTF16 string skipped", thispos, err)
+				continue
+				// return err
+			}
 
 			var wc WCstring
 			err = r.Unmarshal(&wc)
@@ -181,9 +191,9 @@ func (ad *AttributeDecoder) BinaryDecode(r binstruct.Reader) error {
 		case ADSTYPE_OCTET_STRING, ADSTYPE_NT_SECURITY_DESCRIPTOR:
 			// First read the lengths (store in localoffsets)
 			if i == 0 {
-				localoffsets = make([]uint32, count, count)
+				localoffsets = make([]int32, count)
 				for i := range localoffsets {
-					localoffsets[i], err = r.ReadUint32()
+					localoffsets[i], err = r.ReadInt32()
 					if err != nil {
 						return err
 					}
@@ -475,6 +485,10 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 
 	var e *msgp.Writer
 	if do.WriteToFile != "" {
+		err = os.MkdirAll(filepath.Dir(do.WriteToFile), 0755)
+		if err != nil {
+			return nil, fmt.Errorf("problem creating directory: %v", err)
+		}
 		outfile, err := os.Create(do.WriteToFile)
 		if err != nil {
 			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
