@@ -141,6 +141,14 @@ func analysisfuncs(ws *webservice) {
 
 		o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
 			slice := values.StringSlice()
+			for i := range slice {
+				if !util.IsASCII(slice[i]) {
+					slice[i] = util.Hexify(slice[i])
+				}
+				if len(slice[i]) > 100 {
+					slice[i] = slice[i][:256] + " ..."
+				}
+			}
 			sort.StringSlice(slice).Sort()
 			od.Attributes[attr.String()] = slice
 			return true

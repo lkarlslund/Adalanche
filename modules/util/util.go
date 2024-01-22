@@ -90,6 +90,18 @@ func IsASCII(s string) bool {
 	return true
 }
 
+func Hexify(s string) string {
+	var o string
+	for _, c := range s {
+		if unicode.IsPrint(c) {
+			o += string(c)
+		} else {
+			o += "\\x" + strconv.FormatInt(int64(c), 16)
+		}
+	}
+	return o
+}
+
 func Default(values ...string) string {
 	for _, value := range values {
 		if len(value) != 0 {
