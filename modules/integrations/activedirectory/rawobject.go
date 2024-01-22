@@ -94,6 +94,10 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		var attributevalue engine.AttributeValue
 		switch attribute {
 		// Add more things here, like time decoding etc
+		case MsPKIRoamingTimeStamp:
+			// https://www.sysadmins.lv/blog-en/how-to-convert-ms-pki-roaming-timestamp-attribute.aspx
+			t := util.FiletimeToTime(binary.LittleEndian.Uint64([]byte(value[8:])))
+			attributevalue = engine.AttributeValueTime(t)
 		case AccountExpires, CreationTime, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime, BadPasswordTime:
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
 				if intval == 0 {
