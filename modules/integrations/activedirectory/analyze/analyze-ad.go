@@ -162,6 +162,9 @@ func init() {
 
 	Loader.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
+			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+				return true
+			}
 			if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
 				if parentobject, found := ao.DistinguishedParent(o); found {
 					parentobject.EdgeTo(o, EdgeInheritsSecurity)

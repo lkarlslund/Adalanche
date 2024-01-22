@@ -38,6 +38,7 @@ var (
 	ObjectTypeCertificateTemplate        = NewObjectType("CertificateTemplate", "PKI-Certificate-Template")
 	ObjectTypePKIEnrollmentService       = NewObjectType("PKIEnrollmentService", "PKI-Enrollment-Service")
 	ObjectTypeCertificationAuthority     = NewObjectType("CertificationAuthority", "Certification-Authority")
+	ObjectTypeForeignSecurityPrincipal   = NewObjectType("ForeignSecurityPrincipal", "Foreign-Security-Principal")
 	ObjectTypeService                    = NewObjectType("Service", "Service").SetDefault(Last, false)
 	ObjectTypeExecutable                 = NewObjectType("Executable", "Executable").SetDefault(Last, false)
 	ObjectTypeDirectory                  = NewObjectType("Directory", "Directory").SetDefault(Last, false)
