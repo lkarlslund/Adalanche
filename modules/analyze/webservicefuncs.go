@@ -145,7 +145,7 @@ func analysisfuncs(ws *webservice) {
 				if !util.IsASCII(slice[i]) {
 					slice[i] = util.Hexify(slice[i])
 				}
-				if len(slice[i]) > 100 {
+				if len(slice[i]) > 256 {
 					slice[i] = slice[i][:256] + " ..."
 				}
 			}
