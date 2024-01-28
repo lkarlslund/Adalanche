@@ -20,6 +20,7 @@ var idcounter uint32 // Unique ID +1 to assign to Object added to this collectio
 type typestatistics [256]int
 
 type Objects struct {
+	Datapath      string
 	root          *Object
 	DefaultValues []any
 	objects       gsync.MapOf[ObjectID, *Object]
@@ -362,11 +363,6 @@ func (os *Objects) Merge(attrtomerge []Attribute, source *Object) bool {
 						})
 						if failed {
 							return false // break
-						}
-
-						// Test that all mergeapprovers confirm this to be a valid merge
-						if source.SID().String() == "S-1-5-21-1912508229-386351500-4206070068-4522" {
-							ui.Trace().Msgf("Gotcha")
 						}
 
 						for _, mfi := range mergeapprovers {

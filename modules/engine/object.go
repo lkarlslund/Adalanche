@@ -789,6 +789,44 @@ func (o *Object) Clear(a Attribute) {
 	o.values.Clear(a)
 }
 
+func (o *Object) Tag(v AttributeValueString) {
+	oldtags, found := o.Get(Tag)
+	if !found {
+		o.Set(Tag, AttributeValueSlice{v})
+	} else {
+		var exists bool
+		values := make(AttributeValueSlice, oldtags.Len()+1)
+		oldtags.Iterate(func(val AttributeValue) bool {
+			if val.String() == v.String() {
+				exists = true
+				return false
+			}
+			values = append(values, val)
+			return true
+		})
+		if !exists {
+			o.Set(Tag, append(values, v))
+		}
+	}
+}
+
+// FIXME performance optimization/redesign needed, but needs to work with Objects indexes
+func (o *Object) HasTag(v AttributeValueString) bool {
+	tags, found := o.Get(Tag)
+	if !found {
+		return false
+	}
+	var exists bool
+	tags.Iterate(func(val AttributeValue) bool {
+		if val.String() == v.String() {
+			exists = true
+			return false
+		}
+		return true
+	})
+	return exists
+}
+
 func (o *Object) set(a Attribute, values AttributeValues) {
 	if a.IsSingle() && values.Len() > 1 {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))

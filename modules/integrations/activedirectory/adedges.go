@@ -79,16 +79,17 @@ var (
 	EdgeDSReplicationGetChanges              = engine.NewEdge("DSReplGetChngs").SetDefault(false, false, false).Tag("Granted")
 	EdgeDSReplicationGetChangesAll           = engine.NewEdge("DSReplGetChngsAll").SetDefault(false, false, false).Tag("Granted")
 	EdgeDSReplicationGetChangesInFilteredSet = engine.NewEdge("DSReplGetChngsInFiltSet").SetDefault(false, false, false).Tag("Granted")
-	EdgeDCsync                               = engine.NewEdge("DCsync").Tag("Granted")
+	EdgeCall                                 = engine.NewEdge("Call").Describe("Call a service point")
+	EdgeControls                             = engine.NewEdge("Controls").Describe("Node controls a service point")
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword").Tag("Pivot").Tag("Granted")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup").Tag("Granted")
 	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false).Tag("Granted")
 	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
-			// Account is disabled
-			return 0
+		if target.HasTag("active") {
+			return 50
 		}
-		return 50
+		// Account is disabled
+		return 0
 	}).Tag("Pivot")
 	EdgeDontReqPreauth = engine.NewEdge("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {

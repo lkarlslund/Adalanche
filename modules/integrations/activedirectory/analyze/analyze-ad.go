@@ -83,6 +83,9 @@ var (
 	PublishedBy            = engine.NewAttribute("publishedBy")
 	PublishedByDnsHostName = engine.NewAttribute("publishedByDnsHostName")
 
+	MetaPasswordAge  = engine.NewAttribute("passwordAge")
+	MetaLastLoginAge = engine.NewAttribute("lastLoginAge")
+
 	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		return -1 // Just informative
 	}).Describe("Indicates this is the domain joined computer account belonging to the machine")
@@ -100,7 +103,7 @@ func init() {
 		return nil, nil
 	})
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
 		if lapsobjects, found := ao.FindMulti(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd")); found {
@@ -160,7 +163,7 @@ func init() {
 		})
 	}, "Reading local admin passwords via LAPS", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
 				return true
@@ -174,7 +177,7 @@ func init() {
 		})
 	}, "Indicator that object inherits security from the container it is within", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
 				return true
@@ -189,7 +192,7 @@ func init() {
 		})
 	}, "Machine configurations that are part of a GPO", engine.BeforeMergeHigh)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "User" {
 				return true
@@ -204,7 +207,7 @@ func init() {
 		})
 	}, "User configurations that are part of a GPO", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// It's a group
 			sd, err := o.SecurityDescriptor()
@@ -220,7 +223,7 @@ func init() {
 		})
 	}, "Indicator for possible false positives, as the ACL contains DENY entries", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -241,7 +244,7 @@ func init() {
 		})
 	}, "Indicator that someone owns an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -256,7 +259,7 @@ func init() {
 		})
 	}, "Indicator that someone has full permissions on an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -271,7 +274,7 @@ func init() {
 		})
 	}, "Indicator that someone can write to all attributes and do all validated writes on an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -286,7 +289,7 @@ func init() {
 		})
 	}, "Indicator that someone can write to all attributes of an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -302,7 +305,7 @@ func init() {
 	}, "Indicator that someone do all validated writes on an object", engine.BeforeMergeFinal)
 
 	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -317,7 +320,7 @@ func init() {
 		})
 	}, "Indicator that someone is allowed to take ownership of an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -332,7 +335,7 @@ func init() {
 		})
 	}, "Indicator that someone can change permissions on an object", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if o.Type() != engine.ObjectTypeAttributeSchema {
@@ -351,7 +354,7 @@ func init() {
 		})
 	}, `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`, engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only users, computers and service accounts
 			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
@@ -371,7 +374,7 @@ func init() {
 		})
 	}, "Indicator that a group or user can reset the password of an account", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only managed service accounts
 			if o.Type() != engine.ObjectTypeManagedServiceAccount && o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
@@ -392,7 +395,8 @@ func init() {
 		})
 	}, "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		kerberoast := engine.AttributeValueString("kerberoast")
 		authusers := FindWellKnown(ao, windowssecurity.AuthenticatedUsersSID)
 		if authusers == nil {
 			ui.Error().Msgf("Could not locate Authenticated Users")
@@ -405,18 +409,19 @@ func init() {
 				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
-				o.SetValues(engine.MetaHasSPN, engine.AttributeValueInt(1))
-
+				o.Tag(kerberoast)
 				authusers.EdgeTo(o, activedirectory.EdgeHasSPN)
 			}
 			return true
 		})
 	}, "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
-		everyone := FindWellKnown(ao, windowssecurity.EveryoneSID)
-		if everyone == nil {
-			ui.Error().Msgf("Could not locate Everyone")
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		anonymous := FindWellKnown(ao, windowssecurity.AnonymousLogonSID)
+		asreproast := engine.AttributeValueString("asreproast")
+
+		if anonymous == nil {
+			ui.Error().Msgf("Could not locate Anonymous Logon")
 			return
 		}
 
@@ -426,13 +431,14 @@ func init() {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-				everyone.EdgeTo(o, activedirectory.EdgeDontReqPreauth)
+				o.Tag(asreproast)
+				anonymous.EdgeTo(o, activedirectory.EdgeDontReqPreauth)
 			}
 			return true
 		})
-	}, "Indicator that a user has \"don't require preauth\" and can be kerberoasted", engine.BeforeMergeFinal)
+	}, "Indicator that a user has \"don't require preauth\" and can be ASREPRoasted", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only users
 			if o.Type() != engine.ObjectTypeUser {
@@ -451,7 +457,7 @@ func init() {
 		})
 	}, "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers and users
 			if o.Type() != engine.ObjectTypeUser {
@@ -471,7 +477,7 @@ func init() {
 	}, "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account", engine.BeforeMergeFinal)
 
 	// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
 			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
@@ -492,7 +498,7 @@ func init() {
 	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account to enable any SPN enabled user to impersonate it`, engine.BeforeMergeFinal)
 
 	EdgeRBCD := engine.NewEdge("RBConstrainedDeleg")
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
 			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
@@ -515,7 +521,7 @@ func init() {
 	}, `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`, engine.BeforeMergeFinal)
 
 	EdgeCD := engine.NewEdge("ConstrainedDeleg")
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only computers
 			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
@@ -536,7 +542,12 @@ func init() {
 							ui.Error().Msgf("Constrained delegation host name %v still contains /", val.String())
 							return true // continue
 						}
+						if strings.Contains(host, ":") {
+							ui.Debug().Msgf("Constrained delegation host name %v contains :, removing port", val.String())
+							host = strings.Split(host, ":")[0]
+						}
 						if !strings.Contains(host, ".") {
+							ui.Debug().Msgf("Constrained delegation host name %v is not FQDN, adding domain context DNS", val.String())
 							host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
 						}
 						if target, found := ao.FindTwo(DnsHostName, engine.AttributeValueString(host),
@@ -577,7 +588,7 @@ func init() {
 			})
 		}, `Modify the msDS-AllowedToDelegateTo (Constrained Delegation) on a computer to enable any SPN enabled user to impersonate anyone else`, engine.BeforeMergeFinal)
 	*/
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
@@ -597,7 +608,7 @@ func init() {
 		})
 	}, "Permission to add a member to a group", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
@@ -617,7 +628,7 @@ func init() {
 		})
 	}, "Permission to add a member to a group (via attribute set)", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeGroup {
@@ -637,7 +648,7 @@ func init() {
 		})
 	}, "Permission to add yourself to a group", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
 				if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok {
@@ -653,7 +664,7 @@ func init() {
 		})
 	}, "Allows someone to read a password of a managed service account", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
@@ -672,7 +683,7 @@ func init() {
 		})
 	}, "Allows an attacker to define a certificate that can be used to authenticate as the user", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
@@ -691,7 +702,7 @@ func init() {
 		})
 	}, "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for users
 			if o.Type() != engine.ObjectTypeUser {
@@ -709,7 +720,7 @@ func init() {
 			return true
 		})
 	}, "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
 				if targetmsa, found := ao.Find(engine.DistinguishedName, dn); found {
@@ -721,7 +732,7 @@ func init() {
 		})
 	}, "Indicates that the object has a service account in use", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for groups
 			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
@@ -741,7 +752,7 @@ func init() {
 		})
 	}, "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
@@ -754,7 +765,7 @@ func init() {
 		})
 	}, "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -769,26 +780,7 @@ func init() {
 		})
 	}, "Indicates that you have all extended rights", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
-		ao.Iterate(func(o *engine.Object) bool {
-			if o.Type() != engine.ObjectTypePKIEnrollmentService {
-				return true
-			}
-			o.Attr(engine.A("certificateTemplates")).Iterate(func(val engine.AttributeValue) bool {
-				templates, _ := ao.FindMulti(engine.Name, val)
-				templates.Iterate(func(template *engine.Object) bool {
-					if template.Type() == engine.ObjectTypeCertificateTemplate {
-						o.EdgeTo(template, EdgePublishesCertificateTemplate)
-					}
-					return true
-				})
-				return true
-			})
-			return true
-		})
-	}, "Certificate service publishes Certificate Template", engine.BeforeMergeFinal)
-
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeCertificateTemplate {
 				return true
@@ -808,7 +800,7 @@ func init() {
 		})
 	}, "Permission to enroll into a certificate template", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeCertificateTemplate {
 				return true
@@ -828,7 +820,7 @@ func init() {
 		})
 	}, "Permission to auto-enroll into a certificate template", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -843,9 +835,7 @@ func init() {
 		})
 	}, "Has the Voodoo Bit set", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
-		// DCsyncObject := ao.AddNew()
-
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.Type() != engine.ObjectTypeDomainDNS {
 				return true
@@ -857,6 +847,17 @@ func init() {
 			if err != nil {
 				return true
 			}
+			DCsyncObject := ao.AddNew(
+				engine.IgnoreBlanks,
+				engine.DataLoader, o.Attr(engine.DataLoader),
+				engine.DataSource, o.Attr(engine.DataSource),
+				engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+				engine.Name, "DCsync",
+			)
+			DCsyncObject.Tag("iddqd")
+
+			o.EdgeTo(DCsyncObject, activedirectory.EdgeControls)
+
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeDSReplicationSyncronize)
@@ -876,7 +877,7 @@ func init() {
 			o.Edges(engine.In).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
 				if edge.IsSet(activedirectory.EdgeDSReplicationGetChanges) && edge.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
 					// DCsync attack WOT WOT
-					target.EdgeTo(o, activedirectory.EdgeDCsync)
+					target.EdgeTo(DCsyncObject, activedirectory.EdgeCall)
 				}
 				return true
 			})
@@ -884,7 +885,7 @@ func init() {
 		})
 	}, "Permissions on DomainDNS objects leading to DCsync attacks", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
 		ao.Iterate(func(computeraccount *engine.Object) bool {
 			if computeraccount.Type() != engine.ObjectTypeComputer {
@@ -915,7 +916,7 @@ func init() {
 		"creating Machine objects (representing the machine running the OS)",
 		engine.BeforeMerge)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
 		ao.Iterate(func(o *engine.Object) bool {
 			potentialorphan := o
@@ -960,7 +961,7 @@ func init() {
 		"applying parent/child relationships",
 		engine.BeforeMergeHigh)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		type domaininfo struct {
 			suffix string
 			name   string
@@ -1022,7 +1023,7 @@ func init() {
 		"applying DownLevelLogonName attribute",
 		engine.BeforeMergeLow)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Add domain part attribute from distinguished name to objects
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only objects with a DistinguishedName
@@ -1057,7 +1058,7 @@ func init() {
 		"applying domain part attribute",
 		engine.BeforeMergeLow)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Find all the AdminSDHolder containers
 		ao.Filter(func(o *engine.Object) bool {
 			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
@@ -1146,7 +1147,7 @@ func init() {
 		"AdminSDHolder rights propagation indicator",
 		engine.BeforeMerge)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Add our known SIDs if they're missing
 		for sid, name := range windowssecurity.KnownSIDs {
 			binsid, err := windowssecurity.ParseStringSID(sid)
@@ -1170,7 +1171,7 @@ func init() {
 		engine.BeforeMergeLow,
 	)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Generate member of chains
 		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
@@ -1217,35 +1218,35 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.SetValues(engine.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.SetValues(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.SetValues(engine.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.SetValues(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
-				object.SetValues(engine.MetaLinux, engine.AttributeValueInt(1))
+				object.Tag("linux")
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "windows") {
-				object.SetValues(engine.MetaWindows, engine.AttributeValueInt(1))
+				object.Tag("windows")
 			}
 			if object.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() > 0 {
-				object.SetValues(engine.MetaLAPSInstalled, engine.AttributeValueInt(1))
+				object.Tag("laps")
 			}
 			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
 				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 && uac&engine.UAC_NOT_DELEGATED == 0 {
-					object.SetValues(engine.MetaUnconstrainedDelegation, engine.AttributeValueInt(1))
+					object.Tag("unconstrained")
 				}
 				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
-					object.SetValues(engine.MetaConstrainedDelegation, engine.AttributeValueInt(1))
+					object.Tag("constrained")
 				}
 				if uac&engine.UAC_NOT_DELEGATED != 0 {
-					ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
+					object.Tag("nodelegation")
 				}
 				if uac&engine.UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
-					object.SetValues(engine.MetaWorkstation, engine.AttributeValueInt(1))
+					object.Tag("computer_account")
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
-					object.SetValues(engine.MetaServer, engine.AttributeValueInt(1))
+					object.Tag("domaincontroller_account")
 
 					// All DCs are members of Enterprise Domain Controllers
 					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
@@ -1253,17 +1254,35 @@ func init() {
 					// Also they can DCsync because of this membership ... FIXME
 				}
 
-				accountActive := uac&engine.UAC_ACCOUNTDISABLE == 0
-				if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok && accountActive {
+				var expired, inactive bool
+				inactive = uac&engine.UAC_ACCOUNTDISABLE != 0
+				if inactive {
+					object.Tag("account_disabled")
+				} else {
+					object.Tag("account_enabled")
+				}
+
+				if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok {
 					if !exp.IsZero() && time.Now().After(exp) {
-						accountActive = false
+						object.Tag("account_expired")
+						expired = true
 					}
 				}
 
-				object.SetValues(engine.MetaAccountActive, engine.AttributeValueBool(accountActive))
-				object.SetValues(engine.MetaPasswordCantChange, engine.AttributeValueBool(uac&engine.UAC_PASSWD_CANT_CHANGE != 0))
-				object.SetValues(engine.MetaPasswordNeverExpires, engine.AttributeValueBool(uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0))
-				object.SetValues(engine.MetaPasswordNotRequired, engine.AttributeValueBool(uac&engine.UAC_PASSWD_NOTREQD != 0))
+				if inactive || expired {
+					object.Tag("account_inactive")
+				} else {
+					object.Tag("account_active")
+				}
+				if uac&engine.UAC_PASSWD_CANT_CHANGE != 0 {
+					object.Tag("password_cant_change")
+				}
+				if uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0 {
+					object.Tag("password_never_expires")
+				}
+				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
+					object.Tag("password_not_required")
+				}
 
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
@@ -1273,6 +1292,9 @@ func init() {
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
+						machine.Tag("role-domaincontroller")
+						machine.Tag("iddqd")
+
 						domainContext := object.OneAttr(engine.DomainContext)
 						if domainContext == nil {
 							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
@@ -1347,7 +1369,7 @@ func init() {
 		"Active Directory objects and metadata",
 		engine.BeforeMerge)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {
 			// We'll put the ObjectClass UUIDs in a synthetic attribute, so we can look it up later quickly (and without access to Objects)
 			objectclasses := object.Attr(engine.ObjectClass)
@@ -1403,12 +1425,12 @@ func init() {
 		engine.BeforeMergeLow,
 	)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {
 			if object.SID().Component(2) == 21 && object.SID().RID() == 525 { // "Protected Users"
 				object.EdgeIteratorRecursive(engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
-						member.SetValues(engine.MetaProtectedUser, engine.AttributeValueInt(1))
+						member.Tag("protected_user")
 					}
 					return true
 				})
@@ -1465,7 +1487,7 @@ func init() {
 	// 	"Creation of synthetic Foreign-Security-Principal objects",
 	// 	engine.AfterMergeLow)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(machine *engine.Object) bool {
 			// Only for machines, you can't really pwn users this way
 			if machine.Type() != ObjectTypeMachine {
@@ -1581,7 +1603,7 @@ func init() {
 		engine.AfterMergeLow,
 	)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttr(engine.ObjectSid) && !o.HasAttr(engine.DisplayName) {
 				if name, found := windowssecurity.KnownSIDs[o.SID().String()]; found {
@@ -1632,7 +1654,7 @@ func init() {
 		)
 	*/
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {
 			// Object that is member of something
 			object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
@@ -1695,7 +1717,7 @@ func init() {
 		engine.AfterMergeLow,
 	)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
 			// Only for containers and org units
 			if o.Type() != engine.ObjectTypeUser {
@@ -1715,7 +1737,7 @@ func init() {
 		})
 	}, "Permissions that lets someone modify userAccountControl", engine.BeforeMergeFinal)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
 		ao.IterateParallel(func(o *engine.Object) bool {
 			// Object that is member of something
@@ -1755,13 +1777,25 @@ func init() {
 		engine.AfterMerge,
 	)
 
-	Loader.AddProcessor(
+	LoaderID.AddProcessor(
 		func(ao *engine.Objects) {
-			ao.Iterate(func(o *engine.Object) bool {
-				if o.Type() == engine.ObjectTypePKIEnrollmentService {
+			ao.Iterate(func(enrollementService *engine.Object) bool {
+				if enrollementService.Type() == engine.ObjectTypePKIEnrollmentService {
+					var ca *engine.Object
+					var found bool
+					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); cadns != nil {
+						// find the CA machine object
+						if ca, found = ao.FindTwo(
+							engine.Type, ObjectTypeMachine.ValueString(),
+							activedirectory.DNSHostName, cadns,
+						); found {
+							ca.Tag("role-certificate-authority")
+							ca.Tag("iddqd")
+						}
+					}
 
 					// Templates that is offered for enrollment
-					o.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
+					enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
 
 						templates, found := ao.FindTwoMulti(engine.Name, templatename,
 							engine.ObjectClass, engine.AttributeValueString("pKICertificateTemplate"))
@@ -1769,7 +1803,7 @@ func init() {
 						if found {
 							alreadyset := false
 							templates.Iterate(func(template *engine.Object) bool {
-								if !engine.CompareAttributeValues(template.OneAttr(engine.DomainContext), o.OneAttr(engine.DomainContext)) {
+								if !engine.CompareAttributeValues(template.OneAttr(engine.DomainContext), enrollementService.OneAttr(engine.DomainContext)) {
 									return true // continue
 								}
 
@@ -1778,9 +1812,13 @@ func init() {
 								}
 
 								template.SetFlex(
-									PublishedBy, engine.AttributeValueString(o.DN()),
-									PublishedByDnsHostName, o.Attr(activedirectory.DNSHostName),
+									PublishedBy, engine.AttributeValueString(enrollementService.DN()),
+									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
 								)
+
+								if ca != nil {
+									ca.EdgeTo(template, EdgePublishesCertificateTemplate)
+								}
 
 								alreadyset = true
 								return true
@@ -1834,7 +1872,7 @@ func init() {
 		domainContext string
 	}
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Find all domains, save info so we can see if an object is "local" or not
 		sidmap := make(map[windowssecurity.SID]sidinfo)
 		ao.Filter(func(o *engine.Object) bool {
@@ -1877,7 +1915,7 @@ func init() {
 		engine.AfterMergeLow,
 	)
 
-	Loader.AddProcessor(func(ao *engine.Objects) {
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		var warnlines int
 		ao.Filter(func(o *engine.Object) bool {
 			return o.Type() == engine.ObjectTypeGroupPolicyContainer

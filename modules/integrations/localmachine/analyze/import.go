@@ -225,7 +225,36 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		// pwn = EdgeSeMachineAccount
 		case "SeTcbPrivilege":
 			pwn = EdgeSeTcb
-		case "SeIncreaseQuotaPrivilege", "SeSystemProfilePrivilege", "SeSecurityPrivilege", "SeSystemtimePrivilege", "SeProfileSingleProcessPrivilege", "SeIncreaseBasePriorityPrivilege", "SeCreatePagefilePrivilege", "SeShutdownPrivilege", "SeAuditPrivilege", "SeSystemEnvironmentPrivilege", "SeChangeNotifyPrivilege", "SeRemoteShutdownPrivilege", "SeUndockPrivilege", "SeCreateGlobalPrivilege", "SeIncreaseWorkingSetPrivilege", "SeTimeZonePrivilege", "SeCreateSymbolicLinkPrivilege", "SeInteractiveLogonRight", "SeDenyInteractiveLogonRight", "SeDenyRemoteInteractiveLogonRight", "SeBatchLogonRight", "SeServiceLogonRight", "SeDelegateSessionUserImpersonatePrivilege", "SeLockMemoryPrivilege", "SeDenyNetworkLogonRight", "SeTrustedCredManAccessPrivilege", "SeDenyBatchLogonRight", "SeDenyServiceLogonRight", "SeRelabelPrivilege":
+		case "SeIncreaseQuotaPrivilege",
+			"SeSystemProfilePrivilege",
+			"SeSecurityPrivilege",
+			"SeSystemtimePrivilege",
+			"SeProfileSingleProcessPrivilege",
+			"SeIncreaseBasePriorityPrivilege",
+			"SeCreatePagefilePrivilege",
+			"SeShutdownPrivilege",
+			"SeAuditPrivilege",
+			"SeSystemEnvironmentPrivilege",
+			"SeChangeNotifyPrivilege",
+			"SeRemoteShutdownPrivilege",
+			"SeUndockPrivilege",
+			"SeCreateGlobalPrivilege",
+			"SeIncreaseWorkingSetPrivilege",
+			"SeTimeZonePrivilege",
+			"SeCreateSymbolicLinkPrivilege",
+			"SeInteractiveLogonRight",
+			"SeDenyInteractiveLogonRight",
+			"SeDenyRemoteInteractiveLogonRight",
+			"SeBatchLogonRight",
+			"SeServiceLogonRight",
+			"SeDelegateSessionUserImpersonatePrivilege",
+			"SeLockMemoryPrivilege",
+			"SeTrustedCredManAccessPrivilege",
+			"SeDenyNetworkLogonRight",
+			"SeDenyBatchLogonRight",
+			"SeDenyServiceLogonRight",
+			"SeRelabelPrivilege",
+			"SeCreatePermanentPrivilege":
 			// No edge
 			continue
 		case "SeEnableDelegationPrivilege":
@@ -480,6 +509,22 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			ServiceType, int64(service.Type),
 			activedirectory.Type, "Service",
 		)
+
+		if service.Start < 3 {
+			serviceobject.Tag("service_autostart")
+		}
+		switch service.Start {
+		case 0:
+			serviceobject.Tag("service_boot")
+		case 1:
+			serviceobject.Tag("service_system")
+		case 2:
+			serviceobject.Tag("service_automatic")
+		case 3:
+			serviceobject.Tag("service_manual")
+		case 4:
+			serviceobject.Tag("service_disabled")
+		}
 
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)

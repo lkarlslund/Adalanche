@@ -89,21 +89,7 @@ var (
 	NetbiosDomain      = NewAttribute("netbiosDomain").Single() // Used to merge users with - if we only have a DOMAIN\USER type of info
 	DomainContext      = NewAttribute("domainContext").Single()
 
-	MetaProtectedUser           = NewAttribute("_protecteduser")
-	MetaUnconstrainedDelegation = NewAttribute("_unconstraineddelegation")
-	MetaConstrainedDelegation   = NewAttribute("_constraineddelegation")
-	MetaHasSPN                  = NewAttribute("_hasspn")
-	MetaPasswordAge             = NewAttribute("_passwordage")
-	MetaLastLoginAge            = NewAttribute("_lastloginage")
-	MetaAccountActive           = NewAttribute("accountActive")
-	MetaPasswordCantChange      = NewAttribute("passwordCantChange")
-	MetaPasswordNotRequired     = NewAttribute("passwordNotRequired").Type(AttributeTypeBool)
-	MetaPasswordNeverExpires    = NewAttribute("passwordNeverExpires").Type(AttributeTypeBool)
-	MetaLinux                   = NewAttribute("_linux")
-	MetaWindows                 = NewAttribute("_windows")
-	MetaWorkstation             = NewAttribute("_workstation")
-	MetaServer                  = NewAttribute("_server")
-	MetaLAPSInstalled           = NewAttribute("_haslaps")
+	Tag = NewAttribute("tag")
 )
 
 func init() {
