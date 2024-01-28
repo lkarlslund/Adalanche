@@ -129,7 +129,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
 			default:
-				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp (unsupported length): %v", attribute.String(), tvalue)
+				ui.Warn().Msgf("Failed to convert attribute %v value %v to timestamp (unsupported length): %v", attribute.String(), tvalue, len(tvalue))
 			}
 		case PKIExpirationPeriod, PKIOverlapPeriod:
 			nss := binary.BigEndian.Uint64([]byte(value))

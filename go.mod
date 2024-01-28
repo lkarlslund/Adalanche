@@ -145,4 +145,5 @@ require (
 	golang.org/x/tools v0.15.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	www.velocidex.com/golang/go-ese v0.2.0 // indirect
 )

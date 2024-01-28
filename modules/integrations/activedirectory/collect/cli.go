@@ -38,6 +38,8 @@ var (
 	adexplorerfile  = Command.Flags().String("adexplorerfile", "", "Import AD objects from SysInternals ADexplorer dump")
 	adexplorerboost = Command.Flags().Bool("adexplorerboost", true, "Boost ADexplorer performance by using loading the binary file into RAM before decoding it")
 
+	ntdsfile = Command.Flags().String("ntdsfile", "", "Import AD objects from NTDS.DIT file")
+
 	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
 	port    = Command.Flags().Int("port", -1, "LDAP port to connect to (389 or 636 typical, -1 for auto based on tlsmode)")
 	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
@@ -79,7 +81,7 @@ func init() {
 
 // Checks that we have enough data to proceed with the real run
 func PreRun(cmd *cobra.Command, args []string) error {
-	if *adexplorerfile != "" {
+	if *adexplorerfile != "" || *ntdsfile != "" {
 		// That's all we need for this run to work
 		return nil
 	}
@@ -214,6 +216,44 @@ func Execute(cmd *cobra.Command, args []string) error {
 		do := DumpOptions{
 			ReturnObjects: false,
 			WriteToFile:   filepath.Join(datapath, filepath.Base(*adexplorerfile)+".objects.msgp.lz4"),
+		}
+
+		cp, _ := util.ParseBool(*collectgpos)
+		if *collectgpos == "auto" || cp {
+			do.OnObject = func(ro *activedirectory.RawObject) error {
+				if _, found := ro.Attributes["gPCFileSysPath"]; found {
+					gpostocollect = append(gpostocollect, ro)
+				}
+				if nbn, found := ro.Attributes["nETBIOSName"]; found {
+					netbiosname = nbn[0]
+				}
+				return nil
+			}
+		}
+
+		_, err = ad.Dump(do)
+		if err != nil {
+			os.Remove(do.WriteToFile)
+			return fmt.Errorf("problem collecting Active Directory objects: %v", err)
+		}
+
+		ad.Disconnect()
+	} else if *ntdsfile != "" {
+		// Active Directory Explorer file
+		ui.Info().Msgf("Collecting objects from NTDS.DIT file %v ...", *ntdsfile)
+
+		ad := NTDSDumper{
+			path: *ntdsfile,
+		}
+
+		err := ad.Connect()
+		if err != nil {
+			return err
+		}
+
+		do := DumpOptions{
+			ReturnObjects: false,
+			WriteToFile:   filepath.Join(datapath, filepath.Base(*ntdsfile)+".objects.msgp.lz4"),
 		}
 
 		cp, _ := util.ParseBool(*collectgpos)
