@@ -792,10 +792,10 @@ func (o *Object) Clear(a Attribute) {
 func (o *Object) Tag(v AttributeValueString) {
 	oldtags, found := o.Get(Tag)
 	if !found {
-		o.Set(Tag, AttributeValueSlice{v})
+		o.Set(Tag, AttributeValueOne{v})
 	} else {
 		var exists bool
-		values := make(AttributeValueSlice, oldtags.Len()+1)
+		values := make(AttributeValueSlice, 0, oldtags.Len()+1)
 		oldtags.Iterate(func(val AttributeValue) bool {
 			if val.String() == v.String() {
 				exists = true
@@ -949,6 +949,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 	// 	attributenums[a].onset(o, a, av)
 	// 	o.values.Set(a, nil) // placeholder for iteration over attributes that are set
 	// } else {
+
 	o.values.Set(a, values)
 	// }
 }

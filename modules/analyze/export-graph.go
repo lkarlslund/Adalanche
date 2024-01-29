@@ -96,13 +96,12 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 			},
 		}
 
-		for key, value := range df {
-			newnode.Data[key] = value
+		if object.HasAttr(engine.Tag) {
+			newnode.Data["tag"] = object.Attr(engine.Tag).StringSlice()
 		}
 
-		// FIXME, should go elsewhere
-		if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
-			newnode.Data["_disabled"] = true
+		for key, value := range df {
+			newnode.Data[key] = value
 		}
 
 		// If we added empty junk, remove it again

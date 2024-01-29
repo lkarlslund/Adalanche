@@ -102,6 +102,7 @@ require (
 )
 
 require (
+	github.com/Velocidex/ordereddict v0.0.0-20220107075049-3dbe58412844
 	github.com/akyoto/cache v1.0.6
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
@@ -109,12 +110,15 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0
+	www.velocidex.com/golang/go-ese v0.2.0
 )
 
 require (
 	github.com/DataDog/gostackparse v0.6.0 // indirect
+	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696 // indirect
@@ -145,5 +149,4 @@ require (
 	golang.org/x/tools v0.15.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	www.velocidex.com/golang/go-ese v0.2.0 // indirect
 )
