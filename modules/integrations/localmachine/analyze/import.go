@@ -608,9 +608,18 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			if serviceaccountSID != windowssecurity.LocalServiceSID {
 				serviceobject.EdgeTo(svcaccount, analyze.EdgeAuthenticatesAs)
 			}
+
 		} else if service.Account != "" || service.AccountSID != "" {
 			ui.Warn().Msgf("Unhandled service credentials %+v", service)
 		}
+
+		// Specific service SID
+		so := ao.FindOrAddSID(windowssecurity.ServiceNameToServiceSID(service.Name))
+		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
+		so.SetFlex(
+			activedirectory.Name, engine.AttributeValueString("Service account for "+service.Name),
+		)
+		serviceobject.EdgeTo(so, analyze.EdgeAuthenticatesAs)
 
 		// Change service executable via registry
 		if service.RegistryOwner != "" {
