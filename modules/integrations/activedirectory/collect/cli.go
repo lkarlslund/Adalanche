@@ -252,8 +252,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 
 		do := DumpOptions{
-			ReturnObjects: false,
-			WriteToFile:   filepath.Join(datapath, filepath.Base(*ntdsfile)+".objects.msgp.lz4"),
+			// ReturnObjects: true,
+			WriteToFile: filepath.Join(datapath, filepath.Base(*ntdsfile)+".objects.msgp.lz4"),
 		}
 
 		cp, _ := util.ParseBool(*collectgpos)
@@ -269,7 +269,15 @@ func Execute(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		_, err = ad.Dump(do)
+		// err = ad.DebugDump()
+		objects, err := ad.Dump(do)
+		if len(objects) > 0 {
+			debugfilename := do.WriteToFile + ".json"
+			ui.Debug().Msgf("Writing %v debug objects to %v", len(objects), debugfilename)
+			jsondata, _ := json.MarshalIndent(objects, "", "  ")
+			os.WriteFile(debugfilename, jsondata, 0644)
+		}
+
 		if err != nil {
 			os.Remove(do.WriteToFile)
 			return fmt.Errorf("problem collecting Active Directory objects: %v", err)

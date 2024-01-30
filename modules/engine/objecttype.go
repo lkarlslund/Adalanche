@@ -18,6 +18,7 @@ type ObjectType byte
 var (
 	NonExistingObjectType                = ^ObjectType(0)
 	ObjectTypeOther                      = NewObjectType("Other", "")
+	ObjectTypeCallableServicePoint       = NewObjectType("CallableService", "Callable-Service-Point")
 	ObjectTypeDomainDNS                  = NewObjectType("DomainDNS", "Domain-DNS")
 	ObjectTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node").SetDefault(Last, false)
 	ObjectTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone").SetDefault(Last, false)
@@ -125,6 +126,10 @@ func ObjectTypeLookup(lookup string) (ObjectType, bool) {
 
 func (ot ObjectType) String() string {
 	return objecttypenums[ot].Name
+}
+
+func (ot ObjectType) ValueString() AttributeValueString {
+	return AttributeValueString(objecttypenums[ot].Lookup)
 }
 
 func (ot ObjectType) Lookup() string {

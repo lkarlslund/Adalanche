@@ -28,7 +28,7 @@ var (
 	limitattributes = analyze.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
 
 	adsource = engine.AttributeValueString("Active Directory")
-	Loader   = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
+	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
 
 	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
 )

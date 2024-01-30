@@ -46,6 +46,36 @@ type Table struct {
 	Fields map[int64]string
 }
 
+func (ntds *NTDSDumper) DebugDump() error {
+	// Initialize the catalog
+	catalog, err := parser.ReadCatalog(ntds.ese)
+	if err != nil {
+		return err
+	}
+
+	output, _ := os.Create(ntds.path + ".txt")
+	bufout := bufio.NewWriter(output)
+	tables := catalog.Tables.Keys()
+	for _, t := range tables {
+		count := 0
+		fmt.Fprintln(bufout, "-----------------------------", t, "----------------------------")
+		err = catalog.DumpTable(t, func(row *ordereddict.Dict) error {
+			serialized, err := json.Marshal(row)
+			if err != nil {
+				return err
+			}
+
+			count++
+			fmt.Fprintf(bufout, "%v\n", string(serialized))
+
+			return nil
+		})
+	}
+	bufout.Flush()
+	output.Close()
+	return nil
+}
+
 func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	// Initialize the catalog
 	catalog, err := parser.ReadCatalog(ntds.ese)
@@ -203,15 +233,11 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		e = msgp.NewWriter(boutfile)
 	}
 	var objects []activedirectory.RawObject
+	fmt.Println(catalog.Dump())
 
 	err = catalog.DumpTable("datatable", func(row *ordereddict.Dict) error {
 		var item activedirectory.RawObject
 		item.Init()
-
-		if _, ok := row.GetBool("isDeleted"); ok {
-			// deleted object
-			return nil
-		}
 
 		// Find distinguished name
 		if rdn, ok := row.GetString("Ancestors_col"); ok {
@@ -366,7 +392,7 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 				}
 
 				if len(resultval) > 0 {
-					if usedname == "whenChanged" {
+					if fieldname == "ATTm1572870" || usedname == "whenChanged" {
 						ui.Debug().Msgf("DN %v has values %v for field %v (%v)", item.DistinguishedName, resultval, fieldname, usedname)
 					}
 
@@ -422,30 +448,6 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		return nil
 	})
 	return objects, err
-
-	output, _ := os.Create(ntds.path + ".txt")
-	bufout := bufio.NewWriter(output)
-	tables := catalog.Tables.Keys()
-	for _, t := range tables {
-		count := 0
-		fmt.Fprintln(bufout, "-----------------------------", t, "----------------------------")
-		err = catalog.DumpTable(t, func(row *ordereddict.Dict) error {
-			serialized, err := json.Marshal(row)
-			if err != nil {
-				return err
-			}
-
-			count++
-			fmt.Fprintf(bufout, "%v\n", string(serialized))
-			// if count >= 10 {
-			// 	return errors.New("No more")
-			// }
-
-			return nil
-		})
-	}
-	bufout.Flush()
-	output.Close()
 
 	/*
 		tables := make(map[int64]Table)
