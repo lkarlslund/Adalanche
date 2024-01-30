@@ -665,85 +665,85 @@ func analysisfuncs(ws *webservice) {
 		}
 		w.WriteHeader(200)
 	})
-	ws.Router.HandleFunc("/accountinfo.json", func(w http.ResponseWriter, r *http.Request) {
-		type info struct {
-			DN            string    `json:"dn"`
-			PwdAge        time.Time `json:"lastpwdchange,omitempty"`
-			CreatedAge    time.Time `json:"created,omitempty"`
-			ChangedAge    time.Time `json:"lastchange,omitempty"`
-			LoginAge      time.Time `json:"lastlogin,omitempty"`
-			Expires       time.Time `json:"expires,omitempty"`
-			Type          string    `json:"type"`
-			Unconstrained bool      `json:"unconstrained,omitempty"`
-			Workstation   bool      `json:"workstation,omitempty"`
-			Server        bool      `json:"server,omitempty"`
-			Enabled       bool      `json:"enabled,omitempty"`
-			CantChangePwd bool      `json:"cantchangepwd,omitempty"`
-			NoExpirePwd   bool      `json:"noexpirepwd,omitempty"`
-			NoRequirePwd  bool      `json:"norequirepwd,omitempty"`
-			HasLAPS       bool      `json:"haslaps,omitempty"`
-		}
-		var result []info
-		ws.Objs.Iterate(func(object *engine.Object) bool {
-			if object.Type() == engine.ObjectTypeUser &&
-				object.OneAttrString(engine.MetaWorkstation) != "1" &&
-				object.OneAttrString(engine.MetaServer) != "1" &&
-				object.OneAttrString(engine.MetaAccountActive) == "1" {
-				lastlogin, _ := object.AttrTime(activedirectory.LastLogon)
-				lastlogints, _ := object.AttrTime(activedirectory.LastLogonTimestamp)
-				last, _ := object.AttrTime(activedirectory.PwdLastSet)
+	// ws.Router.HandleFunc("/accountinfo.json", func(w http.ResponseWriter, r *http.Request) {
+	// 	type info struct {
+	// 		DN            string    `json:"dn"`
+	// 		PwdAge        time.Time `json:"lastpwdchange,omitempty"`
+	// 		CreatedAge    time.Time `json:"created,omitempty"`
+	// 		ChangedAge    time.Time `json:"lastchange,omitempty"`
+	// 		LoginAge      time.Time `json:"lastlogin,omitempty"`
+	// 		Expires       time.Time `json:"expires,omitempty"`
+	// 		Type          string    `json:"type"`
+	// 		Unconstrained bool      `json:"unconstrained,omitempty"`
+	// 		Workstation   bool      `json:"workstation,omitempty"`
+	// 		Server        bool      `json:"server,omitempty"`
+	// 		Enabled       bool      `json:"enabled,omitempty"`
+	// 		CantChangePwd bool      `json:"cantchangepwd,omitempty"`
+	// 		NoExpirePwd   bool      `json:"noexpirepwd,omitempty"`
+	// 		NoRequirePwd  bool      `json:"norequirepwd,omitempty"`
+	// 		HasLAPS       bool      `json:"haslaps,omitempty"`
+	// 	}
+	// 	var result []info
+	// 	ws.Objs.Iterate(func(object *engine.Object) bool {
+	// 		if object.Type() == engine.ObjectTypeUser &&
+	// 			object.OneAttrString(engine.MetaWorkstation) != "1" &&
+	// 			object.OneAttrString(engine.MetaServer) != "1" &&
+	// 			object.OneAttrString(engine.MetaAccountActive) == "1" {
+	// 			lastlogin, _ := object.AttrTime(activedirectory.LastLogon)
+	// 			lastlogints, _ := object.AttrTime(activedirectory.LastLogonTimestamp)
+	// 			last, _ := object.AttrTime(activedirectory.PwdLastSet)
 
-				expires, _ := object.AttrTime(activedirectory.AccountExpires)
-				created, _ := object.AttrTime(activedirectory.WhenCreated)
-				changed, _ := object.AttrTime(activedirectory.WhenChanged)
+	// 			expires, _ := object.AttrTime(activedirectory.AccountExpires)
+	// 			created, _ := object.AttrTime(activedirectory.WhenCreated)
+	// 			changed, _ := object.AttrTime(activedirectory.WhenChanged)
 
-				// ui.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
+	// 			// ui.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
 
-				if lastlogin.After(lastlogints) {
-					lastlogints = lastlogin
-				}
+	// 			if lastlogin.After(lastlogints) {
+	// 				lastlogints = lastlogin
+	// 			}
 
-				// // var loginage int
+	// 			// // var loginage int
 
-				// if !lastlogints.IsZero() {
-				// 	loginage = int(time.Since(lastlogints).Hours()) / 24
-				// }
+	// 			// if !lastlogints.IsZero() {
+	// 			// 	loginage = int(time.Since(lastlogints).Hours()) / 24
+	// 			// }
 
-				i := info{
-					DN:         object.DN(),
-					PwdAge:     last,
-					ChangedAge: changed,
-					CreatedAge: created,
-					LoginAge:   lastlogints,
-					Expires:    expires,
-					Type:       object.Type().String(),
+	// 			i := info{
+	// 				DN:         object.DN(),
+	// 				PwdAge:     last,
+	// 				ChangedAge: changed,
+	// 				CreatedAge: created,
+	// 				LoginAge:   lastlogints,
+	// 				Expires:    expires,
+	// 				Type:       object.Type().String(),
 
-					Unconstrained: object.OneAttrString(engine.MetaUnconstrainedDelegation) == "1",
-					Workstation:   object.OneAttrString(engine.MetaWorkstation) == "1",
-					Server:        object.OneAttrString(engine.MetaServer) == "1",
-					Enabled:       object.OneAttrString(engine.MetaAccountActive) == "1",
-					CantChangePwd: object.OneAttrString(engine.MetaPasswordCantChange) == "1",
-					NoExpirePwd:   object.OneAttrString(engine.MetaPasswordNeverExpires) == "1",
-					NoRequirePwd:  object.OneAttrString(engine.MetaPasswordNotRequired) == "1",
-					HasLAPS:       object.OneAttrString(engine.MetaLAPSInstalled) == "1",
-				}
+	// 				Unconstrained: object.OneAttrString(engine.MetaUnconstrainedDelegation) == "1",
+	// 				Workstation:   object.OneAttrString(engine.MetaWorkstation) == "1",
+	// 				Server:        object.OneAttrString(engine.MetaServer) == "1",
+	// 				Enabled:       object.OneAttrString(engine.MetaAccountActive) == "1",
+	// 				CantChangePwd: object.OneAttrString(engine.MetaPasswordCantChange) == "1",
+	// 				NoExpirePwd:   object.OneAttrString(engine.MetaPasswordNeverExpires) == "1",
+	// 				NoRequirePwd:  object.OneAttrString(engine.MetaPasswordNotRequired) == "1",
+	// 				HasLAPS:       object.OneAttrString(engine.MetaLAPSInstalled) == "1",
+	// 			}
 
-				// if uac&UAC_NOT_DELEGATED != 0 {
-				// 	ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
-				// }
+	// 			// if uac&UAC_NOT_DELEGATED != 0 {
+	// 			// 	ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
+	// 			// }
 
-				result = append(result, i)
-			}
-			return true
-		})
+	// 			result = append(result, i)
+	// 		}
+	// 		return true
+	// 	})
 
-		data, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		w.Write(data)
-	})
+	// 	data, err := json.MarshalIndent(result, "", "  ")
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), 500)
+	// 		return
+	// 	}
+	// 	w.Write(data)
+	// })
 
 	ws.Router.Path("/tree").Queries("id", "{id}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
