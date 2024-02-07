@@ -110,7 +110,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0
-	www.velocidex.com/golang/go-ese v0.2.0
+	www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b
 )
 
 require (

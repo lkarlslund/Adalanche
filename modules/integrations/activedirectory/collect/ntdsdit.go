@@ -233,7 +233,7 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		e = msgp.NewWriter(boutfile)
 	}
 	var objects []activedirectory.RawObject
-	fmt.Println(catalog.Dump())
+	// fmt.Println(catalog.Dump())
 
 	err = catalog.DumpTable("datatable", func(row *ordereddict.Dict) error {
 		var item activedirectory.RawObject
@@ -392,10 +392,6 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 				}
 
 				if len(resultval) > 0 {
-					if fieldname == "ATTm1572870" || usedname == "whenChanged" {
-						ui.Debug().Msgf("DN %v has values %v for field %v (%v)", item.DistinguishedName, resultval, fieldname, usedname)
-					}
-
 					item.Attributes[usedname] = resultval
 				}
 			}
@@ -447,45 +443,10 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		}
 		return nil
 	})
-	return objects, err
 
-	/*
-		tables := make(map[int64]Table)
-
-		err = catalog.DumpTable("MSysObjects", func(row *ordereddict.Dict) error {
-			tableid, _ := row.GetInt64("ObjidTable")
-			typ, _ := row.GetInt64("Type")
-			name, _ := row.GetString("Name")
-			switch typ {
-			case 1:
-				// Table info
-				tables[tableid] = Table{
-					Name:   name,
-					Fields: make(map[int64]string),
-				}
-			case 2:
-				// Field info
-				fieldid, _ := row.GetInt64("Id")
-				tables[tableid].Fields[fieldid] = name
-			}
-
-			// serialized, err := json.Marshal(row)
-			// if err != nil {
-			// 	return err
-			// }
-
-			// count++
-			// fmt.Printf("%v\n", string(serialized))
-
-			return nil
-		})
-
-		j, _ := json.MarshalIndent(tables, "", "  ")
-		fmt.Println(j)
-	*/
-	// fmt.Println(catalog.Dump())
-
-	// bar := ui.ProgressBar("Converting objects from AD Explorer snapshot", int(header.ObjectCount))
+	if e != nil {
+		e.Flush()
+	}
 
 	return objects, err
 }
