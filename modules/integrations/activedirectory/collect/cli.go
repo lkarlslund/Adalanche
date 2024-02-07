@@ -40,11 +40,11 @@ var (
 
 	ntdsfile = Command.Flags().String("ntdsfile", "", "Import AD objects from NTDS.DIT file")
 
-	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname ex. -dc=\"dc.contoso.local\", random DC is auto-detected if not supplied")
+	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname, random DC is auto-detected if not supplied")
 	port    = Command.Flags().Int("port", -1, "LDAP port to connect to (389 or 636 typical, -1 for auto based on tlsmode)")
-	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (contoso.local, auto-detected if not supplied)")
-	user    = Command.Flags().String("username", "", "username to connect with (someuser@contoso.local)")
-	pass    = Command.Flags().String("password", "", "password to connect with ex. --password hunter42 (use ! for blank password)")
+	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (auto-detected if not supplied)")
+	user    = Command.Flags().String("username", "", "username to connect with")
+	pass    = Command.Flags().String("password", "", "password to connect with (use ! for blank password)")
 
 	tlsmodeString = Command.Flags().String("tlsmode", "NoTLS", "Transport mode (TLS, StartTLS, NoTLS)")
 
