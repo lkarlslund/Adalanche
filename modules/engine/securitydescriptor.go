@@ -239,10 +239,11 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 		}
 	}
 	if OffsetSACL > 0 {
-		result.SACL, err = ParseACL(data[OffsetSACL:])
-		if err != nil {
-			return result, err
-		}
+		ui.Trace().Msgf("SACL parsing not implemented")
+		// result.SACL, err = ParseSACL(data[OffsetSACL:])
+		// if err != nil {
+		// 	return result, err
+		// }
 	}
 	if OffsetDACL > 0 {
 		result.DACL, err = ParseACL(data[OffsetDACL:])
