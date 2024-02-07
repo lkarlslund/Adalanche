@@ -10,19 +10,20 @@ import (
 )
 
 const (
-	DOMAIN_USER_RID_ADMIN                 = 0x000001F4
-	DOMAIN_USER_RID_KRBTGT                = 0x000001F6
-	DOMAIN_GROUP_RID_ADMINS               = 0x00000200
-	DOMAIN_GROUP_RID_CONTROLLERS          = 0x00000204
-	DOMAIN_GROUP_RID_SCHEMA_ADMINS        = 0x00000206
-	DOMAIN_GROUP_RID_ENTERPRISE_ADMINS    = 0x00000207
-	DOMAIN_GROUP_RID_READONLY_CONTROLLERS = 0x00000209
-	DOMAIN_ALIAS_RID_ADMINS               = 0x00000220
-	DOMAIN_ALIAS_RID_ACCOUNT_OPS          = 0x00000224
-	DOMAIN_ALIAS_RID_SYSTEM_OPS           = 0x00000225
-	DOMAIN_ALIAS_RID_PRINT_OPS            = 0x00000226
-	DOMAIN_ALIAS_RID_BACKUP_OPS           = 0x00000227
-	DOMAIN_ALIAS_RID_REPLICATOR           = 0x00000228
+	DOMAIN_USER_RID_ADMIN                 = 0x000001F4 // Built-in Administrator account
+	DOMAIN_USER_RID_KRBTGT                = 0x000001F6 // krbtgt account
+	DOMAIN_GROUP_RID_ADMINS               = 0x00000200 // Domain Admins group
+	DOMAIN_GROUP_RID_USERS                = 0x00000201 // Domain Users group
+	DOMAIN_GROUP_RID_CONTROLLERS          = 0x00000204 // Domain Controllers group
+	DOMAIN_GROUP_RID_SCHEMA_ADMINS        = 0x00000206 // Schema Admins group
+	DOMAIN_GROUP_RID_ENTERPRISE_ADMINS    = 0x00000207 // Enterprise Admins group
+	DOMAIN_GROUP_RID_READONLY_CONTROLLERS = 0x00000209 // Read-only Domain Controllers group
+	DOMAIN_ALIAS_RID_ADMINS               = 0x00000220 // Administrators group
+	DOMAIN_ALIAS_RID_ACCOUNT_OPS          = 0x00000224 // Account Operators group
+	DOMAIN_ALIAS_RID_SYSTEM_OPS           = 0x00000225 // Server Operators group
+	DOMAIN_ALIAS_RID_PRINT_OPS            = 0x00000226 // Print Operators group
+	DOMAIN_ALIAS_RID_BACKUP_OPS           = 0x00000227 // Backup Operators group
+	DOMAIN_ALIAS_RID_REPLICATOR           = 0x00000228 // Replicator group
 )
 
 var (
