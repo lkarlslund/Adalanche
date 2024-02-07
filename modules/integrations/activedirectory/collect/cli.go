@@ -156,6 +156,11 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
 
+	if authmode == KerberosCache {
+		// Assume we can find the cache file later on
+		return nil
+	}
+
 	if *user == "" {
 		if *pass != "" {
 			return errors.New("You supplied a password, but not a username. Please provide a username or do not supply a password")
