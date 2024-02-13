@@ -327,7 +327,7 @@ func (st *SystemTime) Time() time.Time {
 type CurrentPosition int64
 
 func (cp *CurrentPosition) BinaryDecode(r binstruct.Reader) error {
-	pos, err := r.Seek(0, os.SEEK_CUR)
+	pos, err := r.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return err
 	}
@@ -460,7 +460,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		ui.Info().Msg("Loading raw AD Explorer snapshot into memory")
 		adexplorerbytes, err := ioutil.ReadAll(adex.rawfile)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading ADExplorer file: %v", err)
+			return nil, fmt.Errorf("error reading ADExplorer file: %v", err)
 		}
 		bufreader := bytes.NewReader(adexplorerbytes)
 		dec = binstruct.NewReader(bufreader, binary.LittleEndian, false)
@@ -476,11 +476,11 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 	}
 
 	if header.Signature != "win-ad-ob" {
-		return nil, fmt.Errorf("Invalid AD Explorer data file signature: %v", header.Signature)
+		return nil, fmt.Errorf("invalid AD Explorer data file signature: %v", header.Signature)
 	}
 
 	if header.Version != 0x00010001 {
-		return nil, fmt.Errorf("Invalid AD Explorer data file marker: %v", header.Version)
+		return nil, fmt.Errorf("invalid AD Explorer data file marker: %v", header.Version)
 	}
 
 	var e *msgp.Writer
