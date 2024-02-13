@@ -138,7 +138,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 				return errors.New("AD controller auto-detection failed, use '--server' parameter")
 			}
 
-			if runtime.GOOS != "windows" && *user == "" {
+			if runtime.GOOS != "windows" && *user == "" && authmode != KerberosCache {
 				// Auto-detect user
 				*user = os.Getenv("USERNAME")
 				if *user != "" {
@@ -430,7 +430,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ := util.ParseBool(*collectschema)
 		if (*collectschema == "auto" && schemaContext != "") || cs {
-			ui.Info().Msg("Collecting schema objects ...")
+			ui.Info().Msgf("Collecting schema objects from %v ...", schemaContext)
 			do.SearchBase = schemaContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 			_, err = ad.Dump(do)
@@ -442,7 +442,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectconfiguration)
 		if (*collectconfiguration == "auto" && configContext != "") || cs {
-			ui.Info().Msg("Collecting configuration objects ...")
+			ui.Info().Msgf("Collecting configuration objects from %v ...", configContext)
 			do.SearchBase = configContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 
@@ -464,7 +464,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectother)
 		if (*collectother == "auto" && len(otherContexts) > 0) || cs {
-			ui.Info().Msg("Collecting other objects ...")
+			ui.Info().Msgf("Collecting %v other objects ...", len(otherContexts))
 			for _, context := range otherContexts {
 				ui.Info().Msgf("Collecting from base DN %v ...", context)
 				do.SearchBase = context
@@ -479,7 +479,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		cs, _ = util.ParseBool(*collectobjects)
 		if (*collectobjects == "auto" && domainContext != "") || cs {
-			ui.Info().Msg("Collecting main AD objects ...")
+			ui.Info().Msgf("Collecting main AD objects from %v ...", domainContext)
 			do.SearchBase = domainContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 
