@@ -45,7 +45,10 @@ func (ad *AD) Connect() error {
 			return err
 		}
 
-		err = conn.StartTLS(&tls.Config{ServerName: ad.Server})
+		err = conn.StartTLS(&tls.Config{
+			ServerName:         ad.Server,
+			InsecureSkipVerify: ad.IgnoreCert,
+		})
 		if err != nil {
 			return err
 		}
