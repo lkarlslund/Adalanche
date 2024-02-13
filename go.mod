@@ -20,7 +20,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
-	github.com/lkarlslund/ldap/v3 v3.4.4-2
+	github.com/lkarlslund/ldap/v3 v3.4.4-2.0.20240213092859-7df1bd8df6a8
 	github.com/lkarlslund/stringdedup v0.6.3-0.20231023091703-cf3e4d8e8ab3
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
@@ -33,8 +33,8 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.12
 	github.com/spf13/cobra v1.8.0
 	github.com/tinylib/msgp v1.1.9
-	golang.org/x/sys v0.16.0
-	golang.org/x/term v0.16.0
+	golang.org/x/sys v0.17.0
+	golang.org/x/term v0.17.0
 	golang.org/x/text v0.14.0
 )
 
@@ -61,7 +61,7 @@ require (
 	github.com/google/glazier v0.0.0-20230330165038-a5268e4ee87e // indirect
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 // indirect
 	github.com/google/renameio v0.1.0 // indirect; DONT CHANGE FROM v0.1.0
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/color v1.5.3
 	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -92,8 +92,8 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
-	golang.org/x/crypto v0.15.0 // indirect
-	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/nullbio/null.v6 v6.0.0-20161116030900-40264a2e6b79 // indirect
@@ -107,6 +107,7 @@ require (
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
 	github.com/gammazero/deque v0.2.1
+	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0
@@ -121,7 +122,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
-	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect

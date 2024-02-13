@@ -17,6 +17,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
+	"github.com/lkarlslund/ldap/v3/gssapi"
 	"github.com/pierrec/lz4/v4"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
@@ -69,25 +70,26 @@ func (ad *AD) Connect() error {
 
 	ad.conn.Debug.Enable(ad.Debug)
 
-	var err error
+	var gerr error
 	switch ad.AuthMode {
 	case Anonymous:
 		ui.Debug().Msgf("Doing unauthenticated bind with user %s", ad.User)
-		err = ad.conn.UnauthenticatedBind(ad.User)
+		gerr = ad.conn.UnauthenticatedBind(ad.User)
 	case Basic:
 		if ad.Password == "" {
 			ui.Debug().Msgf("Doing simple unauthenticated bind with user %s", ad.User)
-			err = ad.conn.UnauthenticatedBind(ad.User)
+			gerr = ad.conn.UnauthenticatedBind(ad.User)
 		} else {
 			ui.Debug().Msgf("Doing simple bind with user %s", ad.User)
-			err = ad.conn.Bind(ad.User, ad.Password)
+			gerr = ad.conn.Bind(ad.User, ad.Password)
 		}
 	case Digest:
 		ui.Debug().Msgf("Doing DIGEST-MD5 auth with user %s from domain %s", ad.User, ad.AuthDomain)
-		err = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
+		gerr = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
 	case KerberosCache:
 		upperDomain := strings.ToUpper(ad.Domain)
-		c, _ := config.NewFromString(fmt.Sprintf(`[libdefaults]
+
+		c, err := config.NewFromString(fmt.Sprintf(`[libdefaults]
 default_realm = %s
 default_tgs_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
 default_tkt_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
@@ -98,6 +100,9 @@ allow_weak_crypto = true
 kdc = %s:88
 default_domain = %s
 }`, upperDomain, upperDomain, ad.Server, upperDomain))
+		if err != nil {
+			return err
+		}
 
 		cachefile := os.Getenv("KRB5CCNAME")
 		if cachefile == "" {
@@ -110,12 +115,16 @@ default_domain = %s
 			return err
 		}
 
-		cl, err := client.NewFromCCache(ccache, c)
+		client, err := client.NewFromCCache(ccache, c)
 		if err != nil {
 			return err
 		}
 
-		ad.conn.Gokrb5GSSAPICCBindCCache(cl, "ldap/"+ad.Server)
+		gc := &gssapi.Client{
+			Client: client,
+		}
+
+		gerr = ad.conn.GSSAPIBind(gc, "ldap/"+ad.Server, "")
 	case NTLM:
 		if ad.User == "" {
 			ui.Debug().Msgf("Doing integrated NTLM auth")
@@ -133,16 +142,16 @@ default_domain = %s
 			}
 		} else {
 			ui.Debug().Msgf("Doing NTLM auth with user %s from domain %s", ad.User, ad.AuthDomain)
-			err = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
+			gerr = ad.conn.NTLMBind(ad.AuthDomain, ad.User, ad.Password)
 		}
 	case NTLMPTH:
 		ui.Debug().Msgf("Doing NTLM hash auth with user %s from domain %s", ad.User, ad.AuthDomain)
-		err = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
+		gerr = ad.conn.NTLMBindWithHash(ad.AuthDomain, ad.User, ad.Password)
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
 	}
 
-	return err
+	return gerr
 }
 
 func (ad *AD) Disconnect() error {
@@ -223,6 +232,7 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		if err != nil {
 			return objects, fmt.Errorf("failed to execute search request: %w", err)
 		}
+		ui.Debug().Msgf("YOU ARE HERE")
 
 		// For a page of results, iterate through the reponse and pull the individual entries
 		for _, entry := range response.Entries {
