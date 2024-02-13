@@ -107,7 +107,6 @@ require (
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
 	github.com/gammazero/deque v0.2.1
-	github.com/go-ldap/ldap/v3 v3.4.5-0.20230405011012-83b8f3195696
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
 	github.com/peterrk/slices v1.0.0

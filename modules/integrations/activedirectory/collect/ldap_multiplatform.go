@@ -17,7 +17,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
-	"github.com/lkarlslund/ldap/v3/gssapi"
 	"github.com/pierrec/lz4/v4"
 	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
@@ -89,7 +88,7 @@ func (ad *AD) Connect() error {
 	case KerberosCache:
 		upperDomain := strings.ToUpper(ad.Domain)
 
-		c, err := config.NewFromString(fmt.Sprintf(`[libdefaults]
+		kerberosConfig, err := config.NewFromString(fmt.Sprintf(`[libdefaults]
 default_realm = %s
 default_tgs_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
 default_tkt_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
@@ -115,16 +114,23 @@ default_domain = %s
 			return err
 		}
 
-		client, err := client.NewFromCCache(ccache, c)
+		client, err := client.NewFromCCache(ccache, kerberosConfig)
 		if err != nil {
 			return err
 		}
 
-		gc := &gssapi.Client{
-			Client: client,
+		spn := "ldap/" + ad.Server
+
+		// gc := &gssapi.Client{
+		// 	Client: client,
+		// }
+
+		gc := &GSSAPIState{
+			cfg:    kerberosConfig,
+			client: client,
 		}
 
-		gerr = ad.conn.GSSAPIBind(gc, "ldap/"+ad.Server, "")
+		gerr = ad.conn.GSSAPIBind(gc, spn, "")
 	case NTLM:
 		if ad.User == "" {
 			ui.Debug().Msgf("Doing integrated NTLM auth")
