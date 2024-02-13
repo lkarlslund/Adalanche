@@ -223,7 +223,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 			WriteToFile:   filepath.Join(datapath, filepath.Base(*adexplorerfile)+".objects.msgp.lz4"),
 		}
 
-		cp, _ := util.ParseBool(*collectgpos)
 		if *collectgpos == "auto" || cp {
 			do.OnObject = func(ro *activedirectory.RawObject) error {
 				if _, found := ro.Attributes["gPCFileSysPath"]; found {
@@ -242,7 +241,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("problem collecting Active Directory objects: %v", err)
 		}
 
-		ad.Disconnect()
+		err = ad.Disconnect()
+		if err != nil {
+			return err
+		}
 	} else if *ntdsfile != "" {
 		// Active Directory Explorer file
 		ui.Info().Msgf("Collecting objects from NTDS.DIT file %v ...", *ntdsfile)
