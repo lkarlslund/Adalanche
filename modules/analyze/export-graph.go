@@ -96,9 +96,10 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 			},
 		}
 
-		if object.HasAttr(engine.Tag) {
-			newnode.Data["tag"] = object.Attr(engine.Tag).StringSlice()
-		}
+		object.Attr(engine.Tag).Iterate(func(tag engine.AttributeValue) bool {
+			newnode.Data[tag.String()] = true
+			return true
+		})
 
 		for key, value := range df {
 			newnode.Data[key] = value

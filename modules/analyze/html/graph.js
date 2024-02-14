@@ -313,7 +313,7 @@ cytostyle = [{
     }
 },
 {
-    selector: 'node[tag="inactive"]',
+    selector: 'node[account_inactive]',
     style: {
         "background-image": "icons/no_accounts_black_48dp.svg",
     }
@@ -343,6 +343,13 @@ cytostyle = [{
     selector: 'node[type="Service"]',
     style: {
         shape: "diamond",
+        "background-image": "icons/service.svg",
+        "background-color": "lightgreen"
+    }
+},
+{
+    selector: 'node[type="CallableService"]',
+    style: {
         "background-image": "icons/service.svg",
         "background-color": "lightgreen"
     }
