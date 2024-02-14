@@ -102,6 +102,14 @@ body {
   height: 100vh;
 }
 
+#optionspanel {
+  max-height: 100vh;
+  max-width: 20em;
+  min-width: 20em;
+  width: 20em;
+  display: inline-block;
+}
+
 #windows {
   width: 100vw;
   height: 100vh;
@@ -143,12 +151,6 @@ body {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   white-space: nowrap;
-}
-
-.fw-250 {
-  max-width: 20em;
-  width: 20em;
-  display: inline-block;
 }
 
 #upperstatus {
