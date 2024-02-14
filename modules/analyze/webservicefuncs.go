@@ -2,7 +2,6 @@ package analyze
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -238,14 +237,14 @@ func analysisfuncs(ws *webservice) {
 
 		opts.StartFilter, err = query.ParseLDAPQueryStrict(startquerytext, ws.Objs)
 		if err != nil {
-			c.AbortWithError(500, fmt.Errorf("Error parsing start query: %v", err))
+			c.String(500, "Error parsing start query: %v", err)
 			return
 		}
 
 		if middlequerytext != "" {
 			opts.MiddleFilter, err = query.ParseLDAPQueryStrict(middlequerytext, ws.Objs)
 			if err != nil {
-				c.AbortWithError(500, fmt.Errorf("Error parsing middle query: %v", err))
+				c.String(500, "Error parsing middle query: %v", err)
 				return
 			}
 		}
@@ -253,7 +252,7 @@ func analysisfuncs(ws *webservice) {
 		if endquerytext != "" {
 			opts.EndFilter, err = query.ParseLDAPQueryStrict(endquerytext, ws.Objs)
 			if err != nil {
-				c.AbortWithError(500, fmt.Errorf("Error parsing end query: %v", err))
+				c.String(500, "Error parsing end query: %v", err)
 				return
 			}
 		}
@@ -350,7 +349,7 @@ func analysisfuncs(ws *webservice) {
 
 		cytograph, err := GenerateCytoscapeJS(results.Graph, alldetails)
 		if err != nil {
-			c.AbortWithError(500, fmt.Errorf("Error generating cytoscape graph: %v", err))
+			c.String(500, "Error generating cytoscape graph: %v", err)
 			return
 		}
 
@@ -705,14 +704,14 @@ func analysisfuncs(ws *webservice) {
 		} else {
 			id, err := strconv.Atoi(idstr)
 			if err != nil {
-				c.AbortWithError(400, err)
+				c.String(400, "Problem converting id %v: %v", idstr, err)
 				return
 			}
 
 			if parent, found := ws.Objs.FindID(engine.ObjectID(id)); found {
 				children = parent.Children()
 			} else {
-				c.AbortWithError(404, errors.New("object not found"))
+				c.String(404, "object not found")
 				return
 			}
 		}
