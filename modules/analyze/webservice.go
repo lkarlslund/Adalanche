@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"os"
 	"text/template"
+	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-contrib/pprof"
+	"github.com/gin-contrib/static"
+	"github.com/gin-gonic/gin"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -29,7 +32,7 @@ func (ufs *UnionFS) AddFS(newfs http.FileSystem) {
 	ufs.filesystems = append(ufs.filesystems, newfs)
 }
 
-func (ufs UnionFS) Open(filename string) (fs.File, error) {
+func (ufs UnionFS) Open(filename string) (http.File, error) {
 	for _, fs := range ufs.filesystems {
 		if f, err := fs.Open(filename); err == nil {
 			return f, nil
@@ -38,11 +41,16 @@ func (ufs UnionFS) Open(filename string) (fs.File, error) {
 	return nil, os.ErrNotExist
 }
 
+func (ufs UnionFS) Exists(prefix, filename string) bool {
+	_, err := ufs.Open(filename)
+	return err != os.ErrNotExist
+}
+
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
 
 type webservice struct {
 	quit   chan bool
-	Router *mux.Router
+	Router *gin.Engine
 	UnionFS
 	Objs *engine.Objects
 	srv  *http.Server
@@ -53,8 +61,24 @@ type webservice struct {
 func NewWebservice() *webservice {
 	ws := &webservice{
 		quit:   make(chan bool),
-		Router: mux.NewRouter(),
+		Router: gin.New(),
 	}
+
+	ws.Router.Use(func(c *gin.Context) {
+		start := time.Now() // Start timer
+		path := c.Request.URL.Path
+
+		// Process request
+		c.Next()
+
+		logger := ui.Info()
+		if c.Writer.Status() >= 500 {
+			logger = ui.Error()
+		}
+
+		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
+	})
+	ws.Router.Use(gin.Recovery()) // adds the default recovery middleware
 
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))
@@ -78,7 +102,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 	w.Objs = objs
 
 	// Profiling
-	w.Router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+	pprof.Register(w.Router)
 
 	w.srv = &http.Server{
 		Addr:    bind,
@@ -99,7 +123,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 		}
 	}
 
-	w.Router.Path("/").HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	w.Router.GET("/", func(c *gin.Context) {
 		indexfile, err := w.UnionFS.Open("index.html")
 		if err != nil {
 			ui.Error().Msgf("Could not open index.html: %v", err)
@@ -107,7 +131,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 		rawindex, _ := io.ReadAll(indexfile)
 		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
 
-		err = indextemplate.Execute(rw, struct {
+		err = indextemplate.Execute(c.Writer, struct {
 			AdditionalHeaders []string
 		}{
 			AdditionalHeaders: w.AdditionalHeaders,
@@ -116,7 +140,9 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 			ui.Error().Msgf("Could not render template index.html: %v", err)
 		}
 	})
-	w.Router.PathPrefix("/").Handler(http.FileServer(http.FS(w.UnionFS)))
+	w.Router.Use(static.Serve("/", w.UnionFS))
+
+	// w.Router.StaticFS("/", http.FS(w.UnionFS))
 
 	go func() {
 		if err := w.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -129,7 +155,7 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 	return nil
 }
 
-func (w *webservice) ServeTemplate(rw http.ResponseWriter, req *http.Request, path string, data any) {
+func (w *webservice) ServeTemplate(c *gin.Context, path string, data any) {
 	templatefile, err := w.UnionFS.Open(path)
 	if err != nil {
 		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
@@ -137,8 +163,8 @@ func (w *webservice) ServeTemplate(rw http.ResponseWriter, req *http.Request, pa
 	rawtemplate, _ := io.ReadAll(templatefile)
 	template, err := template.New(path).Parse(string(rawtemplate))
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		c.AbortWithError(500, err)
 		return
 	}
-	template.Execute(rw, data)
+	template.Execute(c.Writer, data)
 }

@@ -121,8 +121,11 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
+	github.com/gin-contrib/pprof v1.4.0 // indirect
+	github.com/gin-contrib/static v0.0.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
+	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/ipfix v1.4.5 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect

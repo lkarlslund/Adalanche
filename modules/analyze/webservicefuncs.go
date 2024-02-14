@@ -2,8 +2,8 @@ package analyze
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"sort"
 	"strconv"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
-	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/query"
@@ -25,7 +25,7 @@ import (
 func analysisfuncs(ws *webservice) {
 	// Lists available pwnmethods that the system understands - this allows us to expand functionality
 	// in the code, without toughting the HTML
-	ws.Router.HandleFunc("/filteroptions", func(w http.ResponseWriter, r *http.Request) {
+	ws.Router.GET("/filteroptions", func(c *gin.Context) {
 		type filterinfo struct {
 			Name            string `json:"name"`
 			Lookup          string `json:"lookup"`
@@ -62,66 +62,58 @@ func analysisfuncs(ws *webservice) {
 			})
 		}
 
-		mj, _ := json.MarshalIndent(results, "", "  ")
-		w.Write(mj)
+		c.JSON(200, results)
 	})
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
-	ws.Router.HandleFunc("/validatequery", func(w http.ResponseWriter, r *http.Request) {
-		querytext := strings.Trim(r.URL.Query().Get("query"), " \n\r")
+	ws.Router.GET("/validatequery", func(c *gin.Context) {
+		querytext := strings.Trim(c.Query("query"), " \n\r")
 		if querytext != "" {
 			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte(err.Error()))
+				c.String(500, err.Error())
 				return
 			}
 		}
-		w.Write([]byte("ok"))
+		c.JSON(200, gin.H{"success": true})
 	})
 
 	// Returns JSON descruibing an object located by distinguishedName, sid or guid
-	ws.Router.HandleFunc("/details/{locateby}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
+	ws.Router.GET("/details/:locateby/:id", func(c *gin.Context) {
 		var o *engine.Object
 		var found bool
-		switch strings.ToLower(vars["locateby"]) {
+		switch strings.ToLower(c.Param("locateby")) {
 		case "id":
-			id, err := strconv.Atoi(vars["id"])
+			id, err := strconv.Atoi(c.Param("id"))
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte(err.Error()))
+				c.String(500, err.Error())
 				return
 			}
 			o, found = ws.Objs.FindID(engine.ObjectID(id))
 		case "dn", "distinguishedname":
-			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(vars["id"]))
+			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
 		case "sid":
-			sid, err := windowssecurity.ParseStringSID(vars["id"])
+			sid, err := windowssecurity.ParseStringSID(c.Param("id"))
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte(err.Error()))
+				c.String(500, err.Error())
 				return
 			}
 			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.AttributeValueSID(sid))
 		case "guid":
-			u, err := uuid.FromString(vars["id"])
+			u, err := uuid.FromString(c.Param("id"))
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte(err.Error()))
+				c.String(500, err.Error())
 				return
 			}
 			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.AttributeValueGUID(u))
 		}
 		if !found {
-			w.WriteHeader(404) // bad request
-			w.Write([]byte("Object not found"))
+			c.AbortWithStatus(404)
 			return
 		}
 
-		if r.FormValue("format") == "objectdump" {
-			w.WriteHeader(200)
-			w.Write([]byte(o.StringACL(ws.Objs)))
+		if c.Query("format") == "objectdump" {
+			c.Writer.Write([]byte(o.StringACL(ws.Objs)))
 			return
 		}
 
@@ -154,40 +146,29 @@ func analysisfuncs(ws *webservice) {
 			return true
 		})
 
-		if r.FormValue("format") == "json" {
-			w.WriteHeader(200)
-			e := qjson.NewEncoder(w)
-			e.SetIndent("", "  ")
-			e.Encode(od.Attributes)
+		if c.Query("format") == "json" {
+			c.JSON(200, od.Attributes)
 			return
 		}
 
-		e := qjson.NewEncoder(w)
-		e.SetIndent("", "  ")
-		err := e.Encode(od)
-		// j, err := qjson.MarshalIndent(od)
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
-		// w.WriteHeader(200)
+		c.JSON(200, od)
+	})
+
+	ws.Router.GET("/types", func(c *gin.Context) {
+		c.JSON(200, typeInfos)
 	})
 
 	// Graph based query analysis - core functionality
-	ws.Router.HandleFunc("/analyzegraph", func(w http.ResponseWriter, r *http.Request) {
-		vars := make(map[string]string)
-		err := json.NewDecoder(r.Body).Decode(&vars)
+	ws.Router.POST("/analyzegraph", func(c *gin.Context) {
+		params := make(map[string]string)
+		err := c.ShouldBindJSON(&params)
+		// err := c.Request.ParseForm()
 		if err != nil {
-			w.WriteHeader(500)
-			fmt.Fprintf(w, "Can't decode body: %v", err)
+			c.String(500, err.Error())
 			return
 		}
 
-		encoder := qjson.NewEncoder(w)
-		encoder.SetIndent("", "  ")
-
-		mode := vars["mode"]
+		mode := params["mode"]
 		if mode == "" {
 			mode = "normal"
 		}
@@ -197,51 +178,51 @@ func analysisfuncs(ws *webservice) {
 			direction = engine.Out
 		}
 
-		prune, _ := util.ParseBool(vars["prune"])
+		prune, _ := util.ParseBool(params["prune"])
 
-		startquerytext := vars["query"]
+		startquerytext := params["query"]
 		if startquerytext == "" {
 			startquerytext = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
 		}
 
-		middlequerytext := vars["middlequery"]
-		endquerytext := vars["endquery"]
+		middlequerytext := params["middlequery"]
+		endquerytext := params["endquery"]
 
 		maxdepth := -1
-		if maxdepthval, err := strconv.Atoi(vars["maxdepth"]); err == nil {
+		if maxdepthval, err := strconv.Atoi(params["maxdepth"]); err == nil {
 			maxdepth = maxdepthval
 		}
 
 		minprobability := 0
-		if minprobabilityval, err := strconv.Atoi(vars["minprobability"]); err == nil {
+		if minprobabilityval, err := strconv.Atoi(params["minprobability"]); err == nil {
 			minprobability = minprobabilityval
 		}
 
 		minaccprobability := 0
-		if minaccprobabilityval, err := strconv.Atoi(vars["minaccprobability"]); err == nil {
+		if minaccprobabilityval, err := strconv.Atoi(params["minaccprobability"]); err == nil {
 			minaccprobability = minaccprobabilityval
 		}
 
 		// Maximum number of outgoing connections from one object in analysis
 		// If more are available you can right click the object and select EXPAND
 		maxoutgoing := -1
-		if maxoutgoingval, err := strconv.Atoi(vars["maxoutgoing"]); err == nil {
+		if maxoutgoingval, err := strconv.Atoi(params["maxoutgoing"]); err == nil {
 			maxoutgoing = maxoutgoingval
 		}
 
-		alldetails, _ := util.ParseBool(vars["alldetails"])
+		alldetails, _ := util.ParseBool(params["alldetails"])
 		// force, _ := util.ParseBool(vars["force"])
 
-		backlinks, _ := strconv.Atoi(vars["backlinks"])
+		backlinks, _ := strconv.Atoi(params["backlinks"])
 
-		nodelimit, _ := strconv.Atoi(vars["nodelimit"])
+		nodelimit, _ := strconv.Atoi(params["nodelimit"])
 
-		dontexpandaueo, _ := util.ParseBool(vars["dont-expand-au-eo"])
+		dontexpandaueo, _ := util.ParseBool(params["dont-expand-au-eo"])
 
 		opts := NewAnalyzeObjectsOptions()
 
 		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
-		if expanddn := vars["expanddn"]; expanddn != "" {
+		if expanddn := params["expanddn"]; expanddn != "" {
 			startquerytext = `(distinguishedName=` + expanddn + `)`
 			maxoutgoing = 0
 			maxdepth = 1
@@ -257,16 +238,14 @@ func analysisfuncs(ws *webservice) {
 
 		opts.StartFilter, err = query.ParseLDAPQueryStrict(startquerytext, ws.Objs)
 		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte("Error parsing include query: " + err.Error()))
+			c.AbortWithError(500, fmt.Errorf("Error parsing start query: %v", err))
 			return
 		}
 
 		if middlequerytext != "" {
 			opts.MiddleFilter, err = query.ParseLDAPQueryStrict(middlequerytext, ws.Objs)
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte("Error parsing exclude query: " + err.Error()))
+				c.AbortWithError(500, fmt.Errorf("Error parsing middle query: %v", err))
 				return
 			}
 		}
@@ -274,8 +253,7 @@ func analysisfuncs(ws *webservice) {
 		if endquerytext != "" {
 			opts.EndFilter, err = query.ParseLDAPQueryStrict(endquerytext, ws.Objs)
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte("Error parsing exclude last query: " + err.Error()))
+				c.AbortWithError(500, fmt.Errorf("Error parsing end query: %v", err))
 				return
 			}
 		}
@@ -283,7 +261,7 @@ func analysisfuncs(ws *webservice) {
 		// var methods engine.EdgeBitmap
 		var edges_f, egdes_m, edges_l engine.EdgeBitmap
 		var objecttypes_f, objecttypes_m, objecttypes_l []engine.ObjectType
-		for potentialfilter := range vars {
+		for potentialfilter := range c.Request.PostForm {
 			if len(potentialfilter) < 7 {
 				continue
 			}
@@ -372,8 +350,7 @@ func analysisfuncs(ws *webservice) {
 
 		cytograph, err := GenerateCytoscapeJS(results.Graph, alldetails)
 		if err != nil {
-			w.WriteHeader(500)
-			encoder.Encode("Error during graph creation")
+			c.AbortWithError(500, fmt.Errorf("Error generating cytoscape graph: %v", err))
 			return
 		}
 
@@ -401,14 +378,10 @@ func analysisfuncs(ws *webservice) {
 			Elements: &cytograph.Elements,
 		}
 
-		err = encoder.Encode(response)
-		if err != nil {
-			w.WriteHeader(500)
-			encoder.Encode("Error during JSON encoding")
-		}
+		c.JSON(200, response)
 	})
 	/*
-	   	ws.Router.HandleFunc("/export-graph", func(w http.ResponseWriter, r *http.Request) {
+	   	ws.Router.HandleFunc("/export-graph", func(c *gin.Context) {
 	   		uq := r.URL.Query()
 
 	   		format := uq.Get("format")
@@ -594,22 +567,17 @@ func analysisfuncs(ws *webservice) {
 	   		}
 	   	})
 	*/
-	ws.Router.HandleFunc("/query/objects/{query}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		querystr := vars["query"]
-		encoder := qjson.NewEncoder(w)
-		encoder.SetIndent("", "  ")
+	ws.Router.GET("/query/objects/:query", func(c *gin.Context) {
+		querystr := c.Param("query")
 
 		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
 		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
+			c.String(500, err.Error())
 			return
 		}
 		if rest != "" {
 			if rest[0] != ',' {
-				w.WriteHeader(400) // bad request
-				encoder.Encode(gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
+				c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
 				return
 			}
 		}
@@ -625,30 +593,19 @@ func analysisfuncs(ws *webservice) {
 			return true
 		})
 
-		err = encoder.Encode(dns)
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
-		w.WriteHeader(200)
+		c.JSON(200, dns)
 	})
-	ws.Router.HandleFunc("/query/details/{query}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		querystr := vars["query"]
-		encoder := qjson.NewEncoder(w)
-		encoder.SetIndent("", "  ")
+	ws.Router.GET("/query/details/:query", func(c *gin.Context) {
+		querystr := c.Param("query")
 
 		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
 		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
+			c.String(500, err.Error())
 			return
 		}
 		if rest != "" {
 			if rest[0] != ',' {
-				w.WriteHeader(400) // bad request
-				encoder.Encode(gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
+				c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
 				return
 			}
 		}
@@ -657,15 +614,9 @@ func analysisfuncs(ws *webservice) {
 			return includequery.Evaluate(o)
 		})
 
-		err = encoder.Encode(objects.AsSlice())
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
-		w.WriteHeader(200)
+		c.JSON(200, objects.AsSlice())
 	})
-	// ws.Router.HandleFunc("/accountinfo.json", func(w http.ResponseWriter, r *http.Request) {
+	// ws.Router.HandleFunc("/accountinfo.json", func(c *gin.Context) {
 	// 	type info struct {
 	// 		DN            string    `json:"dn"`
 	// 		PwdAge        time.Time `json:"lastpwdchange,omitempty"`
@@ -745,11 +696,8 @@ func analysisfuncs(ws *webservice) {
 	// 	w.Write(data)
 	// })
 
-	ws.Router.Path("/tree").Queries("id", "{id}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		idstr := vars["id"]
-		encoder := qjson.NewEncoder(w)
-		encoder.SetIndent("", "  ")
+	ws.Router.GET("/tree", func(c *gin.Context) {
+		idstr := c.Query("id")
 
 		var children engine.ObjectSlice
 		if idstr == "#" {
@@ -757,16 +705,14 @@ func analysisfuncs(ws *webservice) {
 		} else {
 			id, err := strconv.Atoi(idstr)
 			if err != nil {
-				w.WriteHeader(400) // bad request
-				w.Write([]byte(err.Error()))
+				c.AbortWithError(400, err)
 				return
 			}
 
 			if parent, found := ws.Objs.FindID(engine.ObjectID(id)); found {
 				children = parent.Children()
 			} else {
-				w.WriteHeader(404) // not found
-				w.Write([]byte("object not found"))
+				c.AbortWithError(404, errors.New("object not found"))
 				return
 			}
 		}
@@ -789,15 +735,10 @@ func analysisfuncs(ws *webservice) {
 			return true
 		})
 
-		err := encoder.Encode(results)
-		if err != nil {
-			w.WriteHeader(400) // bad request
-			w.Write([]byte(err.Error()))
-			return
-		}
+		c.JSON(200, results)
 	})
 
-	ws.Router.HandleFunc("/statistics", func(w http.ResponseWriter, r *http.Request) {
+	ws.Router.GET("/statistics", func(c *gin.Context) {
 		var result struct {
 			Adalanche  map[string]string `json:"adalanche"`
 			Statistics map[string]int    `json:"statistics"`
@@ -828,8 +769,7 @@ func analysisfuncs(ws *webservice) {
 		result.Statistics["Total"] = ws.Objs.Len()
 		result.Statistics["PwnConnections"] = edgeCount
 
-		data, _ := json.MarshalIndent(result, "", "  ")
-		w.Write(data)
+		c.JSON(200, result)
 	})
 
 	type ProgressReport struct {
@@ -841,31 +781,43 @@ func analysisfuncs(ws *webservice) {
 		StartTime      time.Time
 	}
 
-	ws.Router.HandleFunc("/progress", func(w http.ResponseWriter, r *http.Request) {
-		pbs := ui.GetProgressBars()
-		pbr := make([]ProgressReport, len(pbs))
-		for i, pb := range pbs {
-			pbr[i] = ProgressReport{
-				ID:        pb.ID,
-				Title:     pb.Title,
-				Current:   pb.Current,
-				Total:     pb.Total,
-				Percent:   pb.Percent,
-				Done:      pb.Done,
-				StartTime: pb.Started,
-			}
+	ws.Router.GET("/progress", func(c *gin.Context) {
+		var upgrader = websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
 		}
-
-		sort.Slice(pbr, func(i, j int) bool {
-			return pbr[i].StartTime.Before(pbr[j].StartTime)
-		})
-
-		data, err := json.MarshalIndent(pbr, "", "  ")
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
 			return
 		}
-		w.Write(data)
+		defer conn.Close()
+
+		for {
+			pbs := ui.GetProgressBars()
+			pbr := make([]ProgressReport, len(pbs))
+			for i, pb := range pbs {
+				pbr[i] = ProgressReport{
+					ID:        pb.ID,
+					Title:     pb.Title,
+					Current:   pb.Current,
+					Total:     pb.Total,
+					Percent:   pb.Percent,
+					Done:      pb.Done,
+					StartTime: pb.Started,
+				}
+			}
+			sort.Slice(pbr, func(i, j int) bool {
+				return pbr[i].StartTime.Before(pbr[j].StartTime)
+			})
+
+			conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+			err = conn.WriteJSON(pbr)
+			if err != nil {
+				return
+			}
+
+			time.Sleep(time.Second)
+		}
 	})
 
 	// Saved preferences
@@ -875,39 +827,43 @@ func analysisfuncs(ws *webservice) {
 		ui.Warn().Msgf("Problem loading preferences: %v", err)
 	}
 
-	ws.Router.HandleFunc("/preferences", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			json.NewEncoder(w).Encode(prefs.data)
-		case "POST":
-			newprefs := make(map[string]any)
-			err := json.NewDecoder(r.Body).Decode(&newprefs)
-			if err != nil {
-				w.WriteHeader(500)
-				fmt.Fprintf(w, "Can't decode body: %v", err)
-				return
-			}
-			for key, value := range newprefs {
-				prefs.Set(key, value)
-			}
-			prefs.Save()
-		}
+	ws.Router.GET("/preferences", func(c *gin.Context) {
+		c.JSON(200, prefs.data)
 	})
-	ws.Router.HandleFunc("/preferences/{key}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		key := vars["key"]
+	ws.Router.POST("/preferences", func(c *gin.Context) {
+		var prefsmap = make(map[string]any)
+		err := c.BindJSON(&prefsmap)
+		if err != nil {
+			c.String(500, err.Error())
+		}
+
+		for key, value := range prefsmap {
+			prefs.Set(key, value)
+		}
+		prefs.Save()
+	})
+
+	ws.Router.GET("/preferences/:key", func(c *gin.Context) {
+		key := c.Param("key")
 		out, _ := json.Marshal(prefs.Get(key))
-		w.Write(out)
+		c.Writer.Write(out)
+	})
+
+	ws.Router.GET("/preferences/:key/:value", func(c *gin.Context) {
+		key := c.Param("key")
+		value := c.Param("value")
+		prefs.Set(key, value)
+		prefs.Save()
 	})
 
 	// Shutdown
 
-	ws.Router.HandleFunc("/export-words", func(w http.ResponseWriter, r *http.Request) {
-		split := r.URL.Query().Get("split") == "true"
+	ws.Router.GET("/export-words", func(c *gin.Context) {
+		split := c.Query("split") == "true"
 
 		// Set header for download as a text file
-		w.Header().Set("Content-Type", "text/plain")
-		w.Header().Set("Content-Disposition", "attachment; filename=adalanche-wordlist.txt")
+		c.Header("Content-Type", "text/plain")
+		c.Header("Content-Disposition", "attachment; filename=adalanche-wordlist.txt")
 
 		scrapeatttributes := []engine.Attribute{
 			engine.DistinguishedName,
@@ -980,12 +936,12 @@ func analysisfuncs(ws *webservice) {
 		}
 		slices.Sort(words)
 		for _, word := range words {
-			fmt.Fprintf(w, "%s\n", word)
+			fmt.Fprintf(c.Writer, "%s\n", word)
 		}
 	})
 
 	// Shutdown
-	ws.Router.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
+	ws.Router.GET("/quit", func(c *gin.Context) {
 		ws.quit <- true
 	})
 

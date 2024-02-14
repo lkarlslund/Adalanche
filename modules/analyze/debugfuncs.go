@@ -1,19 +1,15 @@
 package analyze
 
 import (
-	"encoding/json"
-	"net/http"
-
+	"github.com/gin-gonic/gin"
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
 func debugfuncs(ws *webservice) {
-	ws.Router.HandleFunc("/debug/attributes", func(w http.ResponseWriter, r *http.Request) {
-		j, _ := json.Marshal(engine.AttributeInfos())
-		w.Write(j)
+	ws.Router.GET("/debug/attributes", func(c *gin.Context) {
+		c.JSON(200, engine.AttributeInfos())
 	})
-	ws.Router.HandleFunc("/debug/edges", func(w http.ResponseWriter, r *http.Request) {
-		j, _ := json.Marshal(engine.EdgeInfos())
-		w.Write(j)
+	ws.Router.GET("/debug/edges", func(c *gin.Context) {
+		c.JSON(200, engine.EdgeInfos())
 	})
 }
