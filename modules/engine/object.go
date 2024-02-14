@@ -967,14 +967,18 @@ func (o *Object) Meta() map[string]string {
 
 func (o *Object) init(preloadAttributes int) {
 	o.id = ObjectID(atomic.AddUint32(&idcounter, 1))
-	o.edges[In].init()
-	o.edges[Out].init()
+	// o.edges[In].init()
+	// o.edges[Out].init()
 	if preloadAttributes > 0 {
 		o.values.init(preloadAttributes)
 		o.values.m.GrowStrategy(gonk.FourItems)
 	} else {
 		o.values.m.GrowStrategy(gonk.HalfMax2048)
 	}
+
+	o.edges[In].GrowStrategy(gonk.HalfMax2048)
+	o.edges[Out].GrowStrategy(gonk.HalfMax2048)
+
 	o.values.m.ReindexStrategy(gonk.OnGet)
 	o.status.Store(1)
 	// onAddObject(o)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/gonk"
 )
 
 // Loads, processes and merges everything. It's magic, just in code
@@ -133,8 +135,14 @@ func Run(path string) (*Objects, error) {
 
 		// objs.DropIndexes()
 
+		ao.Iterate(func(obj *Object) bool {
+			obj.edges[In].Optimize(gonk.Minimize)
+			obj.edges[Out].Optimize(gonk.Minimize)
+			return true
+		})
+
 		// Force GC
-		// runtime.GC()
+		runtime.GC()
 
 		// After all this loading and merging, it's time to do release unused RAM
 		debug.FreeOSMemory()
