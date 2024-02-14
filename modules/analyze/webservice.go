@@ -64,6 +64,8 @@ func NewWebservice() *webservice {
 		Router: gin.New(),
 	}
 
+	gin.SetMode(gin.ReleaseMode)
+
 	ws.Router.Use(func(c *gin.Context) {
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
