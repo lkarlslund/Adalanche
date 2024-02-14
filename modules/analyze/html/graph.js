@@ -306,17 +306,16 @@ cytostyle = [{
     }
 },
 {
-    selector: 'node[type="User"][!_disabled]',
+    selector: 'node[type="User"]',
     style: {
         "background-image": "icons/person-fill.svg",
         "background-color": "green"
     }
 },
 {
-    selector: 'node[type="User"][?_disabled]',
+    selector: 'node[tag="inactive"]',
     style: {
         "background-image": "icons/no_accounts_black_48dp.svg",
-        "background-color": "darkgreen"
     }
 },
 {
@@ -368,7 +367,7 @@ cytostyle = [{
     selector: 'node[type="Executable"]',
     style: {
         shape: "rectangle",
-        "background-image": "icons/binary-code-binary-svgrepo-com.svg",
+        "background-image": "icons/binary-code.svg",
         "background-color": "lightgreen"
     }
 },
@@ -635,157 +634,35 @@ function rendermethods(ele) {
     return s
 }
 
+icons = new Map(
+    [
+        ["User", "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Group", "<img src='icons/people-fill.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Computer", "<img src='icons/computer-fill.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Machine", "<img src='icons/tv-fill.svg' class='rounded-circle' width='24' height='24'>"],
+        ["ManagedServiceAccount", "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["GroupManagedServiceAccount", "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["ForeignSecurityPrincipal", "<img src='icons/badge_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Service", "<img src='icons/service.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Directory", "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["File", "<img src='icons/article_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Executable", "<img src='icons/binary-code.svg' class='rounded-circle' width='24' height='24'>"],
+        ["GroupPolicyContainer", "<img src='icons/gpo.svg' class='rounded-circle' width='24' height='24'>"],
+        ["OrganizationalUnit", "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Container", "<img src='icons/folder_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
+        ["CertificateTemplate", "<img src='icons/certificate.svg' class='rounded-circle' width='24' height='24'>"],
+        ["DNSNode", "<img src='icons/dns.svg' class='rounded-circle' width='24' height='24'>"],
+    ]
+);
+
+function rendericon(ele) {
+    return icons.get(ele.data("type"));
+}
+
 function rendernode(ele) {
     var s = '<div>';
 
-    switch (ele.data("type")) {
-        case "User":
-            // selector: 'node[type="User"][!_disabled]',
-            //     style: {
-            //     "background-image": "icons/person-fill.svg",
-            //         "background-color": "green"
-            // }
-            // selector: 'node[type="User"][?_disabled]',
-            //     style: {
-            //     "background-image": "icons/no_accounts_black_48dp.svg",
-            //         "background-color": "darkgreen"
-            // }
-            s += '<img src="icons/person-fill.svg" class="rounded-circle bg-yellow" width="24" height="24">';
-            break;
-        case "Group":
-            // selector: 'node[type="Group"]',
-            //     style: {
-            //     shape: "cut-rectangle",
-            //         "background-image": "icons/people-fill.svg",
-            //             "background-color": "orange"
-            // }
-            s += '<img src="icons/people-fill.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "ManagedServiceAccount":
-            // selector: 'node[type="ManagedServiceAccount"]',
-            //     style: {
-            //     "background-image": "icons/manage_accounts_black_24dp.svg",
-            //         "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/manage_accounts_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "GroupManagedServiceAccount":
-            // selector: 'node[type="GroupManagedServiceAccount"]',
-            //     style: {
-            //     "background-image": "icons/manage_accounts_black_24dp.svg",
-            //         "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/manage_accounts_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "ForeignSecurityPrincipal":
-            // selector: 'node[type="ForeignSecurityPrincipal"]',
-            //     style: {
-            //     "background-image": "icons/badge_black_24dp.svg",
-            //         "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/badge_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Service":
-            // selector: 'node[type="Service"]',
-            //     style: {
-            //     shape: "diamond",
-            //         "background-image": "icons/service.svg",
-            //             "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/service.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Directory":
-            // selector: 'node[type="Directory"]',
-            //     style: {
-            //     shape: "diamond",
-            //         "background-image": "icons/source_black_24dp.svg",
-            //             "background-color": "lightblue"
-            // }
-            s += '<img src="icons/source_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "File":
-            // selector: 'node[type="File"]',
-            //     style: {
-            //     shape: "diamond",
-            //         "background-image": "icons/article_black_24dp.svg",
-            //             "background-color": "lightblue"
-            // }
-            s += '<img src="icons/article_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Executable":
-            // selector: 'node[type="Executable"]',
-            //     style: {
-            //     shape: "rectangle",
-            //         "background-image": "icons/binary-code-binary-svgrepo-com.svg",
-            //             "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/binary-code-binary-svgrepo-com.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "GroupPolicyContainer":
-            // selector: 'node[type="GroupPolicyContainer"]',
-            //     style: {
-            //     shape: "rectangle",
-            //         "background-image": "icons/gpo.svg",
-            //             "background-color": "purple"
-            // }
-            s += '<img src="icons/gpo.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "OrganizationalUnit":
-            // selector: 'node[type="OrganizationalUnit"]',
-            //     style: {
-            //     shape: "rectangle",
-            //         "background-image": "icons/source_black_24dp.svg",
-            //             "background-color": "lightgray"
-            // }
-            s += '<img src="icons/source_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Container":
-            // selector: 'node[type="Container"]',
-            //     style: {
-            //     shape: "rectangle",
-            //         "background-image": "icons/folder_black_24dp.svg",
-            //             "background-color": "lightgray"
-            // }
-            s += '<img src="icons/folder_black_24dp.svg" class="rounded-circle" width="24" height="24">';
-            break;
-
-        case "CertificateTemplate":
-            // selector: 'node[type="CertificateTemplate"]',
-            //     style: {
-            //     shape: "rectangle",
-            //         "background-image": "icons/certificate.svg",
-            //             "background-color": "pink"
-            // }
-            s += '<img src="icons/certificate.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "DNSNode":
-            //         selector: 'node[type="DNSNode"]',
-            //             style: {
-            //             shape: "rectangle",
-            //                 "background-image": "icons/dns.svg",
-            // }
-            s += '<img src="icons/dns.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Computer":
-            // selector: 'node[type="Computer"]',
-            //     style: {
-            //     shape: "round-octagon",
-            //         "background-image": "icons/tv-fill.svg",
-            //             "background-color": "lightgreen"
-            // }
-            s += '<img src="icons/tv-fill.svg" class="rounded-circle" width="24" height="24">';
-            break;
-        case "Machine":
-            // selector: 'node[type="Machine"]',
-            //             style: {
-            //             shape: "round-octagon",
-            //                 "background-image": "icons/tv-fill.svg",
-            //                     "background-color": "teal"
-            //         }
-            s += '<img src="icons/tv-fill.svg" class="rounded-circle" width="24" height="24">';
-            break;
-    }
-
+    s += rendericon(ele);
 
     s += nodelabel(ele);
     if (ele.data("engine.downLevelLogonName")) {

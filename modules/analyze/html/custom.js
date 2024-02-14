@@ -313,67 +313,73 @@ function analyze(e) {
     });
 }
 
-function refreshStatus() {
+function refreshProgress() {
     var lastwasidle = false
-    $.ajax({
-        type: "GET",
-        url: "/progress",
-        dataType: "json",
-        timeout: 5000,
-        success: function (progressbars) {
-            $("#offlineblur").hide()
-            if (progressbars.length > 0) {
-                lastwasidle = false
-                keepProgressbars = new Set()
-                for (i in progressbars) {
-                    progressbar = progressbars[i]
-                    if (progressbar.Done) {
-                        continue
-                    }
-                    keepProgressbars.add(progressbar.ID)
+    var progressSocket = new WebSocket(location.origin.replace(/^http/, 'ws') + '/progress');
 
-                    // find progressbar
-                    pb = $("#"+progressbar.ID)
-                    if (pb.length == 0 && !progressbar.Done) {
-                        $("#progressbars").append(`<div class="progress-group"><span class="progress-group-label">` + progressbar.Title + `</span><div class="progress"><div id="` + progressbar.ID + `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`)
-                        pb = $("#" + progressbar.ID)
-                    }
+    progressSocket.onerror = function (event) {
+        $("#backendstatus").html("Adalanche backend is still offline");
+        $("#upperstatus").show();
+        $("#progressbars").empty().hide();
+        $("#offlineblur").show();
+        setTimeout(refreshProgress, 3000);
+    };
 
-                    // Update progressbar
-                    pb.attr("aria-valuenow", progressbar.Percent.toFixed(0))
-                    pb.css("width", progressbar.Percent.toFixed(0)+"%")
-                    pb.parent().next().html(progressbar.Percent.toFixed(2)+"%")
+    progressSocket.onclose = function (event) {
+        $("#backendstatus").html("Adalanche backend is offline");
+        $("#upperstatus").show();
+        $("#progressbars").empty().hide();
+        $("#offlineblur").show();
+        setTimeout(refreshProgress, 3000);
+    }
+
+    progressSocket.onmessage = function (progressbars) {
+        $("#offlineblur").hide()
+        if (progressbars.length > 0) {
+            lastwasidle = false
+            keepProgressbars = new Set()
+            for (i in progressbars) {
+                progressbar = progressbars[i]
+                if (progressbar.Done) {
+                    continue
                 }
-                // remove old progressbars
-                $("#progressbars .progress-bar").each(function (index) {
-                    id = $(this).attr('id')
-                    if (!keepProgressbars.has(id)) {
-                        $(this).parent().parent().slideUp("slow", function () { $(this).remove(); })
-                    }
-                })
+                keepProgressbars.add(progressbar.ID)
 
-                $("#upperstatus").show()
-                $("#progressbars").show()
-                $("#backendstatus").html("Adalanche is processing")
-            } else {
-                if (!lastwasidle) {
-                    $("#progressbars").empty().hide()
-                    $("#backendstatus").html("Adalanche backend is idle")
-                    $("#upperstatus").fadeOut("slow")
+                // find progressbar
+                pb = $("#"+progressbar.ID)
+                if (pb.length == 0 && !progressbar.Done) {
+                    $("#progressbars").append(`<div class="progress-group"><span class="progress-group-label">` + progressbar.Title + `</span><div class="progress"><div id="` + progressbar.ID + `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`)
+                    pb = $("#" + progressbar.ID)
                 }
-                lastwasidle = true
+
+                // Update progressbar
+                pb.attr("aria-valuenow", progressbar.Percent.toFixed(0))
+                pb.css("width", progressbar.Percent.toFixed(0)+"%")
+                pb.parent().next().html(progressbar.Percent.toFixed(2)+"%")
             }
-        },
-        error: function (xhr, status, error) {
-            $("#backendstatus").html("Adalanche backend is offline")
-            $("#progressbars").empty().hide()
-            $("#offlineblur").show()
-        }
-    });
-    $()
+            // remove old progressbars
+            $("#progressbars .progress-bar").each(function (index) {
+                id = $(this).attr('id')
+                if (!keepProgressbars.has(id)) {
+                    $(this).parent().parent().slideUp("slow", function () { $(this).remove(); })
+                }
+            })
 
-    setTimeout(refreshStatus, 1000);
-}
+            $("#upperstatus").show()
+            $("#progressbars").show()
+            $("#backendstatus").html("Adalanche is processing")
+        } else {
+            if (!lastwasidle) {
+                $("#progressbars").empty().hide()
+                $("#backendstatus").html("Adalanche backend is idle")
+                $("#upperstatus").fadeOut("slow")
+            }
+            lastwasidle = true
+        }
+    };
+};
+
+refreshProgress();
 
 function toast(title, contents) {
     toastcontent = $(`<div id="live-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -702,7 +708,6 @@ $(function () {
         }
     });
 
-    refreshStatus();
     // End of on document loaded function
 });
 
