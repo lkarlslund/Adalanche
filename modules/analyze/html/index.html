@@ -351,15 +351,15 @@
                 query="(&(dataLoader=Active Directory)(type=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))"
                 mode="Normal" depth=99 methods="default">Who owns your AD? (Reach Domain Admin etc)</li>
               <li class="dropdown-item"
-                query="(_canpwn=DCsync,(!(distinguishedName=*DnsZones,DC=*)))"
+                query="(&(name=DCsync)(type=Callable-Service-Point))"
                 mode="Normal" depth=99 methods="default">Who can DCsync?</li>
-              <li class="dropdown-item" query="(out=MachineAccount,(&(_unconstraineddelegation=1)(!(userAccountControl:1.2.840.113556.1.4.803:=8192))))"
+              <li class="dropdown-item" query="(tag=unconstrained)"
                 mode="Normal" depth=1>How to reach machines that have computer accounts with unconstrained delegation (non-DCs)</li>
-              <li class="dropdown-item" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(accountActive=true))"
+              <li class="dropdown-item" query="(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(tag=account_active))"
                 mode="Reverse" depth=1>What can accounts with no Kerberos preauth requirement reach? (ASREPROAST)</li>
               <!-- Domain Controller stuff -->
               <li class="dropdown-item"
-                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*),(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519))"
+                query="(distinguishedname=CN=MicrosoftDNS,CN=System,DC=*)"
                 mode="Normal" depth=99 methods="default">Who can pwn your AD by sideloading a custom DLL on your DC? (Old DCs only)</li>
               <li class="dropdown-item"
                 query="(&(dataLoader=Active Directory)(|(objectSid=S-1-5-32-551)(objectSid=S-1-5-32-549)))"
@@ -397,7 +397,7 @@
                 mode="Reverse" depth=99 methods="default">New accounts with initial password</li>
               <li class="dropdown-item" query="(&(type=Person)(memberOf=CN=Protected Users,*))"
                 mode="Normal" depth=99 methods="default">Who can pwn Protected Users?</li>
-              <li class="dropdown-item" query="(&(type=Person)(servicePrincipalName=*)(accountActive=true))" mode="Normal"
+              <li class="dropdown-item" query="(&(type=Person)(servicePrincipalName=*)(tag=account_active))" mode="Normal"
                 depth=1 methods="HasSPN">Users with SPNs (can be Kerberoasted)</li>
               <li class="dropdown-item" query="(&(type=Group)(member:count:>100))" mode="Normal"
                 depth=99 methods="default">Groups that have more than 100 direct members</li>
