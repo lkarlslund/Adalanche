@@ -345,8 +345,6 @@ github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLf
 github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8/go.mod h1:KrtyD5PFj++GKkFS/7/RRrfnRhAMGQwy75GLCHWrCNs=
 github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf h1:FtEj8sfIcaaBfAKrE1Cwb61YDtYq9JxChK1c7AKce7s=
 github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf/go.mod h1:yrqSXGoD/4EKfF26AOGzscPOgTTJcyAwM2rpixWT+t4=
-github.com/jake-scott/go-gssapi v0.2.2 h1:25Ri4inVUqynNf3ktySSvJIFmgdYUzBgfJ0UF4Hta+Y=
-github.com/jake-scott/go-gssapi v0.2.2/go.mod h1:0jkvPgty8wGjbwQ+CznXRjhqJjBPu3zRuPNgUXfmZd4=
 github.com/jcmturner/aescts/v2 v2.0.0 h1:9YKLH6ey7H4eDBXW8khjYslgyqG2xZikXP0EQFKrle8=
 github.com/jcmturner/aescts/v2 v2.0.0/go.mod h1:AiaICIRyfYg35RUkr8yESTqvSy7csK90qZ5xfvvsoNs=
 github.com/jcmturner/dnsutils/v2 v2.0.0 h1:lltnkeZGL0wILNvrNiVCR6Ro5PGU/SeBvVO/8c/iPbo=
