@@ -320,25 +320,25 @@
     <div id="querydiv" class="p-1" style="width: 40vw;">
       <form id="queryform" class="m-0">
         <ul class="nav nav-tabs" role="tablist">
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-bs-toggle='tooltip' data-bs-title='Node selector query for the first nodes (targets)'>
             <button id="querybutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#startquery-pane" type="button">Start Query</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-bs-toggle='tooltip' data-bs-title='Node selector query for following nodes in the graph, including the last ones'>
             <button id="queryexcludebutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#middlequery-pane" type="button">Middle Query</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-bs-toggle='tooltip' data-bs-title='Node selector query for last nodes'>
             <button id="queryexcludelastbutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#endquery-pane" type="button">End Query</button>
           </li>
         </ul>
         <div class="tab-content" id="query-tabs-content">
           <div class="tab-pane active" id="startquery-pane">
-            <textarea id="querytext" class="form-control mb-1" name="query" rows=4 spellcheck="false" data-bs-toggle='tooltip' data-bs-title='Node selector query for the first nodes (targets)'></textarea>
+            <textarea id="querytext" class="form-control mb-1" name="query" rows=4 spellcheck="false"></textarea>
           </div>
           <div class="tab-pane" id="middlequery-pane">
-            <textarea id="queryexclude" class="form-control mb-1" name="middlequery" rows=4 spellcheck="false" data-bs-toggle='tooltip' data-bs-title='Node selector query for following nodes in the graph, including the last ones'></textarea>
+            <textarea id="queryexclude" class="form-control mb-1" name="middlequery" rows=4 spellcheck="false"></textarea>
           </div>
           <div class="tab-pane" id="endquery-pane">
-            <textarea id="queryexcludelast" class="form-control mb-1" name="endquery" rows=4 spellcheck="false" data-bs-toggle='tooltip' data-bs-title='Node selector query for last nodes'></textarea>
+            <textarea id="queryexcludelast" class="form-control mb-1" name="endquery" rows=4 spellcheck="false"></textarea>
           </div>          
         </div>
         <div id="queryerror"></div>
