@@ -3,8 +3,6 @@
 
 package collect
 
-import "C"
-
 import (
 	"bytes"
 	"fmt"
@@ -85,9 +83,6 @@ type WAD struct {
 }
 
 func (a *WAD) Connect() error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
 	switch a.TLSMode {
 	case NoTLS, StartTLS:
 		ui.Info().Msgf("Setting up unencrypted LDAP session to %s:%d", a.Server, a.Port)
