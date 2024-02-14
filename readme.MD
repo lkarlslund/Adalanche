@@ -57,6 +57,18 @@ The primary source of data is from Active Directory, and is intiated with this c
 
 <code>adalanche collect activedirectory [--options ...]</code>
 
+*Windows versions of Adalanche will default to using the native Windows LDAP library to connect to Active Directory, while non Windows version will use the multiplatform LDAP library. You can force Adalanche on Windows to use the multiplatform library with the <code>--nativeldap=false</code> option - this allows you to use a hash as a password and also to use a kerberos cache file for authentication.*
+
+| Feature | Windows LDAP | Multiplatform LDAP |
+| ------- | ------------ | ------------------ |
+| Unauthenticated bind | Yes | Yes |
+| Simple bind | Yes | Yes |
+| Digest bind | Yes | Yes |
+| Kerberos | Yes, via NEGOTIATE | Yes (cache file) |
+| NTLM | Yes | Yes |
+| NTLM (hash) | No | Yes |
+
+
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if Adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
 
 LDAP (unencrypted port 389) is default. You can switch to TLS (port 636) with <code>--tlsmode tls</code> option. 
@@ -75,23 +87,19 @@ From domain joined Windows machine using other credentials than logged in:
 
 There are more options available, for instance on what LDAP contexts to collect, whether to collect GPOs or not etc. Please be aware that you can collect GPOs from Linux by mounting sysvol locally and pointing Adalanche to this path for GPO collection - but you will lose ACL analysis for the individual files.
 
-__Note: LDAP RESULT CODE 49__
+#### LDAP RESULT CODE 49
 
-*There is a limitation in the LDAP library that Adalanche uses, which can result in this error: "LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563".*
+- __Wrong credentials (username/password)__
+"LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 52e, v4563"
+You've entered wrong credentials or the account is blocked.
 
-This is usually "Channel Binding" or "Signing" requirements for SSL enabled connections over LDAP, as part of Microsofts hardening efforts on making LDAP more secure. 
-
-Here are suggested alternative solutions:
-
-#### Dump data over plaintext LDAP (default mode)
-
-Use this command:
-
-<code>adalanche collect activedirectory</code>
+- __Channel binding requirements__
+"LDAP Result Code 49 "Invalid Credentials": 80090346: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error, data 80090346, v4563"
+This is a "Channel Binding" requirement for SSL enabled connections over LDAP, as part of Microsofts hardening efforts on making LDAP more secure.  This is currently unsupported by Adalanche on non Windows platforms due to LDAP library limitations - try running the collection from a Windows machine.
 
 #### Dump data using SysInternals AD Explorer
 
-The SysInternals AD Explorer (adexplorer64.exe) is an enhanced GUI application that allows you to poke around in all objects and see all attributes. It leverages the Windows LDAP library (just like Users & Computers etc.) This supports both "Channel Binding" and "Signing" for LDAP transport. It also has a handy "snapshot" feature, that allows you do dump the entire AD into a proprietary file, which Adalanche can ingest as an alternative to talking directly to LDAP.
+The SysInternals AD Explorer (adexplorer64.exe) is an enhanced GUI application that allows you to poke around in all objects and see all attributes. It also leverages the Windows LDAP library (just like Users & Computers etc.), and might be an option if you're not allowed to run Adalanche directly due to security concerns. By utilizing the "snapshot" feature, it allows you do dump the entire AD into a proprietary file, which Adalanche can ingest as an alternative to talking directly to LDAP.
 
 The procedure for using AD Explorer as a data source is:
 
@@ -101,7 +109,9 @@ The procedure for using AD Explorer as a data source is:
 - Run Adalanche to collect Active Directory object and GPO data:
 <code>adalanche collect activedirectory --adexplorerfile=yoursavedfile.bin</code>
 
-You will then have compressed AD data and GPO data in your datapath like a normal collection run. You can delete the AD Explorer data file now, as this is converted into Adalanche native format.
+If you can't reach GPOs from where you're importing, you can either disable GPO imports <code>--gpos=false</code> or copy the Group Policy folder from SYSVOL and point to that with <code>--gpopath=your-copied-GPO-folder</code>, but you'll lose ACL analysis for the individual GPO files.
+
+You will then have compressed AD data (and potentially GPO data) in your datapath like a normal collection run. You can delete the AD Explorer data file now, as this is converted into Adalanche native format, and you can now run analysis mode.
 
 ## Gathering Local Machine data (Windows)
 

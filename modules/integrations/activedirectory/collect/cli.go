@@ -46,9 +46,9 @@ var (
 	user    = Command.Flags().String("username", "", "username to connect with")
 	pass    = Command.Flags().String("password", "", "password to connect with (use ! for blank password)")
 
-	tlsmodeString = Command.Flags().String("tlsmode", "NoTLS", "Transport mode (TLS, StartTLS, NoTLS)")
-
-	ignoreCert = Command.Flags().Bool("ignorecert", false, "Disable certificate checks")
+	tlsmodeString  = Command.Flags().String("tlsmode", "NoTLS", "Transport mode (TLS, StartTLS, NoTLS)")
+	channelbinding = Command.Flags().Bool("channelbinding", true, "Enable channel binding when connecting to LDAP")
+	ignoreCert     = Command.Flags().Bool("ignorecert", false, "Disable certificate checks")
 
 	ldapdebug = Command.Flags().Bool("ldapdebug", false, "Enable LDAP debugging")
 
@@ -64,7 +64,7 @@ var (
 	collectobjects       = Command.Flags().String("objects", "auto", "Collect Active Directory Objects (users, groups etc)")
 	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
-	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, kerberoscache, ntlm, ntlmpth (password is hash), negotiate/sspi")
+	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, kerberoscache, ntlm, ntlmpth (password is hash)")
 
 	purgeolddata = Command.Flags().Bool("purgeolddata", false, "Purge existing data from the datapath if connection to DC is successfull")
 
@@ -294,15 +294,16 @@ func Execute(cmd *cobra.Command, args []string) error {
 	} else {
 		// Active Directory dump directly from AD controller
 		options := LDAPOptions{
-			Domain:     *domain,
-			Port:       uint16(*port),
-			AuthMode:   authmode,
-			User:       *user,
-			Password:   *pass,
-			AuthDomain: *authdomain,
-			TLSMode:    tlsmode,
-			IgnoreCert: *ignoreCert,
-			Debug:      *ldapdebug,
+			Domain:         *domain,
+			Port:           uint16(*port),
+			AuthMode:       authmode,
+			User:           *user,
+			Password:       *pass,
+			AuthDomain:     *authdomain,
+			TLSMode:        tlsmode,
+			IgnoreCert:     *ignoreCert,
+			Debug:          *ldapdebug,
+			Channelbinding: *channelbinding,
 		}
 		var ad LDAPDumper
 

@@ -136,15 +136,16 @@ const (
 )
 
 type LDAPOptions struct {
-	Domain     string
-	Server     string
-	Port       uint16
-	User       string
-	Password   string
-	AuthDomain string
-	AuthMode   AuthMode
-	TLSMode    TLSmode
-	SizeLimit  int
+	Domain         string
+	Server         string
+	Port           uint16
+	User           string
+	Password       string
+	AuthDomain     string
+	AuthMode       AuthMode
+	TLSMode        TLSmode
+	Channelbinding bool
+	SizeLimit      int
 
 	IgnoreCert bool
 

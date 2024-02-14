@@ -11,6 +11,7 @@ import (
 	osuser "os/user"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
+	cb "github.com/golang-auth/go-channelbinding"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
@@ -29,6 +30,9 @@ type AD struct {
 }
 
 func (ad *AD) Connect() error {
+	var cbData []byte
+	_ = cbData // for later
+
 	if ad.AuthDomain == "" {
 		ad.AuthDomain = ad.Domain
 	}
@@ -52,17 +56,33 @@ func (ad *AD) Connect() error {
 		if err != nil {
 			return err
 		}
+
 		ad.conn = conn
 	case TLS:
 		config := &tls.Config{
 			ServerName:         ad.Server,
 			InsecureSkipVerify: ad.IgnoreCert,
+			MaxVersion:         tls.VersionTLS12,
 		}
-		conn, err := ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port), config)
+
+		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port), config)
 		if err != nil {
 			return err
 		}
-		ad.conn = conn
+
+		if ad.Channelbinding {
+			tlsState := conn.ConnectionState()
+			if len(tlsState.PeerCertificates) == 0 {
+				return errors.New("no peer certificates for channel binding")
+			}
+			cbData, err = cb.MakeTLSChannelBinding(tlsState, tlsState.PeerCertificates[0], cb.TLSChannelBindingEndpoint)
+			if err != nil {
+				return err
+			}
+		}
+
+		ad.conn = ldap.NewConn(conn, true)
+		ad.conn.Start()
 	default:
 		return errors.New("unknown transport mode")
 	}

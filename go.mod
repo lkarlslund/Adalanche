@@ -14,7 +14,6 @@ require (
 	github.com/go-ini/ini v1.67.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.4.0+incompatible
-	github.com/gorilla/mux v1.8.1
 	github.com/gravwell/gravwell/v3 v3.8.13
 	github.com/icza/gox v0.0.0-20230924165045-adcb03233bb5
 	github.com/json-iterator/go v1.1.12
@@ -107,9 +106,12 @@ require (
 	github.com/elastic/go-windows v1.0.1
 	github.com/felixge/fgtrace v0.2.0
 	github.com/gammazero/deque v0.2.1
+	github.com/gin-contrib/pprof v1.4.0
+	github.com/gin-contrib/static v0.0.1
+	github.com/golang-auth/go-channelbinding v1.0.1
+	github.com/gorilla/websocket v1.5.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
-	github.com/peterrk/slices v1.0.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b
 )
 
@@ -121,15 +123,13 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
-	github.com/gin-contrib/pprof v1.4.0 // indirect
-	github.com/gin-contrib/static v0.0.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/ipfix v1.4.5 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/jake-scott/go-gssapi v0.2.2 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
@@ -141,6 +141,7 @@ require (
 	github.com/open-networks/go-msgraph v0.3.4 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
+	github.com/peterrk/slices v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
