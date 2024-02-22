@@ -1262,10 +1262,12 @@ func init() {
 					object.Tag("account_enabled")
 				}
 
-				if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok {
-					if !exp.IsZero() && time.Now().After(exp) {
-						object.Tag("account_expired")
-						expired = true
+				if object.HasAttr(activedirectory.AccountExpires) {
+					if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok {
+						if !exp.IsZero() && time.Now().After(exp) {
+							object.Tag("account_expired")
+							expired = true
+						}
 					}
 				}
 
