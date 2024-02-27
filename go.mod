@@ -27,9 +27,9 @@ require (
 	github.com/mattn/go-colorable v0.1.13
 	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/pkg/errors v0.9.1
-	github.com/rs/zerolog v1.31.0
-	github.com/schollz/progressbar/v3 v3.13.1
-	github.com/shirou/gopsutil/v3 v3.23.12
+	github.com/rs/zerolog v1.32.0
+	github.com/schollz/progressbar/v3 v3.14.2
+	github.com/shirou/gopsutil/v3 v3.24.1
 	github.com/spf13/cobra v1.8.0
 	github.com/tinylib/msgp v1.1.9
 	golang.org/x/sys v0.17.0
@@ -70,7 +70,7 @@ require (
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
@@ -82,7 +82,7 @@ require (
 	github.com/pterm/pterm v0.12.59
 	github.com/rickb777/date v1.20.5 // indirect
 	github.com/rickb777/plural v1.4.1 // indirect
-	github.com/rivo/uniseg v0.4.4 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/scjalliance/comshim v0.0.0-20230315213746-5e51f40bd3b9 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
@@ -111,7 +111,7 @@ require (
 	github.com/golang-auth/go-channelbinding v1.0.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/lkarlslund/gonk v0.0.0-20231113084556-53a1781342e9
+	github.com/lkarlslund/gonk v0.0.0-20231227155154-042737361f64
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b
 )
 
@@ -146,9 +146,9 @@ require (
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
-	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/tools v0.15.0 // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
+	golang.org/x/mod v0.15.0 // indirect
+	golang.org/x/tools v0.18.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
