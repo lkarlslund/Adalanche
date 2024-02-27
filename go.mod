@@ -111,7 +111,7 @@ require (
 	github.com/golang-auth/go-channelbinding v1.0.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/lkarlslund/gonk v0.0.0-20231227155154-042737361f64
+	github.com/lkarlslund/gonk v0.0.0-20240227175124-4dc0aa78e98a
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b
 )
 
@@ -140,7 +140,6 @@ require (
 	github.com/open-networks/go-msgraph v0.3.4 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
-	github.com/peterrk/slices v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect

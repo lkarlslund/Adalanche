@@ -405,8 +405,8 @@ github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136 h1:+Kk6n+RA
 github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136/go.mod h1:md9fQkOXb+vqf3U+SVAsNfzLvKFK1Q+MJLj2v2sBj+4=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091 h1:6y0mbZnTDDZ8pOl3C/8W8j0a6OGuxNWxU07iZeBRpYg=
 github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091/go.mod h1:JFCoCajhTrJw5YFNm/Xm0o+lt5jhY974icELnvnVFdc=
-github.com/lkarlslund/gonk v0.0.0-20231227155154-042737361f64 h1:Pe8fD05WZ5CaErEZG1th6gkYy046vO7U9n4rWq4KP3U=
-github.com/lkarlslund/gonk v0.0.0-20231227155154-042737361f64/go.mod h1:p8R2G+UmTgOTouszoppW7XZ4smXpo/gEDffqlPX/sFs=
+github.com/lkarlslund/gonk v0.0.0-20240227175124-4dc0aa78e98a h1:SmFzFurCd8/tA4jhvWzmwTHLDBM+UILRYePriGu0l+o=
+github.com/lkarlslund/gonk v0.0.0-20240227175124-4dc0aa78e98a/go.mod h1:2Y0HoFrHHZZxSqyVJD31gUrDD9qfr32kek6f1Wmp+nM=
 github.com/lkarlslund/ldap/v3 v3.4.4-2.0.20240213092859-7df1bd8df6a8 h1:njgB8gHzjOn8CpsRiObU/ay6f2XwUzvGSUgTcTkSU/s=
 github.com/lkarlslund/ldap/v3 v3.4.4-2.0.20240213092859-7df1bd8df6a8/go.mod h1:OD6g41I/qoJ5juGaQsV0fjEBWMVRSQb+SNzFnp7UM+c=
 github.com/lkarlslund/stringdedup v0.6.3-0.20231023091703-cf3e4d8e8ab3 h1:GJKLg4PwdU2IthAfS/eEMX0gaTALdBJNKdqZSRMisKw=
@@ -470,8 +470,6 @@ github.com/openzipkin/zipkin-go v0.1.1/go.mod h1:NtoC/o8u3JlF1lSlyPNswIbeQH9bJTm
 github.com/pelletier/go-toml/v2 v2.0.1/go.mod h1:r9LEWfGN8R5k0VXJ+0BkIe7MYkRdwZOjgMj2KwnJFUo=
 github.com/pelletier/go-toml/v2 v2.0.8 h1:0ctb6s9mE31h0/lhu+J6OPmVeDxJn+kYnJc2jZR9tGQ=
 github.com/pelletier/go-toml/v2 v2.0.8/go.mod h1:vuYfssBdrU2XDZ9bYydBu6t+6a6PYNcZljzZR9VXg+4=
-github.com/peterrk/slices v1.0.0 h1:uf44SFK0adh6Wm2enJodeZtRErhhSTlDWIeamdK/mzU=
-github.com/peterrk/slices v1.0.0/go.mod h1:emTQwVvDK3Bt0uFxjHKlQ+T5eo2oBYbCsYH077YMtQ8=
 github.com/philhofer/fwd v1.1.2 h1:bnDivRJ1EWPjUIRXV5KfORO897HTbpFAQddBdE8t7Gw=
 github.com/philhofer/fwd v1.1.2/go.mod h1:qkPdfjR2SIEbspLqpe1tO4n5yICnr2DY7mqEx2tUTP0=
 github.com/pierrec/lz4 v2.2.6+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
