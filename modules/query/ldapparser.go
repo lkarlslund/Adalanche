@@ -225,12 +225,12 @@ valueloop:
 			if numok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for limit limiter")
 			}
-			return s, &limit{valuenum}, nil
+			return s, &Limit{valuenum}, nil
 		case "_random100":
 			if numok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for random100 limiter")
 			}
-			return s, &random100{comparator, valuenum}, nil
+			return s, &Random100{comparator, valuenum}, nil
 		case "_pwnable", "_canpwn", "out", "in":
 			edgename := value
 			var target NodeFilter
@@ -247,7 +247,7 @@ valueloop:
 				edge = engine.AnyEdgeType
 			} else {
 				edge = engine.LookupEdge(edgename)
-				if edge == engine.NonExistingEdgeType {
+				if edge == engine.NonExistingEdge {
 					return nil, nil, fmt.Errorf("Could not convert value %v to edge", edgename)
 				}
 			}
@@ -302,12 +302,12 @@ valueloop:
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(CountModifier{comparator, valuenum})
+		result = genwrapper(CountModifier{comparator, int(valuenum)})
 	case "len", "length":
 		if numok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(LengthModifier{comparator, valuenum})
+		result = genwrapper(LengthModifier{comparator, int(valuenum)})
 	case "since":
 		if numok != nil {
 			// try to parse it as an duration
@@ -362,7 +362,7 @@ valueloop:
 		// string comparison
 		if comparator == CompareEquals {
 			if value == "*" {
-				result = genwrapper(hasAttr{})
+				result = genwrapper(HasAttr{})
 			} else if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
 				// regexp magic
 				pattern := value[1 : len(value)-1]
@@ -387,7 +387,7 @@ valueloop:
 					result = genwrapper(HasGlobMatch{false, pattern, g})
 				}
 			} else {
-				result = genwrapper(hasStringMatch{casesensitive, value})
+				result = genwrapper(HasStringMatch{casesensitive, value})
 			}
 		}
 	}
@@ -397,7 +397,7 @@ valueloop:
 		if numok != nil {
 			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
 		}
-		result = genwrapper(IntegerComparison{comparator, valuenum})
+		result = genwrapper(TypedComparison[int64]{comparator, valuenum})
 	}
 
 	if invert {

@@ -268,7 +268,7 @@ func analysisfuncs(ws *webservice) {
 				prefix := potentialfilter[4 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
 				edge := engine.LookupEdge(prefix)
-				if edge == engine.NonExistingEdgeType {
+				if edge == engine.NonExistingEdge {
 					continue
 				}
 				switch suffix {

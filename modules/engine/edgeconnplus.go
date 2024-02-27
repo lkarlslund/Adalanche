@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"unsafe"
-
 	"github.com/lkarlslund/gonk"
 )
 
@@ -15,8 +13,12 @@ type Connection struct {
 	edges  EdgeBitmap
 }
 
+func (c Connection) Compare(c2 Connection) int {
+	return int(c.target.id) - int(c2.target.id) // using internal id, object might be invalidated
+}
+
 func (c Connection) LessThan(c2 Connection) bool {
-	return uintptr(unsafe.Pointer(c.target)) < uintptr(unsafe.Pointer(c2.target))
+	return c.target.id < c2.target.id // using internal id, object might be invalidated
 }
 
 func (ecp *EdgeConnectionsPlus) Range(rf func(o *Object, eb EdgeBitmap) bool) {
@@ -48,5 +50,9 @@ func (e *EdgeConnectionsPlus) clearEdge(target *Object, edge Edge) {
 }
 
 func (e *EdgeConnectionsPlus) setEdge(target *Object, edge Edge) {
-	e.setEdges(target, EdgeBitmap{}.Set(edge))
+	e.Gonk.AtomicMutate(Connection{
+		target: target,
+	}, func(c *Connection) {
+		c.edges.AtomicSet(edge)
+	}, true)
 }

@@ -65,13 +65,11 @@ var (
 
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
-	EdgePublishesCertificateTemplate = engine.NewEdge("PublishCertTmpl").Tag("Informative").RegisterProbabilityCalculator(activedirectory.NotAChance)
-
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
 	DNSRoot     = engine.NewAttribute("dnsRoot")
 
-	MemberOfRecursive = engine.NewAttribute("memberOfRecursive")
+	MemberOfIndirect = engine.NewAttribute("memberOfIndirect")
 
 	ObjectTypeMachine    = engine.NewObjectType("Machine", "Machine")
 	DomainJoinedSID      = engine.NewAttribute("domainJoinedSid").Merge()
@@ -376,8 +374,8 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
-			// Only managed service accounts
-			if o.Type() != engine.ObjectTypeManagedServiceAccount && o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
+			// Only group managed service accounts
+			if o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
 				return true
 			}
 
@@ -654,7 +652,7 @@ func init() {
 				if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok {
 					for _, acl := range sd.DACL.Entries {
 						if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
-							ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadMSAPassword)
+							ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(o, activedirectory.EdgeReadGMSAPassword)
 						}
 					}
 				}
@@ -1741,25 +1739,18 @@ func init() {
 		edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
 		ao.IterateParallel(func(o *engine.Object) bool {
 			// Object that is member of something
-			if o.Type() != engine.ObjectTypeGroup {
+			if o.Type() == engine.ObjectTypeGroup {
+				// Skip
 				return true
 			}
 
 			// Search from all groups towards incoming memberships
-			o.EdgeIteratorRecursive(engine.In, edgematch, true, func(source, member *engine.Object, edge engine.EdgeBitmap, depth int) bool {
-				if depth > 1 && member.Type() != engine.ObjectTypeGroup {
-					member.EdgeTo(o, activedirectory.EdgeMemberOfGroupIndirect)
-				}
-				return true
-			})
-			return true
-		}, 0)
+			groups := make([]engine.AttributeValue, 0, 256)
+			o.EdgeIteratorRecursive(engine.Out, edgematch, true, func(member, memberof *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+				if depth > 1 && memberof.Type() == engine.ObjectTypeGroup {
+					member.EdgeTo(memberof, activedirectory.EdgeMemberOfGroupIndirect)
 
-		ao.IterateParallel(func(o *engine.Object) bool {
-			var groups []engine.AttributeValue
-			o.Edges(engine.Out).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
-				if edge.IsSet(activedirectory.EdgeMemberOfGroupIndirect) || edge.IsSet(activedirectory.EdgeMemberOfGroup) {
-					dn := target.Attr(engine.DistinguishedName)
+					dn := memberof.Attr(engine.DistinguishedName)
 					if dn.First() != nil {
 						groups = append(groups, dn.First())
 					}
@@ -1767,11 +1758,11 @@ func init() {
 				return true
 			})
 			if len(groups) > 0 {
-				o.SetValues(MemberOfRecursive, groups...)
+				o.SetValues(MemberOfIndirect, groups...)
 			}
+
 			return true
 		}, 0)
-
 	},
 		"MemberOfIndirect resolution",
 		engine.AfterMerge,
@@ -1816,9 +1807,9 @@ func init() {
 									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
 								)
 
-								if ca != nil {
-									ca.EdgeTo(template, EdgePublishesCertificateTemplate)
-								}
+								template.Tag("published")
+
+								// classify the template as ESC1 - 11
 
 								alreadyset = true
 								return true
@@ -1838,6 +1829,28 @@ func init() {
 		"Certificate template publishing status",
 		engine.AfterMerge,
 	)
+
+	/*
+		LoaderID.AddProcessor(func(ao *engine.Objects) {
+			ao.Iterate(func(enrollmentservice *engine.Object) bool {
+				if enrollementService.Type() == engine.ObjectTypePKIEnrollmentService {
+				var ca *engine.Object
+				var found bool
+				if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); cadns != nil {
+					// find the CA machine object
+					if ca, found = ao.FindTwo(
+						engine.Type, ObjectTypeMachine.ValueString(),
+						activedirectory.DNSHostName, cadns,
+					); !found {
+						return true
+					}
+				}
+
+				// we have a ca
+
+			})
+		})
+	*/
 
 	/*
 		Loader.AddProcessor(func(ao *engine.Objects) {

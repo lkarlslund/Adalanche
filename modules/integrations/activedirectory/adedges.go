@@ -9,10 +9,10 @@ func NotAChance(source, target *engine.Object) engine.Probability {
 var (
 	EdgeACLContainsDeny = engine.NewEdge("ACLContainsDeny").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 0 }).Tag("Informative")
 	EdgeResetPassword   = engine.NewEdge("ResetPassword").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&engine.UAC_ACCOUNTDISABLE != 0 {
-			return -1
+		if target.HasTag("account_active") {
+			return 100
 		}
-		return 100
+		return 0
 	}).Tag("Pivot")
 	EdgeReadPasswordId = engine.NewEdge("ReadPasswordId").SetDefault(false, false, false).RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		return 5
@@ -25,25 +25,23 @@ var (
 	EdgeTakeOwnership    = engine.NewEdge("TakeOwnership").Tag("Pivot")
 	EdgeWriteDACL        = engine.NewEdge("WriteDACL").Tag("Pivot")
 	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
-			// Account is disabled
-			return 25
+		if target.HasTag("account_active") {
+			return 50
 		}
-		return 50
+		return 0
 	}).Tag("Pivot")
 	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if uac, ok := target.AttrInt(UserAccountControl); ok && uac&0x0002 /*UAC_ACCOUNTDISABLE*/ != 0 {
-			// Account is disabled
-			return 25
+		if target.HasTag("account_active") {
+			return 50
 		}
-		return 50
+		return 0
 	}).Tag("Pivot")
 	EdgeWriteAllowedToAct        = engine.NewEdge("WriteAllowedToAct").Tag("Pivot")
 	EdgeWriteAllowedToDelegateTo = engine.NewEdge("WriteAllowedToDelegTo").Tag("Pivot")
 	EdgeAddMember                = engine.NewEdge("AddMember").Tag("Pivot")
 	EdgeAddMemberGroupAttr       = engine.NewEdge("AddMemberGroupAttr").Tag("Pivot")
 	EdgeAddSelfMember            = engine.NewEdge("AddSelfMember").Tag("Pivot")
-	EdgeReadMSAPassword          = engine.NewEdge("ReadMSAPassword").Tag("Pivot")
+	EdgeReadGMSAPassword         = engine.NewEdge("ReadGMSAPassword").Tag("Pivot")
 	EdgeHasMSA                   = engine.NewEdge("HasMSA").Tag("Granted")
 	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
 		/*if uac, ok := target.AttrInt(activedirectory.UserAccountControl); ok && uac&0x0002 != 0 { //UAC_ACCOUNTDISABLE
@@ -85,7 +83,7 @@ var (
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup").Tag("Granted")
 	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false).Tag("Granted")
 	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		if target.HasTag("active") {
+		if target.HasTag("account_active") {
 			return 50
 		}
 		// Account is disabled

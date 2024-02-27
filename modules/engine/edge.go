@@ -46,18 +46,17 @@ const (
 	MAXPROBABILITY Probability = 100
 )
 
-type EdgeInfo struct {
-	Target      *Object
-	Edge        Edge
-	Probability Probability
-}
-
 func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
+	if !eb.IsSet(edge) {
+		atomic.AddUint64(&EdgePopularity[edge], 1)
+	}
 	return eb.set(edge)
 }
 
 func (eb *EdgeBitmap) AtomicSet(edge Edge) {
-	atomic.AddUint64(&EdgePopularity[edge], 1)
+	if !eb.IsSet(edge) {
+		atomic.AddUint64(&EdgePopularity[edge], 1)
+	}
 
 	index, bits := bitIndex(edge)
 
@@ -298,7 +297,7 @@ func LookupEdge(name string) Edge {
 	if pwn, found := edgeNames[strings.ToLower(name)]; found {
 		return pwn
 	}
-	return NonExistingEdgeType
+	return NonExistingEdge
 }
 
 func Edges() []Edge {
@@ -322,8 +321,8 @@ func EdgeInfos() []edgeInfo {
 }
 
 var (
-	NonExistingEdgeType = Edge(10000)
-	AnyEdgeType         = Edge(9999)
+	NonExistingEdge = Edge(10000)
+	AnyEdgeType     = Edge(9999)
 )
 
 var AllEdgesBitmap EdgeBitmap

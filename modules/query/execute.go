@@ -20,22 +20,22 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 		// Iterate over all subitems
 		for _, st := range t.Subitems {
 			if qo, ok := st.(FilterOneAttribute); ok {
-				if sm, ok := qo.q.(hasStringMatch); ok {
+				if sm, ok := qo.FilterAttribute.(HasStringMatch); ok {
 					// This might be in an index
 					potentialindexes = append(potentialindexes, IndexSelectorInfo{
-						a:     qo.a,
-						match: sm.m,
+						a:     qo.Attribute,
+						match: sm.Value,
 					})
 				}
 			}
 		}
 	case FilterOneAttribute:
 		qo := t
-		if sm, ok := qo.q.(hasStringMatch); ok {
+		if sm, ok := qo.FilterAttribute.(HasStringMatch); ok {
 			// This might be in an index
 			potentialindexes = append(potentialindexes, IndexSelectorInfo{
-				a:          qo.a,
-				match:      sm.m,
+				a:          qo.Attribute,
+				match:      sm.Value,
 				queryIndex: -1,
 			})
 		}

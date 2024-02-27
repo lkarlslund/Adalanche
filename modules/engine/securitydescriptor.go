@@ -211,19 +211,19 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	result.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
 	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])
 	if result.Control&CONTROLFLAG_OWNER_DEFAULTED == 0 && OffsetOwner == 0 {
-		ui.Debug().Msgf("ACL has no owner, and does not default")
+		ui.Trace().Msgf("ACL has no owner, and does not default")
 	}
 	OffsetGroup := binary.LittleEndian.Uint32(data[8:12])
 	if result.Control&CONTROLFLAG_GROUP_DEFAULTED == 0 && OffsetGroup == 0 {
-		ui.Debug().Msgf("ACL has no group, and does not default")
+		ui.Trace().Msgf("ACL has no group, and does not default")
 	}
 	OffsetSACL := binary.LittleEndian.Uint32(data[12:16])
 	if result.Control&CONTROLFLAG_SACL_PRESENT != 0 && OffsetSACL == 0 {
-		ui.Debug().Msgf("ACL has no SACL, but claims to have it")
+		ui.Warn().Msgf("ACL has no SACL, but claims to have it")
 	}
 	OffsetDACL := binary.LittleEndian.Uint32(data[16:20])
 	if result.Control&CONTROLFLAG_DACL_PRESENT != 0 && OffsetDACL == 0 {
-		ui.Debug().Msgf("ACL has no DACL, but claims to have it")
+		ui.Warn().Msgf("ACL has no DACL, but claims to have it")
 	}
 	var err error
 	if OffsetOwner > 0 {

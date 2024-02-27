@@ -18,7 +18,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/lkarlslund/gonk"
 	"github.com/lkarlslund/stringdedup"
 )
 
@@ -971,15 +970,8 @@ func (o *Object) init(preloadAttributes int) {
 	// o.edges[Out].init()
 	if preloadAttributes > 0 {
 		o.values.init(preloadAttributes)
-		o.values.m.GrowStrategy(gonk.FourItems)
-	} else {
-		o.values.m.GrowStrategy(gonk.HalfMax2048)
 	}
 
-	o.edges[In].GrowStrategy(gonk.HalfMax2048)
-	o.edges[Out].GrowStrategy(gonk.HalfMax2048)
-
-	o.values.m.ReindexStrategy(gonk.OnGet)
 	o.status.Store(1)
 	// onAddObject(o)
 }

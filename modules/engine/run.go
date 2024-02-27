@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
-	"strings"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,6 +18,7 @@ func Run(path string) (*Objects, error) {
 	starttime := time.Now()
 
 	var loaders []Loader
+	gonk.SetGrowStrategy(gonk.Double)
 
 	for _, lg := range loadergenerators {
 		loader := lg()
@@ -99,36 +100,55 @@ func Run(path string) (*Objects, error) {
 
 		ui.Info().Msgf("Time to analysis completed done in %v", time.Since(starttime))
 
-		var statarray []string
-		for stat, count := range ao.Statistics() {
-			if stat == 0 {
+		type statentry struct {
+			name  string
+			count int
+		}
+
+		ui.Debug().Msgf("Object type popularity:")
+		var statarray []statentry
+		for ot, count := range ao.Statistics() {
+			if ot == 0 {
 				continue
 			}
 			if count == 0 {
 				continue
 			}
-			statarray = append(statarray, fmt.Sprintf("%v: %v", ObjectType(stat).String(), count))
+			statarray = append(statarray, statentry{
+				name:  ObjectType(ot).String(),
+				count: count,
+			})
 		}
-		ui.Info().Msg(strings.Join(statarray, ", "))
+		slices.SortFunc(statarray, func(a, b statentry) int { return b.count - a.count }) // reverse
+		for _, se := range statarray {
+			ui.Debug().Msgf("%v: %v", se.name, se.count)
+		}
 
 		// Show debug counters
-		var pwnarray []string
-		for pwn, count := range EdgePopularity {
+		ui.Debug().Msgf("Edge type popularity:")
+		var edgestats []statentry
+		for edge, count := range EdgePopularity {
 			if count == 0 {
 				continue
 			}
-			pwnarray = append(pwnarray, fmt.Sprintf("%v: %v", Edge(pwn).String(), count))
+			edgestats = append(edgestats, statentry{
+				name:  Edge(edge).String(),
+				count: int(count),
+			})
 		}
-		ui.Debug().Msg(strings.Join(pwnarray, ", "))
+		slices.SortFunc(edgestats, func(a, b statentry) int { return b.count - a.count })
+		for _, se := range edgestats {
+			ui.Debug().Msgf("%v: %v", se.name, se.count)
+		}
 
 		dedupStats := dedup.D.Statistics()
-
-		ui.Debug().Msgf("Deduplicator stats: %v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
-		ui.Debug().Msgf("Deduplicator stats: %v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
-		ui.Debug().Msgf("Deduplicator stats: %v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
-		ui.Debug().Msgf("Deduplicator stats: %v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
-		ui.Debug().Msgf("Deduplicator stats: %v keepalive objects added", dedupStats.KeepAliveItemsAdded)
-		ui.Debug().Msgf("Deduplicator stats: %v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
+		ui.Debug().Msgf("Deduplicator stats:")
+		ui.Debug().Msgf("%v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
+		ui.Debug().Msgf("%v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
+		ui.Debug().Msgf("%v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
+		ui.Debug().Msgf("%v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
+		ui.Debug().Msgf("%v keepalive objects added", dedupStats.KeepAliveItemsAdded)
+		ui.Debug().Msgf("%v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
 
 		// Try to recover some memory
 		dedup.D.Flush()
@@ -136,6 +156,7 @@ func Run(path string) (*Objects, error) {
 		// objs.DropIndexes()
 
 		ao.Iterate(func(obj *Object) bool {
+			obj.values.m.Optimize(gonk.Minimize)
 			obj.edges[In].Optimize(gonk.Minimize)
 			obj.edges[Out].Optimize(gonk.Minimize)
 			return true
@@ -147,6 +168,7 @@ func Run(path string) (*Objects, error) {
 		// After all this loading and merging, it's time to do release unused RAM
 		debug.FreeOSMemory()
 
+		gonk.SetGrowStrategy(gonk.FourItems)
 	}()
 
 	return ao, err

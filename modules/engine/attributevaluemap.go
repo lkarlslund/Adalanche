@@ -17,6 +17,10 @@ type AttributeValuesEvaluator struct {
 	v AttributeValues
 }
 
+func (ave AttributeValuesEvaluator) Compare(ave2 AttributeValuesEvaluator) int {
+	return int(ave.a) - int(ave2.a)
+}
+
 func (ave AttributeValuesEvaluator) Equal(ave2 AttributeValuesEvaluator) bool {
 	return ave.a == ave2.a
 }
