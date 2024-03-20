@@ -826,9 +826,9 @@ func (ldap WLDAP) ParsePageControl(lc **LDAPControl) (*LDAPBerval, uint32, error
 }
 
 func GoBytes(ptr *uint8, length int) []byte {
-	data := (*[1000000]byte)(unsafe.Pointer(ptr))
 	result := make([]byte, length)
-	copy(result, data[:length])
+	unsafeSlice := unsafe.Slice(ptr, length)
+	copy(result, unsafeSlice)
 	return result
 }
 
