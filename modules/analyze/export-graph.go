@@ -115,6 +115,9 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 		if df["target"] == true {
 			newnode.Data["_querytarget"] = true
 		}
+		if df["source"] == true {
+			newnode.Data["_querysource"] = true
+		}
 		if df["canexpand"] != 0 {
 			newnode.Data["_canexpand"] = df["canexpand"]
 		}

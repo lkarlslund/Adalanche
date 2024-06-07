@@ -455,6 +455,17 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 
 	}
 
+	// Mark outer nodes for graph visualization
+	var outernodes []*engine.Object
+	if opts.Direction == engine.In {
+		outernodes = pg.StartingNodes()
+	} else {
+		outernodes = pg.EndingNodes()
+	}
+	for _, node := range outernodes {
+		pg.SetNodeData(node, "source", true)
+	}
+
 	ui.Info().Msgf("Graph query resulted in %v nodes", pg.Order())
 
 	pg.Nodes() // Trigger cleanup, important otherwise they get readded below

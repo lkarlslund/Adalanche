@@ -294,7 +294,7 @@ cytostyle = [{
     selector: "node.source",
     style: {
         "border-color": "green",
-        "border-width": 2
+        "border-width": 3
     }
 },
 {
@@ -445,7 +445,15 @@ cytostyle = [{
 {
     selector: "node[?_querytarget]",
     style: {
-        "background-color": "red"
+        "border-color": "red",
+        "border-width": 3,
+    }
+},
+{
+    selector: "node[?_querysource]",
+    style: {
+        "border-color": "blue",
+        "border-width": 3,
     }
 },
 {
@@ -680,6 +688,28 @@ function rendernode(ele) {
     s += '</div>';
     if (ele.data("distinguishedName")) s += '<div>' + ele.data("distinguishedName") + '</div>';
     return s
+}
+
+// Object with values from AD and possibly other places
+function rendercard(data) {
+    var result = "<div>"
+    if (data.attributes["type"]) {
+        
+    }
+    for (var attr in data.attributes) {
+        result += "<tr><td>" + attr + "</td><td>"
+        attrvalues = data.attributes[attr]
+        for (var i in attrvalues) {
+            if ($("#graphlabels").val() == "randomize") {
+                result += anonymizer.anonymize(attrvalues[i]) + "</br>";
+            } else {
+                result += attrvalues[i] + "</br>";
+            }
+        }
+        result += "</td></tr>"
+    }
+    result += "</table>"
+    return result
 }
 
 // Object with values from AD and possibly other places
