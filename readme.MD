@@ -25,7 +25,7 @@ Download either the latest [release](https://github.com/lkarlslund/Adalanche/rel
 
 If you prefer full control, you can roll your own on any supported platform (Windows, MacOS, Linux):
 
-- Prerequisites: Go 1.21, PowerShell 7, git
+- Prerequisites: Go 1.23, PowerShell 7, git
 - <code>git clone https://github.com/lkarlslund/Adalanche Adalanche</code>
 - <code>cd Adalanche</code>
 - <code>./build.ps1</code>
@@ -117,7 +117,7 @@ You will then have compressed AD data (and potentially GPO data) in your datapat
 
 For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines by running the collector module. There is a stand alone version released as a 32-bit Windows executable, and this works transparently also on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). 
 
-The collector does not require elevated privileges, and runs fine with either the local system account with pricileges stripped or as a random user.
+The collector does not require elevated privileges, and runs fine with either the local system account with privileges stripped or as a random user.
 
 <code>adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
 

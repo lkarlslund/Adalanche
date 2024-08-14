@@ -45,6 +45,9 @@ type ADLoader struct {
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
 
+	// Usernames that are enuerable using LDAP Nom nom or similar bruteforcers
+	usernamesfiles []string
+
 	shardobjects gsync.MapOf[string, *engine.Objects]
 
 	objectstoconvert chan convertqueueitem
@@ -103,7 +106,7 @@ func (ld *ADLoader) Init() error {
 					continue // skip deleted object
 				}
 
-				if strings.Contains(o.DN(), ",CN=ForeignSecurityPrincipals,DC=") {
+				if strings.Contains(o.DN(), ",CN=ForeignSecurityPrincipals,DC=") { // FIXME also skip SYSTEM object
 					continue // skip all foreign security principals
 				}
 
@@ -183,6 +186,8 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 				return fmt.Errorf("Problem decoding object: %v", err)
 			}
 		}
+	} else if strings.HasSuffix(path, ".usernames.txt") {
+		ld.usernamesfiles = append(ld.usernamesfiles, path)
 	}
 	return engine.ErrUninterested
 }
@@ -208,6 +213,18 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		aos = append(aos, ao)
 		return true // next
 	})
+
+	if len(aos) > 0 && len(ld.usernamesfiles) > 0 {
+		// Add special object to find the files later
+		var v engine.AttributeValueSlice
+		for _, uf := range ld.usernamesfiles {
+			v = append(v, engine.AttributeValueString(uf))
+		}
+		aos[0].AddNew(
+			engine.Name, engine.AttributeValueString("$$USERNAMEFILES$$"),
+			engine.A("files"), v,
+		)
+	}
 
 	return aos, nil
 }

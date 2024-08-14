@@ -1,4 +1,4 @@
-package analyze
+package settings
 
 import (
 	"encoding/json"
@@ -7,16 +7,22 @@ import (
 	"sync"
 )
 
-type Prefs struct {
+type prefs struct {
 	data map[string]any
 }
 
+var loaded prefs
+
 var prefmutex sync.Mutex
 
-func (p *Prefs) Load() error {
+func init() {
+	Load()
+}
+
+func Load() error {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
-	p.data = make(map[string]any)
+	loaded.data = make(map[string]any)
 
 	rawprefs, err := os.ReadFile("preferences.json")
 	if errors.Is(err, os.ErrNotExist) {
@@ -25,14 +31,14 @@ func (p *Prefs) Load() error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(rawprefs, &p.data)
+	err = json.Unmarshal(rawprefs, &loaded.data)
 	return err
 }
 
-func (p *Prefs) Save() error {
+func Save() error {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
-	rawprefs, err := json.Marshal(p.data)
+	rawprefs, err := json.Marshal(loaded.data)
 	if err != nil {
 		return err
 	}
@@ -40,14 +46,18 @@ func (p *Prefs) Save() error {
 	return err
 }
 
-func (p *Prefs) Set(key string, val any) {
+func Set(key string, val any) {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
-	p.data[key] = val
+	loaded.data[key] = val
 }
 
-func (p *Prefs) Get(key string) any {
+func Get(key string) any {
 	prefmutex.Lock()
 	defer prefmutex.Unlock()
-	return p.data[key]
+	return loaded.data[key]
+}
+
+func All() map[string]any {
+	return loaded.data
 }

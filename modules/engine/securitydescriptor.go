@@ -197,45 +197,46 @@ func parseSDDLACE(sddlace string) (ACE, error) {
 	return result, nil
 }
 
-func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
-	var result SecurityDescriptor
+func (sd *SecurityDescriptor) Parse() error {
+	data := []byte(sd.Raw)
+
 	if len(data) < 20 {
-		return SecurityDescriptor{}, errors.New("not enough data")
+		return errors.New("not enough data")
 	}
 	if data[0] != 1 {
-		return SecurityDescriptor{}, errors.New("unknown Revision")
+		return errors.New("unknown Revision")
 	}
 	if data[1] != 0 {
-		return SecurityDescriptor{}, errors.New("unknown Sbz1")
+		return errors.New("unknown Sbz1")
 	}
-	result.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
+	sd.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
 	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])
-	if result.Control&CONTROLFLAG_OWNER_DEFAULTED == 0 && OffsetOwner == 0 {
+	if sd.Control&CONTROLFLAG_OWNER_DEFAULTED == 0 && OffsetOwner == 0 {
 		ui.Trace().Msgf("ACL has no owner, and does not default")
 	}
 	OffsetGroup := binary.LittleEndian.Uint32(data[8:12])
-	if result.Control&CONTROLFLAG_GROUP_DEFAULTED == 0 && OffsetGroup == 0 {
+	if sd.Control&CONTROLFLAG_GROUP_DEFAULTED == 0 && OffsetGroup == 0 {
 		ui.Trace().Msgf("ACL has no group, and does not default")
 	}
 	OffsetSACL := binary.LittleEndian.Uint32(data[12:16])
-	if result.Control&CONTROLFLAG_SACL_PRESENT != 0 && OffsetSACL == 0 {
+	if sd.Control&CONTROLFLAG_SACL_PRESENT != 0 && OffsetSACL == 0 {
 		ui.Warn().Msgf("ACL has no SACL, but claims to have it")
 	}
 	OffsetDACL := binary.LittleEndian.Uint32(data[16:20])
-	if result.Control&CONTROLFLAG_DACL_PRESENT != 0 && OffsetDACL == 0 {
+	if sd.Control&CONTROLFLAG_DACL_PRESENT != 0 && OffsetDACL == 0 {
 		ui.Warn().Msgf("ACL has no DACL, but claims to have it")
 	}
 	var err error
 	if OffsetOwner > 0 {
-		result.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
+		sd.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
 		if err != nil {
-			return result, err
+			return err
 		}
 	}
 	if OffsetGroup > 0 {
-		result.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
+		sd.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
 		if err != nil {
-			return result, err
+			return err
 		}
 	}
 	if OffsetSACL > 0 {
@@ -246,26 +247,26 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 		// }
 	}
 	if OffsetDACL > 0 {
-		result.DACL, err = ParseACL(data[OffsetDACL:])
-		if !result.DACL.IsSortedCorrectly() {
-			result.DACL.HadSortingProblem = true
-			result.DACL.Sort()
+		sd.DACL, err = ParseACL(data[OffsetDACL:])
+		if !sd.DACL.IsSortedCorrectly() {
+			sd.DACL.HadSortingProblem = true
+			sd.DACL.Sort()
 		}
-		if result.DACL.containsdeny {
-			result.DACL.firstinheriteddeny = -1
-			for i := range result.DACL.Entries {
-				if result.DACL.Entries[i].ACEFlags&ACEFLAG_INHERITED_ACE != 0 && (result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || result.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
-					result.DACL.firstinheriteddeny = i
+		if sd.DACL.containsdeny {
+			sd.DACL.firstinheriteddeny = -1
+			for i := range sd.DACL.Entries {
+				if sd.DACL.Entries[i].ACEFlags&ACEFLAG_INHERITED_ACE != 0 && (sd.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || sd.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
+					sd.DACL.firstinheriteddeny = i
 					break
 				}
 			}
 		}
 		if err != nil {
-			return result, err
+			return err
 		}
 	}
 
-	return result, nil
+	return nil
 }
 
 func ParseACL(data []byte) (ACL, error) {
@@ -737,6 +738,7 @@ func (a ACE) StringNoLookup() string {
 }
 
 type SecurityDescriptor struct {
+	Raw     string
 	Owner   windowssecurity.SID
 	Group   windowssecurity.SID
 	SACL    ACL

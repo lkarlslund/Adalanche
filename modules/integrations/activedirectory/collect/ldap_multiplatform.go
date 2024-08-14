@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	osuser "os/user"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/pierrec/lz4/v4"
-	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -214,14 +212,7 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		e = msgp.NewWriter(boutfile)
 	}
 
-	bar := progressbar.NewOptions(-1,
-		progressbar.OptionSetDescription("Dumping from "+do.SearchBase+" ..."),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
 
 	var controls []ldap.Control
 

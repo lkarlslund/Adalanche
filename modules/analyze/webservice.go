@@ -2,6 +2,8 @@ package analyze
 
 import (
 	"embed"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -49,23 +51,30 @@ func (ufs UnionFS) Exists(prefix, filename string) bool {
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
 
 type webservice struct {
-	quit   chan bool
+	Initialized bool
+	quit        chan bool
+
+	srv    *http.Server
 	Router *gin.Engine
+
+	localhtmlused bool
 	UnionFS
+
+	status WebServiceStatus
+
 	Objs *engine.Objects
-	srv  *http.Server
+
+	// srv *http.Server
 
 	AdditionalHeaders []string // Additional things to add to the main page
 }
 
 func NewWebservice() *webservice {
+	gin.SetMode(gin.ReleaseMode) // Has to happen first
 	ws := &webservice{
 		quit:   make(chan bool),
 		Router: gin.New(),
 	}
-
-	gin.SetMode(gin.ReleaseMode)
-
 	ws.Router.Use(func(c *gin.Context) {
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
@@ -81,52 +90,86 @@ func NewWebservice() *webservice {
 		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
 	})
 	ws.Router.Use(gin.Recovery()) // adds the default recovery middleware
-
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))
-
-	// Add stock functions
-	analysisfuncs(ws)
 
 	// Add debug functions
 	if ui.GetLoglevel() >= ui.LevelDebug {
 		debugfuncs(ws)
 	}
-
 	return ws
 }
 
-func (w *webservice) QuitChan() <-chan bool {
-	return w.quit
+func (ws *webservice) Init(r gin.IRoutes) {
+	// Add stock functions
+	ws.Initialized = true
+	ws.AddUIEndpoints(r)
+	ws.AddPreferencesEndpoints(r)
+	ws.AddAnalysisEndpoints(r)
 }
 
-func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string) error {
-	w.Objs = objs
+func (w *webservice) AddLocalHTML(path string) error {
+	if !w.localhtmlused {
+		// Clear embedded html filesystem
+		w.UnionFS = UnionFS{}
+		w.localhtmlused = true
+	}
+	// Override embedded HTML if asked to
+	stat, err := os.Stat(path)
+	if err == nil && stat.IsDir() {
+		// Use local files if they exist
+		ui.Info().Msgf("Adding local HTML folder %v", path)
+		w.AddFS(http.FS(os.DirFS(path)))
+		return nil
+	}
+	return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)
+}
+
+func (ws *webservice) Analyze(path string) error {
+	if ws.status != NoData && ws.status == Ready {
+		return errors.New("Adalanche is not ready to load new data")
+	}
+
+	ws.status = Analyzing
+	objs, err := engine.Run(path)
+	ws.Objs = objs
+
+	if err != nil {
+		ws.status = Error
+		return err
+	}
+
+	ws.status = PostAnalyzing
+	engine.PostProcess(objs)
+
+	ws.status = Ready
+
+	return nil
+}
+
+func (ws *webservice) QuitChan() <-chan bool {
+	return ws.quit
+}
+
+func (ws *webservice) Quit() {
+	close(ws.quit)
+}
+
+func (ws *webservice) Start(bind string) error {
+	if !ws.Initialized {
+		ws.Init(ws.Router)
+	}
 
 	// Profiling
-	pprof.Register(w.Router)
+	pprof.Register(ws.Router)
 
-	w.srv = &http.Server{
+	ws.srv = &http.Server{
 		Addr:    bind,
-		Handler: w.Router,
+		Handler: ws.Router,
 	}
 
-	if len(localhtml) != 0 {
-		w.UnionFS = UnionFS{}
-		for _, html := range localhtml {
-			// Override embedded HTML if asked to
-			if stat, err := os.Stat(html); err == nil && stat.IsDir() {
-				// Use local files if they exist
-				ui.Info().Msgf("Adding local HTML folder %v", html)
-				w.AddFS(http.FS(os.DirFS(html)))
-			} else {
-				ui.Fatal().Msgf("Could not add local HTML folder %v, failure: %v", html, err)
-			}
-		}
-	}
-
-	w.Router.GET("/", func(c *gin.Context) {
-		indexfile, err := w.UnionFS.Open("index.html")
+	ws.Router.GET("/", func(c *gin.Context) {
+		indexfile, err := ws.UnionFS.Open("index.html")
 		if err != nil {
 			ui.Error().Msgf("Could not open index.html: %v", err)
 		}
@@ -136,18 +179,18 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 		err = indextemplate.Execute(c.Writer, struct {
 			AdditionalHeaders []string
 		}{
-			AdditionalHeaders: w.AdditionalHeaders,
+			AdditionalHeaders: ws.AdditionalHeaders,
 		})
 		if err != nil {
 			ui.Error().Msgf("Could not render template index.html: %v", err)
 		}
 	})
-	w.Router.Use(static.Serve("/", w.UnionFS))
+	ws.Router.Use(static.Serve("/", ws.UnionFS))
 
 	// w.Router.StaticFS("/", http.FS(w.UnionFS))
 
 	go func() {
-		if err := w.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := ws.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			ui.Fatal().Msgf("Problem launching webservice listener: %s", err)
 		}
 	}()
@@ -157,8 +200,8 @@ func (w *webservice) Start(bind string, objs *engine.Objects, localhtml []string
 	return nil
 }
 
-func (w *webservice) ServeTemplate(c *gin.Context, path string, data any) {
-	templatefile, err := w.UnionFS.Open(path)
+func (ws *webservice) ServeTemplate(c *gin.Context, path string, data any) {
+	templatefile, err := ws.UnionFS.Open(path)
 	if err != nil {
 		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
 	}

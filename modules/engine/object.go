@@ -891,27 +891,13 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 				panic("tried to set nil value")
 			}
 
-			// Deduplicate
-			if attributeValueDedupper != nil {
-				dedupLock.RLock()
-				dedup, found := attributeValueDedupper[value]
-				dedupLock.RUnlock()
-				if !found {
-					dedupLock.Lock()
-					attributeValueDedupper[value] = &value
-					dedupLock.Unlock()
-				} else {
-					vs[i] = *dedup
-				}
-			} else {
-				switch avs := value.(type) {
-				case AttributeValueSID:
-					vs[i] = AttributeValueSID(dedup.D.S(string(avs)))
-				case AttributeValueString:
-					vs[i] = AttributeValueString(dedup.D.S(string(avs)))
-				case AttributeValueBlob:
-					vs[i] = AttributeValueBlob(dedup.D.S(string(avs)))
-				}
+			switch avs := value.(type) {
+			case AttributeValueSID:
+				vs[i] = AttributeValueSID(dedup.D.S(string(avs)))
+			case AttributeValueString:
+				vs[i] = AttributeValueString(dedup.D.S(string(avs)))
+			case AttributeValueBlob:
+				vs[i] = AttributeValueBlob(dedup.D.S(string(avs)))
 			}
 		}
 	case AttributeValueOne:
@@ -919,27 +905,13 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			panic("tried to set nil value")
 		}
 
-		// Deduplicate
-		if attributeValueDedupper != nil {
-			dedupLock.RLock()
-			dedup, found := attributeValueDedupper[vs.Value]
-			dedupLock.RUnlock()
-			if !found {
-				dedupLock.Lock()
-				attributeValueDedupper[vs.Value] = &vs.Value
-				dedupLock.Unlock()
-			} else {
-				vs.Value = *dedup
-			}
-		} else {
-			switch avs := vs.Value.(type) {
-			case AttributeValueSID:
-				vs.Value = AttributeValueSID(dedup.D.S(string(avs)))
-			case AttributeValueString:
-				vs.Value = AttributeValueString(dedup.D.S(string(avs)))
-			case AttributeValueBlob:
-				vs.Value = AttributeValueBlob(dedup.D.S(string(avs)))
-			}
+		switch avs := vs.Value.(type) {
+		case AttributeValueSID:
+			vs.Value = AttributeValueSID(dedup.D.S(string(avs)))
+		case AttributeValueString:
+			vs.Value = AttributeValueString(dedup.D.S(string(avs)))
+		case AttributeValueBlob:
+			vs.Value = AttributeValueBlob(dedup.D.S(string(avs)))
 		}
 
 	}

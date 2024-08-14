@@ -182,7 +182,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			attributevalue = engine.AttributeValueSID(sid)
 		case MSDSAllowedToActOnBehalfOfOtherIdentity, FRSRootSecurity, MSDFSLinkSecurityDescriptorv2,
 			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
-			sd, err := engine.CacheOrParseSecurityDescriptor([]byte(value))
+			sd, err := engine.CacheOrParseSecurityDescriptor(value)
 			if err == nil {
 				attributevalue = engine.AttributeValueSecurityDescriptor{sd}
 			} else {

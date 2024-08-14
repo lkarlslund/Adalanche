@@ -15,7 +15,7 @@ func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename 
 	defer df.Close()
 
 	fmt.Fprintln(df, "digraph G {")
-	for object, _ := range pg.Nodes() {
+	for object := range pg.Nodes() {
 		var formatting = ""
 		switch object.Type() {
 		case engine.ObjectTypeComputer:

@@ -15,16 +15,17 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/query"
+	"github.com/lkarlslund/adalanche/modules/settings"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/version"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func analysisfuncs(ws *webservice) {
-	// Lists available pwnmethods that the system understands - this allows us to expand functionality
-	// in the code, without toughting the HTML
-	ws.Router.GET("/filteroptions", func(c *gin.Context) {
+func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
+	// Lists available edges that Adalanche understands - this allows us to expand functionality
+	// in the code, without touching the HTML
+	router.GET("/filteroptions", func(c *gin.Context) {
 		type filterinfo struct {
 			Name            string `json:"name"`
 			Lookup          string `json:"lookup"`
@@ -65,7 +66,7 @@ func analysisfuncs(ws *webservice) {
 	})
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
-	ws.Router.GET("/validatequery", func(c *gin.Context) {
+	router.GET("/validatequery", func(c *gin.Context) {
 		querytext := strings.Trim(c.Query("query"), " \n\r")
 		if querytext != "" {
 			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
@@ -77,8 +78,115 @@ func analysisfuncs(ws *webservice) {
 		c.JSON(200, gin.H{"success": true})
 	})
 
+	router.GET("/types", func(c *gin.Context) {
+		c.JSON(200, typeInfos)
+	})
+
+	router.GET("/statistics", func(c *gin.Context) {
+		var result struct {
+			Adalanche  map[string]string `json:"adalanche"`
+			Statistics map[string]int    `json:"statistics"`
+		}
+		result.Adalanche = make(map[string]string)
+		result.Adalanche["shortversion"] = version.VersionStringShort()
+		result.Adalanche["program"] = version.Program
+		result.Adalanche["version"] = version.Version
+		result.Adalanche["commit"] = version.Commit
+
+		result.Statistics = make(map[string]int)
+
+		if ws.Objs != nil {
+			for objecttype, count := range ws.Objs.Statistics() {
+				if objecttype == 0 {
+					continue // skip the dummy one
+				}
+				if count == 0 {
+					continue
+				}
+				result.Statistics[engine.ObjectType(objecttype).String()] += count
+			}
+			var edgeCount int
+			ws.Objs.Iterate(func(object *engine.Object) bool {
+				edgeCount += object.Edges(engine.Out).Len()
+				return true
+			})
+			result.Statistics["Total"] = ws.Objs.Len()
+			result.Statistics["PwnConnections"] = edgeCount
+		}
+
+		c.JSON(200, result)
+	})
+
+	router.GET("/progress", func(c *gin.Context) {
+		var upgrader = websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		for {
+			pbr := ui.GetProgressReport()
+			sort.Slice(pbr, func(i, j int) bool {
+				return pbr[i].StartTime.Before(pbr[j].StartTime)
+			})
+
+			conn.SetWriteDeadline(time.Now().Add(time.Second * 15))
+			err = conn.WriteJSON(pbr)
+			if err != nil {
+				return
+			}
+
+			time.Sleep(time.Second)
+		}
+	})
+
+}
+
+func (ws *webservice) AddPreferencesEndpoints(router gin.IRoutes) {
+	// Saved preferences
+	err := settings.Load()
+	if err != nil {
+		ui.Warn().Msgf("Problem loading preferences: %v", err)
+	}
+
+	router.GET("/preferences", func(c *gin.Context) {
+		c.JSON(200, settings.All())
+	})
+	router.POST("/preferences", func(c *gin.Context) {
+		var prefsmap = make(map[string]any)
+		err := c.BindJSON(&prefsmap)
+		if err != nil {
+			c.String(500, err.Error())
+		}
+
+		for key, value := range prefsmap {
+			settings.Set(key, value)
+		}
+		settings.Save()
+	})
+
+	router.GET("/preferences/:key", func(c *gin.Context) {
+		key := c.Param("key")
+		out, _ := json.Marshal(settings.Get(key))
+		c.Writer.Write(out)
+	})
+
+	router.GET("/preferences/:key/:value", func(c *gin.Context) {
+		key := c.Param("key")
+		value := c.Param("value")
+		settings.Set(key, value)
+		settings.Save()
+	})
+}
+
+func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
+
 	// Returns JSON descruibing an object located by distinguishedName, sid or guid
-	ws.Router.GET("/details/:locateby/:id", func(c *gin.Context) {
+	router.GET("/details/:locateby/:id", func(c *gin.Context) {
 		var o *engine.Object
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
@@ -153,12 +261,8 @@ func analysisfuncs(ws *webservice) {
 		c.JSON(200, od)
 	})
 
-	ws.Router.GET("/types", func(c *gin.Context) {
-		c.JSON(200, typeInfos)
-	})
-
 	// Graph based query analysis - core functionality
-	ws.Router.POST("/analyzegraph", func(c *gin.Context) {
+	router.POST("/analyzegraph", func(c *gin.Context) {
 		params := make(map[string]string)
 		err := c.ShouldBindJSON(&params)
 		// err := c.Request.ParseForm()
@@ -379,194 +483,8 @@ func analysisfuncs(ws *webservice) {
 
 		c.JSON(200, response)
 	})
-	/*
-	   	ws.Router.HandleFunc("/export-graph", func(c *gin.Context) {
-	   		uq := r.URL.Query()
 
-	   		format := uq.Get("format")
-	   		if format == "" {
-	   			format = "xgmml"
-	   		}
-
-	   		mode := uq.Get("mode")
-	   		if mode == "" {
-	   			mode = "normal"
-	   		}
-	   		direction := engine.In
-	   		if mode != "normal" {
-	   			direction = engine.Out
-	   		}
-
-	   		querystr := uq.Get("query")
-	   		if querystr == "" {
-	   			querystr = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
-	   		}
-
-	   		maxdepth := 99
-	   		if maxdepthval, err := strconv.Atoi(uq.Get("maxdepth")); err == nil {
-	   			maxdepth = maxdepthval
-	   		}
-
-	   		maxoutgoing := -1
-	   		if maxoutgoingval, err := strconv.Atoi(uq.Get("maxotgoing")); err == nil {
-	   			maxoutgoing = maxoutgoingval
-	   		}
-
-	   		alldetails, err := util.ParseBool(uq.Get("alldetails"))
-	   		if err != nil {
-	   			alldetails = true
-	   		}
-
-	   		rest, includequery, err := query.ParseLDAPQuery(r.URL.Query().Get("query"), ws.Objs)
-	   		if err != nil {
-	   			w.WriteHeader(400) // bad request
-	   			w.Write([]byte(err.Error()))
-	   			return
-	   		}
-	   		if rest != "" {
-	   			if rest[0] != ',' {
-	   				w.WriteHeader(400) // bad request
-	   				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
-	   				return
-	   			}
-	   			if excludequery, err = query.ParseLDAPQueryStrict(rest[1:], ws.Objs); err != nil {
-	   				w.WriteHeader(400) // bad request
-	   				fmt.Fprintf(w, "Error parsing ldap query: %v", err)
-	   				return
-	   			}
-	   		}
-
-	   		includeobjects = query.Execute(includequery, ws.Objs)
-
-	   		if excludequery != nil {
-	   			excludeobjects = query.Execute(excludequery, ws.Objs)
-	   		}
-
-	   		var selectededges []engine.Edge
-	   		for potentialedge, values := range uq {
-	   			if edge := engine.E(potentialedge); edge != engine.NonExistingEdgeType {
-	   				enabled, _ := util.ParseBool(values[0])
-	   				if len(values) == 1 && enabled {
-	   					selectededges = append(selectededges, edge)
-	   				}
-	   			}
-	   		}
-	   		// If everything is deselected, select everything
-	   		if len(selectededges) == 0 {
-	   			selectededges = engine.AllEdgesSlice()
-	   		}
-
-	   		var methods engine.EdgeBitmap
-	   		for _, m := range selectededges {
-	   			methods = methods.Set(m)
-	   		}
-
-	   		// Defaults
-	   		opts := NewAnalyzeObjectsOptions()
-	   		opts.Objects = ws.Objs
-	   		opts.MethodsF = methods
-	   		opts.MethodsM = methods
-	   		opts.MethodsL = methods
-	   		opts.Direction = direction
-	   		opts.MaxDepth = maxdepth
-	   		opts.MaxOutgoingConnections = maxoutgoing
-	   		opts.MinProbability = 0
-
-	   		results := AnalyzeObjects(opts)
-
-	   		// Make browser download this
-	   		filename := "analysis-" + time.Now().Format(time.RFC3339)
-
-	   		switch format {
-	   		case "gml":
-	   			filename += ".gml"
-	   		case "xgmml":
-	   			filename += ".xgmml"
-	   		}
-
-	   		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
-
-	   		switch format {
-	   		case "gml":
-	   			// Lets go
-	   			w.Write([]byte("graph\n[\n"))
-
-	   			for node, _ := range results.Graph.Nodes() {
-	   				fmt.Fprintf(w,
-	   					`  node
-	     [
-	       id %v
-	       label %v
-	   	distinguishedName %v
-	   `, node.ID(), node.Label(), node.DN())
-
-	   				if alldetails {
-	   					node.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
-	   						valuesjoined := strings.Join(values.StringSlice(), ", ")
-	   						if util.IsASCII(valuesjoined) {
-	   							fmt.Fprintf(w, "  %v %v\n", attribute, valuesjoined)
-	   						}
-	   						return true
-	   					})
-	   				}
-	   				fmt.Fprintf(w, "  ]\n")
-	   			}
-
-	   			for connection, edge := range results.Graph.Edges() {
-	   				fmt.Fprintf(w,
-	   					`  edge
-	     [
-	       source %v
-	       target %v
-	   	label "%v"
-	     ]
-	   `, connection.Source.ID(), connection.Target.ID(), edge.JoinedString())
-	   			}
-
-	   			w.Write([]byte("]\n"))
-
-	   		case "xgmml":
-	   			graph := NewXGMMLGraph()
-
-	   			for node := range results.Graph.Nodes() {
-	   				object := node
-	   				xmlnode := XGMMLNode{
-	   					Id:    object.ID(),
-	   					Label: object.Label(),
-	   				}
-
-	   				if alldetails {
-	   					object.AttrIterator(func(attribute engine.Attribute, values engine.AttributeValues) bool {
-	   						if values != nil {
-	   							valuesjoined := strings.Join(values.StringSlice(), ", ")
-	   							if util.IsASCII(valuesjoined) {
-	   								xmlnode.Attributes = append(xmlnode.Attributes, XGMMLAttribute{
-	   									Name:  attribute.String(),
-	   									Value: valuesjoined,
-	   								})
-	   							}
-	   						}
-	   						return true
-	   					})
-	   				}
-	   				graph.Nodes = append(graph.Nodes, xmlnode)
-	   			}
-
-	   			for connection, edge := range results.Graph.Edges() {
-	   				graph.Edges = append(graph.Edges, XGMMLEdge{
-	   					Source: connection.Source.ID(),
-	   					Target: connection.Target.ID(),
-	   					Label:  edge.JoinedString(),
-	   				})
-	   			}
-	   			fmt.Fprint(w, xml.Header)
-	   			xe := xml.NewEncoder(w)
-	   			xe.Indent("", "  ")
-	   			xe.Encode(graph)
-	   		}
-	   	})
-	*/
-	ws.Router.GET("/query/objects/:query", func(c *gin.Context) {
+	router.GET("/query/objects/:query", func(c *gin.Context) {
 		querystr := c.Param("query")
 
 		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
@@ -594,7 +512,7 @@ func analysisfuncs(ws *webservice) {
 
 		c.JSON(200, dns)
 	})
-	ws.Router.GET("/query/details/:query", func(c *gin.Context) {
+	router.GET("/query/details/:query", func(c *gin.Context) {
 		querystr := c.Param("query")
 
 		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
@@ -615,87 +533,7 @@ func analysisfuncs(ws *webservice) {
 
 		c.JSON(200, objects.AsSlice())
 	})
-	// ws.Router.HandleFunc("/accountinfo.json", func(c *gin.Context) {
-	// 	type info struct {
-	// 		DN            string    `json:"dn"`
-	// 		PwdAge        time.Time `json:"lastpwdchange,omitempty"`
-	// 		CreatedAge    time.Time `json:"created,omitempty"`
-	// 		ChangedAge    time.Time `json:"lastchange,omitempty"`
-	// 		LoginAge      time.Time `json:"lastlogin,omitempty"`
-	// 		Expires       time.Time `json:"expires,omitempty"`
-	// 		Type          string    `json:"type"`
-	// 		Unconstrained bool      `json:"unconstrained,omitempty"`
-	// 		Workstation   bool      `json:"workstation,omitempty"`
-	// 		Server        bool      `json:"server,omitempty"`
-	// 		Enabled       bool      `json:"enabled,omitempty"`
-	// 		CantChangePwd bool      `json:"cantchangepwd,omitempty"`
-	// 		NoExpirePwd   bool      `json:"noexpirepwd,omitempty"`
-	// 		NoRequirePwd  bool      `json:"norequirepwd,omitempty"`
-	// 		HasLAPS       bool      `json:"haslaps,omitempty"`
-	// 	}
-	// 	var result []info
-	// 	ws.Objs.Iterate(func(object *engine.Object) bool {
-	// 		if object.Type() == engine.ObjectTypeUser &&
-	// 			object.OneAttrString(engine.MetaWorkstation) != "1" &&
-	// 			object.OneAttrString(engine.MetaServer) != "1" &&
-	// 			object.OneAttrString(engine.MetaAccountActive) == "1" {
-	// 			lastlogin, _ := object.AttrTime(activedirectory.LastLogon)
-	// 			lastlogints, _ := object.AttrTime(activedirectory.LastLogonTimestamp)
-	// 			last, _ := object.AttrTime(activedirectory.PwdLastSet)
-
-	// 			expires, _ := object.AttrTime(activedirectory.AccountExpires)
-	// 			created, _ := object.AttrTime(activedirectory.WhenCreated)
-	// 			changed, _ := object.AttrTime(activedirectory.WhenChanged)
-
-	// 			// ui.Debug().Msgf("%v last pwd %v / login %v / logints %v / expires %v / changed %v / created %v", object.DN(), last, lastlogin, lastlogints, expires, changed, created)
-
-	// 			if lastlogin.After(lastlogints) {
-	// 				lastlogints = lastlogin
-	// 			}
-
-	// 			// // var loginage int
-
-	// 			// if !lastlogints.IsZero() {
-	// 			// 	loginage = int(time.Since(lastlogints).Hours()) / 24
-	// 			// }
-
-	// 			i := info{
-	// 				DN:         object.DN(),
-	// 				PwdAge:     last,
-	// 				ChangedAge: changed,
-	// 				CreatedAge: created,
-	// 				LoginAge:   lastlogints,
-	// 				Expires:    expires,
-	// 				Type:       object.Type().String(),
-
-	// 				Unconstrained: object.OneAttrString(engine.MetaUnconstrainedDelegation) == "1",
-	// 				Workstation:   object.OneAttrString(engine.MetaWorkstation) == "1",
-	// 				Server:        object.OneAttrString(engine.MetaServer) == "1",
-	// 				Enabled:       object.OneAttrString(engine.MetaAccountActive) == "1",
-	// 				CantChangePwd: object.OneAttrString(engine.MetaPasswordCantChange) == "1",
-	// 				NoExpirePwd:   object.OneAttrString(engine.MetaPasswordNeverExpires) == "1",
-	// 				NoRequirePwd:  object.OneAttrString(engine.MetaPasswordNotRequired) == "1",
-	// 				HasLAPS:       object.OneAttrString(engine.MetaLAPSInstalled) == "1",
-	// 			}
-
-	// 			// if uac&UAC_NOT_DELEGATED != 0 {
-	// 			// 	ui.Debug().Msgf("%v has can't be used as delegation", object.DN())
-	// 			// }
-
-	// 			result = append(result, i)
-	// 		}
-	// 		return true
-	// 	})
-
-	// 	data, err := json.MarshalIndent(result, "", "  ")
-	// 	if err != nil {
-	// 		http.Error(w, err.Error(), 500)
-	// 		return
-	// 	}
-	// 	w.Write(data)
-	// })
-
-	ws.Router.GET("/tree", func(c *gin.Context) {
+	router.GET("/tree", func(c *gin.Context) {
 		idstr := c.Query("id")
 
 		var children engine.ObjectSlice
@@ -737,127 +575,9 @@ func analysisfuncs(ws *webservice) {
 		c.JSON(200, results)
 	})
 
-	ws.Router.GET("/statistics", func(c *gin.Context) {
-		var result struct {
-			Adalanche  map[string]string `json:"adalanche"`
-			Statistics map[string]int    `json:"statistics"`
-		}
-		result.Adalanche = make(map[string]string)
-		result.Adalanche["shortversion"] = version.VersionStringShort()
-		result.Adalanche["program"] = version.Program
-		result.Adalanche["version"] = version.Version
-		result.Adalanche["commit"] = version.Commit
-
-		result.Statistics = make(map[string]int)
-
-		for objecttype, count := range ws.Objs.Statistics() {
-			if objecttype == 0 {
-				continue // skip the dummy one
-			}
-			if count == 0 {
-				continue
-			}
-			result.Statistics[engine.ObjectType(objecttype).String()] += count
-		}
-
-		var edgeCount int
-		ws.Objs.Iterate(func(object *engine.Object) bool {
-			edgeCount += object.Edges(engine.Out).Len()
-			return true
-		})
-		result.Statistics["Total"] = ws.Objs.Len()
-		result.Statistics["PwnConnections"] = edgeCount
-
-		c.JSON(200, result)
-	})
-
-	type ProgressReport struct {
-		ID             uuid.UUID
-		Title          string
-		Current, Total int64
-		Percent        float32
-		Done           bool
-		StartTime      time.Time
-	}
-
-	ws.Router.GET("/progress", func(c *gin.Context) {
-		var upgrader = websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-		}
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		for {
-			pbs := ui.GetProgressBars()
-			pbr := make([]ProgressReport, len(pbs))
-			for i, pb := range pbs {
-				pbr[i] = ProgressReport{
-					ID:        pb.ID,
-					Title:     pb.Title,
-					Current:   pb.Current,
-					Total:     pb.Total,
-					Percent:   pb.Percent,
-					Done:      pb.Done,
-					StartTime: pb.Started,
-				}
-			}
-			sort.Slice(pbr, func(i, j int) bool {
-				return pbr[i].StartTime.Before(pbr[j].StartTime)
-			})
-
-			conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
-			err = conn.WriteJSON(pbr)
-			if err != nil {
-				return
-			}
-
-			time.Sleep(time.Second)
-		}
-	})
-
-	// Saved preferences
-	var prefs Prefs
-	err := prefs.Load()
-	if err != nil {
-		ui.Warn().Msgf("Problem loading preferences: %v", err)
-	}
-
-	ws.Router.GET("/preferences", func(c *gin.Context) {
-		c.JSON(200, prefs.data)
-	})
-	ws.Router.POST("/preferences", func(c *gin.Context) {
-		var prefsmap = make(map[string]any)
-		err := c.BindJSON(&prefsmap)
-		if err != nil {
-			c.String(500, err.Error())
-		}
-
-		for key, value := range prefsmap {
-			prefs.Set(key, value)
-		}
-		prefs.Save()
-	})
-
-	ws.Router.GET("/preferences/:key", func(c *gin.Context) {
-		key := c.Param("key")
-		out, _ := json.Marshal(prefs.Get(key))
-		c.Writer.Write(out)
-	})
-
-	ws.Router.GET("/preferences/:key/:value", func(c *gin.Context) {
-		key := c.Param("key")
-		value := c.Param("value")
-		prefs.Set(key, value)
-		prefs.Save()
-	})
-
 	// Shutdown
 
-	ws.Router.GET("/export-words", func(c *gin.Context) {
+	router.GET("/export-words", func(c *gin.Context) {
 		split := c.Query("split") == "true"
 
 		// Set header for download as a text file
@@ -909,7 +629,7 @@ func analysisfuncs(ws *webservice) {
 			engine.LookupAttribute("userPrincipalName"),
 		}
 
-		pb := ui.ProgressBar("Extracting words", ws.Objs.Len())
+		pb := ui.ProgressBar("Extracting words", int64(ws.Objs.Len()))
 		wordmap := make(map[string]struct{})
 		ws.Objs.Iterate(func(object *engine.Object) bool {
 			pb.Add(1)
@@ -939,8 +659,26 @@ func analysisfuncs(ws *webservice) {
 		}
 	})
 
+	// Ready status
+	router.GET("/status", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": ws.status})
+	})
+	router.GET("/await/:status", func(c *gin.Context) {
+		waitfor, err := WebServiceStatusString(c.Param("status"))
+		if err != nil {
+			c.Status(500)
+			return
+		}
+
+		for ws.status != waitfor {
+			time.Sleep(time.Millisecond * 10)
+		}
+
+		c.JSON(200, gin.H{"status": ws.status})
+	})
+
 	// Shutdown
-	ws.Router.GET("/quit", func(c *gin.Context) {
+	router.GET("/quit", func(c *gin.Context) {
 		ws.quit <- true
 	})
 

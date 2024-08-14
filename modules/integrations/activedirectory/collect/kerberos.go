@@ -2,7 +2,6 @@ package collect
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
@@ -13,6 +12,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/messages"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"github.com/jcmturner/gokrb5/v8/types"
+	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 type GSSAPIState struct {
@@ -32,12 +32,12 @@ func (state *GSSAPIState) DeleteSecContext() error {
 func (state *GSSAPIState) InitSecContext(target string, _ []byte) (outputToken []byte, needContinue bool, err error) {
 	tkt, key, err := state.client.GetServiceTicket(target)
 	if err != nil {
-		log.Panic(err)
+		ui.Fatal().Msgf("Problem getting service ticket: %v", err)
 	}
 
 	token, err := spnego.NewKRB5TokenAPREQ(state.client, tkt, key, []int{gssapi.ContextFlagInteg, gssapi.ContextFlagConf, gssapi.ContextFlagMutual}, []int{flags.APOptionMutualRequired})
 	if err != nil {
-		log.Panic(err)
+		ui.Fatal().Msgf("Problem getting AP req: %v", err)
 	}
 
 	state.ekey = key
@@ -45,7 +45,7 @@ func (state *GSSAPIState) InitSecContext(target string, _ []byte) (outputToken [
 
 	outputToken, err = token.Marshal()
 	if err != nil {
-		log.Panic(err)
+		ui.Fatal().Msgf("Problem getting token: %v", err)
 	}
 	needContinue = false
 	return

@@ -244,7 +244,8 @@
               <option value="cosebilkent">COSE Bilkent</option>
               <option value="dagre">DAGRE</option>
               <!-- <option value="cise">CISE</option> -->
-              <option value="random">Random</option>
+              <option value="random">Random (debug)</option>
+              <option value="fixed">Fixed (debug)</option>
             </select>
 
             <div class="mb-1">
@@ -316,9 +317,18 @@
   </div>
 
   <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-50">
-    <div id="querypop" class="text-center ps-4 pe-4">LDAP Query</div>
-    <div id="querydiv" class="p-1" style="width: 40vw;">
-      <form id="queryform" class="m-0">
+    <ul id="querydiv" class="nav nav-tabs text-center" role="tablist">
+      <div id="togglequeryvisible" class="float-end">xx</div>
+      <li id="querypop" class="nav-item ps-4 pe-4">
+        <button id="ldaptabbutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#ldap-pane" type="button">LDAP Query</button>
+      </li>
+      <!--li id="aqlpop" class="nav-item text-center ps-4 pe-4">
+        <button id="aqltabbutton" class="nav-link" data-bs-toggle="tab" data-bs-target="#aql-pane" type="button">AQL Query</button>
+      </li -->
+    </ul>
+    <div class="tab-content" id="query-tabs-content">
+      <div class="tab-pane active p-1" id="ldap-pane" style="width: 40vw;">
+      <form id="ldapqueryform" class="m-0">
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation" data-bs-toggle='tooltip' data-bs-title='Node selector query for the first nodes (targets)'>
             <button id="querybutton" class="nav-link active" data-bs-toggle="tab" data-bs-target="#startquery-pane" type="button">Start Query</button>
@@ -419,6 +429,24 @@
         </div>
       </form>
     </div>
+      <div class="tab-pane p-1" id="aql-pane" style="width: 40vw;">
+        <form id="aqlqueryform" class="m-0">
+          <textarea id="aqlquerytext" class="form-control mb-1" name="query" rows=4 spellcheck="false"></textarea>
+          <div id="aqlqueryerror"></div>
+          <div id="aqlquerybuttons" class="mt-2">
+            <div id="aqlqueriesdropdown" class="dropup float-start">
+              <button id="aqlqueriesbutton" data-bs-toggle="dropdown" class="btn btn-primary btn-sm dropdown-toggle" type="button"
+                aria-haspopup="true" aria-expanded="false">Sample AQL Queries</button>
+              <ul id="predefinedqueries" class="dropdown-menu max-vh-75 overflow-y-auto" style="max-height:75vh"
+                aria-labelledby="aqlqueriesbutton">
+                <li id="defaultaqlquery" class="dropdown-item"
+                  query='()-[]->(tag="iddqd")'>Who owns your AD? (Reach Domain Admin etc)</li>
+              </ul>
+            </div>
+            <button id="aqlanalyzebutton" type="button" class="btn btn-outline-primary btn-sm float-end"
+              onclick="aqlanalyze();">Analyze</button>
+          </div>
+        </form>
   </div>
   </div>
 </body>

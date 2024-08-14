@@ -508,7 +508,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		e = msgp.NewWriter(boutfile)
 	}
 
-	bar := ui.ProgressBar("Converting objects from AD Explorer snapshot", int(header.ObjectCount))
+	bar := ui.ProgressBar("Converting objects from AD Explorer snapshot", int64(header.ObjectCount))
 
 	var objects []activedirectory.RawObject
 

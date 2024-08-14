@@ -340,6 +340,7 @@ type EdgeDirection int
 const (
 	Out EdgeDirection = 0
 	In  EdgeDirection = 1
+	Any EdgeDirection = 9
 )
 
 func (m EdgeBitmap) IsSet(edge Edge) bool {

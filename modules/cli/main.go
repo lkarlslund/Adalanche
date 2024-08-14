@@ -84,10 +84,17 @@ func Run() error {
 
 	if *embeddedprofiler {
 		go func() {
-			err := http.ListenAndServe("localhost:6060", nil)
-			if err != nil {
-				ui.Error().Msgf("Profiling listener failed: %v", err)
+			port := 6060
+			for {
+				err := http.ListenAndServe(fmt.Sprintf("localhost:%v", port), nil)
+				if err != nil {
+					ui.Error().Msgf("Profiling listener failed: %v, trying with new port", err)
+					port++
+				} else {
+					break
+				}
 			}
+			ui.Info().Msgf("Profiling listener started on port %v", port)
 		}()
 	}
 

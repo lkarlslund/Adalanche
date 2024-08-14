@@ -766,7 +766,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			// Fileshare rights
 			if len(share.DACL) == 0 {
 				ui.Warn().Msgf("No security descriptor for machine %v file share %v", cinfo.Machine.Name, share.Name)
-			} else if sd, err := engine.ParseSecurityDescriptor(share.DACL); err == nil {
+			} else if sd, err := engine.CacheOrParseSecurityDescriptor(string(share.DACL)); err == nil {
 				// if !sd.Owner.IsNull() {
 				// 	ui.Warn().Msgf("Share %v has owner set to %v", share.Name, sd.Owner)
 				// }
@@ -812,7 +812,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			shareobject.EdgeTo(pathobject, EdgePublishes)
 
 			// File rights
-			if sd, err := engine.ParseSecurityDescriptor(share.PathDACL); err == nil {
+			if sd, err := engine.CacheOrParseSecurityDescriptor(string(share.PathDACL)); err == nil {
 				if !sd.Owner.IsNull() {
 					owner := ao.AddNew(
 						activedirectory.ObjectSid, engine.AttributeValueSID(sd.Owner),

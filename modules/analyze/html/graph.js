@@ -268,6 +268,10 @@ var randomlayout = {
     name: 'random'
 }
 
+var fixedlayout = {
+    name: 'preset'
+}
+
 cytostyle = [{
     selector: "node, edge",
     style: {
@@ -568,6 +572,9 @@ function getGraphlayout(choice) {
         case "random":
             layouttemplate = randomlayout
             break
+        case "fixed":
+            layouttemplate = fixedlayout
+            break
         case "cise":
             layouttemplate = ciselayout
             break
@@ -793,7 +800,7 @@ function initgraph(data) {
                 selector: 'node[_canexpand>0]',
                 onClickFunction: function (event) { // The function to be executed on click
                     // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
-                    expanddata = $("#queryform, #optionsform").serializeArray()
+                    expanddata = $("#ldapqueryform, #optionsform").serializeArray()
                     expanddata.push({ name: "expanddn", value: event.target.attr("distinguishedName") })
 
                     $.ajax({

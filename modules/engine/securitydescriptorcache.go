@@ -2,35 +2,27 @@ package engine
 
 import (
 	"sync"
-
-	"github.com/OneOfOne/xxhash"
 )
 
 var (
-	securitydescriptorcachemutex sync.RWMutex
-	securityDescriptorCache      = make(map[uint64]*SecurityDescriptor)
+	securityDescriptorCache sync.Map
 )
 
 // Parse and cache security descriptor
-func CacheOrParseSecurityDescriptor(rawsd []byte) (*SecurityDescriptor, error) {
+func CacheOrParseSecurityDescriptor(rawsd string) (*SecurityDescriptor, error) {
 	if len(rawsd) == 0 {
 		return nil, ErrEmptySecurityDescriptorAttribute
 	}
 
-	securitydescriptorcachemutex.RLock()
-	cacheindex := xxhash.Checksum64(rawsd)
-	if sd, found := securityDescriptorCache[cacheindex]; found {
-		securitydescriptorcachemutex.RUnlock()
-		return sd, nil
-	}
-	securitydescriptorcachemutex.RUnlock()
-
-	securitydescriptorcachemutex.Lock()
-	sd, err := ParseSecurityDescriptor([]byte(rawsd))
-	if err == nil {
-		securityDescriptorCache[cacheindex] = &sd
+	newsd := &SecurityDescriptor{
+		Raw: rawsd,
 	}
 
-	securitydescriptorcachemutex.Unlock()
-	return &sd, err
+	sd, found := securityDescriptorCache.LoadOrStore(rawsd, newsd)
+	if found {
+		return sd.(*SecurityDescriptor), nil
+	}
+
+	err := newsd.Parse()
+	return newsd, err
 }

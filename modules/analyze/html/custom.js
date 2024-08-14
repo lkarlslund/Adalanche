@@ -155,6 +155,10 @@ function newwindow(id, title, content, height, width) {
                         x += event.deltaRect.left
                         y += event.deltaRect.top
 
+                        // Ensure window does not slip too far up or left
+                        x = Math.max(0, x);
+                        y = Math.max(0, y);
+
                         target.style.transform = 'translate(' + x + 'px,' + y + 'px)'
 
                         target.setAttribute('data-x', x)
@@ -245,7 +249,7 @@ function analyze(e) {
         url: 'analyzegraph',
         contentType: 'charset=utf-8',
         data: JSON.stringify(
-            $('#queryform, #analysisoptionsform, #analysispwnform, #analysistypeform')
+            $('#ldapqueryform, #analysisoptionsform, #analysispwnform, #analysistypeform')
                 .serializeArray()
                 .reduce(function (m, o) {
                     m[o.name] = o.value;
@@ -333,8 +337,10 @@ function refreshProgress() {
         setTimeout(refreshProgress, 3000);
     }
 
-    progressSocket.onmessage = function (progressbars) {
+    progressSocket.onmessage = function (message) {
         $("#offlineblur").hide()
+        progressbars = $.parseJSON(message.data);
+
         if (progressbars.length > 0) {
             lastwasidle = false
             keepProgressbars = new Set()
@@ -483,8 +489,8 @@ $(function () {
 
     // QUERY FORM
     // $("#querydiv").slideUp("fast")
-    $('#querypop').on('click', function () {
-        $('#querydiv').slideToggle('fast');
+    $('#togglequeryvisible').on('click', function () {
+        $('#query-tabs-content').slideToggle('fast');
     });
 
     // $('[data-toggle="tooltip"]').tooltip()

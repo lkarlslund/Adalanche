@@ -20,7 +20,6 @@ import (
 	"github.com/lkarlslund/ldap/v3/gssapi"
 	"github.com/pierrec/lz4/v4"
 	"github.com/pkg/errors"
-	"github.com/schollz/progressbar/v3"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -263,14 +262,7 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		e = msgp.NewWriter(boutfile)
 	}
 
-	bar := progressbar.NewOptions(-1,
-		progressbar.OptionSetDescription("Dumping from "+do.SearchBase+" ..."),
-		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
-		progressbar.OptionSetItsString("objects"),
-		progressbar.OptionOnCompletion(func() { fmt.Println() }),
-		progressbar.OptionThrottle(time.Second*1),
-	)
+	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
 
 	var objects []activedirectory.RawObject
 	var err error

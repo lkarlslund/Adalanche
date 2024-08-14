@@ -56,7 +56,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	ui.Info().Msgf("Merging %v objects into the object metaverse", totalobjects)
 
-	pb := ui.ProgressBar("Merging objects from each unique source", totalobjects)
+	pb := ui.ProgressBar("Merging objects from each unique source", int64(totalobjects))
 
 	// To ease anti-cross-the-beams on DataSource we temporarily group each source and combine them in the end
 	type sourceinfo struct {
@@ -132,7 +132,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 		return true
 	})
 
-	pb = ui.ProgressBar("Finalizing merge", needsfinalization)
+	pb = ui.ProgressBar("Finalizing merge", int64(needsfinalization))
 
 	// We're grabbing the index directly for faster processing here
 	dnindex := globalobjects.GetIndex(DistinguishedName)

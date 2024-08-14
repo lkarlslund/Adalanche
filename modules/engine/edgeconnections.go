@@ -3,7 +3,6 @@ package engine
 import (
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/rs/zerolog/log"
 )
 
 type EdgeConnections struct {
@@ -26,7 +25,6 @@ func (ec *EdgeConnections) StringMap() map[string]string {
 func (ec *EdgeConnections) Range(rf func(*Object, EdgeBitmap) bool) {
 	ec.ecm.Range(func(target *Object, eb *EdgeBitmap) bool {
 		if target == nil {
-			log.Warn().Msg("Unpossible 2: Top Secret Mission")
 			return true
 		}
 		return rf(target, *eb)

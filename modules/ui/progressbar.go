@@ -17,6 +17,7 @@ import (
 type progressBar struct {
 	ID                  uuid.UUID
 	Title               string
+	ItemType            string
 	titleStyle          *pterm.Style
 	barStyle            *pterm.Style
 	Current, Total      int64   // Absolute done and total
@@ -41,27 +42,42 @@ var (
 	progressbars = map[*progressBar]struct{}{}
 )
 
-func GetProgressBars() []*progressBar {
-	pbLock.Lock()
-	pbs := make([]*progressBar, len(progressbars))
-	var i int
-	for pb, _ := range progressbars {
-
-		if pb.Done && pb.lastReport == pb.Current {
-			delete(progressbars, pb)
-			continue
-		}
-		pb.lastReport = pb.Current
-
-		pbs[i] = pb
-		i++
-	}
-
-	pbLock.Unlock()
-	return pbs[:i]
+type ProgressReport struct {
+	ID             uuid.UUID
+	Title          string
+	ItemType       string
+	Current, Total int64
+	Percent        float32
+	Done           bool
+	StartTime      time.Time
 }
 
-func ProgressBar(title string, max int) *progressBar {
+func GetProgressReport() []ProgressReport {
+	pbLock.Lock()
+	pbr := make([]ProgressReport, len(progressbars))
+	var i int
+	for pb, _ := range progressbars {
+		if pb.Done && pb.lastReport == pb.Current {
+			continue
+		}
+		pbr[i] = ProgressReport{
+			ID:        pb.ID,
+			Title:     pb.Title,
+			ItemType:  pb.ItemType,
+			Current:   pb.Current,
+			Total:     pb.Total,
+			Percent:   pb.Percent,
+			Done:      pb.Done,
+			StartTime: pb.Started,
+		}
+		pb.lastReport = pb.Current
+		i++
+	}
+	pbLock.Unlock()
+	return pbr[:i]
+}
+
+func ProgressBar(title string, max int64) *progressBar {
 	if max == 0 {
 		max = 1 // avoid division by zero in pterm
 	}
@@ -94,28 +110,28 @@ func ProgressBar(title string, max int) *progressBar {
 	return &pb
 }
 
-func (pb *progressBar) ChangeMax(newmax int) {
+func (pb *progressBar) ChangeMax(newmax int64) {
 	if newmax == 0 {
 		Fatal().Msg("Cannot set max to 0")
 	}
 	pb.Total = int64(newmax)
 }
 
-func (pb *progressBar) GetMax() int {
-	return int(pb.Total)
+func (pb *progressBar) GetMax() int64 {
+	return pb.Total
 }
 
 func (pb *progressBar) Start() {
 	pb.Started = time.Now()
 }
 
-func (pb *progressBar) Add(i int) {
-	atomic.AddInt64(&pb.Current, int64(i))
+func (pb *progressBar) Add(i int64) {
+	atomic.AddInt64(&pb.Current, i)
 	pb.update()
 }
 
-func (pb *progressBar) Set(i int) {
-	atomic.StoreInt64(&pb.Current, int64(i))
+func (pb *progressBar) Set(i int64) {
+	atomic.StoreInt64(&pb.Current, i)
 	pb.update()
 }
 

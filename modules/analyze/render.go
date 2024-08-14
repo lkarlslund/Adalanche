@@ -6,67 +6,67 @@ type typeinfo struct {
 }
 
 var typeInfos = map[string]typeinfo{
-	"User": typeinfo{
+	"User": {
 		Name: "User",
 		Icon: "icons/person-fill.svg",
 	},
-	"Group": typeinfo{
+	"Group": {
 		Name: "Group",
 		Icon: "icons/people-fill.svg",
 	},
-	"Computer": typeinfo{
+	"Computer": {
 		Name: "Computer",
 		Icon: "icons/computer-fill.svg",
 	},
-	"Machine": typeinfo{
+	"Machine": {
 		Name: "Machine",
 		Icon: "icons/tv-fill.svg",
 	},
-	"ManagedServiceAccount": typeinfo{
+	"ManagedServiceAccount": {
 		Name: "Managed Service Account",
 		Icon: "icons/manage_accounts_black_24dp.svg",
 	},
-	"GroupManagedServiceAccount": typeinfo{
+	"GroupManagedServiceAccount": {
 		Name: "Group Managed Service Account",
 		Icon: "icons/manage_accounts_black_24dp.svg",
 	},
-	"ForeignSecurityPrincipal": typeinfo{
+	"ForeignSecurityPrincipal": {
 		Name: "Foreign Security Principal",
 		Icon: "icons/badge_black_24dp.svg",
 	},
-	"Service": typeinfo{
+	"Service": {
 		Name: "Service",
 		Icon: "icons/service.svg",
 	},
-	"Directory": typeinfo{
+	"Directory": {
 		Name: "Directory",
 		Icon: "icons/source_black_24dp.svg",
 	},
-	"File": typeinfo{
+	"File": {
 		Name: "File",
 		Icon: "icons/source_black_24dp.svg",
 	},
-	"Executable": typeinfo{
+	"Executable": {
 		Name: "Executable",
 		Icon: "icons/binary-code-binary-svgrepo-com.svg",
 	},
-	"GroupPolicyContainer": typeinfo{
+	"GroupPolicyContainer": {
 		Name: "Group Policy Container",
 		Icon: "icons/gpo.svg",
 	},
-	"OrganizationalUnit": typeinfo{
+	"OrganizationalUnit": {
 		Name: "Organizational Unit",
 		Icon: "icons/source_black_24dp.svg",
 	},
-	"Container": typeinfo{
+	"Container": {
 		Name: "Container",
 		Icon: "icons/folder_black_24dp.svg",
 	},
-	"CertificateTemplate": typeinfo{
+	"CertificateTemplate": {
 		Name: "Certificate Template",
 		Icon: "icons/certificate.svg",
 	},
-	"DNSNode": typeinfo{
+	"DNSNode": {
 		Name: "DNS Node",
 		Icon: "icons/source_black_24dp.svg",
 	},

@@ -118,7 +118,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 		}
 	}
 
-	pb := ui.ProgressBar("Analyzing graph", opts.MaxDepth)
+	pb := ui.ProgressBar("Analyzing graph", int64(opts.MaxDepth))
 	for opts.MaxDepth >= currentRound || opts.MaxDepth == -1 {
 		pb.Add(1)
 		if currentRound == 2 {
@@ -320,7 +320,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 		ui.Warn().Msgf("Not all nodes were processed. Expected %v, processed %v", pg.Order(), len(extrainfo))
 	}
 
-	pb = ui.ProgressBar("Removing filtered nodes", pg.Order())
+	pb = ui.ProgressBar("Removing filtered nodes", int64(pg.Order()))
 
 	// Remove outer end nodes that are invalid
 	detectobjecttypes = nil
@@ -375,7 +375,6 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					}
 				}
 				if opts.EndFilter != nil && !opts.EndFilter.Evaluate(endnode) {
-					// does it exist in the exclude last list
 					pg.DeleteNode(endnode)
 					pb.Add(1)
 					removed++
@@ -400,7 +399,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	if opts.NodeLimit > 0 && toomanynodes > 0 {
 		// Prune nodes until we dont have too many
 		lefttoremove := toomanynodes
-		pb = ui.ProgressBar("Removing excessive nodes", lefttoremove)
+		pb = ui.ProgressBar("Removing random excessive outer nodes", int64(lefttoremove))
 
 		for lefttoremove > 0 {
 			// This map contains all the nodes that point to someone else. If you're in this map you're not an outer node

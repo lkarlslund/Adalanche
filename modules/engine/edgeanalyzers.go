@@ -62,13 +62,13 @@ func Process(ao *Objects, statustext string, l LoaderID, priority ProcessPriorit
 	}
 
 	// We need to process this many objects
-	pb := ui.ProgressBar(statustext, total)
+	pb := ui.ProgressBar(statustext, int64(total))
 	var wg sync.WaitGroup
 	for _, processor := range priorityProcessors {
 		wg.Add(1)
 		go func(ppf ppfInfo) {
 			ppf.pf(ao)
-			pb.Add(aoLen)
+			pb.Add(int64(aoLen))
 			wg.Done()
 		}(processor)
 	}
