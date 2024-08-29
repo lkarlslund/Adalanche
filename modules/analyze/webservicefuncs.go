@@ -368,7 +368,7 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 			if len(potentialfilter) < 7 {
 				continue
 			}
-			if strings.HasPrefix(potentialfilter, "pwn_") {
+			if strings.HasPrefix(potentialfilter, "edge_") {
 				prefix := potentialfilter[4 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
 				edge := engine.LookupEdge(prefix)

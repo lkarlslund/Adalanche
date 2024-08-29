@@ -598,7 +598,7 @@ $(function () {
                     (method.defaultenabled_f ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
-                    `_f" name="pwn_` +
+                    `_f" name="edge_` +
                     method.lookup +
                     `_f" autocomplete="off">`;
                 buttons +=
@@ -610,7 +610,7 @@ $(function () {
                     (method.defaultenabled_m ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
-                    `_m" name="pwn_` +
+                    `_m" name="edge_` +
                     method.lookup +
                     `_m" autocomplete="off">`;
                 buttons +=
@@ -622,7 +622,7 @@ $(function () {
                     (method.defaultenabled_l ? 'checked' : '') +
                     ` id="` +
                     method.lookup +
-                    `_l" name="pwn_` +
+                    `_l" name="edge_` +
                     method.lookup +
                     `_l" autocomplete="off">`;
                 buttons +=
