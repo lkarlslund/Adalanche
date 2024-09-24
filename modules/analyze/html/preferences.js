@@ -45,6 +45,9 @@ function saveprefs() {
 }
 
 function getpref(key, defvalue) {
+    if (prefs == undefined) {
+        return defvalue;
+    };
     var value = prefs[key];
     if (value != null) {
         return value
