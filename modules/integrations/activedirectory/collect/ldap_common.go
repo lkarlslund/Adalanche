@@ -136,20 +136,24 @@ const (
 )
 
 type LDAPOptions struct {
-	Domain         string
-	Server         string
-	Port           uint16
-	User           string
-	Password       string
-	AuthDomain     string
-	AuthMode       AuthMode
-	TLSMode        TLSmode
-	Channelbinding bool
-	SizeLimit      int
+	Domain         string   `json:"domain"`
+	Server         string   `json:"server"`
+	Port           uint16   `json:"port"`
+	User           string   `json:"user"`
+	Password       string   `json:"password"`
+	AuthDomain     string   `json:"authdomain"`
+	AuthMode       AuthMode `json:"authmode"`
+	TLSMode        TLSmode  `json:"tlsmode"`
+	Channelbinding bool     `json:"channelbinding"`
+	SizeLimit      int      `json:"sizelimit"`
 
-	IgnoreCert bool
+	IgnoreCert bool `json:"ignorecert"`
 
-	Debug bool
+	Debug bool `json:"debug"`
+}
+
+func NewLDAPOptions() LDAPOptions {
+	return LDAPOptions{}
 }
 
 type objectCallbackFunc func(ro *activedirectory.RawObject) error

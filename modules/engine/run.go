@@ -14,7 +14,7 @@ import (
 )
 
 // Loads, processes and merges everything. It's magic, just in code
-func Run(path string) (*Objects, error) {
+func Run(paths ...string) (*Objects, error) {
 	starttime := time.Now()
 
 	var loaders []Loader
@@ -37,20 +37,24 @@ func Run(path string) (*Objects, error) {
 	// Enable deduplication
 	// DedupValues(true)
 
-	lo, err := Load(loaders, path, func(cur, max int) {
-		if max > 0 {
-			loadbar.ChangeMax(int64(max))
-		} else if max < 0 {
-			loadbar.ChangeMax(loadbar.GetMax() + int64(-max))
+	var lo []loaderobjects
+	for _, path := range paths {
+		los, err := Load(loaders, path, func(cur, max int) {
+			if max > 0 {
+				loadbar.ChangeMax(int64(max))
+			} else if max < 0 {
+				loadbar.ChangeMax(loadbar.GetMax() + int64(-max))
+			}
+			if cur > 0 {
+				loadbar.Set(int64(cur))
+			} else {
+				loadbar.Add(int64(-cur))
+			}
+		})
+		if err != nil {
+			return nil, err
 		}
-		if cur > 0 {
-			loadbar.Set(int64(cur))
-		} else {
-			loadbar.Add(int64(-cur))
-		}
-	})
-	if err != nil {
-		return nil, err
+		lo = append(lo, los...)
 	}
 	loadbar.Finish()
 
@@ -100,9 +104,6 @@ func PostProcess(ao *Objects) {
 		Process(ao, fmt.Sprintf("Postprocessing global objects priority %v", priority.String()), -1, priority)
 	}
 
-	// Free deduplication map
-	// DedupValues(false)
-
 	ui.Info().Msgf("Post-processing completed in %v", time.Since(starttime))
 
 	type statentry struct {
@@ -145,15 +146,6 @@ func PostProcess(ao *Objects) {
 	for _, se := range edgestats {
 		ui.Debug().Msgf("%v: %v", se.name, se.count)
 	}
-
-	// dedupStats := dedup.D.Statistics()
-	// ui.Debug().Msgf("Deduplicator stats:")
-	// ui.Debug().Msgf("%v items added using %v bytes in memory", dedupStats.ItemsAdded, dedupStats.BytesInMemory)
-	// ui.Debug().Msgf("%v items not allocated saving %v bytes of memory", dedupStats.ItemsSaved, dedupStats.BytesSaved)
-	// ui.Debug().Msgf("%v items removed (memory stats unavailable)", dedupStats.ItemsRemoved)
-	// ui.Debug().Msgf("%v collisions detected (first at %v objects)", dedupStats.Collisions, dedupStats.FirstCollisionDetected)
-	// ui.Debug().Msgf("%v keepalive objects added", dedupStats.KeepAliveItemsAdded)
-	// ui.Debug().Msgf("%v keepalive objects removed", dedupStats.KeepAliveItemsRemoved)
 
 	// Try to recover some memory
 	dedup.D.Flush()

@@ -42,6 +42,6 @@ if ("$DIRTYFILES" -ne "") {
 $LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 
 # Release
-BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche-collector -path ./collector -arch @("386") -os @("windows") -suffix ".exe"
+BuildVariants -ldflags "$LDFLAGS -s" -compileflags "-tags 32bit" -prefix adalanche-collector -path ./collector -arch @("386") -os @("windows") -suffix ".exe"
 BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
 BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "linux")

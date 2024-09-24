@@ -5,7 +5,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
-func debugfuncs(ws *webservice) {
+func debugfuncs(ws *WebService) {
 	ws.Router.GET("/debug/attributes", func(c *gin.Context) {
 		c.JSON(200, engine.AttributeInfos())
 	})

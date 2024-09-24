@@ -12,7 +12,7 @@ import (
 	"github.com/mailru/easyjson"
 )
 
-const loadername = "LocalMachine JSON file"
+const loadername = "Local Machine JSON file"
 
 var (
 	loader = engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })

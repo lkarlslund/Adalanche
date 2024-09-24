@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	err := cli.Run()
+	err := cli.CliMainEntryPoint()
 
 	if err != nil {
 		ui.Error().Msg(err.Error())

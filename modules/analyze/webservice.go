@@ -1,11 +1,13 @@
 package analyze
 
 import (
+	"crypto/tls"
 	"embed"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"text/template"
@@ -17,6 +19,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 )
 
 //go:embed html/*
@@ -50,12 +53,18 @@ func (ufs UnionFS) Exists(prefix, filename string) bool {
 
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
 
-type webservice struct {
+type optionsetter func(ws *WebService) error
+
+type WebService struct {
 	Initialized bool
 	quit        chan bool
 
-	srv    *http.Server
-	Router *gin.Engine
+	srv http.Server
+
+	protocol string
+
+	engine *gin.Engine
+	Router *gin.RouterGroup
 
 	localhtmlused bool
 	UnionFS
@@ -69,13 +78,21 @@ type webservice struct {
 	AdditionalHeaders []string // Additional things to add to the main page
 }
 
-func NewWebservice() *webservice {
+var globaloptions []optionsetter
+
+func AddOption(os optionsetter) {
+	globaloptions = append(globaloptions, os)
+}
+
+func NewWebservice() *WebService {
 	gin.SetMode(gin.ReleaseMode) // Has to happen first
-	ws := &webservice{
-		quit:   make(chan bool),
-		Router: gin.New(),
+	ws := &WebService{
+		quit:     make(chan bool),
+		engine:   gin.New(),
+		protocol: "http",
 	}
-	ws.Router.Use(func(c *gin.Context) {
+
+	ws.engine.Use(func(c *gin.Context) {
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
 
@@ -89,7 +106,10 @@ func NewWebservice() *webservice {
 
 		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
 	})
-	ws.Router.Use(gin.Recovery()) // adds the default recovery middleware
+	ws.engine.Use(gin.Recovery()) // adds the default recovery middleware
+
+	ws.Router = ws.engine.Group("")
+
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))
 
@@ -97,76 +117,110 @@ func NewWebservice() *webservice {
 	if ui.GetLoglevel() >= ui.LevelDebug {
 		debugfuncs(ws)
 	}
+
+	// Change settings
+	for _, os := range globaloptions {
+		os(ws)
+	}
+
 	return ws
 }
 
-func (ws *webservice) Init(r gin.IRoutes) {
-	// Add stock functions
-	ws.Initialized = true
-	ws.AddUIEndpoints(r)
-	ws.AddPreferencesEndpoints(r)
-	ws.AddAnalysisEndpoints(r)
+func (ws *WebService) RequireData(minimumStatus WebServiceStatus) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		if ws.status < minimumStatus {
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "no data"})
+		}
+	}
 }
 
-func (w *webservice) AddLocalHTML(path string) error {
-	if !w.localhtmlused {
-		// Clear embedded html filesystem
-		w.UnionFS = UnionFS{}
-		w.localhtmlused = true
-	}
-	// Override embedded HTML if asked to
-	stat, err := os.Stat(path)
-	if err == nil && stat.IsDir() {
-		// Use local files if they exist
-		ui.Info().Msgf("Adding local HTML folder %v", path)
-		w.AddFS(http.FS(os.DirFS(path)))
+func WithCert(certfile, keyfile string) optionsetter {
+	return func(ws *WebService) error {
+		// create certificate from pem strings directly
+		var cert tls.Certificate
+		var err error
+		if util.FileExists(certfile) && util.FileExists(keyfile) {
+			cert, err = tls.LoadX509KeyPair(certfile, keyfile)
+		} else {
+			cert, err = tls.X509KeyPair([]byte(certfile), []byte(keyfile))
+		}
+
+		if err != nil {
+			return err
+		}
+
+		ws.protocol = "https"
+		ws.srv.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
 		return nil
 	}
-	return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)
 }
 
-func (ws *webservice) Analyze(path string) error {
-	if ws.status != NoData && ws.status == Ready {
-		return errors.New("Adalanche is not ready to load new data")
+func WithLocalHTML(path string) optionsetter {
+	return func(ws *WebService) error {
+		if !ws.localhtmlused {
+			// Clear embedded html filesystem
+			ws.UnionFS = UnionFS{}
+			ws.localhtmlused = true
+		}
+		// Override embedded HTML if asked to
+		stat, err := os.Stat(path)
+		if err == nil && stat.IsDir() {
+			// Use local files if they exist
+			ui.Info().Msgf("Adding local HTML folder %v", path)
+			ws.AddFS(http.FS(os.DirFS(path)))
+			return nil
+		}
+		return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)
+	}
+}
+
+func (ws *WebService) Init(r gin.IRoutes) {
+	// Add stock functions
+	ws.Initialized = true
+
+	AddUIEndpoints(ws)
+	AddPreferencesEndpoints(ws)
+	AddAnalysisEndpoints(ws)
+}
+
+func (ws *WebService) Analyze(paths ...string) error {
+	if ws.status != NoData && ws.status != Ready {
+		return errors.New("Adalanche is already busy loading data")
 	}
 
 	ws.status = Analyzing
-	objs, err := engine.Run(path)
-	ws.Objs = objs
-
+	objs, err := engine.Run(paths...)
 	if err != nil {
 		ws.status = Error
 		return err
 	}
+	ws.Objs = objs
 
 	ws.status = PostAnalyzing
 	engine.PostProcess(objs)
 
 	ws.status = Ready
-
 	return nil
 }
 
-func (ws *webservice) QuitChan() <-chan bool {
+func (ws *WebService) QuitChan() <-chan bool {
 	return ws.quit
 }
 
-func (ws *webservice) Quit() {
+func (ws *WebService) Quit() {
 	close(ws.quit)
 }
 
-func (ws *webservice) Start(bind string) error {
+func (ws *WebService) Start(bind string) error {
 	if !ws.Initialized {
 		ws.Init(ws.Router)
 	}
 
-	// Profiling
-	pprof.Register(ws.Router)
-
-	ws.srv = &http.Server{
-		Addr:    bind,
-		Handler: ws.Router,
-	}
+	ws.srv.Addr = bind
+	ws.srv.Handler = ws.engine
 
 	ws.Router.GET("/", func(c *gin.Context) {
 		indexfile, err := ws.UnionFS.Open("index.html")
@@ -185,22 +239,35 @@ func (ws *webservice) Start(bind string) error {
 			ui.Error().Msgf("Could not render template index.html: %v", err)
 		}
 	})
-	ws.Router.Use(static.Serve("/", ws.UnionFS))
+	ws.engine.Use(static.Serve("", ws.UnionFS))
 
-	// w.Router.StaticFS("/", http.FS(w.UnionFS))
+	// bind to port and start listening for requests
+	conn, err := net.Listen("tcp", ws.srv.Addr)
+	if err != nil {
+		return err
+	}
 
-	go func() {
-		if err := ws.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			ui.Fatal().Msgf("Problem launching webservice listener: %s", err)
-		}
-	}()
+	switch ws.protocol {
+	case "http":
+		go func() {
+			if err := ws.srv.Serve(conn); err != nil && err != http.ErrServerClosed {
+				ui.Fatal().Msgf("Problem launching webservice listener: %s", err)
+			}
+		}()
+	case "https":
+		go func() {
+			if err := ws.srv.ServeTLS(conn, "", ""); err != nil && err != http.ErrServerClosed {
+				ui.Fatal().Msgf("Problem launching webservice listener: %s", err)
+			}
+		}()
+	}
 
-	ui.Info().Msgf("Listening - navigate to http://%v/ ... (ctrl-c or similar to quit)", bind)
+	ui.Info().Msgf("Adalanche Web Service listening at %v://%v/ ... (ctrl-c or similar to quit)", ws.protocol, bind)
 
 	return nil
 }
 
-func (ws *webservice) ServeTemplate(c *gin.Context, path string, data any) {
+func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	templatefile, err := ws.UnionFS.Open(path)
 	if err != nil {
 		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
@@ -212,4 +279,11 @@ func (ws *webservice) ServeTemplate(c *gin.Context, path string, data any) {
 		return
 	}
 	template.Execute(c.Writer, data)
+}
+
+func WithProfiling() func(*WebService) {
+	return func(ws *WebService) {
+		// Profiling
+		pprof.Register(ws.Router)
+	}
 }

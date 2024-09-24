@@ -118,6 +118,18 @@ func (eb *EdgeBitmap) AtomicClear(edge Edge) {
 	}
 }
 
+func (eb *EdgeBitmap) PartialAtomicLoad() (edges EdgeBitmap) {
+	index := 0
+	for {
+		edges[index] = atomic.LoadUint64(&eb[index])
+		index++
+		if index == PMBSIZE {
+			break
+		}
+	}
+	return edges
+}
+
 func (eb *EdgeBitmap) AtomicAnd(edges EdgeBitmap) {
 	index := 0
 	for {
@@ -345,7 +357,7 @@ const (
 
 func (m EdgeBitmap) IsSet(edge Edge) bool {
 	index, bits := bitIndex(edge)
-	return (m[index] & bits) != 0
+	return (atomic.LoadUint64(&m[index]) & bits) != 0
 }
 
 func (m EdgeBitmap) MaxProbability(source, target *Object) Probability {

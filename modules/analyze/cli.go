@@ -16,11 +16,11 @@ var (
 		Short: "Lanunches the interactive discovery tool in your browser",
 	}
 
-	Bind      = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
-	NoBrowser = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
-	LocalHTML = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
-
-	WebService = NewWebservice()
+	Bind        = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
+	NoBrowser   = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
+	LocalHTML   = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
+	Certificate = Command.Flags().String("certificate", "", "Path to certificate file")
+	PrivateKey  = Command.Flags().String("privatekey", "", "Path to private key file")
 )
 
 func init() {
@@ -32,15 +32,21 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	// allow debug runs to use local paths for html
-	for _, localhtmlpath := range *LocalHTML {
-		WebService.AddLocalHTML(localhtmlpath)
+	datapath := cmd.Flag("datapath").Value.String()
+
+	if *Certificate != "" && *PrivateKey == "" {
+		AddOption(WithCert(*Certificate, *PrivateKey))
 	}
 
-	datapath := cmd.InheritedFlags().Lookup("datapath").Value.String()
+	// allow debug runs to use local paths for html
+	for _, localhtmlpath := range *LocalHTML {
+		AddOption(WithLocalHTML(localhtmlpath))
+	}
 
 	// Fire up the web interface with incomplete results
-	err := WebService.Start(*Bind)
+	ws := NewWebservice()
+
+	err := ws.Start(*Bind)
 	if err != nil {
 		return err
 	}
@@ -48,7 +54,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 	// Launch browser
 	if !*NoBrowser {
 		var err error
-		url := "http://" + *Bind
+		url := ws.protocol + "://" + *Bind
 		switch runtime.GOOS {
 		case "linux":
 			err = exec.Command("xdg-open", url).Start()
@@ -64,12 +70,12 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = WebService.Analyze(datapath)
+	err = ws.Analyze(datapath)
 	if err != nil {
 		return err
 	}
 
 	// Wait for webservice to end
-	<-WebService.QuitChan()
+	<-ws.QuitChan()
 	return nil
 }

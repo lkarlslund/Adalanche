@@ -1,7 +1,10 @@
 package util
 
 import (
+	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,7 +48,7 @@ func SwapUUIDEndianess(u uuid.UUID) uuid.UUID {
 	return r
 }
 
-func ParseBool(input string) (bool, error) {
+func ParseBool(input string, defvalue ...bool) (bool, error) {
 	result, err := strconv.ParseBool(input)
 	if err == nil {
 		return result, err
@@ -55,6 +58,9 @@ func ParseBool(input string) (bool, error) {
 		return true, nil
 	case "off", "Off":
 		return false, nil
+	}
+	if len(defvalue) > 0 && err != nil {
+		return defvalue[0], err
 	}
 	return result, err
 }
@@ -181,4 +187,38 @@ func DomainContextToDomainSuffix(dn string) string {
 func DomainSuffixToDomainContext(domain string) string {
 	parts := strings.Split(domain, ".")
 	return strings.ToLower("dc=" + strings.Join(parts, ",dc="))
+}
+
+func ExePath() (string, error) {
+	prog := os.Args[0]
+	p, err := filepath.Abs(prog)
+	if err != nil {
+		return "", err
+	}
+	fi, err := os.Stat(p)
+	if err == nil {
+		if !fi.Mode().IsDir() {
+			return p, nil
+		}
+		err = fmt.Errorf("%s is directory", p)
+	}
+	if filepath.Ext(p) == "" {
+		p += ".exe"
+		fi, err := os.Stat(p)
+		if err == nil {
+			if !fi.Mode().IsDir() {
+				return p, nil
+			}
+			err = fmt.Errorf("%s is directory", p)
+		}
+	}
+	return "", err
+}
+
+func FileExists(name string) bool {
+	_, err := os.Stat(name)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return true
 }

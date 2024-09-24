@@ -196,7 +196,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := "data"
-	if idp := cmd.InheritedFlags().Lookup("datapath"); idp != nil {
+	if idp := cmd.Flag("datapath"); idp != nil {
 		datapath = idp.Value.String()
 	}
 

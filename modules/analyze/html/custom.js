@@ -246,7 +246,7 @@ function analyze(e) {
 
     $.ajax({
         type: 'POST',
-        url: 'analyzegraph',
+        url: 'api/graphquery',
         contentType: 'charset=utf-8',
         data: JSON.stringify(
             $('#ldapqueryform, #analysisoptionsform, #analysispwnform, #analysistypeform')
@@ -339,8 +339,11 @@ function refreshProgress() {
 
     progressSocket.onmessage = function (message) {
         $("#offlineblur").hide()
-        progressbars = $.parseJSON(message.data);
+        progress = $.parseJSON(message.data);
 
+        status = progress.status;
+
+        progressbars = progress.progressbars;
         if (progressbars.length > 0) {
             lastwasidle = false
             keepProgressbars = new Set()
@@ -431,7 +434,7 @@ $(function () {
             core: {
                 multiple: false,
                 data: {
-                    url: '/tree',
+                    url: '/api/tree',
                     dataType: 'json',
                     data: function (node) {
                         return { id: node.id };
@@ -455,7 +458,7 @@ $(function () {
             if (d.event.type == 'click') {
                 $.ajax({
                     type: "GET",
-                    url: "details/id/" + d.node.id, // n123 format -> 123
+                    url: "api/details/id/" + d.node.id, // n123 format -> 123
                     dataType: "json",
                     success: function (data) {
                         // details = rendernode(data)
@@ -502,7 +505,7 @@ $(function () {
             // check query for errors when user has been idle for 200ms
             $.ajax({
                 type: 'GET',
-                url: '/validatequery',
+                url: '/backend/validatequery',
                 data: {
                     query: e.target.value,
                 },
@@ -521,14 +524,22 @@ $(function () {
 
     // Display stats on screen
     $.ajax({
-        url: 'statistics',
+        url: 'backend/statistics',
         dataType: 'json',
         success: function (data) {
-            statustext = "<div class='text-center pt-10'><img height=128 src='icons/adalanche-logo.svg'></div><div class='text-center'><h2>" + data.adalanche.program + "</h2><b>" +
+            statustext =
+              "<div class='text-center pt-10'><img height=128 src='icons/adalanche-logo.svg'></div><div class='text-center'><h2>" +
+              data.adalanche.program +
+              "</h2><b>" +
                 data.adalanche.shortversion +
-                '</b><p>' +
-                data.statistics.Total +
+              "</b><p><p>";
+                
+                if (data.adalanche.status == "Ready") {
+                    statustext +=                 data.statistics.Total +
                 ' objects connected by '+data.statistics.PwnConnections+' links</p><p>';
+                } else {
+                    statustext += "Backend status: "+data.adalanche.status;
+                }
 
             first = true
             for (datatype in data.statistics) {
@@ -577,7 +588,7 @@ $(function () {
 
     $.ajax({
         type: 'GET',
-        url: '/filteroptions',
+        url: '/backend/filteroptions',
         dataType: 'json',
         success: function (data) {
             buttons = `<table class="w-100">`;

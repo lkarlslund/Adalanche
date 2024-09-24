@@ -22,10 +22,12 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
+func AddUIEndpoints(ws *WebService) {
 	// Lists available edges that Adalanche understands - this allows us to expand functionality
 	// in the code, without touching the HTML
-	router.GET("/filteroptions", func(c *gin.Context) {
+	backend := ws.Router.Group("backend")
+
+	backend.GET("/filteroptions", func(c *gin.Context) {
 		type filterinfo struct {
 			Name            string `json:"name"`
 			Lookup          string `json:"lookup"`
@@ -66,7 +68,7 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 	})
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
-	router.GET("/validatequery", func(c *gin.Context) {
+	backend.GET("/validatequery", func(c *gin.Context) {
 		querytext := strings.Trim(c.Query("query"), " \n\r")
 		if querytext != "" {
 			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
@@ -78,11 +80,11 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 		c.JSON(200, gin.H{"success": true})
 	})
 
-	router.GET("/types", func(c *gin.Context) {
+	backend.GET("/types", func(c *gin.Context) {
 		c.JSON(200, typeInfos)
 	})
 
-	router.GET("/statistics", func(c *gin.Context) {
+	backend.GET("/statistics", func(c *gin.Context) {
 		var result struct {
 			Adalanche  map[string]string `json:"adalanche"`
 			Statistics map[string]int    `json:"statistics"`
@@ -92,6 +94,7 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 		result.Adalanche["program"] = version.Program
 		result.Adalanche["version"] = version.Version
 		result.Adalanche["commit"] = version.Commit
+		result.Adalanche["status"] = ws.status.String()
 
 		result.Statistics = make(map[string]int)
 
@@ -117,7 +120,7 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 		c.JSON(200, result)
 	})
 
-	router.GET("/progress", func(c *gin.Context) {
+	backend.GET("/progress", func(c *gin.Context) {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -134,8 +137,16 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 				return pbr[i].StartTime.Before(pbr[j].StartTime)
 			})
 
+			output := struct {
+				Status   string              `json:"status"`
+				Progress []ui.ProgressReport `json:"progressbars"`
+			}{
+				Status:   ws.status.String(),
+				Progress: pbr,
+			}
+
 			conn.SetWriteDeadline(time.Now().Add(time.Second * 15))
-			err = conn.WriteJSON(pbr)
+			err = conn.WriteJSON(output)
 			if err != nil {
 				return
 			}
@@ -144,19 +155,43 @@ func (ws *webservice) AddUIEndpoints(router gin.IRoutes) {
 		}
 	})
 
+	// Ready status
+	backend.GET("/status", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": ws.status.String()})
+	})
+	backend.GET("/await/:status", func(c *gin.Context) {
+		waitfor, err := WebServiceStatusString(c.Param("status"))
+		if err != nil {
+			c.Status(500)
+			return
+		}
+
+		for ws.status != waitfor {
+			time.Sleep(time.Millisecond * 10)
+		}
+
+		c.JSON(200, gin.H{"status": ws.status.String()})
+	})
+
+	// Shutdown
+	backend.GET("/quit", func(c *gin.Context) {
+		ws.quit <- true
+	})
 }
 
-func (ws *webservice) AddPreferencesEndpoints(router gin.IRoutes) {
+func AddPreferencesEndpoints(ws *WebService) {
 	// Saved preferences
 	err := settings.Load()
 	if err != nil {
 		ui.Warn().Msgf("Problem loading preferences: %v", err)
 	}
 
-	router.GET("/preferences", func(c *gin.Context) {
+	preferences := ws.Router.Group("preferences")
+
+	preferences.GET("", func(c *gin.Context) {
 		c.JSON(200, settings.All())
 	})
-	router.POST("/preferences", func(c *gin.Context) {
+	preferences.POST("", func(c *gin.Context) {
 		var prefsmap = make(map[string]any)
 		err := c.BindJSON(&prefsmap)
 		if err != nil {
@@ -169,13 +204,13 @@ func (ws *webservice) AddPreferencesEndpoints(router gin.IRoutes) {
 		settings.Save()
 	})
 
-	router.GET("/preferences/:key", func(c *gin.Context) {
+	preferences.GET(":key", func(c *gin.Context) {
 		key := c.Param("key")
 		out, _ := json.Marshal(settings.Get(key))
 		c.Writer.Write(out)
 	})
 
-	router.GET("/preferences/:key/:value", func(c *gin.Context) {
+	preferences.GET(":key/:value", func(c *gin.Context) {
 		key := c.Param("key")
 		value := c.Param("value")
 		settings.Set(key, value)
@@ -183,10 +218,13 @@ func (ws *webservice) AddPreferencesEndpoints(router gin.IRoutes) {
 	})
 }
 
-func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
+func AddAnalysisEndpoints(ws *WebService) {
 
-	// Returns JSON descruibing an object located by distinguishedName, sid or guid
-	router.GET("/details/:locateby/:id", func(c *gin.Context) {
+	api := ws.Router.Group("/api")
+	api.Use(ws.RequireData(Ready))
+
+	// Returns JSON describing an object located by distinguishedName, sid or guid
+	api.GET("/details/:locateby/:id", func(c *gin.Context) {
 		var o *engine.Object
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
@@ -262,7 +300,7 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 	})
 
 	// Graph based query analysis - core functionality
-	router.POST("/analyzegraph", func(c *gin.Context) {
+	api.POST("/graphquery", func(c *gin.Context) {
 		params := make(map[string]string)
 		err := c.ShouldBindJSON(&params)
 		// err := c.Request.ParseForm()
@@ -362,14 +400,14 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 		}
 
 		// var methods engine.EdgeBitmap
-		var edges_f, egdes_m, edges_l engine.EdgeBitmap
+		var edges_f, edges_m, edges_l engine.EdgeBitmap
 		var objecttypes_f, objecttypes_m, objecttypes_l []engine.ObjectType
-		for potentialfilter := range c.Request.PostForm {
-			if len(potentialfilter) < 7 {
+		for potentialfilter, _ := range params {
+			if len(potentialfilter) < 8 {
 				continue
 			}
 			if strings.HasPrefix(potentialfilter, "edge_") {
-				prefix := potentialfilter[4 : len(potentialfilter)-2]
+				prefix := potentialfilter[5 : len(potentialfilter)-2]
 				suffix := potentialfilter[len(potentialfilter)-2:]
 				edge := engine.LookupEdge(prefix)
 				if edge == engine.NonExistingEdge {
@@ -379,7 +417,7 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 				case "_f":
 					edges_f = edges_f.Set(edge)
 				case "_m":
-					egdes_m = egdes_m.Set(edge)
+					edges_m = edges_m.Set(edge)
 				case "_l":
 					edges_l = edges_l.Set(edge)
 				}
@@ -404,16 +442,16 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 		}
 
 		// Are we using the new format FML? The just choose the old format methods for FML
-		if edges_f.Count() == 0 && egdes_m.Count() == 0 && edges_l.Count() == 0 {
+		if edges_f.Count() == 0 && edges_m.Count() == 0 && edges_l.Count() == 0 {
 			// Spread the choices to FML
 			edges_f = engine.AllEdgesBitmap
-			egdes_m = engine.AllEdgesBitmap
+			edges_m = engine.AllEdgesBitmap
 			edges_l = engine.AllEdgesBitmap
 		}
 
 		opts.Objects = ws.Objs
 		opts.MethodsF = edges_f
-		opts.MethodsM = egdes_m
+		opts.MethodsM = edges_m
 		opts.MethodsL = edges_l
 		opts.ObjectTypesF = objecttypes_f
 		opts.ObjectTypesM = objecttypes_m
@@ -484,56 +522,37 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 		c.JSON(200, response)
 	})
 
-	router.GET("/query/objects/:query", func(c *gin.Context) {
-		querystr := c.Param("query")
+	// Get list of objects
+	// api.GET("/listdns/:query", func(c *gin.Context) {
+	// 	querystr := c.Param("query")
 
-		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
-		if err != nil {
-			c.String(500, err.Error())
-			return
-		}
-		if rest != "" {
-			if rest[0] != ',' {
-				c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
-				return
-			}
-		}
+	// 	rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
+	// 	if err != nil {
+	// 		c.String(500, err.Error())
+	// 		return
+	// 	}
+	// 	if rest != "" {
+	// 		if rest[0] != ',' {
+	// 			c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
+	// 			return
+	// 		}
+	// 	}
 
-		objects := ws.Objs.Filter(func(o *engine.Object) bool {
-			return includequery.Evaluate(o)
-		})
+	// 	objects := ws.Objs.Filter(func(o *engine.Object) bool {
+	// 		return includequery.Evaluate(o)
+	// 	})
 
-		dns := make([]string, 0, objects.Len())
+	// 	dns := make([]string, 0, objects.Len())
 
-		objects.Iterate(func(o *engine.Object) bool {
-			dns = append(dns, o.DN())
-			return true
-		})
+	// 	objects.Iterate(func(o *engine.Object) bool {
+	// 		dns = append(dns, o.DN())
+	// 		return true
+	// 	})
 
-		c.JSON(200, dns)
-	})
-	router.GET("/query/details/:query", func(c *gin.Context) {
-		querystr := c.Param("query")
+	// 	c.JSON(200, dns)
+	// })
 
-		rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
-		if err != nil {
-			c.String(500, err.Error())
-			return
-		}
-		if rest != "" {
-			if rest[0] != ',' {
-				c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
-				return
-			}
-		}
-
-		objects := ws.Objs.Filter(func(o *engine.Object) bool {
-			return includequery.Evaluate(o)
-		})
-
-		c.JSON(200, objects.AsSlice())
-	})
-	router.GET("/tree", func(c *gin.Context) {
+	api.GET("/tree", func(c *gin.Context) {
 		idstr := c.Query("id")
 
 		var children engine.ObjectSlice
@@ -577,7 +596,7 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 
 	// Shutdown
 
-	router.GET("/export-words", func(c *gin.Context) {
+	api.GET("/export-words", func(c *gin.Context) {
 		split := c.Query("split") == "true"
 
 		// Set header for download as a text file
@@ -657,29 +676,6 @@ func (ws *webservice) AddAnalysisEndpoints(router gin.IRoutes) {
 		for _, word := range words {
 			fmt.Fprintf(c.Writer, "%s\n", word)
 		}
-	})
-
-	// Ready status
-	router.GET("/status", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": ws.status})
-	})
-	router.GET("/await/:status", func(c *gin.Context) {
-		waitfor, err := WebServiceStatusString(c.Param("status"))
-		if err != nil {
-			c.Status(500)
-			return
-		}
-
-		for ws.status != waitfor {
-			time.Sleep(time.Millisecond * 10)
-		}
-
-		c.JSON(200, gin.H{"status": ws.status})
-	})
-
-	// Shutdown
-	router.GET("/quit", func(c *gin.Context) {
-		ws.quit <- true
 	})
 
 }

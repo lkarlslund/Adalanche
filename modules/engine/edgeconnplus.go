@@ -23,7 +23,7 @@ func (c Connection) LessThan(c2 Connection) bool {
 
 func (ecp *EdgeConnectionsPlus) Range(rf func(o *Object, eb EdgeBitmap) bool) {
 	ecp.Gonk.Range(func(c Connection) bool {
-		return rf(c.target, c.edges)
+		return rf(c.target, c.edges.PartialAtomicLoad())
 	})
 }
 

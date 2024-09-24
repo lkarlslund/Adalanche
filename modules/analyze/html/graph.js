@@ -836,7 +836,7 @@ function initgraph(data) {
                 onClickFunction: function (evt) {
                     $.ajax({
                         type: "GET",
-                        url: "details/id/" + evt.target.id().substring(1), // n123 format -> 123
+                        url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
                             if (data.attributes["distinguishedName"]) {
@@ -866,7 +866,7 @@ function initgraph(data) {
                 onClickFunction: function (evt) {
                     $.ajax({
                         type: "GET",
-                        url: "details/id/" + evt.target.id().substring(1), // n123 format -> 123
+                        url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
                             if (data.attributes["distinguishedName"]) {
@@ -906,7 +906,7 @@ function initgraph(data) {
             // console.log('clicked node ' + this.id());
             $.ajax({
                 type: "GET",
-                url: "details/id/" + (evt.target.id().substring(1)), // n123 format -> 123
+                url: "api/details/id/" + (evt.target.id().substring(1)), // n123 format -> 123
                 dataType: "json",
                 success: function (data) {
                     details = rendernode(evt.target)
@@ -973,6 +973,19 @@ function initgraph(data) {
                 $("#route").hide();
             }
         });
+    });
+
+    // Distribute all objects to predictable locations
+    data.forEach(function (ele) {
+        if (ele.group == "nodes") {
+            // set x to node id modulus 1024
+            x = ele.data.id.substr(1) % 1024;
+            y = Math.floor(ele.data.id.substr(1) / 1024);
+            ele.position = {
+                x: x,
+                y: y
+            }
+        }
     });
 
     // Load data into Cytoscape
