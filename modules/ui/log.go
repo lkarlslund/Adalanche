@@ -104,7 +104,7 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 	}
 	outputMutex.Unlock()
 	if t.ll == LevelPanic {
-		panic(nil)
+		panic(fmt.Sprintf(format, args...))
 	}
 	return t
 }
