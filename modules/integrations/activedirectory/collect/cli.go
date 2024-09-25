@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
 
@@ -195,10 +196,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	datapath := "data"
-	if idp := cmd.Flag("datapath"); idp != nil {
-		datapath = idp.Value.String()
-	}
+	datapath := *cli.Datapath
 
 	cp, _ := util.ParseBool(*collectgpos)
 	var gpostocollect []*activedirectory.RawObject

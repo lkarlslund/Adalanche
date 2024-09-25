@@ -68,7 +68,6 @@ The primary source of data is from Active Directory, and is intiated with this c
 | NTLM | Yes | Yes |
 | NTLM (hash) | No | Yes |
 
-
 If you're on a non-domain joined Windows machine or another OS, you'll need at least the <code>--domain</code> parameter, as well as username and password (you'll be prompted for password if Adalanche needs it and you didn't provide it on command line - beware of SysMon or other command line logging tools that might capture your password).
 
 LDAP (unencrypted port 389) is default. You can switch to TLS (port 636) with <code>--tlsmode tls</code> option. 
@@ -115,15 +114,15 @@ You will then have compressed AD data (and potentially GPO data) in your datapat
 
 ## Gathering Local Machine data (Windows)
 
-For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines by running the collector module. There is a stand alone version released as a 32-bit Windows executable, and this works transparently also on 64-bit systems. The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). 
+For Windows systems that are members of your Active Directory domain (or standalone) you can collect more information from the local machines. This can be done using the Windows versions of the Adalanche binaries, or by using the stripped down versions that only provide the ability to collect from local machines, but not do anything else. 
 
-The collector does not require elevated privileges, and runs fine with either the local system account with privileges stripped or as a random user.
+The 32-bit Windows version of the collector works transparently also on 64-bit systems. 
 
-<code>adalanche-collector --outputpath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
+The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). The collector will get more information if it is run with elevated privileges, but can provide parital information when run as an unpriviliged user.
 
-You can run the local machine collector from the Adalanche binary too, but this is only included in the 64-bit Windows build:
+<code>adalanche-collector collect localmachine --datapath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
 
-<code>adalanche collect localmachine [--options ...]</code>
+You can run the local machine collector from the full Adalanche binary too, the commands are identical.
 
 Please remember to secure your collection repository UNC path, so member machines can only create/write/modify files, but not read from them. Only you - the analyst - should be able to do so.
 

@@ -27,19 +27,19 @@ var (
 		SilenceUsage:     true,
 		TraverseChildren: true,
 	}
-	loglevel = Root.PersistentFlags().String("loglevel", "info", "Console log level")
+	loglevel = Root.Flags().String("loglevel", "info", "Console log level")
 
-	logfile      = Root.PersistentFlags().String("logfile", "", "File to log to")
-	logfilelevel = Root.PersistentFlags().String("logfilelevel", "info", "Log file log level")
-	logzerotime  = Root.PersistentFlags().Bool("logzerotime", false, "Logged timestamps start from zero when program launches")
+	logfile      = Root.Flags().String("logfile", "", "File to log to")
+	logfilelevel = Root.Flags().String("logfilelevel", "info", "Log file log level")
+	logzerotime  = Root.Flags().Bool("logzerotime", false, "Logged timestamps start from zero when program launches")
 
-	embeddedprofiler  = Root.PersistentFlags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
-	cpuprofile        = Root.PersistentFlags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
-	dofgtrace         = Root.PersistentFlags().Bool("fgtrace", false, "Save CPU trace start to end of processing in datapath")
-	cpuprofiletimeout = Root.PersistentFlags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
+	embeddedprofiler  = Root.Flags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
+	cpuprofile        = Root.Flags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
+	dofgtrace         = Root.Flags().Bool("fgtrace", false, "Save CPU trace start to end of processing in datapath")
+	cpuprofiletimeout = Root.Flags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
 
 	// also available for subcommands
-	Datapath = Root.PersistentFlags().String("datapath", "data", "folder to store and read data")
+	Datapath = Root.Flags().String("datapath", "data", "folder to store and read data")
 
 	versionCmd = &cobra.Command{
 		Use:   "version",

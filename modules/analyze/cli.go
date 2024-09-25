@@ -32,7 +32,7 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	datapath := cmd.Flag("datapath").Value.String()
+	datapath := *cli.Datapath
 
 	if *Certificate != "" && *PrivateKey == "" {
 		AddOption(WithCert(*Certificate, *PrivateKey))

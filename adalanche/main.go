@@ -4,10 +4,6 @@ import (
 	"os"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
-	_ "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
-	_ "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/collect"
-	_ "github.com/lkarlslund/adalanche/modules/integrations/localmachine/analyze"
-	_ "github.com/lkarlslund/adalanche/modules/quickmode"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 

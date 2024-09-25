@@ -3,10 +3,10 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/lkarlslund/adalanche/modules/cli"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -26,12 +26,9 @@ func init() {
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
-	var outputpath string
-	if op := cmd.InheritedFlags().Lookup("datapath"); op != nil {
-		outputpath = op.Value.String()
-	}
+	datapath := *cli.Datapath
 
-	err := os.MkdirAll(outputpath, 0600)
+	err := os.MkdirAll(datapath, 0600)
 	if err != nil {
 		return fmt.Errorf("Problem accessing output folder: %v", err)
 	}
@@ -39,11 +36,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 	info, err := Collect()
 	if err != nil {
 		return err
-	}
-
-	if outputpath == "" {
-		ui.Warn().Msg("Missing -outputpath parameter - writing file to current directory")
-		outputpath = "."
 	}
 
 	targetname := info.Machine.Name + localmachine.Suffix
@@ -55,8 +47,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Problem marshalling JSON: %v", err)
 	}
 
-	outputfile := filepath.Join(outputpath, targetname)
-	err = ioutil.WriteFile(outputfile, output, 0600)
+	outputfile := filepath.Join(datapath, targetname)
+	err = os.WriteFile(outputfile, output, 0600)
 	if err != nil {
 		return fmt.Errorf("Problem writing to file %v: %v", outputfile, err)
 	}
