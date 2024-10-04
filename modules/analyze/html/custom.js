@@ -318,8 +318,10 @@ function analyze(e) {
 }
 
 function refreshProgress() {
-    var lastwasidle = false
-    var progressSocket = new WebSocket(location.origin.replace(/^http/, 'ws') + '/progress');
+  var lastwasidle = false;
+  var progressSocket = new WebSocket(
+    location.origin.replace(/^http/, "ws") + "/backend/progress"
+  );
 
     progressSocket.onerror = function (event) {
         $("#backendstatus").html("Adalanche backend is still offline");
