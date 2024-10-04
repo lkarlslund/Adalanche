@@ -101,6 +101,13 @@ require (
 )
 
 require (
+	github.com/pascaldekloe/name v1.0.0 // indirect
+	golang.org/x/mod v0.20.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
+)
+
+require (
 	atomicgo.dev/schedule v0.1.0 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/StackExchange/wmi v1.2.0 // indirect
@@ -111,6 +118,7 @@ require (
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dmarkham/enumer v1.5.10
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.5 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
