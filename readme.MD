@@ -52,6 +52,10 @@ For more advanced use (recommended) first collect, with proper options. All your
 
 See program options for other possibilities (help or command --help).
 
+### Command line options
+
+Some options are global options (they need to come before the command) and other are command specific (and need to come after the command). Logging, profiling, setting the datapath etc. are global options. Use "--help" to figure it out :-)
+
 ### Collecting data from Active Directory
 The primary source of data is from Active Directory, and is intiated with this command:
 
@@ -120,7 +124,7 @@ The 32-bit Windows version of the collector works transparently also on 64-bit s
 
 The idea is that you orchestrate it centraliy with a Scheduled Task via a GPO or whatever means you see fit (psexec, login script etc). The collector will get more information if it is run with elevated privileges, but can provide parital information when run as an unpriviliged user.
 
-<code>adalanche-collector collect localmachine --datapath \\\\some\\share\\where\\youcanwrite\\butnotread</code>
+<code>adalanche-collector --datapath \\\\some\\share\\where\\youcanwrite\\butnotread collect localmachine</code>
 
 You can run the local machine collector from the full Adalanche binary too, the commands are identical.
 
@@ -136,7 +140,7 @@ This is dead simple - everything you've collected should be in the data director
 
 Whatever resides there and Adalanche understands is automatically loaded, correlated and used. It's totally magic.
 
-IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so Adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>adalanche collect activedirectory --datapath=data/domain1 --domain=domain1</code>)
+IMPORTANT: If you're doing multi domain analysis, place all AD object and GPO files for each domain in their own subfolder, so Adalanche can figure out what to merge and what NOT to merge. When dumping just point to a new <code>--datapath</code> for collection run (example: <code>adalanche  --datapath=data/domain1 collect activedirectory --domain=domain1</code>)
 
 These extensions are recognized:
 - .localmachine.json - Windows collector data
