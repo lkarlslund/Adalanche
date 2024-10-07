@@ -16,11 +16,11 @@ var (
 		Short: "Lanunches the interactive discovery tool in your browser",
 	}
 
-	Bind        = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
-	NoBrowser   = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
-	LocalHTML   = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
-	Certificate = Command.Flags().String("certificate", "", "Path to certificate file")
-	PrivateKey  = Command.Flags().String("privatekey", "", "Path to private key file")
+	bind        = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
+	noBrowser   = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
+	localHTML   = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
+	certificate = Command.Flags().String("certificate", "", "Path to or complete certificate file in PEM format")
+	privateKey  = Command.Flags().String("privatekey", "", "Path to or complete private key in PEM format")
 )
 
 func init() {
@@ -34,27 +34,27 @@ func init() {
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
 
-	if *Certificate != "" && *PrivateKey == "" {
-		AddOption(WithCert(*Certificate, *PrivateKey))
+	if *certificate != "" && *privateKey == "" {
+		AddOption(WithCert(*certificate, *privateKey))
 	}
 
 	// allow debug runs to use local paths for html
-	for _, localhtmlpath := range *LocalHTML {
+	for _, localhtmlpath := range *localHTML {
 		AddOption(WithLocalHTML(localhtmlpath))
 	}
 
 	// Fire up the web interface with incomplete results
 	ws := NewWebservice()
 
-	err := ws.Start(*Bind)
+	err := ws.Start(*bind)
 	if err != nil {
 		return err
 	}
 
 	// Launch browser
-	if !*NoBrowser {
+	if !*noBrowser {
 		var err error
-		url := ws.protocol + "://" + *Bind
+		url := ws.protocol + "://" + *bind
 		switch runtime.GOOS {
 		case "linux":
 			err = exec.Command("xdg-open", url).Start()

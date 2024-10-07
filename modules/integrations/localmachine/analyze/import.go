@@ -343,7 +343,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						continue
 					}
 				} else {
-					// Some members show up with the SID in the name field FML
+					// Some members show up with the SID in the name field FME
 					membersid, err = windowssecurity.ParseStringSID(member.Name)
 					if err != nil {
 						ui.Info().Msgf("Fallback SID translation on %v failed: %v", member.Name, err)

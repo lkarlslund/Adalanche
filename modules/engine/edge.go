@@ -1,10 +1,16 @@
 package engine
 
 import (
+	"errors"
 	"math/bits"
 	"strings"
 	"sync"
 	"sync/atomic"
+)
+
+var (
+	ErrTooManyEdges = errors.New("too many edges in string slice")
+	ErrEdgeNotFound = errors.New("edge not found")
 )
 
 type ProbabilityCalculatorFunction func(source, target *Object) Probability
@@ -45,6 +51,32 @@ const (
 	MINPROBABILITY Probability = -1
 	MAXPROBABILITY Probability = 100
 )
+
+func EdgeBitmapFromStringSlice(edgenames []string) (eb EdgeBitmap, err error) {
+	if len(edgenames) > MAXEDGEPOSSIBLE {
+		err = ErrTooManyEdges
+		return
+	}
+	for _, edgename := range edgenames {
+		edge := LookupEdge(edgename)
+		if edge == NonExistingEdge {
+			err = ErrEdgeNotFound
+			return
+		}
+		eb.Set(edge)
+	}
+	return
+}
+
+func (eb EdgeBitmap) ToStringSlice() []string {
+	edgenames := make([]string, 0, MAXEDGEPOSSIBLE)
+	for i := range MAXEDGEPOSSIBLE {
+		if eb.IsSet(Edge(i)) {
+			edgenames = append(edgenames, Edge(i).String())
+		}
+	}
+	return edgenames
+}
 
 func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
 	if !eb.IsSet(edge) {
@@ -346,14 +378,6 @@ func init() {
 		AllEdgesBitmap = AllEdgesBitmap.set(i)
 	}
 }
-
-type EdgeDirection int
-
-const (
-	Out EdgeDirection = 0
-	In  EdgeDirection = 1
-	Any EdgeDirection = 9
-)
 
 func (m EdgeBitmap) IsSet(edge Edge) bool {
 	index, bits := bitIndex(edge)

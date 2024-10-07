@@ -65,6 +65,7 @@ type WebService struct {
 
 	engine *gin.Engine
 	Router *gin.RouterGroup
+	API    *gin.RouterGroup
 
 	localhtmlused bool
 	UnionFS
@@ -109,6 +110,9 @@ func NewWebservice() *WebService {
 	ws.engine.Use(gin.Recovery()) // adds the default recovery middleware
 
 	ws.Router = ws.engine.Group("")
+
+	ws.API = ws.Router.Group("/api")
+	ws.API.Use(ws.RequireData(Ready))
 
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))

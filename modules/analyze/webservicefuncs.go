@@ -3,6 +3,8 @@ package analyze
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/persistence"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/lkarlslund/adalanche/modules/settings"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -38,7 +41,7 @@ func AddUIEndpoints(ws *WebService) {
 		}
 		type returnobject struct {
 			ObjectTypes []filterinfo `json:"objecttypes"`
-			Methods     []filterinfo `json:"methods"`
+			Methods     []filterinfo `json:"edges"`
 		}
 		var results returnobject
 
@@ -131,11 +134,22 @@ func AddUIEndpoints(ws *WebService) {
 		}
 		defer conn.Close()
 
+		var lastpbr []ui.ProgressReport
+		var skipcounter int
 		for {
+			time.Sleep(250 * time.Millisecond)
 			pbr := ui.GetProgressReport()
 			sort.Slice(pbr, func(i, j int) bool {
 				return pbr[i].StartTime.Before(pbr[j].StartTime)
 			})
+
+			if reflect.DeepEqual(lastpbr, pbr) {
+				skipcounter++
+				if skipcounter < 120 {
+					continue
+				}
+			}
+			skipcounter = 0
 
 			output := struct {
 				Status   string              `json:"status"`
@@ -151,7 +165,7 @@ func AddUIEndpoints(ws *WebService) {
 				return
 			}
 
-			time.Sleep(time.Second)
+			lastpbr = pbr
 		}
 	})
 
@@ -176,6 +190,36 @@ func AddUIEndpoints(ws *WebService) {
 	// Shutdown
 	backend.GET("/quit", func(c *gin.Context) {
 		ws.quit <- true
+	})
+
+	userQuerues := persistence.GetStorage[QueryDefinition]("queries", false)
+
+	// List queries
+	queries := backend.Group("queries")
+
+	queries.GET("", func(c *gin.Context) {
+		// Merge the list of predefined queries and the user queries
+		uq, _ := userQuerues.List()
+		queries := append(PredefinedQueries, uq...)
+		c.JSON(200, queries)
+	})
+	queries.PUT("/:name", func(ctx *gin.Context) {
+		var query QueryDefinition
+		err := ctx.ShouldBindJSON(&query)
+		if err != nil {
+			ctx.AbortWithError(http.StatusBadRequest, err)
+			return
+		}
+		userQuerues.Put(query)
+		ctx.Status(http.StatusCreated)
+	})
+	queries.DELETE("/:name", func(ctx *gin.Context) {
+		err := userQuerues.Delete(ctx.Param("name"))
+		if err != nil {
+			ctx.AbortWithError(http.StatusNotFound, err)
+			return
+		}
+		ctx.Status(http.StatusOK)
 	})
 }
 
@@ -219,9 +263,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 }
 
 func AddAnalysisEndpoints(ws *WebService) {
-
-	api := ws.Router.Group("/api")
-	api.Use(ws.RequireData(Ready))
+	api := ws.API
 
 	// Returns JSON describing an object located by distinguishedName, sid or guid
 	api.GET("/details/:locateby/:id", func(c *gin.Context) {
@@ -300,172 +342,14 @@ func AddAnalysisEndpoints(ws *WebService) {
 	})
 
 	// Graph based query analysis - core functionality
-	api.POST("/graphquery", func(c *gin.Context) {
-		params := make(map[string]string)
-		err := c.ShouldBindJSON(&params)
-		// err := c.Request.ParseForm()
+	api.POST("/graphquery", func(ctx *gin.Context) {
+		aoo, err := ParseQueryFromPOST(ctx, ws.Objs)
 		if err != nil {
-			c.String(500, err.Error())
+			ctx.String(500, err.Error())
 			return
 		}
 
-		mode := params["mode"]
-		if mode == "" {
-			mode = "normal"
-		}
-
-		direction := engine.In
-		if mode != "normal" {
-			direction = engine.Out
-		}
-
-		prune, _ := util.ParseBool(params["prune"])
-
-		startquerytext := params["query"]
-		if startquerytext == "" {
-			startquerytext = "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))"
-		}
-
-		middlequerytext := params["middlequery"]
-		endquerytext := params["endquery"]
-
-		maxdepth := -1
-		if maxdepthval, err := strconv.Atoi(params["maxdepth"]); err == nil {
-			maxdepth = maxdepthval
-		}
-
-		minprobability := 0
-		if minprobabilityval, err := strconv.Atoi(params["minprobability"]); err == nil {
-			minprobability = minprobabilityval
-		}
-
-		minaccprobability := 0
-		if minaccprobabilityval, err := strconv.Atoi(params["minaccprobability"]); err == nil {
-			minaccprobability = minaccprobabilityval
-		}
-
-		// Maximum number of outgoing connections from one object in analysis
-		// If more are available you can right click the object and select EXPAND
-		maxoutgoing := -1
-		if maxoutgoingval, err := strconv.Atoi(params["maxoutgoing"]); err == nil {
-			maxoutgoing = maxoutgoingval
-		}
-
-		alldetails, _ := util.ParseBool(params["alldetails"])
-		// force, _ := util.ParseBool(vars["force"])
-
-		backlinks, _ := strconv.Atoi(params["backlinks"])
-
-		nodelimit, _ := strconv.Atoi(params["nodelimit"])
-
-		dontexpandaueo, _ := util.ParseBool(params["dont-expand-au-eo"])
-
-		opts := NewAnalyzeObjectsOptions()
-
-		// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
-		if expanddn := params["expanddn"]; expanddn != "" {
-			startquerytext = `(distinguishedName=` + expanddn + `)`
-			maxoutgoing = 0
-			maxdepth = 1
-			nodelimit = 1000
-
-			// tricky this is - if we're expanding a node it's suddenly the target, so we need to reverse the mode
-			/*			if mode == "normal" {
-							mode = "reverse"
-						} else {
-							mode = "normal"
-						}*/
-		}
-
-		opts.StartFilter, err = query.ParseLDAPQueryStrict(startquerytext, ws.Objs)
-		if err != nil {
-			c.String(500, "Error parsing start query: %v", err)
-			return
-		}
-
-		if middlequerytext != "" {
-			opts.MiddleFilter, err = query.ParseLDAPQueryStrict(middlequerytext, ws.Objs)
-			if err != nil {
-				c.String(500, "Error parsing middle query: %v", err)
-				return
-			}
-		}
-
-		if endquerytext != "" {
-			opts.EndFilter, err = query.ParseLDAPQueryStrict(endquerytext, ws.Objs)
-			if err != nil {
-				c.String(500, "Error parsing end query: %v", err)
-				return
-			}
-		}
-
-		// var methods engine.EdgeBitmap
-		var edges_f, edges_m, edges_l engine.EdgeBitmap
-		var objecttypes_f, objecttypes_m, objecttypes_l []engine.ObjectType
-		for potentialfilter, _ := range params {
-			if len(potentialfilter) < 8 {
-				continue
-			}
-			if strings.HasPrefix(potentialfilter, "edge_") {
-				prefix := potentialfilter[5 : len(potentialfilter)-2]
-				suffix := potentialfilter[len(potentialfilter)-2:]
-				edge := engine.LookupEdge(prefix)
-				if edge == engine.NonExistingEdge {
-					continue
-				}
-				switch suffix {
-				case "_f":
-					edges_f = edges_f.Set(edge)
-				case "_m":
-					edges_m = edges_m.Set(edge)
-				case "_l":
-					edges_l = edges_l.Set(edge)
-				}
-			} else if strings.HasPrefix(potentialfilter, "type_") {
-				prefix := potentialfilter[5 : len(potentialfilter)-2]
-				suffix := potentialfilter[len(potentialfilter)-2:]
-				ot, found := engine.ObjectTypeLookup(prefix)
-				if !found {
-					continue
-				}
-
-				switch suffix {
-				case "_f":
-					objecttypes_f = append(objecttypes_f, ot)
-				case "_m":
-					objecttypes_m = append(objecttypes_m, ot)
-				case "_l":
-					objecttypes_l = append(objecttypes_l, ot)
-				}
-			}
-
-		}
-
-		// Are we using the new format FML? The just choose the old format methods for FML
-		if edges_f.Count() == 0 && edges_m.Count() == 0 && edges_l.Count() == 0 {
-			// Spread the choices to FML
-			edges_f = engine.AllEdgesBitmap
-			edges_m = engine.AllEdgesBitmap
-			edges_l = engine.AllEdgesBitmap
-		}
-
-		opts.Objects = ws.Objs
-		opts.MethodsF = edges_f
-		opts.MethodsM = edges_m
-		opts.MethodsL = edges_l
-		opts.ObjectTypesF = objecttypes_f
-		opts.ObjectTypesM = objecttypes_m
-		opts.ObjectTypesL = objecttypes_l
-		opts.Direction = direction
-		opts.MaxDepth = maxdepth
-		opts.MaxOutgoingConnections = maxoutgoing
-		opts.MinEdgeProbability = engine.Probability(minprobability)
-		opts.MinAccumulatedProbability = engine.Probability(minaccprobability)
-		opts.PruneIslands = prune
-		opts.Backlinks = backlinks
-		opts.NodeLimit = nodelimit
-		opts.DontExpandAUEO = dontexpandaueo
-		results := AnalyzeObjects(opts)
+		results := Analyze(*aoo, ws.Objs)
 
 		for _, postprocessor := range PostProcessors {
 			results.Graph = postprocessor(results.Graph)
@@ -489,9 +373,9 @@ func AddAnalysisEndpoints(ws *WebService) {
 			}
 		}
 
-		cytograph, err := GenerateCytoscapeJS(results.Graph, alldetails)
+		cytograph, err := GenerateCytoscapeJS(results.Graph, aoo.AllDetails)
 		if err != nil {
-			c.String(500, "Error generating cytoscape graph: %v", err)
+			ctx.String(500, "Error generating cytoscape graph: %v", err)
 			return
 		}
 
@@ -507,7 +391,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 
 			Elements *CytoElements `json:"elements"`
 		}{
-			Reversed: mode != "normal",
+			Reversed: aoo.Direction != engine.In,
 
 			ResultTypes: resulttypes,
 
@@ -519,7 +403,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 			Elements: &cytograph.Elements,
 		}
 
-		c.JSON(200, response)
+		ctx.JSON(200, response)
 	})
 
 	// Get list of objects

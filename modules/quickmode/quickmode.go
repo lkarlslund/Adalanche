@@ -38,6 +38,5 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	cli.Root.SetArgs([]string{"analyze"})
 	err = cli.Root.Execute()
-	// err = analyze.Command.Execute()
 	return err
 }

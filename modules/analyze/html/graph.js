@@ -282,7 +282,7 @@ cytostyle = [{
     selector: "node",
     style: {
         "label": function (ele) { return nodelabel(ele); },
-        "color": "white",
+        "color": getPreferredTheme()=="dark" ? "white" : "black",
         "background-width": "80%",
         "background-height": "80%"
     }
@@ -839,16 +839,17 @@ function initgraph(data) {
                         url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
+                            clear_query();
                             if (data.attributes["distinguishedName"]) {
-                                $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                                $("#query_start").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
                             } else if (data.attributes["objectSid"]) {
-                                $("#querytext").val("(objectSid=" + data.attributes["objectSid"] + ")")
+                                $("#query_start").val("(objectSid=" + data.attributes["objectSid"] + ")")
                             } else if (data.attributes["objectGuid"]) {
-                                $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                                $("#query_start").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
                             } else {
-                                $("#querytext").val("(_id=" + evt.target.id().substring(1) + ")")
+                                $("#query_start").val("(_id=" + evt.target.id().substring(1) + ")")
                             }
-                            set_querymode('reverse');
+                            set_querymode('Out');
 
                             analyze();
                         },
@@ -869,16 +870,17 @@ function initgraph(data) {
                         url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
+                            clear_query();
                             if (data.attributes["distinguishedName"]) {
-                                $("#querytext").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                                $("#query_start").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
                             } else if (data.attributes["objectSid"]) {
-                                $("#querytext").val("(objectSid=" + data.attributes["objectSid"] + ")")
+                                $("#query_start").val("(objectSid=" + data.attributes["objectSid"] + ")")
                             } else if (data.attributes["objectGuid"]) {
-                                $("#querytext").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                                $("#query_start").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
                             } else {
-                                $("#querytext").val("(_id=" + evt.target.id().substring(1) + ")")
+                                $("#query_start").val("(_id=" + evt.target.id().substring(1) + ")")
                             }
-                            set_querymode('normal');
+                            set_querymode('In');
 
                             analyze();
                         },

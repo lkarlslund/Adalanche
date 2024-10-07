@@ -1,12 +1,16 @@
 package analyze
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -14,11 +18,11 @@ var SortBy engine.Attribute = engine.NonExistingAttribute
 
 var EdgeMemberOfGroup = engine.NewEdge("MemberOfGroup") // Get rid of this
 
-func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
-	return AnalyzeObjectsOptions{
-		MethodsF:                  engine.AllEdgesBitmap,
-		MethodsM:                  engine.AllEdgesBitmap,
-		MethodsL:                  engine.AllEdgesBitmap,
+func NewAnalyzeObjectsOptions() AnalyzeOptions {
+	return AnalyzeOptions{
+		EdgesFirst:                engine.AllEdgesBitmap,
+		EdgesMiddle:               engine.AllEdgesBitmap,
+		EdgesLast:                 engine.AllEdgesBitmap,
 		Direction:                 engine.In,
 		MaxDepth:                  -1,
 		MaxOutgoingConnections:    -1,
@@ -29,17 +33,17 @@ func NewAnalyzeObjectsOptions() AnalyzeObjectsOptions {
 	}
 }
 
-type AnalyzeObjectsOptions struct {
-	Objects                   *engine.Objects
-	StartFilter               query.NodeFilter
-	MiddleFilter              query.NodeFilter
-	EndFilter                 query.NodeFilter
-	ObjectTypesF              []engine.ObjectType
-	ObjectTypesM              []engine.ObjectType
-	ObjectTypesL              []engine.ObjectType
-	MethodsL                  engine.EdgeBitmap
-	MethodsM                  engine.EdgeBitmap
-	MethodsF                  engine.EdgeBitmap
+type AnalyzeOptions struct {
+	Name                      string
+	FilterFirst               query.NodeFilter
+	FilterMiddle              query.NodeFilter
+	FilterLast                query.NodeFilter
+	ObjectTypesFirst          map[engine.ObjectType]struct{}
+	ObjectTypesMiddle         map[engine.ObjectType]struct{}
+	ObjectTypesLast           map[engine.ObjectType]struct{}
+	EdgesFirst                engine.EdgeBitmap
+	EdgesMiddle               engine.EdgeBitmap
+	EdgesLast                 engine.EdgeBitmap
 	MaxDepth                  int
 	MaxOutgoingConnections    int
 	Direction                 engine.EdgeDirection
@@ -47,8 +51,96 @@ type AnalyzeObjectsOptions struct {
 	MinEdgeProbability        engine.Probability
 	MinAccumulatedProbability engine.Probability
 	PruneIslands              bool
-	NodeLimit                 int
 	DontExpandAUEO            bool
+	AllDetails                bool
+	NodeLimit                 int
+}
+
+func ParseQueryFromPOST(ctx *gin.Context, objects *engine.Objects) (*AnalyzeOptions, error) {
+	qd, err := ParseQueryDefinitionFromPOST(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	aoo := qd.AnalysisOptions()
+
+	// Grab other settings not processed by the query parser
+	params := make(map[string]any)
+	err = ctx.ShouldBindBodyWithJSON(&params)
+	if err != nil {
+		return nil, err
+	}
+
+	if alld, ok := params["alldetails"].(string); ok {
+		aoo.AllDetails, _ = util.ParseBool(alld)
+	}
+	if nodelimit, ok := params["nodelimit"].(string); ok {
+		aoo.NodeLimit, _ = strconv.Atoi(nodelimit)
+	}
+
+	// tricky tricky - if we get a call with the expanddn set, then we handle things .... differently :-)
+	// if expanddn := params["expanddn"]; expanddn != "" {
+	// 	qd.QueryStart = `(distinguishedName=` + expanddn + `)`
+	// 	qd.MaxOutgoingConnections = 0
+	// 	qd.MaxDepth = 1
+	// 	aoo.NodeLimit = 1000
+	// }
+
+	aoo.FilterFirst, err = query.ParseLDAPQueryStrict(qd.QueryFirst, objects)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing start query: %v", err)
+	}
+
+	if qd.QueryMiddle != "" {
+		aoo.FilterMiddle, err = query.ParseLDAPQueryStrict(qd.QueryMiddle, objects)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing middle query: %v", err)
+		}
+	}
+
+	if qd.QueryLast != "" {
+		aoo.FilterLast, err = query.ParseLDAPQueryStrict(qd.QueryLast, objects)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing end query: %v", err)
+		}
+	}
+
+	// Parse edges into edge bitmaps
+	aoo.EdgesFirst, err = engine.EdgeBitmapFromStringSlice(qd.EdgesFirst)
+	if err != nil {
+		return nil, err
+	}
+	aoo.EdgesMiddle, err = engine.EdgeBitmapFromStringSlice(qd.EdgesMiddle)
+	if err != nil {
+		return nil, err
+	}
+	aoo.EdgesLast, err = engine.EdgeBitmapFromStringSlice(qd.EdgesLast)
+	if err != nil {
+		return nil, err
+	}
+	// Default to all edges if none are specified
+	if aoo.EdgesFirst.Count() == 0 && aoo.EdgesMiddle.Count() == 0 && aoo.EdgesLast.Count() == 0 {
+		// Spread the choices to FME
+		aoo.EdgesFirst = engine.AllEdgesBitmap
+		aoo.EdgesMiddle = engine.AllEdgesBitmap
+		aoo.EdgesLast = engine.AllEdgesBitmap
+	}
+
+	// Parse object types into map of objectType
+	aoo.ObjectTypesFirst, err = ParseObjectTypeStrings(qd.ObjectTypesFirst)
+	if err != nil {
+		return nil, err
+	}
+	aoo.ObjectTypesMiddle, err = ParseObjectTypeStrings(qd.ObjectTypesMiddle)
+	if err != nil {
+		return nil, err
+	}
+	aoo.ObjectTypesLast, err = ParseObjectTypeStrings(qd.ObjectTypesLast)
+	if err != nil {
+		return nil, err
+	}
+
+	return &aoo, nil
 }
 
 type GraphNode struct {
@@ -71,19 +163,49 @@ type AnalysisResults struct {
 	Removed int
 }
 
-func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
-	if opts.MethodsM.Count() == 0 {
-		opts.MethodsM = opts.MethodsF
+func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
+	if opts.EdgesFirst.Count() == 0 {
+		for _, edge := range engine.Edges() {
+			if edge.DefaultF() {
+				opts.EdgesFirst = opts.EdgesFirst.Set(edge)
+			}
+		}
 	}
-	if opts.MethodsL.Count() == 0 {
-		opts.MethodsL = opts.MethodsM
+	if opts.EdgesMiddle.Count() == 0 {
+		for _, edge := range engine.Edges() {
+			if edge.DefaultM() {
+				opts.EdgesMiddle = opts.EdgesMiddle.Set(edge)
+			}
+		}
+	}
+	if opts.EdgesLast.Count() == 0 {
+		for _, edge := range engine.Edges() {
+			if edge.DefaultL() {
+				opts.EdgesLast = opts.EdgesLast.Set(edge)
+			}
+		}
 	}
 
-	if len(opts.ObjectTypesM) == 0 {
-		opts.ObjectTypesM = opts.ObjectTypesF
+	if len(opts.ObjectTypesFirst) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledF {
+				opts.ObjectTypesFirst[engine.ObjectType(i)] = struct{}{}
+			}
+		}
 	}
-	if len(opts.ObjectTypesL) == 0 {
-		opts.ObjectTypesL = opts.ObjectTypesM
+	if len(opts.ObjectTypesMiddle) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledM {
+				opts.ObjectTypesMiddle[engine.ObjectType(i)] = struct{}{}
+			}
+		}
+	}
+	if len(opts.ObjectTypesLast) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledL {
+				opts.ObjectTypesLast[engine.ObjectType(i)] = struct{}{}
+			}
+		}
 	}
 
 	pg := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
@@ -91,7 +213,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 
 	// Convert to our working graph
 	currentRound := 1
-	query.Execute(opts.StartFilter, opts.Objects).Iterate(func(o *engine.Object) bool {
+	query.Execute(opts.FilterFirst, objects).Iterate(func(o *engine.Object) bool {
 		pg.SetNodeData(o, "target", true)
 
 		for o := range pg.Nodes() {
@@ -107,28 +229,17 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 	})
 
 	// Methods and ObjectTypes allowed
-	detectedges := opts.MethodsF
-
-	var detectobjecttypes map[engine.ObjectType]struct{}
-	// If there are any, put them in a map - otherwise it's faster NOT to filter by checking if the filter map is nil
-	if len(opts.ObjectTypesF) > 0 {
-		detectobjecttypes = make(map[engine.ObjectType]struct{})
-		for _, ot := range opts.ObjectTypesF {
-			detectobjecttypes[ot] = struct{}{}
-		}
-	}
+	detectedges := opts.EdgesFirst
+	detectobjecttypes := opts.ObjectTypesFirst
 
 	pb := ui.ProgressBar("Analyzing graph", int64(opts.MaxDepth))
 	for opts.MaxDepth >= currentRound || opts.MaxDepth == -1 {
 		pb.Add(1)
 		if currentRound == 2 {
-			detectedges = opts.MethodsM
+			detectedges = opts.EdgesMiddle
 			detectobjecttypes = nil
-			if len(opts.ObjectTypesM) > 0 {
-				detectobjecttypes = make(map[engine.ObjectType]struct{})
-				for _, ot := range opts.ObjectTypesM {
-					detectobjecttypes[ot] = struct{}{}
-				}
+			if len(opts.ObjectTypesMiddle) > 0 {
+				detectobjecttypes = opts.ObjectTypesMiddle
 			}
 		}
 
@@ -207,7 +318,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 					return true // continue
 				}
 
-				if opts.MiddleFilter != nil && !opts.MiddleFilter.Evaluate(nextobject) {
+				if opts.FilterMiddle != nil && !opts.FilterMiddle.Evaluate(nextobject) {
 					// skip unwanted middle objects
 					return true // continue
 				}
@@ -324,11 +435,8 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 
 	// Remove outer end nodes that are invalid
 	detectobjecttypes = nil
-	if len(opts.ObjectTypesL) > 0 {
-		detectobjecttypes = make(map[engine.ObjectType]struct{})
-		for _, ot := range opts.ObjectTypesL {
-			detectobjecttypes[ot] = struct{}{}
-		}
+	if len(opts.ObjectTypesLast) > 0 {
+		detectobjecttypes = opts.ObjectTypesLast
 	}
 
 	// Keep removing stuff while it makes sense
@@ -357,7 +465,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 			}
 			if _, found := outernodemap[endnode]; found {
 				// Outer node
-				if opts.MethodsL.Intersect(endedge).Count() == 0 {
+				if opts.EdgesLast.Intersect(endedge).Count() == 0 {
 					// No matches on LastMethods
 					pg.DeleteNode(endnode)
 					pb.Add(1)
@@ -374,7 +482,7 @@ func AnalyzeObjects(opts AnalyzeObjectsOptions) AnalysisResults {
 						return true
 					}
 				}
-				if opts.EndFilter != nil && !opts.EndFilter.Evaluate(endnode) {
+				if opts.FilterLast != nil && !opts.FilterLast.Evaluate(endnode) {
 					pg.DeleteNode(endnode)
 					pb.Add(1)
 					removed++

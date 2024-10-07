@@ -139,7 +139,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 
 	mergeon := getMergeAttributes()
 
-	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collision FML
+	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collision FME
 	sourcemap.Range(func(us string, usao sourceinfo) bool {
 		if us == "" {
 			return true // continue - not these, we'll try to merge at the very end
