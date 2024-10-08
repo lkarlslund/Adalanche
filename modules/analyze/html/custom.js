@@ -123,11 +123,13 @@ function dragMoveListener(event) {
   }
 }
 
-function new_window(id, title, content, height, width) {
+function get_window(id) {
+  return $("#windows > #window_" + id);
+}
+
+function new_window(id, title, content, alignment = "topleft", height = 0, width = 0) {
   // Other windows are not in front
-  console.log($(".window-front"));
   $(".window-front").removeClass("window-front");
-  console.log($(".window-front"));
 
   var mywindow = $(`#windows #window_${id}`);
   var itsnew = false;
@@ -216,10 +218,10 @@ function new_window(id, title, content, height, width) {
         allowFrom: ".window-header",
       });
 
-    if (height) {
+    if (height>0) {
       mywindow.height(height);
     }
-    if (width) {
+    if (width>0) {
       mywindow.width(width);
     }
 
@@ -322,8 +324,6 @@ function encodequery() {
           list.push(item.name);
           return list;
         }, []);
-
-
 
   return q;
 }
@@ -499,7 +499,7 @@ function aqlanalyze(e) {
 function refreshProgress() {
   var lastwasidle = false;
   var progressSocket = new WebSocket(
-    location.origin.replace(/^http/, "ws") + "/backend/progress"
+    location.origin.replace(/^http/, "ws") + "/api/backend/progress"
   );
 
   progressSocket.onerror = function (event) {
@@ -613,7 +613,7 @@ var queries;
 
 function updateQueries() {
   $.ajax({
-    url: "backend/queries",
+    url: "/api/backend/queries",
     dataType: "json",
     success: function (querylist) {
       queries = querylist;
@@ -733,7 +733,7 @@ $(function () {
       // check query for errors when user has been idle for 200ms
       $.ajax({
         type: "GET",
-        url: "/backend/validatequery",
+        url: "/api/backend/validatequery",
         data: {
           query: e.target.value,
         },
@@ -776,7 +776,7 @@ $(function () {
 
   // Display stats on screen
   $.ajax({
-    url: "backend/statistics",
+    url: "api/backend/statistics",
     dataType: "json",
     success: function (data) {
       statustext =
@@ -845,7 +845,7 @@ $(function () {
 
   $.ajax({
     type: "GET",
-    url: "/backend/filteroptions",
+    url: "/api/backend/filteroptions",
     dataType: "json",
     success: function (data) {
       buttons = `<table class="w-100">`;

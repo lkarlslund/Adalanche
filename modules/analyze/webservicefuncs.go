@@ -3,6 +3,7 @@ package analyze
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"slices"
@@ -28,9 +29,9 @@ import (
 func AddUIEndpoints(ws *WebService) {
 	// Lists available edges that Adalanche understands - this allows us to expand functionality
 	// in the code, without touching the HTML
-	backend := ws.Router.Group("backend")
+	backend := ws.API.Group("backend")
 
-	backend.GET("/filteroptions", func(c *gin.Context) {
+	backend.GET("filteroptions", func(c *gin.Context) {
 		type filterinfo struct {
 			Name            string `json:"name"`
 			Lookup          string `json:"lookup"`
@@ -71,7 +72,7 @@ func AddUIEndpoints(ws *WebService) {
 	})
 	// Checks a LDAP style query for input errors, and returns a hint to the user
 	// It supports the include,exclude syntax specific to this program
-	backend.GET("/validatequery", func(c *gin.Context) {
+	backend.GET("validatequery", func(c *gin.Context) {
 		querytext := strings.Trim(c.Query("query"), " \n\r")
 		if querytext != "" {
 			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
@@ -83,11 +84,11 @@ func AddUIEndpoints(ws *WebService) {
 		c.JSON(200, gin.H{"success": true})
 	})
 
-	backend.GET("/types", func(c *gin.Context) {
+	backend.GET("types", func(c *gin.Context) {
 		c.JSON(200, typeInfos)
 	})
 
-	backend.GET("/statistics", func(c *gin.Context) {
+	backend.GET("statistics", func(c *gin.Context) {
 		var result struct {
 			Adalanche  map[string]string `json:"adalanche"`
 			Statistics map[string]int    `json:"statistics"`
@@ -123,7 +124,7 @@ func AddUIEndpoints(ws *WebService) {
 		c.JSON(200, result)
 	})
 
-	backend.GET("/progress", func(c *gin.Context) {
+	backend.GET("progress", func(c *gin.Context) {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -170,10 +171,10 @@ func AddUIEndpoints(ws *WebService) {
 	})
 
 	// Ready status
-	backend.GET("/status", func(c *gin.Context) {
+	backend.GET("status", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": ws.status.String()})
 	})
-	backend.GET("/await/:status", func(c *gin.Context) {
+	backend.GET("await/:status", func(c *gin.Context) {
 		waitfor, err := WebServiceStatusString(c.Param("status"))
 		if err != nil {
 			c.Status(500)
@@ -188,35 +189,61 @@ func AddUIEndpoints(ws *WebService) {
 	})
 
 	// Shutdown
-	backend.GET("/quit", func(c *gin.Context) {
+	backend.GET("quit", func(c *gin.Context) {
 		ws.quit <- true
 	})
 
-	userQuerues := persistence.GetStorage[QueryDefinition]("queries", false)
+	userQueries := persistence.GetStorage[QueryDefinition]("queries", false)
 
 	// List queries
 	queries := backend.Group("queries")
 
 	queries.GET("", func(c *gin.Context) {
+		// Create a string to query map and put all the predefined queries in that
+		queryMap := make(map[string]QueryDefinition)
+		for _, q := range PredefinedQueries {
+			queryMap[q.Name] = q
+		}
+
 		// Merge the list of predefined queries and the user queries
-		uq, _ := userQuerues.List()
-		queries := append(PredefinedQueries, uq...)
-		c.JSON(200, queries)
+		uq, _ := userQueries.List()
+		for _, q := range uq {
+			q.UserDefined = true
+			queryMap[q.Name] = q
+		}
+		querySlice := slices.Collect(maps.Values(queryMap))
+		slices.SortFunc(querySlice, func(a, b QueryDefinition) int {
+			if a.UserDefined == b.UserDefined {
+				return strings.Compare(a.Name, b.Name)
+			} else {
+				if !a.UserDefined {
+					return -1
+				} else {
+					return 1
+				}
+			}
+		})
+		c.JSON(200, querySlice)
 	})
-	queries.PUT("/:name", func(ctx *gin.Context) {
+	queries.PUT(":name", func(ctx *gin.Context) {
 		var query QueryDefinition
 		err := ctx.ShouldBindJSON(&query)
 		if err != nil {
-			ctx.AbortWithError(http.StatusBadRequest, err)
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, err)
 			return
 		}
-		userQuerues.Put(query)
+		query.Name = ctx.Param("name")
+		err = userQueries.Put(query)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, err)
+			return
+		}
 		ctx.Status(http.StatusCreated)
 	})
-	queries.DELETE("/:name", func(ctx *gin.Context) {
-		err := userQuerues.Delete(ctx.Param("name"))
+	queries.DELETE(":name", func(ctx *gin.Context) {
+		err := userQueries.Delete(ctx.Param("name"))
 		if err != nil {
-			ctx.AbortWithError(http.StatusNotFound, err)
+			ctx.AbortWithStatusJSON(http.StatusNotFound, err)
 			return
 		}
 		ctx.Status(http.StatusOK)
@@ -230,7 +257,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 		ui.Warn().Msgf("Problem loading preferences: %v", err)
 	}
 
-	preferences := ws.Router.Group("preferences")
+	preferences := ws.API.Group("preferences")
 
 	preferences.GET("", func(c *gin.Context) {
 		c.JSON(200, settings.All())
@@ -266,7 +293,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 	api := ws.API
 
 	// Returns JSON describing an object located by distinguishedName, sid or guid
-	api.GET("/details/:locateby/:id", func(c *gin.Context) {
+	api.GET("details/:locateby/:id", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Object
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
@@ -342,7 +369,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 	})
 
 	// Graph based query analysis - core functionality
-	api.POST("/graphquery", func(ctx *gin.Context) {
+	api.POST("graphquery", ws.RequireData(Ready), func(ctx *gin.Context) {
 		aoo, err := ParseQueryFromPOST(ctx, ws.Objs)
 		if err != nil {
 			ctx.String(500, err.Error())
@@ -406,37 +433,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 		ctx.JSON(200, response)
 	})
 
-	// Get list of objects
-	// api.GET("/listdns/:query", func(c *gin.Context) {
-	// 	querystr := c.Param("query")
-
-	// 	rest, includequery, err := query.ParseLDAPQuery(querystr, ws.Objs)
-	// 	if err != nil {
-	// 		c.String(500, err.Error())
-	// 		return
-	// 	}
-	// 	if rest != "" {
-	// 		if rest[0] != ',' {
-	// 			c.JSON(400, gin.H{"error": fmt.Sprintf("Error parsing ldap query: %v", err)})
-	// 			return
-	// 		}
-	// 	}
-
-	// 	objects := ws.Objs.Filter(func(o *engine.Object) bool {
-	// 		return includequery.Evaluate(o)
-	// 	})
-
-	// 	dns := make([]string, 0, objects.Len())
-
-	// 	objects.Iterate(func(o *engine.Object) bool {
-	// 		dns = append(dns, o.DN())
-	// 		return true
-	// 	})
-
-	// 	c.JSON(200, dns)
-	// })
-
-	api.GET("/tree", func(c *gin.Context) {
+	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {
 		idstr := c.Query("id")
 
 		var children engine.ObjectSlice
@@ -478,9 +475,7 @@ func AddAnalysisEndpoints(ws *WebService) {
 		c.JSON(200, results)
 	})
 
-	// Shutdown
-
-	api.GET("/export-words", func(c *gin.Context) {
+	api.GET("export-words", ws.RequireData(Ready), func(c *gin.Context) {
 		split := c.Query("split") == "true"
 
 		// Set header for download as a text file
@@ -561,7 +556,6 @@ func AddAnalysisEndpoints(ws *WebService) {
 			fmt.Fprintf(c.Writer, "%s\n", word)
 		}
 	})
-
 }
 
 func extractwords(input string, split bool) []string {

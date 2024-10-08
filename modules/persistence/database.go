@@ -1,12 +1,12 @@
 package persistence
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
-	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
 	"github.com/ugorji/go/codec"
 	"go.etcd.io/bbolt"
@@ -58,8 +58,14 @@ func getDB() (*bbolt.DB, error) {
 	// }, "", 0))
 }
 
+// Objects must be able to return a unique key
 type Identifiable interface {
 	ID() string
+}
+
+// Objects can be able to have default values, triggered by calling Default
+type Defaulter interface {
+	Default()
 }
 
 type storage[i Identifiable] struct {
@@ -114,14 +120,17 @@ func (s storage[p]) Get(id string) (*p, bool) {
 	return nil, false
 }
 
-func (s storage[p]) Put(saveme p) {
+func (s storage[p]) Put(saveme p) error {
 	var output []byte
 	enc := codec.NewEncoderBytes(&output, &mh)
 	err := enc.Encode(saveme)
 	if err != nil {
-		ui.Fatal().Msgf("failed to marshal %v", saveme)
+		return err
 	}
 	id := saveme.ID()
+	if id == "" {
+		return errors.New("empty ID")
+	}
 
 	err = s.db.Update(func(tx *bbolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(s.bucketname))
@@ -135,11 +144,12 @@ func (s storage[p]) Put(saveme p) {
 		return nil
 	})
 	if err != nil {
-		ui.Fatal().Msgf("failed to put %v", saveme)
+		return err
 	}
 	if s.cache != nil {
 		s.cache[string(id)] = saveme
 	}
+	return nil
 }
 
 func (s storage[p]) Delete(id string) error {
@@ -159,8 +169,16 @@ func (s storage[p]) List() ([]p, error) {
 		if b == nil {
 			return nil
 		}
+
+		// Pre-allocate the result slice to avoid re-allocations during iteration
+		stats := b.Stats()
+		result = make([]p, 0, stats.KeyN)
+
 		return b.ForEach(func(k, v []byte) error {
 			var data p
+			if isDefaulter, ok := any(data).(Defaulter); ok {
+				isDefaulter.Default()
+			}
 			dec := codec.NewDecoderBytes(v, &mh)
 			err := dec.Decode(&data)
 			if err != nil {

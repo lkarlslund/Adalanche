@@ -62,7 +62,10 @@ func ParseQueryFromPOST(ctx *gin.Context, objects *engine.Objects) (*AnalyzeOpti
 		return nil, err
 	}
 
-	aoo := qd.AnalysisOptions()
+	aoo, err := qd.AnalysisOptions(objects)
+	if err != nil {
+		return nil, err
+	}
 
 	// Grab other settings not processed by the query parser
 	params := make(map[string]any)
@@ -187,6 +190,7 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 	}
 
 	if len(opts.ObjectTypesFirst) == 0 {
+		opts.ObjectTypesFirst = make(map[engine.ObjectType]struct{})
 		for i, ot := range engine.ObjectTypes() {
 			if ot.DefaultEnabledF {
 				opts.ObjectTypesFirst[engine.ObjectType(i)] = struct{}{}
@@ -194,6 +198,7 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 		}
 	}
 	if len(opts.ObjectTypesMiddle) == 0 {
+		opts.ObjectTypesMiddle = make(map[engine.ObjectType]struct{})
 		for i, ot := range engine.ObjectTypes() {
 			if ot.DefaultEnabledM {
 				opts.ObjectTypesMiddle[engine.ObjectType(i)] = struct{}{}
@@ -201,6 +206,7 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 		}
 	}
 	if len(opts.ObjectTypesLast) == 0 {
+		opts.ObjectTypesLast = make(map[engine.ObjectType]struct{})
 		for i, ot := range engine.ObjectTypes() {
 			if ot.DefaultEnabledL {
 				opts.ObjectTypesLast[engine.ObjectType(i)] = struct{}{}
@@ -500,6 +506,16 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 	}
 	pb.Finish()
 
+	var outernodes []*engine.Object
+	if opts.Direction == engine.In {
+		outernodes = pg.StartingNodes()
+	} else {
+		outernodes = pg.EndingNodes()
+	}
+	for _, outernode := range outernodes {
+		pg.SetNodeData(outernode, "source", true)
+	}
+
 	ui.Debug().Msgf("After filtering we have %v objects", pg.Order())
 
 	totalnodes := pg.Order()
@@ -563,7 +579,6 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 	}
 
 	// Mark outer nodes for graph visualization
-	var outernodes []*engine.Object
 	if opts.Direction == engine.In {
 		outernodes = pg.StartingNodes()
 	} else {

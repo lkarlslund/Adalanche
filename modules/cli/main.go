@@ -27,6 +27,8 @@ var (
 		SilenceUsage:     true,
 		TraverseChildren: true,
 	}
+	prerunhooks []func(cmd *cobra.Command, args []string) error
+
 	loglevel = Root.Flags().String("loglevel", "info", "Console log level")
 
 	logfile      = Root.Flags().String("logfile", "", "File to log to")
@@ -105,7 +107,6 @@ func init() {
 
 	Root.AddCommand(versionCmd)
 	Root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-
 		ui.Zerotime = *logzerotime
 
 		ll, err := ui.LogLevelString(*loglevel)
@@ -199,6 +200,13 @@ func init() {
 				return fmt.Errorf("Could not create data folder %v: %v", Datapath, err)
 			}
 		}
+		for _, prerunhook := range prerunhooks {
+			err := prerunhook(cmd, args)
+			if err != nil {
+				return fmt.Errorf("Prerun hook failed: %v", err)
+			}
+		}
+
 		return nil
 	}
 	Root.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
@@ -207,6 +215,10 @@ func init() {
 		profilewriters.Wait()
 		return nil
 	}
+}
+
+func AddPreRunHook(f func(cmd *cobra.Command, args []string) error) {
+	prerunhooks = append(prerunhooks, f)
 }
 
 func CliMainEntryPoint() error {

@@ -3,6 +3,7 @@ package analyze
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/query"
 )
 
 // Can return built in queries and user defined persisted queries
@@ -29,6 +30,8 @@ type QueryDefinition struct {
 	MinAccumulatedProbability engine.Probability `json:"min_accumulated_probability,omitempty,string"`
 	PruneIslands              bool               `json:"prune_islands,omitempty"`
 	DontExpandAUEO            bool               `json:"dont_expand_aueo,omitempty"`
+
+	UserDefined bool `json:"user_defined,omitempty"`
 }
 
 func DefaultQueryDefinition() QueryDefinition {
@@ -44,8 +47,31 @@ func (q QueryDefinition) ID() string {
 	return q.Name
 }
 
-func (qd QueryDefinition) AnalysisOptions() AnalyzeOptions {
+func (qd QueryDefinition) AnalysisOptions(ao *engine.Objects) (AnalyzeOptions, error) {
 	aoo := NewAnalyzeObjectsOptions()
+
+	filter, err := query.ParseLDAPQueryStrict(qd.QueryFirst, ao)
+	if err != nil {
+		return aoo, err
+	}
+	aoo.FilterFirst = filter
+
+	if qd.QueryMiddle != "" {
+		filter, err = query.ParseLDAPQueryStrict(qd.QueryMiddle, ao)
+		if err != nil {
+			return aoo, err
+		}
+		aoo.FilterMiddle = filter
+	}
+
+	if qd.QueryLast != "" {
+		filter, err = query.ParseLDAPQueryStrict(qd.QueryLast, ao)
+		if err != nil {
+			return aoo, err
+		}
+		aoo.FilterLast = filter
+	}
+
 	aoo.MaxDepth = qd.MaxDepth
 	aoo.MaxOutgoingConnections = qd.MaxOutgoingConnections
 	aoo.Direction = qd.Direction
@@ -55,7 +81,7 @@ func (qd QueryDefinition) AnalysisOptions() AnalyzeOptions {
 	aoo.PruneIslands = qd.PruneIslands
 	// aoo.NodeLimit: qd.NodeLimit,
 	aoo.DontExpandAUEO = qd.DontExpandAUEO
-	return aoo
+	return aoo, nil
 }
 
 var (

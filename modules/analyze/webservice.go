@@ -3,6 +3,7 @@ package analyze
 import (
 	"crypto/tls"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -112,7 +113,33 @@ func NewWebservice() *WebService {
 	ws.Router = ws.engine.Group("")
 
 	ws.API = ws.Router.Group("/api")
-	ws.API.Use(ws.RequireData(Ready))
+
+	// Error handling
+	ws.API.Use(func(ctx *gin.Context) {
+		ctx.Next()
+		if !ctx.Writer.Written() {
+			if ctx.IsAborted() {
+				if ctx.Request.Response.StatusCode == 0 {
+					// do something
+				}
+				if len(ctx.Errors) > 0 {
+					status := gin.H{
+						"status": "error",
+						"error":  ctx.Errors.Last().Err.Error(),
+						// "status": strconv.Itoa(ctx.Request.Response.StatusCode),
+						// "detail":
+					}
+					statusj, _ := json.Marshal(status)
+					ctx.Writer.Write(statusj)
+				}
+			} else {
+				statusj, _ := json.Marshal(gin.H{"status": "ok"})
+				ctx.Writer.Write(statusj)
+			}
+		} else {
+
+		}
+	})
 
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))
