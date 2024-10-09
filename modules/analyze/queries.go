@@ -124,8 +124,15 @@ var (
 			Direction:  engine.In,
 		},
 		{
-			Name:       "ESC1 vulnerable certificate templates (pose as anyone)",
+			Name:       "Enroll in ESC1 vulnerable certificate templates (client auth + pose as anyone)",
 			QueryFirst: "(&(type=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))",
+			EdgesFirst: []string{"CertificateEnroll"},
+			Direction:  engine.In,
+		},
+		{
+			Name:       "Enroll in ESC15 vulnerable certificate templates (v1 + pose as anyone)",
+			QueryFirst: "(&(type=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(msPKI-Template-Schema-Version=1))",
+			EdgesFirst: []string{"CertificateEnroll"},
 			Direction:  engine.In,
 		},
 		{
