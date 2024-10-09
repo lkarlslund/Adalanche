@@ -272,7 +272,11 @@ var fixedlayout = {
     name: 'preset'
 }
 
-cytostyle = [{
+if (typeof myfunction != 'getPreferredTheme') {
+    window.getPreferredTheme = function(){ return "dark"; };
+}
+
+var cytostyle = [{
     selector: "node, edge",
     style: {
         "min-zoomed-font-size": 12,
@@ -304,7 +308,7 @@ cytostyle = [{
 {
     selector: 'node[type="Group"]',
     style: {
-        shape: "cut-rectangle",
+        "shape": "cut-rectangle",
         "background-image": "icons/people-fill.svg",
         "background-color": "orange"
     }
@@ -361,7 +365,7 @@ cytostyle = [{
 {
     selector: 'node[type="Directory"]',
     style: {
-        shape: "diamond",
+        "shape": "diamond",
         "background-image": "icons/source_black_24dp.svg",
         "background-color": "lightblue"
     }
@@ -369,7 +373,7 @@ cytostyle = [{
 {
     selector: 'node[type="File"]',
     style: {
-        shape: "diamond",
+        "shape": "diamond",
         "background-image": "icons/article_black_24dp.svg",
         "background-color": "lightblue"
     }
@@ -377,7 +381,7 @@ cytostyle = [{
 {
     selector: 'node[type="Executable"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/binary-code.svg",
         "background-color": "lightgreen"
     }
@@ -386,7 +390,7 @@ cytostyle = [{
 {
     selector: 'node[type="GroupPolicyContainer"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/gpo.svg",
         "background-color": "purple"
     }
@@ -394,7 +398,7 @@ cytostyle = [{
 {
     selector: 'node[type="OrganizationalUnit"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/source_black_24dp.svg",
         "background-color": "lightgray"
     }
@@ -402,7 +406,7 @@ cytostyle = [{
 {
     selector: 'node[type="Container"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/folder_black_24dp.svg",
         "background-color": "lightgray"
     }
@@ -410,7 +414,7 @@ cytostyle = [{
 {
     selector: 'node[type="CertificateTemplate"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/certificate.svg",
         "background-color": "pink"
     }
@@ -418,14 +422,14 @@ cytostyle = [{
 {
     selector: 'node[type="DNSNode"]',
     style: {
-        shape: "rectangle",
+        "shape": "rectangle",
         "background-image": "icons/dns.svg",
     }
 },
 {
     selector: 'node[type="Computer"]',
     style: {
-        shape: "round-octagon",
+        "shape": "round-octagon",
         "background-image": "icons/tv-fill.svg",
         "background-color": "lightgreen"
     }
@@ -433,7 +437,7 @@ cytostyle = [{
 {
     selector: 'node[type="Machine"]',
     style: {
-        shape: "round-octagon",
+        "shape": "round-octagon",
         "background-image": "icons/tv-fill.svg",
         "background-color": "teal"
     }
@@ -913,17 +917,17 @@ function initgraph(data) {
                 success: function (data) {
                     details = rendernode(evt.target)
                     details += renderdetails(data)
-                    newwindow("details", "Node details", details);
+                    new_window("details", "Node details", details);
                 },
                 error: function (xhr, status, error) {
-                    newwindow("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
+                    new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
                 }
             });
         });
 
         cy.on('click', 'edge', function (evt) {
             // console.log('clicked edge ' + this.id());
-            newwindow("details", "Edge details", renderedge(this));
+            new_window("details", "Edge details", renderedge(this));
         });
 
         cy.on('mouseover', 'edge', function (event) {
@@ -1101,7 +1105,7 @@ function findroute(source) {
                 routecontents += rendermethods(ele);
             }
         })
-        newwindow("route_" + source.id() + "_" + target.id(),
+        new_window("route_" + source.id() + "_" + target.id(),
             `Route from ` + nodelabel(source) + ` to ` + nodelabel(target) + ` - ` + pathprobability.toFixed(2) + `% probability`,
             routecontents)
     } else {
