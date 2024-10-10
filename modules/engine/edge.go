@@ -13,7 +13,7 @@ var (
 	ErrEdgeNotFound = errors.New("edge not found")
 )
 
-type ProbabilityCalculatorFunction func(source, target *Object) Probability
+type ProbabilityCalculatorFunction func(source, target *Object, edge EdgeBitmap) Probability
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
@@ -25,9 +25,9 @@ func (pm Edge) Describe(description string) Edge {
 	return pm
 }
 
-func (pm Edge) Probability(source, target *Object) Probability {
+func (pm Edge) Probability(source, target *Object, edges EdgeBitmap) Probability {
 	if f := edgeInfos[pm].probability; f != nil {
-		return f(source, target)
+		return f(source, target, edges)
 	}
 
 	// default
@@ -388,7 +388,7 @@ func (m EdgeBitmap) MaxProbability(source, target *Object) Probability {
 	max := MINPROBABILITY
 	for i := 0; i < len(edgeInfos); i++ {
 		if m.IsSet(Edge(i)) {
-			prob := Edge(i).Probability(source, target)
+			prob := Edge(i).Probability(source, target, m)
 			if prob == MAXPROBABILITY {
 				return prob
 			}

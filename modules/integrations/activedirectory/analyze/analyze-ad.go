@@ -84,9 +84,7 @@ var (
 	MetaPasswordAge  = engine.NewAttribute("passwordAge")
 	MetaLastLoginAge = engine.NewAttribute("lastLoginAge")
 
-	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability {
-		return -1 // Just informative
-	}).Describe("Indicates this is the domain joined computer account belonging to the machine")
+	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(activedirectory.FixedProbability(-1)).Describe("Indicates this is the domain joined computer account belonging to the machine")
 )
 
 var warnedgpos = make(map[string]struct{})
