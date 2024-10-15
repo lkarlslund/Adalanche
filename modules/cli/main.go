@@ -94,7 +94,7 @@ func loadConfiguration(cmd *cobra.Command) {
 	if err := viper.ReadInConfig(); err == nil {
 		ui.Info().Msgf("Using configuration file: %v", viper.ConfigFileUsed())
 	} else {
-		ui.Error().Msgf("Problem loading settings: %v", err.Error())
+		ui.Debug().Msgf("No settings loaded: %v", err.Error())
 	}
 
 	bindFlags(cmd)
