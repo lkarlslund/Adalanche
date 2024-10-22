@@ -39,7 +39,6 @@ func DefaultQueryDefinition() QueryDefinition {
 		QueryFirst:             "(&(objectClass=group)(|(name=Domain Admins)(name=Enterprise Admins)))",
 		MaxDepth:               -1,
 		MaxOutgoingConnections: -1,
-		PruneIslands:           true,
 	}
 }
 
@@ -72,6 +71,76 @@ func (qd QueryDefinition) AnalysisOptions(ao *engine.Objects) (AnalyzeOptions, e
 		aoo.FilterLast = filter
 	}
 
+	// ObjectTypes
+
+	aoo.ObjectTypesFirst = make(map[engine.ObjectType]struct{})
+	if len(qd.ObjectTypesFirst) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledF {
+				aoo.ObjectTypesFirst[engine.ObjectType(i)] = struct{}{}
+			}
+		}
+	} else {
+		for _, otname := range qd.ObjectTypesFirst {
+			ot, found := engine.ObjectTypeLookup(otname)
+			if found {
+				aoo.ObjectTypesFirst[ot] = struct{}{}
+			}
+		}
+	}
+
+	aoo.ObjectTypesMiddle = make(map[engine.ObjectType]struct{})
+	if len(qd.ObjectTypesMiddle) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledM {
+				aoo.ObjectTypesMiddle[engine.ObjectType(i)] = struct{}{}
+			}
+		}
+	} else {
+		for _, otname := range qd.ObjectTypesMiddle {
+			ot, found := engine.ObjectTypeLookup(otname)
+			if found {
+				aoo.ObjectTypesMiddle[ot] = struct{}{}
+			}
+		}
+	}
+
+	aoo.ObjectTypesLast = make(map[engine.ObjectType]struct{})
+	if len(qd.ObjectTypesLast) == 0 {
+		for i, ot := range engine.ObjectTypes() {
+			if ot.DefaultEnabledL {
+				aoo.ObjectTypesLast[engine.ObjectType(i)] = struct{}{}
+			}
+		}
+	} else {
+		for _, otname := range qd.ObjectTypesLast {
+			ot, found := engine.ObjectTypeLookup(otname)
+			if found {
+				aoo.ObjectTypesLast[ot] = struct{}{}
+			}
+		}
+	}
+
+	// Edgetypes
+
+	if len(qd.EdgesFirst) > 0 {
+		aoo.EdgesFirst, err = engine.EdgeBitmapFromStringSlice(qd.EdgesFirst)
+		if err != nil {
+			return aoo, err
+		}
+	}
+	if len(qd.EdgesMiddle) > 0 {
+		aoo.EdgesMiddle, err = engine.EdgeBitmapFromStringSlice(qd.EdgesMiddle)
+		if err != nil {
+			return aoo, err
+		}
+	}
+	if len(qd.EdgesLast) > 0 {
+		aoo.EdgesLast, err = engine.EdgeBitmapFromStringSlice(qd.EdgesLast)
+		if err != nil {
+			return aoo, err
+		}
+	}
 	aoo.MaxDepth = qd.MaxDepth
 	aoo.MaxOutgoingConnections = qd.MaxOutgoingConnections
 	aoo.Direction = qd.Direction
@@ -199,6 +268,11 @@ var (
 		{
 			Name:       "Who can reach Domain Controllers?",
 			QueryFirst: "(&(type=Machine)(out=MachineAccount,(&(type=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))))",
+			Direction:  engine.In,
+		},
+		{
+			Name:       "Who can reach Read-Only Domain Controllers? (RODC)",
+			QueryFirst: "(&(type=Machine)(out=MachineAccount,(&(type=Computer)(primaryGroupId=521))))",
 			Direction:  engine.In,
 		},
 		{

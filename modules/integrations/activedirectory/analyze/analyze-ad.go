@@ -84,6 +84,8 @@ var (
 	MetaPasswordAge  = engine.NewAttribute("passwordAge")
 	MetaLastLoginAge = engine.NewAttribute("lastLoginAge")
 
+	msLAPSEncryptedPasswordAttributesGUID, _ = uuid.FromString("{f3531ec6-6330-4f8e-8d39-7a671fbac605}")
+
 	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(activedirectory.FixedProbability(-1)).Describe("Indicates this is the domain joined computer account belonging to the machine")
 )
 
@@ -102,23 +104,18 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
-		if lapsobjects, found := ao.FindMulti(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd")); found {
-			lapsobjects.Iterate(func(lapsobject *engine.Object) bool {
-				if lapsobject.HasAttrValue(engine.ObjectClass, engine.AttributeValueString("attributeSchema")) {
-					if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-						ui.Debug().Msg("Detected LAPS schema extension GUID")
-						lapsGUID = objectGUID
-						return false // break
-					} else {
-						ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
-					}
-				}
-				return true
-			})
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd"),
+			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+				ui.Debug().Msg("Detected LAPS schema extension GUID")
+				lapsGUID = objectGUID
+			} else {
+				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
+			}
 		}
 
 		if lapsGUID.IsNil() {
-			ui.Debug().Msg("Microsoft LAPS not detected, skipping tests for this")
+			ui.Debug().Msg("Microsoft LAPS V1 not detected, skipping tests for this")
 			return
 		}
 
@@ -157,7 +154,80 @@ func init() {
 			}
 			return true
 		})
-	}, "Reading local admin passwords via LAPS", engine.BeforeMergeFinal)
+	}, "Reading local admin passwords via LAPS v1", engine.BeforeMergeFinal)
+
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		// Find LAPS or return
+		var lapsV2PasswordGUID uuid.UUID
+		var lapsV2EncryptedPasswordGUID uuid.UUID
+
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-Password"),
+			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+				ui.Debug().Msg("Detected LAPS schema extension GUID")
+				lapsV2PasswordGUID = objectGUID
+			} else {
+				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
+			}
+		}
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-EncryptedPassword"),
+			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+				ui.Debug().Msg("Detected LAPS schema extension GUID")
+				lapsV2EncryptedPasswordGUID = objectGUID
+			} else {
+				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
+			}
+		}
+
+		if lapsV2PasswordGUID.IsNil() {
+			ui.Debug().Msg("Microsoft LAPS V2 not detected, skipping tests for this")
+			return
+		}
+
+		ao.Iterate(func(o *engine.Object) bool {
+			// Only for computers
+			if o.Type() != engine.ObjectTypeComputer {
+				return true
+			}
+
+			// ... that has LAPS installed
+			if !o.HasAttr(activedirectory.MSLAPSPasswordExpirationTime) {
+				return true
+			}
+
+			// Analyze ACL
+			sd, err := o.SecurityDescriptor()
+			if err != nil {
+				return true
+			}
+
+			// Link to the machine object
+			machinesid := o.SID()
+			if machinesid.IsBlank() {
+				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
+			}
+			machine, found := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
+			if !found {
+				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
+				return true
+			}
+
+			for index, acl := range sd.DACL.Entries {
+				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2PasswordGUID, ao) {
+					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword)
+				}
+				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2EncryptedPasswordGUID, ao) {
+					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword) // FIXME
+				}
+
+				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, msLAPSEncryptedPasswordAttributesGUID, ao) {
+					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword) // FIXME
+				}
+			}
+			return true
+		})
+	}, "Reading local admin passwords via LAPS v2", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {
@@ -1319,6 +1389,20 @@ func init() {
 							ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
 						}
 					}
+				}
+
+				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.AttributeValueInt(521)) {
+					// Read Only Domain Controller
+					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
+						DomainJoinedSID, engine.AttributeValueSID(object.SID()))
+					if !found {
+						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
+					} else {
+						machine.Tag("role-readonly-domaincontroller")
+					}
+
+					// Figure out what hashes this machine has cached - FIXME!
+
 				}
 			}
 

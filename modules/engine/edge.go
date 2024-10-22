@@ -63,7 +63,7 @@ func EdgeBitmapFromStringSlice(edgenames []string) (eb EdgeBitmap, err error) {
 			err = ErrEdgeNotFound
 			return
 		}
-		eb.Set(edge)
+		eb = eb.Set(edge)
 	}
 	return
 }

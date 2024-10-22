@@ -99,12 +99,14 @@ func init() {
 		if asid.IsBlank() || bsid.IsBlank() {
 			return nil, nil
 		}
+
 		if asid != bsid {
 			return nil, ErrDontMerge
 		}
 		if asid.Component(2) == 21 {
 			return nil, nil // Merge, these should be universally mappable !?
 		}
+
 		asource := a.OneAttr(DataSource)
 		bsource := b.OneAttr(DataSource)
 		if CompareAttributeValues(asource, bsource) {
@@ -247,6 +249,7 @@ func (a Attribute) Merge() Attribute {
 	return a
 }
 
+// AddMergeApprover adds a new function that can object to an object merge, or forever hold its silence
 func AddMergeApprover(name string, mf mergefunc) {
 	attributemutex.Lock()
 	mergeapprovers = append(mergeapprovers, mergeapproverinfo{

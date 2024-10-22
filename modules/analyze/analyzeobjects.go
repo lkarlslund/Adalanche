@@ -1,7 +1,6 @@
 package analyze
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 
@@ -89,38 +88,6 @@ func ParseQueryFromPOST(ctx *gin.Context, objects *engine.Objects) (*AnalyzeOpti
 	// 	aoo.NodeLimit = 1000
 	// }
 
-	aoo.FilterFirst, err = query.ParseLDAPQueryStrict(qd.QueryFirst, objects)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing start query: %v", err)
-	}
-
-	if qd.QueryMiddle != "" {
-		aoo.FilterMiddle, err = query.ParseLDAPQueryStrict(qd.QueryMiddle, objects)
-		if err != nil {
-			return nil, fmt.Errorf("Error parsing middle query: %v", err)
-		}
-	}
-
-	if qd.QueryLast != "" {
-		aoo.FilterLast, err = query.ParseLDAPQueryStrict(qd.QueryLast, objects)
-		if err != nil {
-			return nil, fmt.Errorf("Error parsing end query: %v", err)
-		}
-	}
-
-	// Parse edges into edge bitmaps
-	aoo.EdgesFirst, err = engine.EdgeBitmapFromStringSlice(qd.EdgesFirst)
-	if err != nil {
-		return nil, err
-	}
-	aoo.EdgesMiddle, err = engine.EdgeBitmapFromStringSlice(qd.EdgesMiddle)
-	if err != nil {
-		return nil, err
-	}
-	aoo.EdgesLast, err = engine.EdgeBitmapFromStringSlice(qd.EdgesLast)
-	if err != nil {
-		return nil, err
-	}
 	// Default to all edges if none are specified
 	if aoo.EdgesFirst.Count() == 0 && aoo.EdgesMiddle.Count() == 0 && aoo.EdgesLast.Count() == 0 {
 		// Spread the choices to FME
@@ -167,52 +134,6 @@ type AnalysisResults struct {
 }
 
 func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
-	if opts.EdgesFirst.Count() == 0 {
-		for _, edge := range engine.Edges() {
-			if edge.DefaultF() {
-				opts.EdgesFirst = opts.EdgesFirst.Set(edge)
-			}
-		}
-	}
-	if opts.EdgesMiddle.Count() == 0 {
-		for _, edge := range engine.Edges() {
-			if edge.DefaultM() {
-				opts.EdgesMiddle = opts.EdgesMiddle.Set(edge)
-			}
-		}
-	}
-	if opts.EdgesLast.Count() == 0 {
-		for _, edge := range engine.Edges() {
-			if edge.DefaultL() {
-				opts.EdgesLast = opts.EdgesLast.Set(edge)
-			}
-		}
-	}
-
-	if len(opts.ObjectTypesFirst) == 0 {
-		opts.ObjectTypesFirst = make(map[engine.ObjectType]struct{})
-		for i, ot := range engine.ObjectTypes() {
-			if ot.DefaultEnabledF {
-				opts.ObjectTypesFirst[engine.ObjectType(i)] = struct{}{}
-			}
-		}
-	}
-	if len(opts.ObjectTypesMiddle) == 0 {
-		opts.ObjectTypesMiddle = make(map[engine.ObjectType]struct{})
-		for i, ot := range engine.ObjectTypes() {
-			if ot.DefaultEnabledM {
-				opts.ObjectTypesMiddle[engine.ObjectType(i)] = struct{}{}
-			}
-		}
-	}
-	if len(opts.ObjectTypesLast) == 0 {
-		opts.ObjectTypesLast = make(map[engine.ObjectType]struct{})
-		for i, ot := range engine.ObjectTypes() {
-			if ot.DefaultEnabledL {
-				opts.ObjectTypesLast[engine.ObjectType(i)] = struct{}{}
-			}
-		}
-	}
 
 	pg := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
 	extrainfo := make(map[*engine.Object]*GraphNode)
@@ -249,7 +170,7 @@ func Analyze(opts AnalyzeOptions, objects *engine.Objects) AnalysisResults {
 			}
 		}
 
-		ui.Debug().Msgf("Processing round %v with %v total objects and %v connections", currentRound, pg.Order(), pg.Size())
+		ui.Debug().Msgf("Starting round %v with %v total objects and %v connections", currentRound, pg.Order(), pg.Size())
 
 		nodesatstartofround := pg.Order()
 
