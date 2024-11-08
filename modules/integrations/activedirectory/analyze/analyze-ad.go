@@ -146,6 +146,7 @@ func init() {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
 				return true
 			}
+			machine.Tag("laps")
 
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsGUID, ao) {
@@ -212,6 +213,7 @@ func init() {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
 				return true
 			}
+			machine.Tag("laps")
 
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2PasswordGUID, ao) {
@@ -220,7 +222,6 @@ func init() {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2EncryptedPasswordGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword) // FIXME
 				}
-
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, msLAPSEncryptedPasswordAttributesGUID, ao) {
 					ao.FindOrAddAdjacentSID(acl.SID, o).EdgeTo(machine, activedirectory.EdgeReadLAPSPassword) // FIXME
 				}
