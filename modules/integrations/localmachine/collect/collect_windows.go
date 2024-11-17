@@ -168,7 +168,7 @@ func Collect() (localmachine.Info, error) {
 	// SCCM SETTINGS
 	ccmsetup_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\CCMSetup`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+		registry.QUERY_VALUE|registry.WOW64_64KEY)
 	if err == nil {
 		defer ccmsetup_key.Close()
 		machineinfo.SCCMLastValidMP, _, _ = ccmsetup_key.GetStringValue(`LastValidMP`)
@@ -177,23 +177,11 @@ func Collect() (localmachine.Info, error) {
 	// WSUS SETTINGS
 	wu_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+		registry.QUERY_VALUE|registry.WOW64_64KEY)
 	if err == nil {
 		defer wu_key.Close()
 		machineinfo.WUServer, _, _ = wu_key.GetStringValue(`WUServer`)
 		machineinfo.WUStatusServer, _, _ = wu_key.GetStringValue(`WUStatusServer`)
-	}
-
-	// UAC SETTINGS
-	polsys_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Policies\System`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-	if err == nil {
-		defer polsys_key.Close()
-		machineinfo.UACConsentPromptBehaviorAdmin, _, _ = polsys_key.GetIntegerValue(`ConsentPromptBehaviorAdmin`)
-		machineinfo.UACEnableLUA, _, _ = polsys_key.GetIntegerValue(`EnableLUA`)
-		machineinfo.UACLocalAccountTokenFilterPolicy, _, _ = polsys_key.GetIntegerValue(`LocalAccountTokenFilterPolicy`)
-		machineinfo.UACFilterAdministratorToken, _, _ = polsys_key.GetIntegerValue(`FilterAdministratorToken`)
 	}
 
 	// SHARES
@@ -713,6 +701,8 @@ func Collect() (localmachine.Info, error) {
 		groupsinfo = append(groupsinfo, grp)
 	}
 
+	registrydata := CollectRegistryItems()
+
 	dumpedsoftwareinfo, _ := winapi.InstalledSoftwareList()
 	var softwareinfo []localmachine.Software
 	if len(dumpedsoftwareinfo) > 0 {
@@ -781,6 +771,7 @@ func Collect() (localmachine.Info, error) {
 		LoginPopularity: logininfo,
 		Users:           usersinfo,
 		Groups:          groupsinfo,
+		RegistryData:    registrydata,
 		Shares:          sharesinfo,
 		Services:        servicesinfo,
 		Software:        softwareinfo,

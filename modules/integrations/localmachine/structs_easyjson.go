@@ -2358,14 +2358,6 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.WUServer = string(in.String())
 		case "WUStatusServer":
 			out.WUStatusServer = string(in.String())
-		case "UACConsentPromptBehaviorAdmin":
-			out.UACConsentPromptBehaviorAdmin = uint64(in.Uint64())
-		case "UACEnableLUA":
-			out.UACEnableLUA = uint64(in.Uint64())
-		case "UACLocalAccountTokenFilterPolicy":
-			out.UACLocalAccountTokenFilterPolicy = uint64(in.Uint64())
-		case "UACFilterAdministratorToken":
-			out.UACFilterAdministratorToken = uint64(in.Uint64())
 		default:
 			in.SkipRecursive()
 		}
@@ -2624,46 +2616,6 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 			out.RawString(prefix)
 		}
 		out.String(string(in.WUStatusServer))
-	}
-	if in.UACConsentPromptBehaviorAdmin != 0 {
-		const prefix string = ",\"UACConsentPromptBehaviorAdmin\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint64(uint64(in.UACConsentPromptBehaviorAdmin))
-	}
-	if in.UACEnableLUA != 0 {
-		const prefix string = ",\"UACEnableLUA\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint64(uint64(in.UACEnableLUA))
-	}
-	if in.UACLocalAccountTokenFilterPolicy != 0 {
-		const prefix string = ",\"UACLocalAccountTokenFilterPolicy\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint64(uint64(in.UACLocalAccountTokenFilterPolicy))
-	}
-	if in.UACFilterAdministratorToken != 0 {
-		const prefix string = ",\"UACFilterAdministratorToken\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint64(uint64(in.UACFilterAdministratorToken))
 	}
 	out.RawByte('}')
 }
@@ -3056,6 +3008,32 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 				}
 				in.Delim(']')
 			}
+		case "RegistryData":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				if !in.IsDelim('}') {
+					out.RegistryData = make(RegistryData)
+				} else {
+					out.RegistryData = nil
+				}
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v52 interface{}
+					if m, ok := v52.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v52.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v52 = in.Interface()
+					}
+					(out.RegistryData)[key] = v52
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
 		case "Services":
 			if in.IsNull() {
 				in.Skip()
@@ -3072,9 +3050,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Services = (out.Services)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v52 Service
-					(v52).UnmarshalEasyJSON(in)
-					out.Services = append(out.Services, v52)
+					var v53 Service
+					(v53).UnmarshalEasyJSON(in)
+					out.Services = append(out.Services, v53)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3095,9 +3073,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Software = (out.Software)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v53 Software
-					(v53).UnmarshalEasyJSON(in)
-					out.Software = append(out.Software, v53)
+					var v54 Software
+					(v54).UnmarshalEasyJSON(in)
+					out.Software = append(out.Software, v54)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3118,9 +3096,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Tasks = (out.Tasks)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v54 RegisteredTask
-					(v54).UnmarshalEasyJSON(in)
-					out.Tasks = append(out.Tasks, v54)
+					var v55 RegisteredTask
+					(v55).UnmarshalEasyJSON(in)
+					out.Tasks = append(out.Tasks, v55)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3141,9 +3119,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Privileges = (out.Privileges)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v55 Privilege
-					(v55).UnmarshalEasyJSON(in)
-					out.Privileges = append(out.Privileges, v55)
+					var v56 Privilege
+					(v56).UnmarshalEasyJSON(in)
+					out.Privileges = append(out.Privileges, v56)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3228,11 +3206,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v56, v57 := range in.Users {
-				if v56 > 0 {
+			for v57, v58 := range in.Users {
+				if v57 > 0 {
 					out.RawByte(',')
 				}
-				(v57).MarshalEasyJSON(out)
+				(v58).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3247,11 +3225,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v58, v59 := range in.Groups {
-				if v58 > 0 {
+			for v59, v60 := range in.Groups {
+				if v59 > 0 {
 					out.RawByte(',')
 				}
-				(v59).MarshalEasyJSON(out)
+				(v60).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3266,13 +3244,43 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v60, v61 := range in.Shares {
-				if v60 > 0 {
+			for v61, v62 := range in.Shares {
+				if v61 > 0 {
 					out.RawByte(',')
 				}
-				(v61).MarshalEasyJSON(out)
+				(v62).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
+		}
+	}
+	if len(in.RegistryData) != 0 {
+		const prefix string = ",\"RegistryData\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		{
+			out.RawByte('{')
+			v63First := true
+			for v63Name, v63Value := range in.RegistryData {
+				if v63First {
+					v63First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v63Name))
+				out.RawByte(':')
+				if m, ok := v63Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v63Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v63Value))
+				}
+			}
+			out.RawByte('}')
 		}
 	}
 	if len(in.Services) != 0 {
@@ -3285,11 +3293,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v62, v63 := range in.Services {
-				if v62 > 0 {
+			for v64, v65 := range in.Services {
+				if v64 > 0 {
 					out.RawByte(',')
 				}
-				(v63).MarshalEasyJSON(out)
+				(v65).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3304,11 +3312,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v64, v65 := range in.Software {
-				if v64 > 0 {
+			for v66, v67 := range in.Software {
+				if v66 > 0 {
 					out.RawByte(',')
 				}
-				(v65).MarshalEasyJSON(out)
+				(v67).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3323,11 +3331,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v66, v67 := range in.Tasks {
-				if v66 > 0 {
+			for v68, v69 := range in.Tasks {
+				if v68 > 0 {
 					out.RawByte(',')
 				}
-				(v67).MarshalEasyJSON(out)
+				(v69).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3342,11 +3350,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v68, v69 := range in.Privileges {
-				if v68 > 0 {
+			for v70, v71 := range in.Privileges {
+				if v70 > 0 {
 					out.RawByte(',')
 				}
-				(v69).MarshalEasyJSON(out)
+				(v71).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3443,9 +3451,9 @@ func easyjson6a975c40DecodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 					out.Members = (out.Members)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v70 Member
-					(v70).UnmarshalEasyJSON(in)
-					out.Members = append(out.Members, v70)
+					var v72 Member
+					(v72).UnmarshalEasyJSON(in)
+					out.Members = append(out.Members, v72)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3500,11 +3508,11 @@ func easyjson6a975c40EncodeGithubComLkarlslundAdalancheModulesIntegrationsLocalm
 		}
 		{
 			out.RawByte('[')
-			for v71, v72 := range in.Members {
-				if v71 > 0 {
+			for v73, v74 := range in.Members {
+				if v73 > 0 {
 					out.RawByte(',')
 				}
-				(v72).MarshalEasyJSON(out)
+				(v74).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}

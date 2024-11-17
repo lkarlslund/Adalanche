@@ -23,13 +23,14 @@ type Info struct {
 	Availability    Availability    `json:",omitempty"`
 	LoginPopularity LoginPopularity `json:",omitempty"`
 
-	Users      Users            `json:",omitempty"`
-	Groups     Groups           `json:",omitempty"`
-	Shares     Shares           `json:",omitempty"`
-	Services   Services         `json:",omitempty"`
-	Software   []Software       `json:",omitempty"`
-	Tasks      []RegisteredTask `json:",omitempty"`
-	Privileges Privileges       `json:",omitempty"`
+	Users        Users            `json:",omitempty"`
+	Groups       Groups           `json:",omitempty"`
+	Shares       Shares           `json:",omitempty"`
+	RegistryData RegistryData     `json:",omitempty"`
+	Services     Services         `json:",omitempty"`
+	Software     []Software       `json:",omitempty"`
+	Tasks        []RegisteredTask `json:",omitempty"`
+	Privileges   Privileges       `json:",omitempty"`
 }
 
 type Machine struct {
@@ -63,11 +64,6 @@ type Machine struct {
 
 	WUServer       string `json:",omitempty"`
 	WUStatusServer string `json:",omitempty"`
-
-	UACConsentPromptBehaviorAdmin    uint64 `json:",omitempty"`
-	UACEnableLUA                     uint64 `json:",omitempty"`
-	UACLocalAccountTokenFilterPolicy uint64 `json:",omitempty"`
-	UACFilterAdministratorToken      uint64 `json:",omitempty"`
 }
 
 type Availability struct {
@@ -100,7 +96,10 @@ type Share struct {
 	PathOwner   string `json:",omitempty"`
 }
 
+type RegistryData map[string]any
+
 type Services []Service
+
 type Service struct {
 	RegistryOwner string `json:",omitempty"`
 	RegistryDACL  []byte `json:",omitempty"`
