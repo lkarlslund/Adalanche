@@ -757,8 +757,7 @@ function initgraph(data) {
     }));
 
     cy.ready(function () {
-        $("#status").hide();
-
+        busystatus("Rendering graph");
         nodemenu = cy.contextMenus({
             // Customize event to bring up the context menu
             // Possible options https://js.cytoscape.org/#events/user-input-device-events
@@ -1001,6 +1000,8 @@ function initgraph(data) {
     applyNodeStyles(cy);
 
     getGraphlayout($("#graphlayout").val()).run()
+
+    $("#status").hide();
 }
 
 function applyEdgeStyles(cy) {

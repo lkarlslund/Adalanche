@@ -17,88 +17,7 @@ window.onpopstate = function (event) {
 
 function set_query(index) {
   query = queries[index];
-
-  if (query.query_first) {
-    $("#query_first").val(query.query_first);
-  }
-  if (query.query_middle) {
-    $("#query_middle").val(query.query_middle);
-  }
-  if (query.query_last) {
-    $("#query_last").val(query.query_last);
-  }
-  if (query.depth) {
-    $("#maxdepth").val(query.depth);
-  }
-
-  if (query.edges_first) {
-    set_filters('data-column="first"', query.edges_first);
-  }
-  if (query.edges_middle) {
-    set_filters('data-column="middle"', query.edges_middle);
-  }
-  if (query.edges_last) {
-    set_filters('data-column="last"', query.edges_last);
-  }
-
-  if (query.direction) {
-    set_query_direction(query.direction);
-  }
-  if (query.max_outgoing_connections) {
-    $("#max_outgoing_connections").val(query.max_outgoing_connections);
-  }
-  if (query.min_edge_probability) {
-    $("#min_edge_probability").val(query.min_edge_probability);
-  }
-  if (query.prune_islands) {
-    $("#prune_islands").val(query.prune_islands);
-  }
-}
-
-function set_filters(selector, filters) {
-  // Clear all
-  var suffix;
-  switch (selector) {
-    case 'data-column="first"':
-      suffix = "_f";
-      break;
-    case 'data-column="middle"':
-      suffix = "_m";
-      break;
-    case 'data-column="last"':
-      suffix = "_l";
-      break;
-  }
-
-  $("#edgefilter > div > label .active").button("toggle");
-  if (filters.indexOf("default") > -1) {
-    $("#edgefilter > div > label > input [default]").button("toggle");
-  }
-  for (i in filters) {
-    if (marr[i].startsWith("!")) {
-      // finds the input checkbox, we need to toggle the label
-      $("#" + marr[i].substring(1)) + " .active".parent().button("toggle");
-    } else {
-      // finds the input checkbox, we need to toggle the label
-      $("#" + marr[i])
-        .parent()
-        .button("toggle");
-    }
-  }
-}
-
-function setaqlquery(query) {
-  $("#aqlquerytext").val(query);
-}
-
-function set_query_direction(direction) {
-  direction = direction.toLowerCase();
-  // console.log('set_querymode', mode);
-  if (direction == "in") {
-    $("#querymode_normal").prop("checked", true).change();
-  } else if (direction == "out") {
-    $("#querymode_reverse").prop("checked", true).change();
-  }
+  $("#aqlquerytext").val(query.query);
 }
 
 function dragMoveListener(event) {
@@ -269,144 +188,24 @@ function busystatus(busytext) {
     .show();
 }
 
-function encodequery() {
-  q = $(
-    "#ldapqueryform, #analysisoptionsform"
+function encodeaqlquery() {
+  q = JSON.stringify($(
+    "#aqlqueryform, #analysisoptionsform"
   )
     .serializeArray()
     .reduce(function (m, o) {
       // is it a checked checkbox?
       if ($("#" + o.name).is(":checked")) {
         m[o.name] = true;
+      } else if ($("#" + o.name).prop("type") == "number") {
+        m[o.name] = Number(o.value);
       } else {
         m[o.name] = o.value;
       }
       return m;
-    }, {});
-
-  // declare array
-  q["edges_first"] = $("#edgefilter [data-column='first']:checked")
-    .serializeArray()
-    .reduce(function (list, item) {
-      list.push(item.name);
-      return list;
-    }, []);
-  q["edges_middle"] = $("#edgefilter [data-column='middle']:checked")
-    .serializeArray()
-    .reduce(function (list, item) {
-      list.push(item.name);
-      return list;
-    }, []);
-  q["edges_last"] = $("#edgefilter [data-column='end']:checked")
-    .serializeArray()
-    .reduce(function (list, item) {
-      list.push(item.name);
-      return list;
-    }, []);
-
-      q["object_types_first"] = $("#objecttypefilter [data-column='first']:checked")
-        .serializeArray()
-        .reduce(function (list, item) {
-          list.push(item.name);
-          return list;
-        }, []);
-      q["object_types_middle"] = $(
-        "#objecttypefilter [data-column='middle']:checked"
-      )
-        .serializeArray()
-        .reduce(function (list, item) {
-          list.push(item.name);
-          return list;
-        }, []);
-      q["object_types_last"] = $("#objecttypefilter [data-column='end']:checked")
-        .serializeArray()
-        .reduce(function (list, item) {
-          list.push(item.name);
-          return list;
-        }, []);
+    }, {}));
 
   return q;
-}
-
-function analyze(e) {
-  busystatus("Analyzing");
-
-  query = encodequery();
-  $.ajax({
-    type: "POST",
-    url: "api/graphquery",
-    contentType: "charset=utf-8",
-    data: JSON.stringify(query),
-    dataType: "json",
-    success: function (data) {
-      if (data.total == 0) {
-        $("#status").html("No results").show();
-      } else {
-        // Remove all windows
-        $("#windows div").remove();
-
-        // Hide status
-        $("#status").hide();
-
-        var info =
-          data.targets +
-          " target nodes can " +
-          (!data.reversed ? "be reached via " : "reach ") +
-          data.links +
-          " edges " +
-          (!data.reversed ? "from" : "to") +
-          ':<hr/><table class="w-100">';
-        for (var objecttype in data.resulttypes) {
-          info +=
-            '<tr><td class="text-right pr-5">' +
-            data.resulttypes[objecttype] +
-            "</td><td>" +
-            objecttype +
-            "</td></tr>";
-        }
-        info +=
-          '<tr><td class="text-right pr-5">' +
-          data.total +
-          "</td><td>total nodes in analysis</td></tr>";
-        if (data.removed > 0) {
-          info +=
-            '<tr><td class="text-right pr-5"><b>' +
-            data.removed +
-            "</b></td><td><b>nodes were removed by node limiter</b></td></tr>";
-        }
-        info += "</table>";
-
-        new_window("results", "Query results", info);
-
-        if ($("infowrap").prop("width") == 0) {
-          $("#infowrap").animate({ width: "toggle" }, 400);
-        }
-
-        if (
-          $("#hideoptionsonanalysis").prop("checked") &&
-          $("#optionspanel").prop("width") != 0
-        ) {
-          $("#optionspanel").animate({ width: "toggle" }, 400);
-        }
-
-        if (
-          $("#hidequeryonanalysis").prop("checked") &&
-          $("#querydiv").prop("height") != 0
-        ) {
-          $("#querydiv").slideToggle("fast");
-        }
-
-        initgraph(data.elements);
-
-        history.pushState($("body").html(), "adalanche");
-      }
-    },
-    error: function (xhr, status, error) {
-      $("#status")
-        .html("Problem loading graph:<br>" + xhr.responseText)
-        .show();
-    },
-  });
 }
 
 function aqlanalyze(e) {
@@ -416,14 +215,7 @@ function aqlanalyze(e) {
     type: "POST",
     url: "/aql/analyze",
     contentType: "charset=utf-8",
-    data: JSON.stringify(
-      $("#aqlqueryform")
-        .serializeArray()
-        .reduce(function (m, o) {
-          m[o.name] = o.value;
-          return m;
-        }, {})
-    ),
+    data: encodeaqlquery(),
     dataType: "json",
     success: function (data) {
       if (data.total == 0) {
@@ -435,14 +227,12 @@ function aqlanalyze(e) {
         // Hide status
         $("#status").hide();
 
-        var info =
-          data.targets +
-          " target nodes can " +
-          (!data.reversed ? "be reached via " : "reach ") +
-          data.links +
-          " edges " +
-          (!data.reversed ? "from" : "to") +
-          ':<hr/><table class="w-100">';
+        var info = "";
+        if (data.nodecounts["start"]>0 && data.nodecounts["end"]>0) {
+          info += "Located "+ data.nodecounts["start"] + " start nodes and " + data.nodecounts["end"]+" end nodes<hr/>";
+        }
+
+        info += '<table class="w-100">';
         for (var objecttype in data.resulttypes) {
           info +=
             '<tr><td class="text-right pr-5">' +
@@ -617,7 +407,7 @@ function updateQueries() {
     dataType: "json",
     success: function (querylist) {
       queries = querylist;
-      dropdowncontent = $("#queries");
+      dropdowncontent = $("#aqlqueries");
       dropdowncontent.empty();
 
       for (i in queries) {
@@ -634,8 +424,8 @@ function updateQueries() {
       }
 
       // Predefined queries dropdown button
-      $("#queries").on("click", "li", function (event) {
-        console.log("You clicked the drop downs", event.target);
+      $("#aqlqueries").on("click", "li", function (event) {
+        // console.log("You clicked the drop downs", event.target);
         set_query(event.target.getAttribute("querynum"));
         $("#queriesbutton").toggleClass("active");
         $("#queriesdropdown").toggleClass("show");
@@ -721,38 +511,14 @@ $(function () {
   // QUERY FORM
   // $("#querydiv").slideUp("fast")
   $("#togglequeryvisible").on("click", function () {
-    $("#query-tabs-content").slideToggle("fast");
+    $("#querybox").slideToggle("fast");
   });
 
   // $('[data-toggle="tooltip"]').tooltip()
 
-  var changetimer;
-  $("#query_first, #query_middle, #query_last").on("input", function (e) {
-    clearTimeout(changetimer);
-    changetimer = setTimeout(function () {
-      // check query for errors when user has been idle for 200ms
-      $.ajax({
-        type: "GET",
-        url: "/api/backend/validatequery",
-        data: {
-          query: e.target.value,
-        },
-        success: function (data) {
-          console.log(data);
-          $("#querysubmit").attr("disabled", false);
-          $("#queryerror").hide();
-        },
-        error: function (xhr, status, error) {
-          $("#querysubmit").attr("disabled", true);
-          $("#queryerror").html(xhr.responseText).show();
-        },
-      });
-    }, 200);
-  });
-
   var aq1changetimer;
   $("#aqlquerytext").on("input", function (e) {
-    clearTimeout(changetimer);
+    clearTimeout(aqlchangetimer);
     changetimer = setTimeout(function () {
       // check query for errors when user has been idle for 200ms
       $.ajax({
@@ -980,11 +746,6 @@ $(function () {
   });
 
   updateQueries();
-
-  if ($("#aqlquerytext").val() == "") {
-    console.log("Setting default AQL query ...");
-    setaqlquery($("#defaultaqlquery").attr("query"));
-  }
 
   $(document).on("prefereces.loaded", function (evt) {
     if (getpref("run.query.on.startup")) {

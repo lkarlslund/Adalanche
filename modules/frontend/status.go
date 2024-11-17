@@ -1,4 +1,4 @@
-package analyze
+package frontend
 
 //go:generate go run github.com/dmarkham/enumer -type=WebServiceStatus -output enums.go
 

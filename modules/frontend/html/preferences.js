@@ -1,8 +1,8 @@
-var prefs;
+let prefs = {};
 
 function loadprefs() {
     $.ajax({
-        url: "preferences",
+        url: "/api/preferences",
         dataType: "json",
         success: function (data) {
             prefs = data;
@@ -37,10 +37,10 @@ function onchangepreference(ele) {
 
 function saveprefs() {
     $.ajax({
-        method: "POST",
-        url: "preferences",
-        dataType: "json",
-        data: JSON.stringify(prefs),
+      method: "POST",
+      url: "/api/preferences",
+      dataType: "json",
+      data: JSON.stringify(prefs),
     });
 }
 

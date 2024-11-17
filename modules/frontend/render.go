@@ -1,4 +1,4 @@
-package analyze
+package frontend
 
 type typeinfo struct {
 	Name string

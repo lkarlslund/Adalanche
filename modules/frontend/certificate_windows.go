@@ -1,7 +1,7 @@
 //go:build !32bit
 // +build !32bit
 
-package analyze
+package frontend
 
 import (
 	"crypto/tls"

@@ -1,4 +1,4 @@
-package analyze
+package frontend
 
 import (
 	"github.com/gin-gonic/gin"

@@ -1,4 +1,4 @@
-package analyze
+package frontend
 
 import (
 	"crypto/tls"
@@ -214,7 +214,7 @@ func (ws *WebService) Init(r gin.IRoutes) {
 
 	AddUIEndpoints(ws)
 	AddPreferencesEndpoints(ws)
-	AddAnalysisEndpoints(ws)
+	AddDataEndpoints(ws)
 }
 
 func (ws *WebService) Analyze(paths ...string) error {

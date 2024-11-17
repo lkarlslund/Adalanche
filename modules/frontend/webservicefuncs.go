@@ -1,10 +1,8 @@
-package analyze
+package frontend
 
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
-	"net/http"
 	"reflect"
 	"slices"
 	"sort"
@@ -17,7 +15,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/lkarlslund/adalanche/modules/persistence"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/lkarlslund/adalanche/modules/settings"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -193,61 +190,6 @@ func AddUIEndpoints(ws *WebService) {
 		ws.quit <- true
 	})
 
-	userQueries := persistence.GetStorage[QueryDefinition]("queries", false)
-
-	// List queries
-	queries := backend.Group("queries")
-
-	queries.GET("", func(c *gin.Context) {
-		// Create a string to query map and put all the predefined queries in that
-		queryMap := make(map[string]QueryDefinition)
-		for _, q := range PredefinedQueries {
-			queryMap[q.Name] = q
-		}
-
-		// Merge the list of predefined queries and the user queries
-		uq, _ := userQueries.List()
-		for _, q := range uq {
-			q.UserDefined = true
-			queryMap[q.Name] = q
-		}
-		querySlice := slices.Collect(maps.Values(queryMap))
-		slices.SortFunc(querySlice, func(a, b QueryDefinition) int {
-			if a.UserDefined == b.UserDefined {
-				return strings.Compare(a.Name, b.Name)
-			} else {
-				if !a.UserDefined {
-					return -1
-				} else {
-					return 1
-				}
-			}
-		})
-		c.JSON(200, querySlice)
-	})
-	queries.PUT(":name", func(ctx *gin.Context) {
-		var query QueryDefinition
-		err := ctx.ShouldBindJSON(&query)
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, err)
-			return
-		}
-		query.Name = ctx.Param("name")
-		err = userQueries.Put(query)
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, err)
-			return
-		}
-		ctx.Status(http.StatusCreated)
-	})
-	queries.DELETE(":name", func(ctx *gin.Context) {
-		err := userQueries.Delete(ctx.Param("name"))
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusNotFound, err)
-			return
-		}
-		ctx.Status(http.StatusOK)
-	})
 }
 
 func AddPreferencesEndpoints(ws *WebService) {
@@ -289,7 +231,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 	})
 }
 
-func AddAnalysisEndpoints(ws *WebService) {
+func AddDataEndpoints(ws *WebService) {
 	api := ws.API
 
 	// Returns JSON describing an object located by distinguishedName, sid or guid
@@ -366,71 +308,6 @@ func AddAnalysisEndpoints(ws *WebService) {
 		}
 
 		c.JSON(200, od)
-	})
-
-	// Graph based query analysis - core functionality
-	api.POST("graphquery", ws.RequireData(Ready), func(ctx *gin.Context) {
-		aoo, err := ParseQueryFromPOST(ctx, ws.Objs)
-		if err != nil {
-			ctx.String(500, err.Error())
-			return
-		}
-
-		results := Analyze(*aoo, ws.Objs)
-
-		for _, postprocessor := range PostProcessors {
-			results.Graph = postprocessor(results.Graph)
-		}
-		var targets int
-
-		var objecttypes [256]int
-
-		for node := range results.Graph.Nodes() {
-			if results.Graph.GetNodeData(node, "target") == true {
-				targets++
-				continue
-			}
-			objecttypes[node.Type()]++
-		}
-
-		resulttypes := make(map[string]int)
-		for i := 0; i < 256; i++ {
-			if objecttypes[i] > 0 {
-				resulttypes[engine.ObjectType(i).String()] = objecttypes[i]
-			}
-		}
-
-		cytograph, err := GenerateCytoscapeJS(results.Graph, aoo.AllDetails)
-		if err != nil {
-			ctx.String(500, "Error generating cytoscape graph: %v", err)
-			return
-		}
-
-		response := struct {
-			Reversed bool `json:"reversed"`
-
-			ResultTypes map[string]int `json:"resulttypes"`
-
-			Targets int `json:"targets"`
-			Total   int `json:"total"`
-			Links   int `json:"links"`
-			Removed int `json:"removed"`
-
-			Elements *CytoElements `json:"elements"`
-		}{
-			Reversed: aoo.Direction != engine.In,
-
-			ResultTypes: resulttypes,
-
-			Targets: targets,
-			Total:   results.Graph.Order(),
-			Links:   results.Graph.Size(),
-			Removed: results.Removed,
-
-			Elements: &cytograph.Elements,
-		}
-
-		ctx.JSON(200, response)
 	})
 
 	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {

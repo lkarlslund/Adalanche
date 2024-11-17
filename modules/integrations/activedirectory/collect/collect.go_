@@ -1,0 +1,5 @@
+package collect
+
+func CollectADExplorer(input, outputpath string) error {
+	
+}

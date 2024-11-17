@@ -125,6 +125,12 @@ func (pg *Graph[NodeType, EdgeType]) GetEdge(source, target NodeType) (EdgeType,
 	return e.Edge, found
 }
 
+func (pg *Graph[NodeType, EdgeType]) HasEdge(source, target NodeType) bool {
+	pg.autoCleanupEdges()
+	_, found := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	return found
+}
+
 // DeleteEdge removes an edge
 func (pg *Graph[NodeType, EdgeType]) DeleteEdge(source, target NodeType) {
 	delete(pg.edges, NodePair[NodeType]{Source: source, Target: target})
@@ -154,9 +160,17 @@ func (pg *Graph[NodeType, EdgeType]) GetEdgeData(source, target NodeType, key st
 
 // Merge combines two graphs
 func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
-	for othernodeid, othernode := range npg.nodes {
-		if _, found := pg.nodes[othernodeid]; !found {
-			pg.nodes[othernodeid] = othernode
+	for otherNode, otherNodeData := range npg.nodes {
+		if ourNodeData, found := pg.nodes[otherNode]; !found {
+			pg.nodes[otherNode] = otherNodeData
+		} else {
+			if ourNodeData == nil {
+				pg.nodes[otherNode] = otherNodeData
+			} else {
+				for k, v := range otherNodeData {
+					ourNodeData[k] = v
+				}
+			}
 		}
 	}
 

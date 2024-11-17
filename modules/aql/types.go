@@ -1,0 +1,389 @@
+package aql
+
+import (
+	"errors"
+	"strconv"
+	"sync"
+
+	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/graph"
+	"github.com/lkarlslund/adalanche/modules/query"
+	"github.com/lkarlslund/adalanche/modules/ui"
+)
+
+type AQLresolver interface {
+	Resolve(ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error)
+}
+
+type IndexLookup struct {
+	a engine.Attribute
+	v engine.AttributeValue
+}
+
+type NodeQuery struct {
+	ReferenceName string           // For cross result reference
+	IndexLookup   IndexLookup      // Possible start of search, quickly narrows it down
+	Selector      query.NodeFilter // Where style boolean approval filter for objects
+
+	OrderBy NodeSorter // Sorting
+	Skip    int        // Skipping
+	Limit   int        // Limiting
+}
+
+func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
+	result := ao
+	if nq.Selector != nil {
+		result = ao.Filter(nq.Selector.Evaluate)
+	}
+
+	if nq.Limit != 0 || nq.Skip != 0 {
+		// Get nodes as slice, then sort and filter by limit/skip
+		n := result.AsSlice()
+
+		if nq.OrderBy != nil {
+			n = nq.OrderBy.Sort(n)
+		}
+
+		n.Skip(nq.Skip)
+		n.Limit(nq.Limit)
+
+		no := engine.NewObjects()
+		n.Iterate(func(o *engine.Object) bool {
+			no.Add(o)
+			return true
+		})
+		result = no
+	}
+	return result
+}
+
+type EdgeMatcher struct {
+	Bitmap      engine.EdgeBitmap
+	Comparator  query.ComparatorType
+	Count       int64 // minimum number of edges to match
+	NoTrimEdges bool  // don't trim edges to just the filter
+}
+
+type EdgeSearcher struct {
+	Direction                    engine.EdgeDirection
+	MinIterations, MaxIterations int // there should be between min and max iterations in the chain
+
+	FilterEdges EdgeMatcher // match any of these
+
+	PathNodeRequirement      *NodeQuery // Nodes passed along the way must fulfill this filter
+	pathNodeRequirementCache *engine.Objects
+
+	ProbabilityValue      engine.Probability
+	ProbabilityComparator query.ComparatorType
+}
+
+type NodeMatcher interface {
+	Match(o *engine.Object) bool
+}
+
+type NodeSorter interface {
+	Sort(engine.ObjectSlice) engine.ObjectSlice
+}
+
+type NodeSorterImpl struct {
+	Attr       engine.Attribute
+	Descending bool
+}
+
+func (nsi NodeSorterImpl) Sort(o engine.ObjectSlice) engine.ObjectSlice {
+	o.Sort(nsi.Attr, nsi.Descending)
+	return o
+}
+
+type NodeLimiter interface {
+	Limit(engine.ObjectSlice) engine.ObjectSlice
+}
+
+// Union of multiple queries
+type AQLqueryUnion struct {
+	queries []AQLresolver
+}
+
+func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
+	var result *graph.Graph[*engine.Object, engine.EdgeBitmap]
+	for _, q := range aqlqu.queries {
+		g, err := q.Resolve(opts)
+		if err != nil {
+			return nil, err
+		}
+		if g != nil {
+			if result == nil {
+				result = g
+			} else {
+				result.Merge(*g)
+			}
+		}
+	}
+
+	// Post process options
+
+	return result, nil
+}
+
+type QueryMode int
+
+const (
+	Walk    QueryMode = iota // No Homomorphism
+	Trail                    // Edge homomomorphism (unique edges)
+	Acyclic                  // Node homomomorphism (unique nodes)
+	Simple                   // Partial node-isomorphism
+)
+
+type AQLquery struct {
+	Mode               QueryMode
+	Shortest           bool
+	OverAllProbability engine.Probability
+
+	datasource *engine.Objects
+
+	Sources     []NodeQuery // count is n
+	sourceCache []*engine.Objects
+
+	Next []EdgeSearcher // count is n-1
+}
+
+func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
+	if aqlq.Mode == Walk {
+		// Check we don't have endless filtering potential
+		for _, nf := range aqlq.Next {
+			if nf.MaxIterations == 0 {
+				return nil, errors.New("can't resolve Walk query without edge iteration limit")
+			}
+		}
+	}
+
+	pb := ui.ProgressBar("Preparing AQL query sources", int64(len(aqlq.Sources)*2))
+
+	// Prepare all the potentialnodes by filtering them and saving them in potentialnodes[n]
+	aqlq.sourceCache = make([]*engine.Objects, len(aqlq.Sources))
+	for i, q := range aqlq.Sources {
+		aqlq.sourceCache[i] = q.Populate(aqlq.datasource)
+		pb.Add(1)
+	}
+
+	for i, q := range aqlq.Next {
+		if q.PathNodeRequirement != nil {
+			aqlq.sourceCache[i] = q.PathNodeRequirement.Populate(aqlq.datasource)
+		}
+		pb.Add(1)
+	}
+
+	pb.Add(1)
+	pb.Finish()
+
+	// nodes := make([]*engine.Objects, len(aqlq.Sources))
+
+	result := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+	var resultlock sync.Mutex
+
+	nodeindex := 0
+	// Iterate over all starting nodes
+	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Object) bool {
+		partialresult := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+		aqlq.resolveEdgesFrom(opts, &partialresult, nil, o, 0, 0, 0, 1)
+
+		resultlock.Lock()
+		result.Merge(partialresult)
+		resultlock.Unlock()
+
+		return true
+	}, 0)
+
+	return &result, nil
+}
+
+// Finds all edge paths that match all the constraits, and recursively finds the next ones too
+// Returns the resulting graph that matches all the constraints
+func (aqlq AQLquery) resolveEdgesFrom(
+	opts ResolverOptions,
+	committedGraph *graph.Graph[*engine.Object, engine.EdgeBitmap],
+	workingGraph *graph.Graph[*engine.Object, engine.EdgeBitmap],
+	currentObject *engine.Object,
+	currentSearchIndex int,
+	currentDepth int,
+	currentTotalDepth int,
+	currentOverAllProbability float64) {
+
+	es := aqlq.Next[currentSearchIndex]
+	targets := aqlq.sourceCache[currentSearchIndex+1] // next node query
+
+	if workingGraph == nil {
+		workingGraphTemp := (graph.NewGraph[*engine.Object, engine.EdgeBitmap]())
+		workingGraph = &workingGraphTemp
+	}
+
+	var directions []engine.EdgeDirection
+	switch es.Direction {
+	case engine.In:
+		directions = []engine.EdgeDirection{engine.In}
+	case engine.Out:
+		directions = []engine.EdgeDirection{engine.Out}
+	case engine.Any:
+		directions = []engine.EdgeDirection{engine.In, engine.Out}
+	}
+
+	// We don't need matches, so try skipping this one
+	if es.MinIterations == 0 && currentDepth == 0 && len(aqlq.Sources) > currentSearchIndex+1 {
+		aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, currentObject, currentSearchIndex+1, 0, currentTotalDepth+1, currentOverAllProbability)
+	}
+
+	// Then look for stuff that match in within the min and max iteration requirements
+	for _, direction := range directions {
+		currentDepth++
+		currentTotalDepth++
+
+		currentObject.Edges(direction).Range(func(nextObject *engine.Object, eb engine.EdgeBitmap) bool {
+			if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+				return false // stooooop
+			}
+
+			switch aqlq.Mode {
+			case Walk:
+				// Horrible, horrible, horrible
+			case Trail:
+				if committedGraph.HasEdge(currentObject, nextObject) || workingGraph.HasEdge(currentObject, nextObject) {
+					return true
+				}
+			case Acyclic:
+				if committedGraph.HasNode(nextObject) || workingGraph.HasNode(nextObject) {
+					return true
+				}
+			case Simple:
+				// No filtering, but no endless loops either
+				if workingGraph.HasNode(nextObject) {
+					return true
+				}
+			}
+
+			matchedEdges := es.FilterEdges.Bitmap.Intersect(eb)
+
+			// Check we have enough matches
+			if es.FilterEdges.Comparator != query.CompareInvalid {
+				if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
+					return true
+				}
+			} else {
+				if matchedEdges.IsBlank() {
+					return true
+				}
+			}
+
+			edgeProbability := matchedEdges.MaxProbability(currentObject, nextObject)
+
+			// Honor query for this edge probability
+			if es.ProbabilityComparator != query.CompareInvalid {
+				if !query.Comparator[engine.Probability](es.ProbabilityComparator).Compare(edgeProbability, es.ProbabilityValue) {
+					return true
+				}
+			}
+			// Honor options for this edge probability
+			if opts.MinEdgeProbability > 0 {
+				if edgeProbability < opts.MinEdgeProbability {
+					return true
+				}
+			}
+
+			// Honor options for overall probability
+			currentOverAllProbability *= float64(edgeProbability) / 100
+			if aqlq.OverAllProbability > 0 && currentOverAllProbability*100 < float64(aqlq.OverAllProbability) {
+				return true
+			}
+
+			// Calculate the edge to add, either what we matched or the entire edge
+			addedge := matchedEdges
+			if es.FilterEdges.NoTrimEdges {
+				addedge = eb
+			}
+
+			if currentDepth >= es.MinIterations && currentDepth <= es.MaxIterations {
+				// Add this to our working graph
+				hadCurrentNode := workingGraph.HasNode(currentObject)
+				hadNextNode := workingGraph.HasNode(nextObject)
+				if direction == engine.Out {
+					workingGraph.AddEdge(currentObject, nextObject, addedge)
+				} else {
+					workingGraph.AddEdge(nextObject, currentObject, addedge)
+				}
+
+				if !hadCurrentNode && aqlq.Sources[currentSearchIndex].ReferenceName != "" {
+					workingGraph.SetNodeData(currentObject, "reference", aqlq.Sources[currentSearchIndex].ReferenceName)
+				}
+
+				if targets.Contains(nextObject) {
+					// We could be done already, if the targetObject matches
+
+					if currentSearchIndex == len(aqlq.Next)-1 {
+						// wowzers, we're done - add this to the committed graph and return
+						if !hadNextNode && aqlq.Sources[currentSearchIndex+1].ReferenceName != "" {
+							workingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentSearchIndex+1].ReferenceName)
+						}
+
+						committedGraph.Merge(*workingGraph)
+					} else {
+						// We're not done yet, so let's recurse into the next object
+						if opts.MaxDepth >= 0 && currentTotalDepth < opts.MaxDepth {
+							aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, nextObject, currentSearchIndex+1, 0, currentTotalDepth, currentOverAllProbability)
+						}
+					}
+				}
+				// can we go deeper?
+				if currentDepth < es.MaxIterations && (es.pathNodeRequirementCache == nil || es.pathNodeRequirementCache.Contains(nextObject)) {
+					aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, nextObject, currentSearchIndex, currentDepth, currentTotalDepth, currentOverAllProbability)
+				}
+
+				if direction == engine.Out {
+					workingGraph.DeleteEdge(currentObject, nextObject)
+				} else {
+					workingGraph.DeleteEdge(nextObject, currentObject)
+				}
+
+				if !hadCurrentNode {
+					workingGraph.DeleteNode(currentObject)
+				}
+				if !hadNextNode {
+					workingGraph.DeleteNode(nextObject)
+				}
+			}
+
+			return true
+		})
+	}
+}
+
+type SkipLimiter int
+
+func (sl SkipLimiter) Limit(o engine.ObjectSlice) engine.ObjectSlice {
+	new := o
+	new.Skip(int(sl))
+	return new
+}
+
+type FirstLimiter int
+
+func (fl FirstLimiter) Limit(o engine.ObjectSlice) engine.ObjectSlice {
+	new := o
+	new.Limit(int(fl))
+	return new
+}
+
+type id struct {
+	c     query.ComparatorType
+	idval int64
+}
+
+func (i *id) Evaluate(o *engine.Object) bool {
+	return query.Comparator[int64](i.c).Compare(int64(o.ID()), i.idval)
+}
+
+func (i *id) ToLDAPFilter() string {
+	return "id" + i.c.String() + strconv.FormatInt(i.idval, 10)
+}
+
+func (i *id) ToWhereClause() string {
+	return "id" + i.c.String() + strconv.FormatInt(i.idval, 10)
+}

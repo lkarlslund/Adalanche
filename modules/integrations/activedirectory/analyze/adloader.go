@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
-	"github.com/lkarlslund/adalanche/modules/analyze"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/frontend"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pierrec/lz4/v4"
@@ -19,13 +19,13 @@ import (
 )
 
 var (
-	importcnf = analyze.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
-	importdel = analyze.Command.Flags().Bool("importdel", false, "Import DEL (deleted) objects (experimental)")
+	importcnf = frontend.Command.Flags().Bool("importcnf", false, "Import CNF (conflict) objects (experimental)")
+	importdel = frontend.Command.Flags().Bool("importdel", false, "Import DEL (deleted) objects (experimental)")
 
-	importhardened = analyze.Command.Flags().Bool("importhardened", false, "Import hardened objects (without objectclass attribute)")
-	warnhardened   = analyze.Command.Flags().Bool("warnhardened", false, "Warn about hardened objects (without objectclass attribute)")
+	importhardened = frontend.Command.Flags().Bool("importhardened", false, "Import hardened objects (without objectclass attribute)")
+	warnhardened   = frontend.Command.Flags().Bool("warnhardened", false, "Warn about hardened objects (without objectclass attribute)")
 
-	limitattributes = analyze.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
+	limitattributes = frontend.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
 
 	adsource = engine.AttributeValueString("Active Directory")
 	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
