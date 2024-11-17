@@ -451,14 +451,14 @@ var cytostyle = [{
     }
 },
 {
-    selector: "node[?_querytarget]",
+    selector: 'node[reference="start"]',
     style: {
         "border-color": "red",
         "border-width": 3,
     }
 },
 {
-    selector: "node[?_querysource]",
+    selector: 'node[reference="end"]',
     style: {
         "border-color": "blue",
         "border-width": 3,
