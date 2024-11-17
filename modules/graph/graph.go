@@ -355,7 +355,7 @@ func (pg Graph[NodeType, EdgeType]) TopologicalSort() ([]NodeType, error) {
 	pg.autoCleanupEdges()
 	predecessorMap := pg.PredecessorMap()
 
-	queue := deque.New[NodeType]()
+	var queue deque.Deque[NodeType]
 
 	for o, predecessors := range predecessorMap {
 		if len(predecessors) == 0 {

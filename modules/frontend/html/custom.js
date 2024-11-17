@@ -516,7 +516,7 @@ $(function () {
 
   // $('[data-toggle="tooltip"]').tooltip()
 
-  var aq1changetimer;
+  let aq1changetimer;
   $("#aqlquerytext").on("input", function (e) {
     clearTimeout(aqlchangetimer);
     changetimer = setTimeout(function () {

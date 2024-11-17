@@ -1000,8 +1000,6 @@ function initgraph(data) {
     applyNodeStyles(cy);
 
     getGraphlayout($("#graphlayout").val()).run()
-
-    $("#status").hide();
 }
 
 function applyEdgeStyles(cy) {
