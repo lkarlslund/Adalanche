@@ -46,7 +46,14 @@ function get_window(id) {
   return $("#windows > #window_" + id);
 }
 
-function new_window(id, title, content, alignment = "topleft", height = 0, width = 0) {
+function new_window(
+  id,
+  title,
+  content,
+  alignment = "topleft",
+  height = 0,
+  width = 0
+) {
   // Other windows are not in front
   $(".window-front").removeClass("window-front");
 
@@ -56,10 +63,23 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
   var maxheight = $(window).height() * 0.8;
   var maxwidth = $(window).width() * 0.6;
 
+  xpos = 0;
+  ypos = 0;
+
+  switch (alignment) {
+    case "topleft":
+      // default
+      break;
+    case "center":
+      xpos = window.innerWidth / 2;
+      ypos = window.innerHeight / 2;
+      break;
+  }
+
   // add the new one
   if (mywindow.length == 0) {
     mywindow = $(
-      `<div class="window bg-dark shadow border pointer-events-auto window-front" id="window_${id}">
+      `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
             <div id='header' class='window-header mb-1 bg-primary text-dark p-1'>
             <span id="title" class="col">${title}</span><span id="close" class="border float-end cursor-pointer">X</span>
             </div>
@@ -137,10 +157,10 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
         allowFrom: ".window-header",
       });
 
-    if (height>0) {
+    if (height > 0) {
       mywindow.height(height);
     }
-    if (width>0) {
+    if (width > 0) {
       mywindow.width(width);
     }
 
@@ -189,21 +209,23 @@ function busystatus(busytext) {
 }
 
 function encodeaqlquery() {
-  q = JSON.stringify($(
-    "#aqlqueryform, #analysisoptionsform"
-  )
-    .serializeArray()
-    .reduce(function (m, o) {
-      // is it a checked checkbox?
-      if ($("#" + o.name).is(":checked")) {
-        m[o.name] = true;
-      } else if ($("#" + o.name).prop("type") == "number") {
-        m[o.name] = Number(o.value);
-      } else {
-        m[o.name] = o.value;
-      }
-      return m;
-    }, {}));
+  q = JSON.stringify(
+    $("#aqlqueryform, #analysisoptionsform")
+      .serializeArray()
+      .reduce(function (m, o) {
+        // is it a checked checkbox?
+        // console.log(o);
+        // console.log($("#" + o.name).prop("type"));
+        if ($("#" + o.name).is(":checked")) {
+          m[o.name] = true;
+        } else if ($("#" + o.name).prop("type") == "number") {
+          m[o.name] = Number(o.value);
+        } else {
+          m[o.name] = o.value;
+        }
+        return m;
+      }, {})
+  );
 
   return q;
 }
@@ -228,8 +250,13 @@ function aqlanalyze(e) {
         $("#status").hide();
 
         var info = "";
-        if (data.nodecounts["start"]>0 && data.nodecounts["end"]>0) {
-          info += "Located "+ data.nodecounts["start"] + " start nodes and " + data.nodecounts["end"]+" end nodes<hr/>";
+        if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
+          info +=
+            "Located " +
+            data.nodecounts["start"] +
+            " start nodes and " +
+            data.nodecounts["end"] +
+            " end nodes<hr/>";
         }
 
         info += '<table class="w-100">';
@@ -374,27 +401,21 @@ function refreshProgress() {
 
 refreshProgress();
 
-function toast(title, contents) {
-  toastcontent = $(
-    `<div id="live-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-                                <div class="toast-header">
-                                    <img src="..." class="rounded me-2" alt="...">
-                                        <strong class="me-auto">` +
-      title +
-      `</strong>
-                                        <!--small>Just now</small-->
-                                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                                </div>
-                                <div class="toast-body">
-                                    ` +
-      contents +
-      `
-                                </div>
-                            </div>`
-  );
-  $("#toasts").append(toastcontent);
-  const toast = bootstrap.Toast.getOrCreateInstance(toastcontent);
-  toast.show();
+function toast(contents) {
+  Toastify({
+    text: contents,
+    duration: 10000,
+    // destination: "https://github.com/apvarun/toastify-js",
+    newWindow: true,
+    close: true,
+    gravity: "top", // `top` or `bottom`
+    position: "left", // `left`, `center` or `right`
+    stopOnFocus: true, // Prevents dismissing of toast on hover
+    style: {
+      // background: "linear-gradient(to right, #00b09b, #96c93d)",
+    },
+    // onClick: function () {}, // Callback after click
+  }).showToast();
 }
 
 var firstQueryLoad = true;
@@ -417,19 +438,41 @@ function updateQueries() {
           (query.default ? 'id="defaultquery"' : "") +
           ' class="dropdown-item" querynum=' +
           i +
-          ">" +
+          " queryname='"+query.name+"'>" +
           query.name +
+          (query.user_defined ? '<i class="float-end bi-eraser"></i>' : "") +
           "</li>";
         dropdowncontent.append(item);
       }
 
       // Predefined queries dropdown button
       $("#aqlqueries").on("click", "li", function (event) {
-        // console.log("You clicked the drop downs", event.target);
+        if (event.target !== this) return; // not children, only the li
+
+        console.log("You clicked the drop downs", event.target);
         set_query(event.target.getAttribute("querynum"));
         $("#queriesbutton").toggleClass("active");
         $("#queriesdropdown").toggleClass("show");
       });
+
+      // Delete user defined queries
+      $("#aqlqueries").on("click", "i", function (event) {
+        console.log(jQuery(this).parent().get(0));
+        queryname = $(this).parent().get(0).getAttribute("queryname");
+        $.ajax({
+          type: "DELETE",
+          url: "api/backend/queries/" + queryname,
+          error: function (xhr, status, error) {
+            toast("Error deleting query: " + error);
+          },
+          success: function (data) {
+            toast("Query deleted successfully");
+            updateQueries();
+          },
+        });
+        console.log(event);
+      });
+
 
       if (firstQueryLoad) {
         console.log("Setting default query ...");
@@ -508,6 +551,38 @@ $(function () {
       });
   });
 
+  $("#savequerybutton").on("click", function () {
+    // open new windows with the save dialog
+    new_window(
+      "save_query",
+      "Save query",
+      `Name: <input type='text' id='savequeryname'>
+<div><button id="savequerydialogbutton" class="float-end">Save</button></div>`,
+      "center"
+    );
+
+    // tie the button handler to the button
+    $("#savequerydialogbutton").on("click", function () {
+      // POST the encoded query using ajax and display results
+      $.ajax({
+        url: "/api/backend/queries/" + $("#savequeryname").val(),
+        method: "PUT",
+        dataType: "json",
+        data: encodeaqlquery(),
+        error: function (xhr, status, error) {
+          toast("Error saving query: "+error);
+        },
+        success: function (data) {
+          toast("Query saved successfully");
+          updateQueries(); // refresh the list
+        },
+        complete: function () {
+          get_window("save_query").remove();
+        },
+      });
+    });
+  });
+
   // QUERY FORM
   // $("#querydiv").slideUp("fast")
   $("#togglequeryvisible").on("click", function () {
@@ -516,10 +591,10 @@ $(function () {
 
   // $('[data-toggle="tooltip"]').tooltip()
 
-  let aq1changetimer;
+  let aqlchangetimer;
   $("#aqlquerytext").on("input", function (e) {
     clearTimeout(aqlchangetimer);
-    changetimer = setTimeout(function () {
+    aqlchangetimer = setTimeout(function () {
       // check query for errors when user has been idle for 200ms
       $.ajax({
         type: "GET",
