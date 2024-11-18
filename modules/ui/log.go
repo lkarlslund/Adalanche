@@ -53,17 +53,17 @@ func GetLoglevel() LogLevel {
 var logfile *os.File
 var logfilelevel LogLevel = LevelInfo
 
-func SetLogFile(path string, i LogLevel) {
+func SetLogFile(path string, i LogLevel) error {
 	if logfile != nil {
 		logfile.Close()
 	}
 	var err error
 	logfile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		Error().Msgf("Failed to open logfile %s: %s", path, err)
-		return
+		return fmt.Errorf("Failed to open logfile %s: %s", path, err)
 	}
 	logfilelevel = i
+	return nil
 }
 
 type Logger struct {

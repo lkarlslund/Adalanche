@@ -215,10 +215,7 @@ func ExePath() (string, error) {
 	return "", err
 }
 
-func FileExists(name string) bool {
+func PathExists(name string) bool {
 	_, err := os.Stat(name)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return !os.IsNotExist(err)
 }

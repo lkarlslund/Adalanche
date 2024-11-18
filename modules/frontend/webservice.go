@@ -170,7 +170,7 @@ func WithCert(certfile, keyfile string) optionsetter {
 		// create certificate from pem strings directly
 		var cert tls.Certificate
 		var err error
-		if util.FileExists(certfile) && util.FileExists(keyfile) {
+		if util.PathExists(certfile) && util.PathExists(keyfile) {
 			cert, err = tls.LoadX509KeyPair(certfile, keyfile)
 		} else {
 			cert, err = tls.X509KeyPair([]byte(certfile), []byte(keyfile))
