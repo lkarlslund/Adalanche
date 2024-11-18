@@ -412,6 +412,7 @@ function toast(contents) {
     position: "left", // `left`, `center` or `right`
     stopOnFocus: true, // Prevents dismissing of toast on hover
     style: {
+      background: "orange"
       // background: "linear-gradient(to right, #00b09b, #96c93d)",
     },
     // onClick: function () {}, // Callback after click
@@ -421,7 +422,6 @@ function toast(contents) {
 var firstQueryLoad = true;
 
 var queries;
-
 function updateQueries() {
   $.ajax({
     url: "/api/backend/queries",
@@ -446,7 +446,7 @@ function updateQueries() {
       }
 
       // Predefined queries dropdown button
-      $("#aqlqueries").on("click", "li", function (event) {
+      $("#aqlqueries li").on("click", "", function (event) {
         if (event.target !== this) return; // not children, only the li
 
         console.log("You clicked the drop downs", event.target);
@@ -456,7 +456,7 @@ function updateQueries() {
       });
 
       // Delete user defined queries
-      $("#aqlqueries").on("click", "i", function (event) {
+      $("#aqlqueries i").on("click", "", function (event) {
         console.log(jQuery(this).parent().get(0));
         queryname = $(this).parent().get(0).getAttribute("queryname");
         $.ajax({
