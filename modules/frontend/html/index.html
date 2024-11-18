@@ -9,19 +9,16 @@
 
     <link rel="icon" type="image/png" href="icons/adalanche-favicon.png" />
 
-    <link rel="stylesheet" href="external/halfmoon-ui/halfmoon.css" />
+    <link rel="stylesheet" type="text/css" href="external/halfmoon-ui/halfmoon.css" />
+    <link rel="stylesheet" type="text/css" href="external/bootstrap-icons/bootstrap-icons.css" />
+    <link rel="stylesheet" type="text/css" href="external/toastify.min.css">
 
-    <link rel="stylesheet" href="external/spinkit.css" />
-    <link rel="stylesheet" href="external/graph/cytoscape-context-menus.css" />
-    <link
-      rel="stylesheet"
-      href="external/jquery-ui-1.13.2.custom/jquery-ui.css"
-    />
-    <link rel="stylesheet" href="external/tippy.css" />
-    <link
-      rel="stylesheet"
-      href="external/jstree/themes/default-dark/style.min.css"
-    />
+    <link rel="stylesheet" type="text/css" href="external/spinkit.css" />
+    <link rel="stylesheet" type="text/css" href="external/graph/cytoscape-context-menus.css" />
+    <link rel="stylesheet" type="text/css" href="external/jquery-ui-1.13.2.custom/jquery-ui.css" />
+    <link rel="stylesheet" type="text/css" href="external/tippy.css" />
+    <link rel="stylesheet" type="text/css" href="external/jstree/themes/default-dark/style.min.css" />
+    
     <!-- we put everything custom here, so we can override earlier variables -->
     <link rel="stylesheet" href="adalanche.css" />
 
@@ -147,67 +144,6 @@
               </summary>
               <div id="analysis" class="collapse-panel p-1">
                 <form id="analysisoptionsform">
-                  <div class="row justify-content-between">
-                    <label class="col" for="querymode_group"
-                      >Query direction</label
-                    >
-                    <div
-                      class="col btn-group btn-group-sm checkbox-button"
-                      id="querymode_group"
-                      role="group"
-                      aria-label="Mode"
-                    >
-                      <input
-                        type="radio"
-                        name="direction"
-                        id="querymode_normal"
-                        class="btn-check"
-                        value="in"
-                        autocomplete="off"
-                        checked
-                      />
-                      <label
-                        class="btn btn-outline-primary btn-sm"
-                        for="querymode_normal"
-                        >Incoming</label
-                      >
-                      <input
-                        type="radio"
-                        name="direction"
-                        id="querymode_reverse"
-                        class="btn-check"
-                        value="out"
-                        autocomplete="off"
-                      />
-                      <label
-                        class="btn btn-outline-primary btn-sm"
-                        for="querymode_reverse"
-                        >Outgoing</label
-                      >
-                      <!-- <input type="radio" name="mode" id="querymode_sourcetarget" class="btn-check" value="sourcetarget" autocomplete="off" />
-                    <label class="btn btn-outline-primary btn-sm" for="querymode_sourcetarget">SrcTgt</label> -->
-                    </div>
-                  </div>
-
-                  <div class="form-check">
-                    <input
-                      class="form-check-input"
-                      id="prune_islands"
-                      type="checkbox"
-                      name="prune_islands"
-                      autocomplete="off"
-                      preference="analysis.prune.islands"
-                      defaultpref="false"
-                    />
-                    <label
-                      class="form-check-label"
-                      for="prune_islands"
-                      data-bs-toggle="tooltip"
-                      data-bs-title="Remove nodes that are not connected to anything"
-                      >Prune Island Nodes</label
-                    >
-                  </div>
-
                   <div class="row">
                     <div class="col">
                       <label
@@ -317,7 +253,7 @@
                     </div>
                     <div class="col">
                       <input
-                        id="minaccprobability"
+                        id="min_accumulated_probability"
                         type="number"
                         size="3"
                         name="min_accumulated_probability"
@@ -330,16 +266,24 @@
                     </div>
                   </div>
 
-                  <!-- <div class="row">
-                  <div class="col">
-                    <label for="backlinks" class="col-form-label" data-bs-toggle='tooltip'
-                      data-bs-title='The number of backlinks to include, recommended to keep this 0 to avoid unneccessary clutter'>Backlink steps</label>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      id="prune_islands"
+                      type="checkbox"
+                      name="prune_islands"
+                      autocomplete="off"
+                      preference="analysis.prune.islands"
+                      defaultpref="false"
+                    />
+                    <label
+                      class="form-check-label"
+                      for="prune_islands"
+                      data-bs-toggle="tooltip"
+                      data-bs-title="Remove nodes that are not connected to anything"
+                      >Prune Island Nodes</label
+                    >
                   </div>
-                  <div class="col">
-                    <input id="backlinks" type="number" size=3 name="backlinks" min="0" max="100" value="0"
-                      preference="analysis.backlink.count" class="form-control text-right">
-                  </div>
-                </div> -->
 
                   <div class="form-check">
                     <input
@@ -534,6 +478,7 @@
                     Loading ...
                   </ul>
                 </div>
+                <button id="savequerybutton" type="button" class="btn btn-outline-primary mx-2 btn-sm">Save</button>
                 <button
                   id="aqlanalyzebutton"
                   type="button"
@@ -548,5 +493,6 @@
         </div>
   </body>
 
-  <script src="external/bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="external/bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="external/toastify.js"></script>
 </html>

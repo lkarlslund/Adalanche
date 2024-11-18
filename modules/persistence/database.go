@@ -158,7 +158,15 @@ func (s storage[p]) Delete(id string) error {
 		if b == nil {
 			return nil
 		}
-		return b.Delete([]byte(id))
+		exists := b.Get([]byte(id))
+		err := b.Delete([]byte(id))
+		if err != nil {
+			return err
+		}
+		if exists == nil {
+			return errors.New("key not found")
+		}
+		return nil
 	})
 }
 
