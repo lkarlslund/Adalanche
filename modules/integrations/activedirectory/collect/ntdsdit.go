@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -101,9 +102,12 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 	})
 
 	// Load schema information
-	fieldnumtoname := make(map[string]string)
+	fieldnumtoname := make(map[int64]string)
 	namemap := make(map[int64]string)
 	ancestormap := make(map[int64]string)
+	objectClassMap := make(map[int64]string)
+	categoryMap := make(map[int64]string)
+	attributeMap := make(map[int64]string)
 	linknames := make(map[int64]string)
 
 	var count int64
@@ -116,18 +120,37 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		}
 
 		// Field displayname mapping
-		displayname, ok := row.GetString("ATTm131532") // LDAP-Display-Name
-		if ok {
-			// ATT Field number
-			if fieldnum, ok := row.GetInt64("ATTc131102"); ok { // ATT?fieldnum;
-				fieldnumtoname[strconv.Itoa(int(fieldnum))] = displayname
+		displayname, _ := row.GetString("ATTm131532") // LDAP-Display-Name
+		// ATT Field number
+		if fieldnum, ok := row.GetInt64("ATTc131102"); ok { // ATT?fieldnum;
+			fieldnumtoname[fieldnum] = displayname
+			if displayname == "categoryId" {
+				ui.Info().Msgf("categoryID is field %v", fieldnum)
 			}
+		}
 
-			// LinkID to attribute name
-			if linkid, ok := row.GetInt64("ATTj131122"); ok { // LinkID
-				ui.Debug().Msgf("LinkID %v -> %v", linkid, displayname)
-				linknames[linkid] = displayname
+		for _, key := range row.Keys() {
+			if strings.HasSuffix(key, "590146") {
+				ui.Info().Msg(key)
 			}
+		}
+
+		if categoryID, ok := row.GetInt64("ATTb590146"); ok { // ATT?fieldnum;
+			categoryMap[categoryID] = displayname
+		}
+
+		if attributeID, ok := row.GetInt64("ATTc131102"); ok { // ATT?fieldnum;
+			attributeMap[attributeID] = displayname
+		}
+
+		if governsID, ok := row.GetInt64("ATTc131094"); ok { // ATT?fieldnum;
+			objectClassMap[governsID] = displayname
+		}
+
+		// LinkID to attribute name
+		if linkid, ok := row.GetInt64("ATTj131122"); ok { // LinkID
+			// ui.Debug().Msgf("LinkID %v -> %v", linkid, displayname)
+			linknames[linkid] = displayname
 		}
 
 		if name, ok := row.GetString("ATTm589825"); ok { // Object name?
@@ -142,8 +165,11 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 				prefix = "OU="
 			case 1376281:
 				prefix = "DC="
+			case 707406378:
+				// $NOT_AN_OBJECT1$
 			default:
 				prefix = "??="
+				ui.Warn().Msgf("Unknown prefix value %v mapped for %v", RDNtyp, name)
 			}
 			namemap[dnt] = prefix + name
 		}
@@ -159,6 +185,52 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 	if err != nil {
 		return nil, err
 	}
+
+	/*
+		err = catalog.DumpTable("datatable", func(row *ordereddict.Dict) error {
+			// Find distinguished name
+			var dn string
+			if rdn, ok := row.GetString("Ancestors_col"); ok {
+				dn = getDistinguishedName(rdn, namemap)
+			} else {
+				return nil
+			}
+		fieldloop:
+			for _, fieldname := range row.Keys() {
+				usedname := fieldname
+				var fieldtype byte
+				if len(fieldname) >= 5 && strings.HasPrefix(fieldname, "ATT") {
+					// Translate name
+					var found bool
+					fieldnum, _ := strconv.ParseInt(fieldname[4:], 10, 64)
+					usedname, found = fieldnumtoname[fieldnum]
+					if !found {
+						ui.Error().Msgf("Failed to find field name for %v", fieldname)
+						continue
+					}
+					fieldtype = fieldname[3]
+				} else {
+					// ui.Error().Msgf("Unmappable field name for %v", fieldname)
+					continue
+				}
+				_ = fieldtype
+
+				switch usedname {
+				case "governsID":
+					if gs, found := row.GetInt64(fieldname); found {
+						objectClassMap[gs] = dn
+					}
+					break fieldloop
+				case "attributeID":
+					if gs, found := row.GetInt64(fieldname); found {
+						attributeMap[gs] = dn
+					}
+				}
+			}
+
+			return nil
+		})
+	*/
 
 	// Resolve groups and members
 	type linkInfo struct {
@@ -244,24 +316,51 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 			item.DistinguishedName = getDistinguishedName(rdn, namemap)
 		}
 
+	recordloop:
 		for _, fieldname := range row.Keys() {
 			// Extract field number
-
 			usedname := fieldname
+			var fieldtype byte
 			if len(fieldname) >= 5 && strings.HasPrefix(fieldname, "ATT") {
 				// Translate name
 				var found bool
-				usedname, found = fieldnumtoname[fieldname[4:]]
+				fieldnum, _ := strconv.ParseInt(fieldname[4:], 10, 64)
+				usedname, found = fieldnumtoname[fieldnum]
 				if !found {
 					ui.Error().Msgf("Failed to find field name for %v", fieldname)
 					continue
 				}
+				fieldtype = fieldname[3]
+			} else {
+				// ui.Error().Msgf("Unmappable field name for %v", fieldname)
+				continue
+			}
 
-				var resultval []string
+			var resultval []string
 
-				// special case
-				switch usedname {
-				case "nTSecurityDescriptor":
+			rawvalue, ok := row.Get(fieldname)
+			if !ok {
+				ui.Warn().Msgf("Problem getting field value for field %v (%v) for %v", fieldname, usedname, item.DistinguishedName)
+				continue
+			}
+
+			var processvalues []any
+			if values, ok := rawvalue.([]any); ok {
+				processvalues = values
+			} else {
+				processvalues = []any{rawvalue}
+			}
+
+			for _, value := range processvalues {
+
+				// if fmt.Sprintf("%v", value) == "1554" && strings.Contains(item.DistinguishedName, "Person") {
+				// 	ui.Info().Msgf("Field %v %v %v", item.DistinguishedName, fieldname, usedname)
+				// }
+
+				switch string(fieldtype) {
+				case "m":
+					// plain string
+				case "p":
 					hexIndex, ok := row.GetString(fieldname)
 					if !ok {
 						i, _ := row.Get(fieldname)
@@ -273,127 +372,112 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 						ui.Error().Msgf("Failed to parse security descriptor index %v: %v", hexIndex, err)
 						continue
 					}
-					sdValue, found := sdmap[int64(sdIndex)]
+					securityDescriptor, found := sdmap[int64(sdIndex)]
 					if !found {
 						ui.Error().Msgf("Failed to lookup security descriptor %v value for %v", sdIndex, item.DistinguishedName)
-					}
-					resultval = []string{sdValue}
-				case "distinguishedName":
-					resultval = []string{item.DistinguishedName} // Handled differently
-				case "objectClassCategory":
-					ivalues, ok := row.GetInt64(fieldname)
-					if !ok {
-						ui.Error().Msgf("Failed to get values for field %v", usedname)
 						continue
 					}
-					switch ivalues {
-					case 0:
-						// bork!
-						ui.Debug().Msgf("Object %v objectClassCategory value 0 is suspicious", item.DistinguishedName)
-					case 1:
-						resultval = []string{"STRUCTURAL"}
-					case 2:
-						resultval = []string{"ABSTRACT"}
-					case 3:
-						resultval = []string{"AUXILLARY"}
-					default:
-						ui.Error().Msgf("Unknown objectClassCategory value %v", ivalues)
-					}
-				case "objectCategory", "defaultObjectCategory":
-					ivalues, ok := row.GetInt64(fieldname)
-					if !ok {
-						ui.Error().Msgf("Failed to get values for field %v", usedname)
-						continue
-					}
-					rdnlist, found := ancestormap[ivalues]
-					// rdnlist, found := objectCategories[ivalues]
-					if !found {
-						ui.Error().Msgf("Failed to find DN %v rdnlist for %v value %v", item.DistinguishedName, usedname, ivalues)
-						continue
-					}
-					categorydn := getDistinguishedName(rdnlist, namemap)
-					if categorydn == "" {
-						ui.Error().Msgf("Failed to get categorydn for %v", ivalues)
+					resultval = append(resultval, securityDescriptor)
+				case "k", "r", "h":
+					decoded, err := hex.DecodeString(value.(string))
+					if err != nil {
+						ui.Error().Msgf("Failed to decode hex string %v: %v", value, err)
 					} else {
-						resultval = []string{categorydn}
+						resultval = append(resultval, string(decoded))
 					}
-				case "objectClass":
-					oc, _ := row.Get(fieldname)
-					ui.Debug().Msgf("%v objectClass is %v", item.DistinguishedName, oc)
-				case "isDeleted":
-					isdeleted, ok := row.GetInt64(fieldname)
-					if ok && isdeleted == 1 {
-						// Deleted, so skip importing it
-						continue
+				case "c", "i", "j", "l", "q", "b":
+					if usedname == "distinguishedName" {
+						resultval = []string{item.DistinguishedName} // Handled differently
+						continue                                     // handled differently
 					}
-				case "possSuperiors", "systemPossSuperiors":
-					ivalues, _ := row.Get(fieldname)
-					ui.Debug().Msgf("DN %v has values %v for field %v (%v)", item.DistinguishedName, ivalues, fieldname, usedname)
-				case "unicodePwd", "dBCSPwd", "supplementalCredentials":
-					// encrypted, skip it
-					continue
-				default:
-					ivalues, ok := row.Get(fieldname)
-					if !ok {
-						ui.Error().Msgf("Failed to get values for field %v", usedname)
-					}
-					switch value := ivalues.(type) {
-					case string:
-						if fieldname[3] == 'k' || fieldname[3] == 'r' || fieldname[3] == 'h' {
-							decoded, err := hex.DecodeString(value)
-							if err != nil {
-								ui.Error().Msgf("Failed to decode hex string %v: %v", value, err)
-							} else {
-								value = string(decoded)
-							}
+
+					switch usedname {
+					case "isDeleted":
+						if isdeleted, ok := value.(int32); ok && isdeleted == 1 {
+							// Deleted, so skip importing it
+							continue recordloop
 						}
-						resultval = []string{value}
-					case []string:
-						if fieldname[3] == 'k' || fieldname[3] == 'r' || fieldname[3] == 'h' {
-							for i, rv := range value {
-								decoded, err := hex.DecodeString(rv)
-								if err != nil {
-									ui.Error().Msgf("Failed to decode hex string %v: %v", value, err)
-								} else {
-									value[i] = string(decoded)
-								}
-							}
-						}
-						resultval = value
-					case int64:
-						resultval = []string{strconv.FormatInt(value, 10)}
-					case uint64:
-						if fieldname[3] == 'l' {
-							ts, err := verifyTimeStamp(value)
-							if err != nil {
-								ui.Debug().Msgf("Failed to verify timestamp %v: %v", value, err)
-							} else {
-								resultval = []string{strconv.FormatUint(ts, 10)}
+					case "subRefs":
+						// ignore for now
+					case "objectClassCategory":
+						if intValue, ok := value.(int32); ok {
+							switch intValue {
+							case 0:
+								// bork!
+								ui.Debug().Msgf("Object %v objectClassCategory value 0 is suspicious", item.DistinguishedName)
+							case 1:
+								resultval = []string{"STRUCTURAL"}
+							case 2:
+								resultval = []string{"ABSTRACT"}
+							case 3:
+								resultval = []string{"AUXILLARY"}
+							default:
+								ui.Error().Msgf("Unknown objectClassCategory value %v", intValue)
 							}
 						} else {
-							if usedname == "whenChanged" {
-								ui.Debug().Msgf("DN %v has values %v for field %v (%v)", item.DistinguishedName, value, fieldname, usedname)
-							}
-							resultval = []string{strconv.FormatUint(value, 10)}
+							ui.Warn().Msgf("Problem getting int32 value, for %T", value)
 						}
-					case int32:
-						resultval = []string{strconv.FormatInt(int64(value), 10)}
-					case uint32:
-						resultval = []string{strconv.FormatUint(uint64(value), 10)}
-					case int8:
-						resultval = []string{strconv.FormatInt(int64(value), 10)}
-					case uint8:
-						resultval = []string{strconv.FormatUint(uint64(value), 10)}
-					case bool:
-						resultval = []string{strconv.FormatBool(value)}
-					default:
-						ui.Error().Msgf("Unknown type for field %v: %T", usedname, ivalues)
-					}
-				}
+					case "objectCategory", "defaultObjectCategory":
+						if intValue, ok := value.(int32); ok {
+							if name, found := namemap[int64(intValue)]; found {
+								// ui.Info().Msgf("Name %v", name)
+								_, name, _ := strings.Cut(name, "=") // remove CN= etc
+								resultval = append(resultval, name)
+								// }
+								// if lookupVal, ok := row.GetString(fieldname); ok {
+								// 	dn := getDistinguishedName(lookupVal, namemap)
+								// 	resultval = append(resultval, dn)
+							} else {
+								ui.Warn().Msgf("%v lookup value %v not found for %v, skipping", usedname, intValue, item.DistinguishedName)
+							}
+						} else {
+							ui.Warn().Msgf("Expected int32 for lookup on classes in field %v for %v", usedname, item.DistinguishedName)
+						}
+					case "objectClass", "possSuperiors", "systemPossSuperiors", "systemAuxiliaryClass", "auxiliaryClass":
+						if intValue, ok := value.(int32); ok {
+							if lookupVal, found := objectClassMap[int64(intValue)]; found {
+								resultval = append(resultval, lookupVal)
+							} else {
+								ui.Warn().Msgf("%v lookup value %v not found for %v, skipping", usedname, intValue, item.DistinguishedName)
+							}
+						} else {
+							ui.Warn().Msgf("Expected int32 for lookup on classes in field %v for %v", usedname, item.DistinguishedName)
+						}
+					case "mustContain", "mayContain", "systemMustContain", "systemMayContain":
+						if intValue, ok := value.(int32); ok {
+							if lookupVal, found := attributeMap[int64(intValue)]; found {
+								resultval = append(resultval, lookupVal)
+							} else {
+								ui.Warn().Msgf("%v lookup value %v not found for %v, skipping", usedname, intValue, item.DistinguishedName)
+							}
+						} else {
+							ui.Warn().Msgf("Expected int32 for lookup on classes in field %v for %v", usedname, item.DistinguishedName)
+						}
+					case "dsCorePropagationData", "whenCreated", "whenChanged":
+						// FIXME
+						// if intValue, ok := value.(uint64); ok && intValue > 1 {
+						// 	// swap endianness in uint64
+						// 	bytes := make([]byte, 8)
+						// 	// binary.LittleEndian.PutUint64(bytes, intValue)
+						// 	binary.BigEndian.PutUint64(bytes, intValue)
+						// 	// intValue = binary.BigEndian.Uint64(bytes)
 
-				if len(resultval) > 0 {
-					item.Attributes[usedname] = resultval
+						// 	time := parser.WinFileTime64Bin(bytes)
+						// 	// time := util.FiletimeToTime(intValue)
+						// 	ui.Info().Msgf("Time is %v", time)
+						// 	resultval = append(resultval, time.Format("20060102150405"))
+						// }
+					default:
+						resultval = append(resultval, fmt.Sprintf("%v", value))
+					}
+				default:
+					ui.Error().Msgf("Unhandled field %v type %v (contains %T: %v)", usedname, string(fieldtype), value, value)
+					continue recordloop
 				}
+			}
+
+			if len(resultval) > 0 {
+				item.Attributes[usedname] = resultval
 			}
 		}
 
@@ -419,14 +503,21 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 						ui.Error().Msgf("Failed to find link attribute %v from %v to %v", l.linkbase, item.DistinguishedName, strings.Join(linktargets, ", "))
 					} else {
 						item.Attributes[attrname] = linktargets
-						ui.Debug().Msgf("Adding link attribute %v %v to %v", attrname, linktargets, item.DistinguishedName)
+						// ui.Debug().Msgf("Adding link attribute %v %v to %v", attrname, linktargets, item.DistinguishedName)
 					}
 				}
 			}
 		}
 
+		oc := item.Attributes["objectClass"]
 		if item.DistinguishedName == "CN=Top,CN=Schema,CN=Configuration,DC=sevenkingdoms,DC=local" {
-			ui.Debug().Msgf("Found schema: %v", item)
+			// ui.Debug().Msgf("Found schema: %v", item)
+		} else if item.DistinguishedName == "CN=Person,CN=Schema,CN=Configuration,DC=sevenkingdoms,DC=local" {
+			// ui.Debug().Msgf("Found person: %v", item)
+		} else if item.DistinguishedName == "DC=sevenkingdoms,DC=local" {
+			ui.Debug().Msgf("Found root: %v", item)
+		} else if slices.Contains(oc, "crossRef") {
+			ui.Debug().Msgf("Crossref: %v", item)
 		}
 
 		if do.OnObject != nil {
@@ -459,7 +550,7 @@ func getDistinguishedName(rdnlist string, namemap map[int64]string) string {
 		name := namemap[int64(currdn)]
 		rdnlist = rdnlist[8:]
 
-		if name == "??=$ROOT_OBJECT$" {
+		if name == "$ROOT_OBJECT$" {
 			continue
 		}
 

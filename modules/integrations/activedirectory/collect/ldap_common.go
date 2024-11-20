@@ -1,6 +1,16 @@
 package collect
 
-import "github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+import (
+	"net"
+	"os"
+	"runtime"
+	"strings"
+
+	"github.com/Showmax/go-fqdn"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/pkg/errors"
+)
 
 //go:generate go run github.com/dmarkham/enumer -type=TLSmode,AuthMode,LDAPScope,LDAPError,LDAPOption -json -output ldap_enums.go
 
@@ -137,8 +147,8 @@ const (
 
 type LDAPOptions struct {
 	Domain         string   `json:"domain"`
-	Server         string   `json:"server"`
-	Port           uint16   `json:"port"`
+	Servers        []string `json:"server"` // tries servers in this order
+	Port           int16    `json:"port"`
 	User           string   `json:"user"`
 	Password       string   `json:"password"`
 	AuthDomain     string   `json:"authdomain"`
@@ -154,6 +164,63 @@ type LDAPOptions struct {
 
 func NewLDAPOptions() LDAPOptions {
 	return LDAPOptions{}
+}
+
+func (ldo *LDAPOptions) Autodetect() error {
+	if ldo.Port == -1 {
+		if tlsmode == TLS {
+			ldo.Port = 636
+		} else {
+			ldo.Port = 389
+		}
+	}
+
+	if ldo.Domain == "" {
+		ui.Info().Msg("No domain supplied, auto-detecting")
+		ldo.Domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
+		if ldo.Domain == "" {
+			// That didn't work, lets try something else
+			f, err := fqdn.FqdnHostname()
+			if err == nil && strings.Contains(f, ".") {
+				ui.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
+				ldo.Domain = strings.ToLower(f[strings.Index(f, ".")+1:])
+			}
+		}
+	}
+
+	if len(ldo.Servers) == 0 {
+		if ldo.Domain == "" {
+			return errors.New("Server auto-detection failed, we don't know the domain")
+		}
+		ui.Info().Msgf("Trying to auto-detect servers on domain '%v'", ldo.Domain)
+
+		// Auto-detect server
+		cname, dnsservers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+ldo.Domain)
+		if err == nil && cname != "" && len(dnsservers) != 0 {
+			for _, dnsserver := range dnsservers {
+				ldo.Servers = append(ldo.Servers, strings.TrimRight(dnsserver.Target, "."))
+			}
+			ui.Info().Msgf("AD controller(s) detected as: %v", strings.Join(ldo.Servers, ", "))
+		} else {
+			return errors.New("AD controller auto-detection failed, use '--server' parameter")
+		}
+	}
+
+	if runtime.GOOS != "windows" && ldo.User == "" && ldo.AuthMode != KerberosCache {
+		// Auto-detect user
+		ldo.User = os.Getenv("USERNAME")
+		if ldo.User != "" {
+			ui.Info().Msgf("Auto-detected username as %v", ldo.User)
+		} else {
+			return errors.New("Username autodetection failed - please use '--username' parameter")
+		}
+	}
+
+	if ldo.AuthDomain == "" {
+		ldo.AuthDomain = ldo.Domain
+	}
+
+	return nil
 }
 
 type objectCallbackFunc func(ro *activedirectory.RawObject) error

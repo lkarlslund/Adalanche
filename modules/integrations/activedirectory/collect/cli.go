@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,7 +15,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
 
-	"github.com/Showmax/go-fqdn"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
@@ -71,6 +69,7 @@ var (
 
 	authmode AuthMode
 	tlsmode  TLSmode
+	options  LDAPOptions
 )
 
 func init() {
@@ -93,67 +92,35 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown TLS mode %v", tlsmode)
 	}
 
-	if *port == -1 {
-		if tlsmode == TLS {
-			*port = 636
-		} else {
-			*port = 389
-		}
-	}
-
 	authmode, err = AuthModeString(*AuthmodeString)
 	if err != nil {
 		return fmt.Errorf("unknown auth mode %v", authmode)
 	}
 
 	// AUTODETECTION
+	options = LDAPOptions{
+		Servers:        *servers,
+		Port:           int16(*port),
+		AuthMode:       authmode,
+		User:           *user,
+		Password:       *pass,
+		Domain:         *domain,
+		AuthDomain:     *authdomain,
+		TLSMode:        tlsmode,
+		IgnoreCert:     *ignoreCert,
+		Debug:          *ldapdebug,
+		Channelbinding: *channelbinding,
+	}
+
 	if *autodetect {
-		if len(*servers) == 0 {
-			// We only need to auto-detect the domain if the server is not supplied
-			if *domain == "" {
-				ui.Info().Msg("No domain supplied, auto-detecting")
-				*domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
-				if *domain == "" {
-					// That didn't work, lets try something else
-					f, err := fqdn.FqdnHostname()
-					if err == nil && strings.Contains(f, ".") {
-						ui.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
-						*domain = strings.ToLower(f[strings.Index(f, ".")+1:])
-					}
-				}
-				if *domain == "" {
-					return errors.New("Domain auto-detection failed")
-				} else {
-					ui.Info().Msgf("Auto-detected domain as %v", *domain)
-				}
-			}
-
-			// Auto-detect server
-			cname, dnsservers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+*domain)
-			if err == nil && cname != "" && len(dnsservers) != 0 {
-				for _, dnsserver := range dnsservers {
-					*servers = append(*servers, strings.TrimRight(dnsserver.Target, "."))
-				}
-				ui.Info().Msgf("AD controller(s) detected as: %v", strings.Join(*servers, ", "))
-			} else {
-				return errors.New("AD controller auto-detection failed, use '--server' parameter")
-			}
-
-			if runtime.GOOS != "windows" && *user == "" && authmode != KerberosCache {
-				// Auto-detect user
-				*user = os.Getenv("USERNAME")
-				if *user != "" {
-					ui.Info().Msgf("Auto-detected username as %v", *user)
-				} else {
-					return errors.New("Username autodetection failed - please use '--username' parameter")
-				}
-			}
+		err := options.Autodetect()
+		if err != nil {
+			ui.Warn().Msgf("Problem doing auto-detection: %v", err)
 		}
 	}
 
 	// END OF AUTODETECTION
-
-	if len(*servers) == 0 {
+	if len(options.Servers) == 0 {
 		return errors.New("missing AD controller server name - please provide this on commandline")
 	}
 
@@ -162,8 +129,8 @@ func PreRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if *user == "" {
-		if *pass != "" {
+	if options.User == "" {
+		if options.Password != "" {
 			return errors.New("You supplied a password, but not a username. Please provide a username or do not supply a password")
 		}
 
@@ -171,18 +138,18 @@ func PreRun(cmd *cobra.Command, args []string) error {
 			return errors.New("You need to supply a username and password for platforms other than Windows")
 		}
 	} else {
-		if *pass == "" {
+		if options.Password == "" {
 			fmt.Printf("Please enter password for %v: ", *user)
 			passwd, err := term.ReadPassword(int(syscall.Stdin))
 			fmt.Println()
 			if err == nil {
-				*pass = string(passwd)
+				options.Password = string(passwd)
 			}
 		}
 
-		if *pass == "!" {
+		if options.Password == "!" {
 			// A single ! indicates we want to use a blank password, so lets change it to that
-			*pass = ""
+			options.Password = ""
 		}
 
 		// if authmode == NTLM {
@@ -291,38 +258,13 @@ func Execute(cmd *cobra.Command, args []string) error {
 		ad.Disconnect()
 	} else {
 		// Active Directory dump directly from AD controller
-		options := LDAPOptions{
-			Domain:         *domain,
-			Port:           uint16(*port),
-			AuthMode:       authmode,
-			User:           *user,
-			Password:       *pass,
-			AuthDomain:     *authdomain,
-			TLSMode:        tlsmode,
-			IgnoreCert:     *ignoreCert,
-			Debug:          *ldapdebug,
-			Channelbinding: *channelbinding,
-		}
 		var ad LDAPDumper
 
 		// Find usable DC from list of servers
-		var chosenserver string
-		for _, server := range *servers {
-			options.Server = server
-			ad = CreateDumper(options)
+		ad = CreateDumper(options)
 
-			err := ad.Connect()
-			if err == nil {
-				// Successfull connect
-				chosenserver = server
-				break
-			}
-
-			ui.Warn().Msgf("Problem connecting to DC %v: %v", server, err)
-		}
-		if chosenserver != "" {
-			ui.Info().Msgf("Successfull connect to DC %v", chosenserver)
-		} else {
+		err := ad.Connect()
+		if err != nil {
 			return errors.New("All DCs failed login attempts")
 		}
 

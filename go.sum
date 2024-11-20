@@ -537,3 +537,5 @@ gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 nullprogram.com/x/optparse v1.0.0/go.mod h1:KdyPE+Igbe0jQUrVfMqDMeJQIJZEuyV7pjYmp6pbG50=
 www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b h1:3pFfQuY3k0qViJDlLqmUfGP4YkQIl25Vc/Uq8Pl0qLA=
 www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b/go.mod h1:6fC9T6UGLbM7icuA0ugomU5HbFC5XA5I30zlWtZT8YE=
+www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373 h1:XyH8GmoBOXNn1vlZjyZ5XxYHfIzKn8YJhyDdJWiPxGU=
+www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373/go.mod h1:8RT+ep8ek2tEu4jXydNAZt4+bXMbUq4K/3mu1IIs3fM=

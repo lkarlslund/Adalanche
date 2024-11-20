@@ -99,7 +99,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/timtadh/lexmachine v0.2.3
 	go.etcd.io/bbolt v1.3.11
-	www.velocidex.com/golang/go-ese v0.2.1-0.20240207005444-85d57b555f8b
+	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
 
 require github.com/timtadh/data-structures v0.6.1 // indirect

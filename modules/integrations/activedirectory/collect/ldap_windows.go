@@ -55,7 +55,6 @@ var ignoreCertCallback = syscall.NewCallback(func(connection uintptr, trustedcas
 })
 
 func init() {
-
 	CreateDumper = func(opts LDAPOptions) LDAPDumper {
 		if *nativeldap {
 			return &WAD{
@@ -82,86 +81,22 @@ type WAD struct {
 }
 
 func (a *WAD) Connect() error {
-	switch a.TLSMode {
-	case NoTLS, StartTLS:
-		ui.Info().Msgf("Setting up unencrypted LDAP session to %s:%d", a.Server, a.Port)
-		ldap, _, err := wldap32_ldap_init.Call(uintptr(unsafe.Pointer(MakeCString(a.Server))), uintptr(a.Port))
-		if err != syscall.Errno(0) {
-			return err
-		}
-
-		a.conn = WLDAP(ldap)
-	case TLS:
-		ui.Info().Msgf("Setting up TLS encrypted LDAP session to %s:%d", a.Server, a.Port)
-		ldap, _, err := wldap32_ldap_sslinit.Call(uintptr(unsafe.Pointer(MakeCString(a.Server))), uintptr(a.Port), uintptr(1))
-		if err != syscall.Errno(0) {
-			return err
-		}
-
-		a.conn = WLDAP(ldap)
-	default:
-		return errors.New("unknown transport mode")
-	}
-
-	timeout_secs := int32(timeout.Seconds())
-
-	a.conn.set_option(LDAP_OPT_PROTOCOL_VERSION, LDAP_VERSION3)
-
-	a.conn.set_option(LDAP_OPT_SIZELIMIT, uintptr(a.SizeLimit))
-
-	if *signing {
-		if a.TLSMode != NoTLS {
-			return fmt.Errorf("Can't enable signing on anything but unencrypted connections (--tlsmode NoTLS)")
-		}
-		if a.AuthMode != NTLM && a.AuthMode != Negotiate {
-			return fmt.Errorf("Can't enable signing on anything but NTLM or NEGOTIATE sessions (--authmode ntlm or --authmode negotiate)")
-		}
-		a.conn.set_option(LDAP_OPT_SIGN, 1)
-	}
-
-	if *referrals {
-		a.conn.set_option(LDAP_OPT_REFERRALS, 1)
-	} else {
-		a.conn.set_option(LDAP_OPT_REFERRALS, 0)
-	}
-
-	if *ignoreCert {
-		a.conn.set_option_direct(LDAP_OPT_SERVER_CERTIFICATE, ignoreCertCallback)
-	}
-
-	ui.Info().Msgf("Connecting to %s:%d", a.Server, a.Port)
-	res, _, _ := wldap32_ldap_connect.Call(uintptr(a.conn), uintptr(unsafe.Pointer(&timeout_secs)))
-	if LDAPError(res) != LDAP_SUCCESS {
-		a.conn.unbind()
-		if LDAPError(res) == LDAP_SERVER_DOWN {
-			return fmt.Errorf("ldap_connect failed with %v, connection issue or invalid certificate (try --ignorecert)", LDAPError(res))
-		}
-		return fmt.Errorf("ldap_connect failed with %v", LDAPError(res))
-	}
-
-	if a.TLSMode == StartTLS {
-		ui.Info().Msg("Upgrading unencrypted connection to TLS")
-		var errorval uint64
-		res, _, err := wldap32_ldap_start_tls_s.Call(
-			uintptr(a.conn),
-			uintptr(unsafe.Pointer(&errorval)),
-			0,
-			0,
-			0,
-		)
-		if err != syscall.Errno(0) {
-			return err
-		}
-		if LDAPError(res) == LDAP_SERVER_DOWN {
-			return fmt.Errorf("ldap_connect failed with %v, connection issue or invalid certificate (try --ignorecert)", LDAPError(res))
-		}
-		if LDAPError(res) != LDAP_SUCCESS {
-			return fmt.Errorf("ldap_start_tls_s failed with %v (code %v)", LDAPError(res), errorval)
+	var chosenserver string
+	var err error
+	for _, server := range a.Servers {
+		err = a.connectToServer(server)
+		if err == nil {
+			chosenserver = server
+			break
 		}
 	}
+	if err != nil {
+		return fmt.Errorf("Problem connecting to all servers: %v", err)
+	}
+	ui.Info().Msgf("Connected to %v:%v", chosenserver, a.Port)
 
 	// https://docs.microsoft.com/en-us/windows/win32/api/winldap/nf-winldap-ldap_bind_s
-	var err error
+	var res uintptr
 	switch a.AuthMode {
 	case Anonymous:
 		ui.Info().Msg("Anonymous bind")
@@ -224,6 +159,88 @@ func (a *WAD) Connect() error {
 	}
 	if LDAPError(res) != LDAP_SUCCESS {
 		return fmt.Errorf("ldap_bind_s failed with %v", LDAPError(res))
+	}
+
+	return nil
+}
+
+func (a *WAD) connectToServer(server string) error {
+	switch a.TLSMode {
+	case NoTLS, StartTLS:
+		ui.Info().Msgf("Setting up unencrypted LDAP session to %s:%d", server, a.Port)
+		ldap, _, err := wldap32_ldap_init.Call(uintptr(unsafe.Pointer(MakeCString(server))), uintptr(a.Port))
+		if err != syscall.Errno(0) {
+			return err
+		}
+
+		a.conn = WLDAP(ldap)
+	case TLS:
+		ui.Info().Msgf("Setting up TLS encrypted LDAP session to %s:%d", server, a.Port)
+		ldap, _, err := wldap32_ldap_sslinit.Call(uintptr(unsafe.Pointer(MakeCString(server))), uintptr(a.Port), uintptr(1))
+		if err != syscall.Errno(0) {
+			return err
+		}
+
+		a.conn = WLDAP(ldap)
+	default:
+		return errors.New("unknown transport mode")
+	}
+
+	timeout_secs := int32(timeout.Seconds())
+
+	a.conn.set_option(LDAP_OPT_PROTOCOL_VERSION, LDAP_VERSION3)
+
+	a.conn.set_option(LDAP_OPT_SIZELIMIT, uintptr(a.SizeLimit))
+
+	if *signing {
+		if a.TLSMode != NoTLS {
+			return fmt.Errorf("Can't enable signing on anything but unencrypted connections (--tlsmode NoTLS)")
+		}
+		if a.AuthMode != NTLM && a.AuthMode != Negotiate {
+			return fmt.Errorf("Can't enable signing on anything but NTLM or NEGOTIATE sessions (--authmode ntlm or --authmode negotiate)")
+		}
+		a.conn.set_option(LDAP_OPT_SIGN, 1)
+	}
+
+	if *referrals {
+		a.conn.set_option(LDAP_OPT_REFERRALS, 1)
+	} else {
+		a.conn.set_option(LDAP_OPT_REFERRALS, 0)
+	}
+
+	if *ignoreCert {
+		a.conn.set_option_direct(LDAP_OPT_SERVER_CERTIFICATE, ignoreCertCallback)
+	}
+
+	ui.Info().Msgf("Connecting to %s:%d", server, a.Port)
+	res, _, _ := wldap32_ldap_connect.Call(uintptr(a.conn), uintptr(unsafe.Pointer(&timeout_secs)))
+	if LDAPError(res) != LDAP_SUCCESS {
+		a.conn.unbind()
+		if LDAPError(res) == LDAP_SERVER_DOWN {
+			return fmt.Errorf("ldap_connect failed with %v, connection issue or invalid certificate (try --ignorecert)", LDAPError(res))
+		}
+		return fmt.Errorf("ldap_connect failed with %v", LDAPError(res))
+	}
+
+	if a.TLSMode == StartTLS {
+		ui.Info().Msg("Upgrading unencrypted connection to TLS")
+		var errorval uint64
+		res, _, err := wldap32_ldap_start_tls_s.Call(
+			uintptr(a.conn),
+			uintptr(unsafe.Pointer(&errorval)),
+			0,
+			0,
+			0,
+		)
+		if err != syscall.Errno(0) {
+			return err
+		}
+		if LDAPError(res) == LDAP_SERVER_DOWN {
+			return fmt.Errorf("ldap_connect failed with %v, connection issue or invalid certificate (try --ignorecert)", LDAPError(res))
+		}
+		if LDAPError(res) != LDAP_SUCCESS {
+			return fmt.Errorf("ldap_start_tls_s failed with %v (code %v)", LDAPError(res), errorval)
+		}
 	}
 
 	return nil

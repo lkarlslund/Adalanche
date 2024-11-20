@@ -24,65 +24,25 @@ import (
 type AD struct {
 	LDAPOptions
 
-	conn *ldap.Conn
+	conn   *ldap.Conn
+	cbData []byte
 }
 
 func (ad *AD) Connect() error {
 	var cbData []byte
 	_ = cbData // for later
 
-	if ad.AuthDomain == "" {
-		ad.AuthDomain = ad.Domain
+	var chosenserver string
+	var err error
+	for _, server := range ad.Servers {
+		err = ad.connectToServer(server)
+		if err == nil {
+			chosenserver = server
+			break
+		}
 	}
-	switch ad.TLSMode {
-	case NoTLS:
-		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port))
-		if err != nil {
-			return err
-		}
-		ad.conn = conn
-	case StartTLS:
-		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port))
-		if err != nil {
-			return err
-		}
-
-		err = conn.StartTLS(&tls.Config{
-			ServerName:         ad.Server,
-			InsecureSkipVerify: ad.IgnoreCert,
-		})
-		if err != nil {
-			return err
-		}
-
-		ad.conn = conn
-	case TLS:
-		config := &tls.Config{
-			ServerName:         ad.Server,
-			InsecureSkipVerify: ad.IgnoreCert,
-			MaxVersion:         tls.VersionTLS12,
-		}
-
-		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", ad.Server, ad.Port), config)
-		if err != nil {
-			return err
-		}
-
-		if ad.Channelbinding {
-			tlsState := conn.ConnectionState()
-			if len(tlsState.PeerCertificates) == 0 {
-				return errors.New("no peer certificates for channel binding")
-			}
-			cbData, err = cb.MakeTLSChannelBinding(tlsState, tlsState.PeerCertificates[0], cb.TLSChannelBindingEndpoint)
-			if err != nil {
-				return err
-			}
-		}
-
-		ad.conn = ldap.NewConn(conn, true)
-		ad.conn.Start()
-	default:
-		return errors.New("unknown transport mode")
+	if err != nil {
+		return fmt.Errorf("Problem connecting to any server: %v", err)
 	}
 
 	ad.conn.Debug.Enable(ad.Debug)
@@ -116,7 +76,7 @@ allow_weak_crypto = true
 %s = {
 kdc = %s:88
 default_domain = %s
-}`, upperDomain, upperDomain, ad.Server, upperDomain))
+}`, upperDomain, upperDomain, chosenserver, upperDomain))
 		if err != nil {
 			return err
 		}
@@ -137,7 +97,7 @@ default_domain = %s
 			return err
 		}
 
-		spn := "ldap/" + ad.Server
+		spn := "ldap/" + chosenserver
 
 		// gc := &gssapi.Client{
 		// 	Client: client,
@@ -160,7 +120,7 @@ default_domain = %s
 			}
 
 			// Bind using supplied GSSAPIClient implementation
-			err = ad.conn.GSSAPIBind(sspiClient, "ldap/"+ad.Server, "")
+			err = ad.conn.GSSAPIBind(sspiClient, "ldap/"+chosenserver, "")
 			if err != nil {
 				return err
 			}
@@ -176,6 +136,60 @@ default_domain = %s
 	}
 
 	return gerr
+}
+
+func (ad *AD) connectToServer(server string) error {
+	switch ad.TLSMode {
+	case NoTLS:
+		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", server, ad.Port))
+		if err != nil {
+			return err
+		}
+		ad.conn = conn
+	case StartTLS:
+		conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", server, ad.Port))
+		if err != nil {
+			return err
+		}
+
+		err = conn.StartTLS(&tls.Config{
+			ServerName:         server,
+			InsecureSkipVerify: ad.IgnoreCert,
+		})
+		if err != nil {
+			return err
+		}
+
+		ad.conn = conn
+	case TLS:
+		config := &tls.Config{
+			ServerName:         server,
+			InsecureSkipVerify: ad.IgnoreCert,
+			MaxVersion:         tls.VersionTLS12,
+		}
+
+		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", server, ad.Port), config)
+		if err != nil {
+			return err
+		}
+
+		if ad.Channelbinding {
+			tlsState := conn.ConnectionState()
+			if len(tlsState.PeerCertificates) == 0 {
+				return errors.New("no peer certificates for channel binding")
+			}
+			ad.cbData, err = cb.MakeTLSChannelBinding(tlsState, tlsState.PeerCertificates[0], cb.TLSChannelBindingEndpoint)
+			if err != nil {
+				return err
+			}
+		}
+
+		ad.conn = ldap.NewConn(conn, true)
+		ad.conn.Start()
+	default:
+		return errors.New("unknown transport mode")
+	}
+	return nil
 }
 
 func (ad *AD) Disconnect() error {
