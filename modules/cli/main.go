@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"runtime/pprof"
+	"strings"
 	"sync"
 	"time"
 
@@ -117,6 +118,9 @@ func init() {
 		}
 
 		if *logfile != "" {
+			timestamp := time.Now().Format(time.DateOnly)
+			*logfile = strings.Replace(*logfile, "{timestamp}", timestamp, 1)
+
 			ll, err = ui.LogLevelString(*logfilelevel)
 			if err != nil {
 				ui.Error().Msgf("Invalid log file log level: %v - use one of: %v", *logfilelevel, ui.LogLevelStrings())

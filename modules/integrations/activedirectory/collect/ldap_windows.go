@@ -16,6 +16,7 @@ import (
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/lkarlslund/ldap/v3/gssapi"
 	"github.com/pierrec/lz4/v4"
@@ -55,6 +56,22 @@ var ignoreCertCallback = syscall.NewCallback(func(connection uintptr, trustedcas
 })
 
 func init() {
+	findDomain = append(findDomain,
+		DomainDetector{
+			Name: "last GPO domain",
+			Func: func() string {
+				// Read string from registry
+				value, err := windowssecurity.ReadRegistryKey(`HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\History\MachineDomain`)
+				if err == nil {
+					return fmt.Sprintf("%v", value)
+				} else {
+					ui.Warn().Msgf("Error reading last GPO domain from registry: %v", err)
+				}
+				return ""
+			},
+		},
+	)
+
 	CreateDumper = func(opts LDAPOptions) LDAPDumper {
 		if *nativeldap {
 			return &WAD{
@@ -280,6 +297,7 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	}
 
 	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
+	defer bar.Finish()
 
 	var objects []activedirectory.RawObject
 	var err error

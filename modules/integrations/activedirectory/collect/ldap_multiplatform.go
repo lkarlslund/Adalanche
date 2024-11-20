@@ -227,6 +227,7 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	}
 
 	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
+	defer bar.Finish()
 
 	var controls []ldap.Control
 

@@ -166,8 +166,36 @@ func NewLDAPOptions() LDAPOptions {
 	return LDAPOptions{}
 }
 
+type DomainDetector struct {
+	Name string
+	Func func() string
+}
+
+var (
+	findDomain = []DomainDetector{
+		{
+			Name: "USERDNSDOMAIN",
+			Func: func() string {
+				return strings.ToLower(os.Getenv("USERDNSDOMAIN"))
+			},
+		},
+		{
+			Name: "FQDN",
+			Func: func() string {
+				f, err := fqdn.FqdnHostname()
+				if err != nil {
+					ui.Warn().Msgf("Autodetection using FQDN error: %v", err)
+				} else if strings.Contains(f, ".") {
+					return strings.ToLower(f[strings.Index(f, ".")+1:])
+				}
+				return ""
+			},
+		},
+	}
+)
+
 func (ldo *LDAPOptions) Autodetect() error {
-	if ldo.Port == -1 {
+	if ldo.Port == 0 {
 		if tlsmode == TLS {
 			ldo.Port = 636
 		} else {
@@ -177,13 +205,14 @@ func (ldo *LDAPOptions) Autodetect() error {
 
 	if ldo.Domain == "" {
 		ui.Info().Msg("No domain supplied, auto-detecting")
-		ldo.Domain = strings.ToLower(os.Getenv("USERDNSDOMAIN"))
-		if ldo.Domain == "" {
-			// That didn't work, lets try something else
-			f, err := fqdn.FqdnHostname()
-			if err == nil && strings.Contains(f, ".") {
-				ui.Info().Msg("No USERDNSDOMAIN set - using machines FQDN as basis")
-				ldo.Domain = strings.ToLower(f[strings.Index(f, ".")+1:])
+
+		for _, f := range findDomain {
+			ldo.Domain = f.Func()
+			if ldo.Domain != "" {
+				ui.Info().Msgf("Detected domain as %v from %v", ldo.Domain, f.Name)
+				break
+			} else {
+				ui.Warn().Msgf("Failed to detect domain with detector %v", f.Name)
 			}
 		}
 	}
@@ -236,6 +265,12 @@ type DumpOptions struct {
 	OnObject      objectCallbackFunc
 	WriteToFile   string
 	ReturnObjects bool
+}
+
+func NewDumpOptions() DumpOptions {
+	return DumpOptions{
+		ChunkSize: 1000,
+	}
 }
 
 type LDAPDumper interface {

@@ -40,7 +40,7 @@ var (
 	ntdsfile = Command.Flags().String("ntdsfile", "", "Import AD objects from NTDS.DIT file")
 
 	servers = Command.Flags().StringArray("server", nil, "DC to connect to, use IP or full hostname, random DC is auto-detected if not supplied")
-	port    = Command.Flags().Int("port", -1, "LDAP port to connect to (389 or 636 typical, -1 for auto based on tlsmode)")
+	port    = Command.Flags().Int("port", 0, "LDAP port to connect to (389 or 636 typical, 0 for automatic port based on tlsmode)")
 	domain  = Command.Flags().String("domain", "", "domain suffix to analyze (auto-detected if not supplied)")
 	user    = Command.Flags().String("username", "", "username to connect with")
 	pass    = Command.Flags().String("password", "", "password to connect with (use ! for blank password)")
@@ -265,7 +265,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		err := ad.Connect()
 		if err != nil {
-			return errors.New("All DCs failed login attempts")
+			return fmt.Errorf("all DCs failed, last error: %v", err)
 		}
 
 		var attributes []string

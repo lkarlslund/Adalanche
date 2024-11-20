@@ -1,12 +1,9 @@
 package collect
 
 import (
-	"log"
-	"strings"
-
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"golang.org/x/sys/windows/registry"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 var (
@@ -44,53 +41,10 @@ var (
 func CollectRegistryItems() localmachine.RegistryData {
 	results := make(localmachine.RegistryData)
 	for _, item := range collect {
-		if strings.Index(item, `*`) != -1 {
-			// Globbing not supported yet ... let's see later :-)
-			continue
-		}
-		regparts := strings.Split(item, "\\")
-
-		path := strings.Join(regparts[1:len(regparts)-2], "\\")
-		key := regparts[len(regparts)-1]
-		hivename := regparts[0]
-		hive := registry.LOCAL_MACHINE
-		switch strings.ToUpper(strings.TrimSuffix(hivename, ":")) {
-		case "HKLM":
-			hive = registry.LOCAL_MACHINE
-		default:
-			ui.Warn().Msgf("Unsupported registry hive name %v, skipping %v", hive, item)
-			continue
-		}
-
-		var value any
-
-		k, err := registry.OpenKey(hive, path, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		value, err := windowssecurity.ReadRegistryKey(item)
 		if err != nil {
-			log.Fatal(err)
-		}
-		defer k.Close()
-
-		var valtype uint32
-		value, valtype, err = k.GetStringValue(key)
-		if err != nil {
-			if err == registry.ErrUnexpectedType {
-				switch valtype {
-				case registry.NONE, registry.LINK, registry.RESOURCE_LIST, registry.FULL_RESOURCE_DESCRIPTOR, registry.RESOURCE_REQUIREMENTS_LIST:
-					// skip trying
-					continue
-				case registry.SZ, registry.EXPAND_SZ:
-					// strange, that should have worked
-				case registry.BINARY:
-					value, _, err = k.GetBinaryValue(key)
-				case registry.DWORD, registry.QWORD:
-					value, _, err = k.GetIntegerValue(key)
-				case registry.MULTI_SZ:
-					value, _, err = k.GetStringsValue(key)
-				}
-			} else {
-				ui.Warn().Msgf("Problem getting registry value %v: %v", item, err)
-				continue
-			}
+			ui.Warn().Msgf("Could not read registry key %s: %v", item, err)
+			continue
 		}
 		results[item] = value
 	}

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -57,11 +58,16 @@ func SetLogFile(path string, i LogLevel) error {
 	if logfile != nil {
 		logfile.Close()
 	}
+
+	// Ensure path exists
+	os.MkdirAll(filepath.Dir(path), 0660)
+
 	var err error
 	logfile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("Failed to open logfile %s: %s", path, err)
 	}
+
 	logfilelevel = i
 	return nil
 }
