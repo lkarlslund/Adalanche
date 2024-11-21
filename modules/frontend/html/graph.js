@@ -49,7 +49,7 @@ var d3forcelayout = {
     // stop: function () { }, // on layoutstop
     tick: function (progress) { }, // on every iteration
     // positioning options
-    randomize: false, // use random node positions at beginning of layout
+    randomize: true, // use random node positions at beginning of layout
     // infinite layout options
     infinite: false // overrides all other options for a forces-all-the-time mode
 }
@@ -63,7 +63,7 @@ var coselayout = {
     refresh: 20,
     fit: true,
     padding: 30,
-    randomize: false,
+    randomize: true,
     componentSpacing: 120,
     nodeRepulsion: 4400000,
     edgeElasticity: 100,
@@ -110,7 +110,7 @@ var fcoselayout = {
     quality: "proof",
     // Use random node positions at beginning of layout
     // if this is set to false, then quality option must be "proof"
-    randomize: false,
+    randomize: true,
     // Whether or not to animate the layout
     animate: false,
     // Duration of animation in ms, if enabled
@@ -231,7 +231,7 @@ var cosebilkentlayout = {
     // Padding on fit
     padding: 10,
     // Whether to enable incremental mode
-    randomize: false,
+    randomize: true,
     // Node repulsion (non overlapping) multiplier
     nodeRepulsion: 4500,
     // Ideal (intra-graph) edge length
@@ -981,7 +981,7 @@ function initgraph(data) {
     });
 
     // Distribute all objects to predictable locations
-    data.forEach(function (ele) {
+/*    data.forEach(function (ele) {
         if (ele.group == "nodes") {
             // set x to node id modulus 1024
             x = ele.data.id.substr(1) % 1024;
@@ -992,6 +992,7 @@ function initgraph(data) {
             }
         }
     });
+*/
 
     // Load data into Cytoscape
     cy.add(data);
