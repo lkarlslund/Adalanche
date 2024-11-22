@@ -26,6 +26,8 @@ type AD struct {
 
 	conn   *ldap.Conn
 	cbData []byte
+
+	items int
 }
 
 func (ad *AD) Connect() error {
@@ -205,6 +207,8 @@ func (ad *AD) RootDn() string {
 }
 
 func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	ad.items = 0
+
 	var e *msgp.Writer
 	if do.WriteToFile != "" {
 		outfile, err := os.Create(do.WriteToFile)
@@ -268,6 +272,8 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 
 		// For a page of results, iterate through the reponse and pull the individual entries
 		for _, entry := range response.Entries {
+			ad.items++
+
 			newObject := activedirectory.RawObject{}
 			err = newObject.IngestLDAP(entry)
 			if err == nil {
@@ -314,6 +320,10 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	}
 
 	return objects, nil
+}
+
+func (ad *AD) Len() int {
+	return ad.items
 }
 
 type ControlInteger struct {

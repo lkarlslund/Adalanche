@@ -278,6 +278,7 @@ type LDAPDumper interface {
 	Disconnect() error
 
 	Dump(opts DumpOptions) ([]activedirectory.RawObject, error)
+	Len() int // Number of objects in the dump (if known)
 }
 
 var CreateDumper = func(opts LDAPOptions) LDAPDumper {
