@@ -106,6 +106,7 @@ require github.com/timtadh/data-structures v0.6.1 // indirect
 
 require (
 	atomicgo.dev/schedule v0.1.0 // indirect
+	github.com/Cyan4973/xxHash v0.8.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/StackExchange/wmi v1.2.0 // indirect
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
@@ -132,6 +133,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/puzpuzpuz/xsync v1.5.2 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect

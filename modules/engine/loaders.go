@@ -49,7 +49,7 @@ func AddLoader(lg LoaderGenerator) LoaderID {
 
 func NewLoaderObjects(ld Loader) *Objects {
 	aos := NewObjects()
-	aos.AddDefaultFlex(DataLoader, AttributeValueString(ld.Name()))
+	aos.AddDefaultFlex(DataLoader, NewAttributeValueString(ld.Name()))
 
 	// Add the root node
 	rootnode := NewObject(Name, ld.Name())

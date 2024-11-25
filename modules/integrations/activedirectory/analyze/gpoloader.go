@@ -2,19 +2,20 @@ package analyze
 
 import (
 	"encoding/json"
-	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/util"
 	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/util"
 )
 
 var (
-	gposource = engine.AttributeValueString("Group Policy")
+	gposource = engine.NewAttributeValueString("Group Policy")
 	GLoader   = engine.AddLoader(func() engine.Loader { return (&GPOLoader{}) })
 )
 
@@ -69,7 +70,7 @@ func (ld *GPOLoader) Init() error {
 				}
 				if netbios != "" {
 					thisao.AddDefaultFlex(
-						engine.DataSource, engine.AttributeValueString(netbios),
+						engine.DataSource, engine.NewAttributeValueString(netbios),
 					)
 				} else {
 					ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)

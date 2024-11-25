@@ -134,7 +134,9 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 	avm.attributes[a] = StartLength{start, length}
 	if len(avm.values)+length > cap(avm.values) {
 		newCap := len(avm.values) + len(av)
-		if newCap < 2*cap(avm.values) {
+		if newCap < 8 {
+			newCap = 8
+		} else if newCap < 2*cap(avm.values) {
 			newCap = 2 * cap(avm.values)
 		}
 		newValues := make(AttributeValues, len(avm.values), newCap)

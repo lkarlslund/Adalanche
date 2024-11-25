@@ -27,7 +27,7 @@ var (
 
 	limitattributes = frontend.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
 
-	adsource = engine.AttributeValueString("Active Directory")
+	adsource = engine.NewAttributeValueString("Active Directory")
 	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
 
 	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
@@ -205,7 +205,7 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 			ui.Fatal().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
 		} else {
 			// Indicate from which domain we saw this if we have the data
-			nb := engine.AttributeValueString(netbiosname)
+			nb := engine.NewAttributeValueString(netbiosname)
 			ao.Iterate(func(o *engine.Object) bool {
 				o.SetFlex(engine.DataSource, nb)
 				return true
@@ -220,10 +220,10 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		// Add special object to find the files later
 		var v engine.AttributeValues
 		for _, uf := range ld.usernamesfiles {
-			v = append(v, engine.AttributeValueString(uf))
+			v = append(v, engine.NewAttributeValueString(uf))
 		}
 		aos[0].AddNew(
-			engine.Name, engine.AttributeValueString("$$USERNAMEFILES$$"),
+			engine.Name, engine.NewAttributeValueString("$$USERNAMEFILES$$"),
 			engine.A("files"), v,
 		)
 	}

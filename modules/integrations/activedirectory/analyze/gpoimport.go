@@ -48,7 +48,7 @@ var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^
 var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
-	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
+	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NewAttributeValueString(ginfo.Path))
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
@@ -82,13 +82,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				parentpath = "/"
 			}
 
-			parent, _ := ao.FindOrAdd(AbsolutePath, engine.AttributeValueString(parentpath))
+			parent, _ := ao.FindOrAdd(AbsolutePath, engine.NewAttributeValueString(parentpath))
 			itemobject.EdgeTo(parent, EdgeFSPartOfGPO)
 			parent.Adopt(itemobject)
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.AttributeValueSID(item.OwnerSID))
+			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.NewAttributeValueSID(item.OwnerSID))
 			owner.EdgeTo(itemobject, EdgeOwns)
 		}
 
@@ -98,7 +98,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				return err
 			}
 			for _, entry := range dacl.Entries {
-				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
+				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NewAttributeValueSID(entry.SID))
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
@@ -163,7 +163,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 			// The account targeted
 			target, _ := ao.FindOrAdd(
-				engine.SAMAccountName, engine.AttributeValueString(e.Username),
+				engine.SAMAccountName, engine.NewAttributeValueString(e.Username),
 			)
 
 			// GPO exposes this object
@@ -178,7 +178,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					return err
 				}
 				for _, entry := range dacl.Entries {
-					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.AttributeValueSID(entry.SID))
+					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NewAttributeValueSID(entry.SID))
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
@@ -203,7 +203,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				var member *engine.Object
 				if sidpair.MemberSID == "" {
 					// Just use the name, we assume it's a domain object
-					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
+					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.NewAttributeValueString(sidpair.MemberName))
 				} else {
 					// Use the SID
 					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
@@ -260,9 +260,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				}
 				// Create new synthetic object
 				sob := engine.NewObject(
-					engine.Type, engine.AttributeValueString("Script"),
-					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+					engine.Type, engine.NewAttributeValueString("Script"),
+					engine.DistinguishedName, engine.NewAttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Name, engine.NewAttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)
@@ -279,9 +279,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				}
 				// Create new synthetic object
 				sob := engine.NewObject(
-					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Type, engine.AttributeValueString("Script"),
-					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+					engine.DistinguishedName, engine.NewAttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Type, engine.NewAttributeValueString("Script"),
+					engine.Name, engine.NewAttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)

@@ -46,11 +46,11 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// Find all the attributes that can be merged objects on
 	globalobjects := NewObjects()
 	globalroot := NewObject(
-		Name, AttributeValueString("Adalanche root node"),
-		Type, AttributeValueString("Root"),
+		Name, NewAttributeValueString("Adalanche root node"),
+		Type, NewAttributeValueString("Root"),
 	)
 	globalobjects.SetRoot(globalroot)
-	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
+	orphancontainer := NewObject(Name, NewAttributeValueString("Orphans"))
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
 
@@ -88,7 +88,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 				if ds != nil {
 					ds = AttributeValueToIndex(ds)
 				} else {
-					ds = AttributeValueString("")
+					ds = NewAttributeValueString("")
 				}
 
 				info, loaded := sourcemap.LoadOrStore(ds.String(), nextshard)

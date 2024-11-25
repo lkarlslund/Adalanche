@@ -221,21 +221,21 @@ func AddDataEndpoints(ws *WebService) {
 			}
 			o, found = ws.Objs.FindID(engine.ObjectID(id))
 		case "dn", "distinguishedname":
-			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
+			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(c.Param("id")))
 		case "sid":
 			sid, err := windowssecurity.ParseStringSID(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.AttributeValueSID(sid))
+			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
 		case "guid":
 			u, err := uuid.FromString(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.AttributeValueGUID(u))
+			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
 		}
 		if !found {
 			c.AbortWithStatus(404)

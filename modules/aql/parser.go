@@ -552,11 +552,11 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 // allows unquoted strings as values
 func parseRelaxedValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
 	if ts.Token().Is(QuotedString) {
-		value := engine.AttributeValueString(ts.Token().String())
+		value := engine.NewAttributeValueString(ts.Token().String())
 		ts.Next()
 		return value, nil
 	}
-	return engine.AttributeValueString(ts.SnarfTextUntil(RParan)), nil
+	return engine.NewAttributeValueString(ts.SnarfTextUntil(RParan)), nil
 }
 
 func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
@@ -567,7 +567,7 @@ func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, err
 	case Float:
 		return nil, errors.New("float type not supported yet")
 	case QuotedString:
-		value = engine.AttributeValueString(ts.Token().Value)
+		value = engine.NewAttributeValueString(ts.Token().Value)
 	case True, False:
 		value = engine.AttributeValueBool(ts.Token().Type == True) // brilliant++
 	default:

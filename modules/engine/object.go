@@ -16,19 +16,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/lkarlslund/stringdedup"
 )
 
 var threadbuckets = runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
-
-func init() {
-	stringdedup.YesIKnowThisCouldGoHorriblyWrong = true
-}
-
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
@@ -436,7 +429,7 @@ func (o *Object) PrimaryID() (Attribute, AttributeValue) {
 			}
 		}
 	}
-	return NonExistingAttribute, AttributeValueString("N/A")
+	return NonExistingAttribute, NewAttributeValueString("N/A")
 }
 
 func (o *Object) Type() ObjectType {
@@ -620,7 +613,8 @@ func (o *Object) setFlex(flexinit ...any) {
 
 	attribute := NonExistingAttribute
 
-	data := *(avsPool.Get().(*AttributeValues))
+	slice := avsPool.Get().(*AttributeValues)
+	data := *slice
 
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
@@ -632,7 +626,7 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && v.IsNull() {
 				continue
 			}
-			data = append(data, AttributeValueSID(v))
+			data = append(data, NewAttributeValueSID(v))
 		case *[]string:
 			if v == nil {
 				continue
@@ -644,7 +638,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NewAttributeValueString(s))
 			}
 		case []string:
 			if ignoreblanks && len(v) == 0 {
@@ -654,7 +648,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NewAttributeValueString(s))
 			}
 		case *string:
 			if v == nil {
@@ -663,12 +657,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && len(*v) == 0 {
 				continue
 			}
-			data = append(data, AttributeValueString(*v))
+			data = append(data, NewAttributeValueString(*v))
 		case string:
 			if ignoreblanks && len(v) == 0 {
 				continue
 			}
-			data = append(data, AttributeValueString(v))
+			data = append(data, NewAttributeValueString(v))
 		case *time.Time:
 			if v == nil {
 				continue
@@ -686,12 +680,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && v.IsNil() {
 				continue
 			}
-			data = append(data, AttributeValueGUID(v))
+			data = append(data, NewAttributeValueGUID(v))
 		case *uuid.UUID:
 			if ignoreblanks && v.IsNil() {
 				continue
 			}
-			data = append(data, AttributeValueGUID(*v))
+			data = append(data, NewAttributeValueGUID(*v))
 		case *bool:
 			if v == nil {
 				continue
@@ -749,7 +743,9 @@ func (o *Object) setFlex(flexinit ...any) {
 		o.set(attribute, data...)
 	}
 	data = data[:0]
-	avsPool.Put(&data)
+
+	*slice = data
+	avsPool.Put(slice)
 }
 
 func (o *Object) Set(a Attribute, values ...AttributeValue) {
@@ -764,19 +760,19 @@ func (o *Object) Clear(a Attribute) {
 	o.values.Clear(a)
 }
 
-func (o *Object) Tag(v AttributeValueString) {
-	o.Add(Tag, v)
+func (o *Object) Tag(v string) {
+	o.Add(Tag, NewAttributeValueString(v))
 }
 
 // FIXME performance optimization/redesign needed, but needs to work with Objects indexes
-func (o *Object) HasTag(v AttributeValueString) bool {
+func (o *Object) HasTag(v string) bool {
 	tags, found := o.Get(Tag)
 	if !found {
 		return false
 	}
 	var exists bool
 	tags.Iterate(func(val AttributeValue) bool {
-		if val.String() == v.String() {
+		if val.String() == v {
 			exists = true
 			return false
 		}
@@ -851,29 +847,14 @@ func (o *Object) set(a Attribute, values ...AttributeValue) {
 		o.objecttype = 0
 	}
 
-	// Deduplication of values
-	for i, value := range values {
+	// Check it's not nil
+	for _, value := range values {
 		if value == nil {
 			panic("tried to set nil value")
 		}
-
-		switch avs := value.(type) {
-		case AttributeValueSID:
-			values[i] = AttributeValueSID(dedup.D.S(string(avs)))
-		case AttributeValueString:
-			values[i] = AttributeValueString(dedup.D.S(string(avs)))
-		case AttributeValueBlob:
-			values[i] = AttributeValueBlob(dedup.D.S(string(avs)))
-		}
 	}
 
-	// if attributenums[a].onset != nil {
-	// 	attributenums[a].onset(o, a, av)
-	// 	o.values.Set(a, nil) // placeholder for iteration over attributes that are set
-	// } else {
-
 	o.values.Set(a, values)
-	// }
 }
 
 func (o *Object) Meta() map[string]string {

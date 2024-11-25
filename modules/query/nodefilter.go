@@ -601,7 +601,7 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 			return false // break
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value.String())); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(value.String())); found {
 			result = recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 			return false // break
 		}

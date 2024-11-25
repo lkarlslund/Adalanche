@@ -22,21 +22,21 @@ func init() {
 					// It's a User we added, find the machine
 					if machine, found := ao.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),
-						LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+						LocalMachineSID, engine.NewAttributeValueSID(sidwithoutrid)); found {
 						o.ChildOf(machine) // FIXME -> Users
 					}
 				case engine.ObjectTypeGroup:
 					// It's a Group we added
 					if machine, found := ao.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),
-						LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+						LocalMachineSID, engine.NewAttributeValueSID(sidwithoutrid)); found {
 						o.ChildOf(machine) // FIXME -> Groups
 					}
 				default:
 					// if o.HasAttr(activedirectory.ObjectSid) {
 					// 	if computer, found := ld.ao.FindTwo(
 					// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
-					// 		LocalMachineSID, engine.AttributeValueSID(sidwithoutrid)); found {
+					// 		LocalMachineSID, engine.NewAttributeValueSID(sidwithoutrid)); found {
 					// 		o.ChildOf(computer) // We don't know what it is
 					// 	}
 					// }
@@ -48,7 +48,7 @@ func init() {
 
 	loader.AddProcessor(func(ao *engine.Objects) {
 		var warns int
-		ln := engine.AttributeValueString(loadername)
+		ln := engine.NewAttributeValueString(loadername)
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
