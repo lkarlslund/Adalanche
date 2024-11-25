@@ -39,22 +39,24 @@ type convertqueueitem struct {
 }
 
 type ADLoader struct {
-	importmutex sync.Mutex
-	done        sync.WaitGroup
 
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
 
-	// Usernames that are enuerable using LDAP Nom nom or similar bruteforcers
-	usernamesfiles []string
+	objectstoconvert chan convertqueueitem
 
 	shardobjects gsync.MapOf[string, *engine.Objects]
 
-	objectstoconvert chan convertqueueitem
-	importcnf        bool // Import CNF (conflict) objects (experimental)
-	importdel        bool // Import deleted objects (experimental)
-	warnhardened     bool // Warn about hardened objects
-	importhardened   bool // Import hardened objects
+	// Usernames that are enuerable using LDAP Nom nom or similar bruteforcers
+	usernamesfiles []string
+
+	done sync.WaitGroup
+
+	importmutex    sync.Mutex
+	importcnf      bool // Import CNF (conflict) objects (experimental)
+	importdel      bool // Import deleted objects (experimental)
+	warnhardened   bool // Warn about hardened objects
+	importhardened bool // Import hardened objects
 }
 
 type domaininfo struct {
@@ -216,7 +218,7 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 
 	if len(aos) > 0 && len(ld.usernamesfiles) > 0 {
 		// Add special object to find the files later
-		var v engine.AttributeValueSlice
+		var v engine.AttributeValues
 		for _, uf := range ld.usernamesfiles {
 			v = append(v, engine.AttributeValueString(uf))
 		}

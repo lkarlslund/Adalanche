@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -64,48 +65,35 @@ func CompareAttributeValues(a, b AttributeValue) bool {
 	return false
 }
 
+func CompareAttributeValuesInt(a, b AttributeValue) int {
+	return a.Compare(b)
+}
+
 type AttributeAndValues struct {
 	values    AttributeValues
 	attribute Attribute
 }
 
 // AttributeValues can contain one or more values
-type AttributeValues interface {
-	First() AttributeValue
-	Iterate(func(val AttributeValue) bool)
-	StringSlice() []string
-	Len() int
+type AttributeValues []AttributeValue
+
+func (avs AttributeValues) Sort() {
+	if avs == nil {
+		return
+	}
+	slices.SortFunc[AttributeValues](avs, func(a, b AttributeValue) int {
+		return a.Compare(b)
+	})
 }
 
-type NoValues struct{}
-
-func (nv NoValues) First() AttributeValue {
-	return nil
-}
-
-func (nv NoValues) Iterate(func(val AttributeValue) bool) {
-	// no op
-}
-
-func (nv NoValues) Slice() []AttributeValue {
-	return nil
-}
-
-func (nv NoValues) StringSlice() []string {
-	return nil
-}
-
-func (nv NoValues) Len() int {
-	return 0
-}
-
-type AttributeValueSlice []AttributeValue
-
-func (avs AttributeValueSlice) First() AttributeValue {
+func (avs AttributeValues) First() AttributeValue {
+	if avs == nil {
+		return nil
+	}
 	return avs[0]
 }
 
-func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
+func (avs AttributeValues) Iterate(it func(val AttributeValue) bool) {
 	for _, cval := range avs {
 		if !it(cval) {
 			break
@@ -113,7 +101,7 @@ func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
 	}
 }
 
-func (avs AttributeValueSlice) StringSlice() []string {
+func (avs AttributeValues) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
 		result[i] = avs[i].String()
@@ -121,34 +109,15 @@ func (avs AttributeValueSlice) StringSlice() []string {
 	return result
 }
 
-func (avs AttributeValueSlice) Len() int {
+func (avs AttributeValues) Len() int {
 	return len(avs)
-}
-
-type AttributeValueOne struct {
-	Value AttributeValue
-}
-
-func (avo AttributeValueOne) First() AttributeValue {
-	return avo.Value
-}
-
-func (avo AttributeValueOne) Iterate(it func(val AttributeValue) bool) {
-	it(avo.Value)
-}
-
-func (avo AttributeValueOne) Len() int {
-	return 1
-}
-
-func (avo AttributeValueOne) StringSlice() []string {
-	return []string{avo.Value.String()}
 }
 
 type AttributeValue interface {
 	String() string
 	Raw() any
 	IsZero() bool
+	Compare(AttributeValue) int
 }
 
 type AttributeValuePair struct {
@@ -175,6 +144,13 @@ func (avo AttributeValueObject) IsZero() bool {
 	return avo.values.Len() == 0
 }
 
+func (ab AttributeValueObject) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueObject); ok {
+		return int(ab.ID() - cb.ID())
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
 type AttributeValueString string
 
 func (as AttributeValueString) String() string {
@@ -189,6 +165,10 @@ func (as AttributeValueString) IsZero() bool {
 	return len(as) == 0
 }
 
+func (as AttributeValueString) Compare(c AttributeValue) int {
+	return strings.Compare(string(as), c.String())
+}
+
 type AttributeValueBlob string
 
 func (ab AttributeValueBlob) String() string {
@@ -201,6 +181,13 @@ func (ab AttributeValueBlob) Raw() any {
 
 func (ab AttributeValueBlob) IsZero() bool {
 	return len(ab) == 0
+}
+
+func (ab AttributeValueBlob) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueBlob); ok {
+		return bytes.Compare([]byte(ab), []byte(cb))
+	}
+	return strings.Compare(ab.String(), c.String())
 }
 
 type AttributeValueBool bool
@@ -220,6 +207,19 @@ func (ab AttributeValueBool) IsZero() bool {
 	return !bool(ab)
 }
 
+func (ab AttributeValueBool) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueBool); ok {
+		if ab == cb {
+			return 0
+		}
+		if ab == false {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
 type AttributeValueInt int64
 
 func (as AttributeValueInt) String() string {
@@ -232,6 +232,13 @@ func (as AttributeValueInt) Raw() any {
 
 func (as AttributeValueInt) IsZero() bool {
 	return int64(as) == 0
+}
+
+func (ab AttributeValueInt) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueInt); ok {
+		return int(ab - cb)
+	}
+	return strings.Compare(ab.String(), c.String())
 }
 
 type AttributeValueTime time.Time
@@ -248,6 +255,13 @@ func (as AttributeValueTime) IsZero() bool {
 	return time.Time(as).IsZero()
 }
 
+func (ab AttributeValueTime) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueTime); ok {
+		return int(time.Time(ab).Sub(time.Time(cb)))
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
 type AttributeValueSID windowssecurity.SID
 
 func (as AttributeValueSID) String() string {
@@ -260,6 +274,13 @@ func (as AttributeValueSID) Raw() any {
 
 func (as AttributeValueSID) IsZero() bool {
 	return windowssecurity.SID(as).IsNull()
+}
+
+func (ab AttributeValueSID) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueSID); ok {
+		return bytes.Compare([]byte(ab), []byte(cb))
+	}
+	return strings.Compare(ab.String(), c.String())
 }
 
 type AttributeValueGUID uuid.UUID
@@ -276,6 +297,13 @@ func (as AttributeValueGUID) IsZero() bool {
 	return uuid.UUID(as).IsNil()
 }
 
+func (ab AttributeValueGUID) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueGUID); ok {
+		return bytes.Compare(ab[:], cb[:])
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
 type AttributeValueSecurityDescriptor struct {
 	SD *SecurityDescriptor
 }
@@ -290,4 +318,11 @@ func (as AttributeValueSecurityDescriptor) Raw() any {
 
 func (as AttributeValueSecurityDescriptor) IsZero() bool {
 	return len(as.SD.DACL.Entries) == 0
+}
+
+func (ab AttributeValueSecurityDescriptor) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueSecurityDescriptor); ok {
+		return bytes.Compare([]byte(ab.SD.Raw), []byte(cb.SD.Raw))
+	}
+	return strings.Compare(ab.String(), c.String())
 }

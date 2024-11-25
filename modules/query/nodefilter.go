@@ -20,7 +20,6 @@ type NodeFilter interface {
 	ToLDAPFilter() string
 	ToWhereClause() string
 }
-
 type FilterObjectType struct {
 	t engine.ObjectType
 }
@@ -28,38 +27,34 @@ type FilterObjectType struct {
 func (fot FilterObjectType) Evaluate(o *engine.Object) bool {
 	return o.Type() == fot.t
 }
-
 func (fot FilterObjectType) ToLDAPFilter() string {
 	return "(objectType=" + fot.t.String() + ")"
 }
-
 func (fot FilterObjectType) ToWhereClause() string {
 	return ":" + fot.t.String()
 }
 
 // Wraps one Attribute around a queryattribute interface
 type FilterOneAttribute struct {
-	Attribute       engine.Attribute
 	FilterAttribute FilterAttribute
+	Attribute       engine.Attribute
 }
 
 func (qoa FilterOneAttribute) Evaluate(o *engine.Object) bool {
 	return qoa.FilterAttribute.Evaluate(qoa.Attribute, o)
 }
-
 func (qoa FilterOneAttribute) ToLDAPFilter() string {
 	return qoa.FilterAttribute.ToLDAPFilter(qoa.Attribute.String())
 }
-
 func (qoa FilterOneAttribute) ToWhereClause() string {
 	return qoa.FilterAttribute.ToWhereClause(qoa.Attribute.String())
 }
 
 // Wraps one Attribute around a queryattribute interface
 type FilterMultipleAttributes struct {
+	FilterAttribute     FilterAttribute
 	AttributeGlobString string
 	Attributes          []engine.Attribute
-	FilterAttribute     FilterAttribute
 }
 
 func (qma FilterMultipleAttributes) Evaluate(o *engine.Object) bool {
@@ -70,11 +65,9 @@ func (qma FilterMultipleAttributes) Evaluate(o *engine.Object) bool {
 	}
 	return false
 }
-
 func (qma FilterMultipleAttributes) ToLDAPFilter() string {
 	return qma.FilterAttribute.ToLDAPFilter(qma.AttributeGlobString)
 }
-
 func (qma FilterMultipleAttributes) ToWhereClause() string {
 	return qma.FilterAttribute.ToWhereClause(qma.AttributeGlobString)
 }
@@ -95,11 +88,9 @@ func (qaa FilterAnyAttribute) Evaluate(o *engine.Object) bool {
 	})
 	return result
 }
-
 func (qaa FilterAnyAttribute) ToLDAPFilter() string {
 	return "*" + qaa.Attribute.ToLDAPFilter("*")
 }
-
 func (qaa FilterAnyAttribute) ToWhereClause() string {
 	return "*" + qaa.Attribute.ToWhereClause("*")
 }
@@ -110,18 +101,16 @@ type FilterAttribute interface {
 	ToWhereClause(a string) string
 }
 
-// type ObjectStrings interface {
-// 	Strings(o *engine.Object) []string
-// }
-
-// type ObjectInt interface {
-// 	Int(o *engine.Object) (int64, bool)
-// }
-
+//	type ObjectStrings interface {
+//		Strings(o *engine.Object) []string
+//	}
+//
+//	type ObjectInt interface {
+//		Int(o *engine.Object) (int64, bool)
+//	}
 type ComparatorType byte
 
 //go:generate enumer --type=ComparatorType
-
 const (
 	CompareInvalid ComparatorType = iota
 	CompareEquals
@@ -148,7 +137,6 @@ func (c Comparator[t]) Compare(a, b t) bool {
 	}
 	return false // I hope not
 }
-
 func (c Comparator[t]) String() string {
 	return ComparatorType(c).String()
 }
@@ -179,7 +167,6 @@ func (q AndQuery) Evaluate(o *engine.Object) bool {
 	}
 	return true
 }
-
 func (q AndQuery) ToLDAPFilter() string {
 	result := "&"
 	for _, query := range q.Subitems {
@@ -187,7 +174,6 @@ func (q AndQuery) ToLDAPFilter() string {
 	}
 	return result
 }
-
 func (q AndQuery) ToWhereClause() string {
 	var result string
 	for i, query := range q.Subitems {
@@ -211,7 +197,6 @@ func (q OrQuery) Evaluate(o *engine.Object) bool {
 	}
 	return false
 }
-
 func (q OrQuery) ToLDAPFilter() string {
 	result := "|"
 	for _, query := range q.Subitems {
@@ -219,7 +204,6 @@ func (q OrQuery) ToLDAPFilter() string {
 	}
 	return result
 }
-
 func (q OrQuery) ToWhereClause() string {
 	result := "("
 	for i, query := range q.Subitems {
@@ -239,11 +223,9 @@ type NotQuery struct {
 func (q NotQuery) Evaluate(o *engine.Object) bool {
 	return !q.Subitem.Evaluate(o)
 }
-
 func (q NotQuery) ToLDAPFilter() string {
 	return "!(" + q.Subitem.ToLDAPFilter() + ")"
 }
-
 func (q NotQuery) ToWhereClause() string {
 	return "UNSUPPORTED!!"
 }
@@ -261,11 +243,9 @@ func (cm CountModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	}
 	return Comparator[int](cm.Comparator).Compare(count, cm.Value)
 }
-
 func (cm CountModifier) ToLDAPFilter(a string) string {
 	return a + ":count: " + Comparator[int](cm.Comparator).String() + " " + strconv.Itoa(cm.Value)
 }
-
 func (cm CountModifier) ToWhereClause(a string) string {
 	return "COUNT(" + a + ")" + Comparator[int](cm.Comparator).String() + " " + strconv.Itoa(cm.Value)
 }
@@ -290,18 +270,16 @@ func (lm LengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	})
 	return result
 }
-
 func (lm LengthModifier) ToLDAPFilter(a string) string {
 	return a + ":length: " + lm.Comparator.String() + " " + strconv.Itoa(lm.Value)
 }
-
 func (lm LengthModifier) ToWhereClause(a string) string {
 	return "LENGTH(" + a + ")" + lm.Comparator.String() + " " + strconv.Itoa(lm.Value)
 }
 
 type SinceModifier struct {
-	Comparator ComparatorType
 	TimeSpan   *timespan.Timespan
+	Comparator ComparatorType
 }
 
 func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -309,41 +287,34 @@ func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	if !found {
 		return false
 	}
-
 	var result bool
 	vals.Iterate(func(value engine.AttributeValue) bool {
 		avt, ok := value.(engine.AttributeValueTime)
-
 		if !ok {
 			result = false
 			return false // break
 		}
-
 		t := time.Time(avt)
-
 		if Comparator[int64](sm.Comparator).Compare(t.Unix(), sm.TimeSpan.From(time.Now()).Unix()) {
 			result = true
 			return false // break
 		}
-
 		// Next
 		return true
 	})
 	return result
 }
-
 func (sm SinceModifier) ToLDAPFilter(a string) string {
 	return a + ":since: " + sm.Comparator.String() + " " + sm.TimeSpan.String()
 }
-
 func (sm SinceModifier) ToWhereClause(a string) string {
 	return "SINCE(" + a + ")" + sm.Comparator.String() + " " + sm.TimeSpan.String()
 }
 
 type TimediffModifier struct {
+	TimeSpan   *timespan.Timespan
 	Attribute2 engine.Attribute
 	Comparator ComparatorType
-	TimeSpan   *timespan.Timespan
 }
 
 func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -351,16 +322,13 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	if !found {
 		return false
 	}
-
 	val2s, found := o.Get(td.Attribute2)
 	if !found {
 		return false
 	}
-
 	if val1s.Len() != val2s.Len() {
 		return false
 	}
-
 	var result bool
 	var i int
 	val1s.Iterate(func(value1 engine.AttributeValue) bool {
@@ -368,7 +336,6 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 		if !ok {
 			return true // break
 		}
-
 		var t2 time.Time
 		var t2ok bool
 		// Jump to the right entry to evaluate
@@ -384,7 +351,6 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 		if !t2ok {
 			return false // break
 		}
-
 		if Comparator[int64](td.Comparator).Compare(t1.Unix(), td.TimeSpan.From(t2).Unix()) {
 			result = true
 			return false // break
@@ -394,11 +360,9 @@ func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	})
 	return result
 }
-
 func (td TimediffModifier) ToLDAPFilter(a string) string {
 	return a + ":timediff(" + td.Attribute2.String() + "): " + td.Comparator.String() + td.TimeSpan.String()
 }
-
 func (td TimediffModifier) ToWhereClause(a string) string {
 	return "TIMEIDFF(" + a + "," + td.Attribute2.String() + ")" + td.Comparator.String() + td.TimeSpan.String()
 }
@@ -414,11 +378,9 @@ func (am BinaryAndModifier) Evaluate(a engine.Attribute, o *engine.Object) bool 
 	}
 	return (int64(val) & am.Value) == am.Value
 }
-
 func (am BinaryAndModifier) ToLDAPFilter(a string) string {
 	return a + ":and:=" + strconv.FormatInt(am.Value, 10)
 }
-
 func (am BinaryAndModifier) ToWhereClause(a string) string {
 	return a + " && " + strconv.FormatInt(am.Value, 10) + "=" + strconv.FormatInt(am.Value, 10)
 }
@@ -434,18 +396,16 @@ func (om BinaryOrModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	}
 	return int64(val)&om.Value != 0
 }
-
 func (om BinaryOrModifier) ToLDAPFilter(a string) string {
 	return a + ":or:=" + strconv.FormatInt(om.Value, 10)
 }
-
 func (om BinaryOrModifier) ToWhereClause(a string) string {
 	return a + " || " + strconv.FormatInt(om.Value, 10) + "=" + strconv.FormatInt(om.Value, 10)
 }
 
 type TypedComparison[t cmp.Ordered] struct {
-	Comparator ComparatorType
 	Value      t
+	Comparator ComparatorType
 }
 
 func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -453,17 +413,15 @@ func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Object) bool
 	if val == nil {
 		return false
 	}
-	realval, ok := val.(t)
+	realval, ok := val.First().(t)
 	if !ok {
 		return false
 	}
 	return Comparator[t](tc.Comparator).Compare(realval, tc.Value)
 }
-
 func (tc TypedComparison[t]) ToLDAPFilter(a string) string {
 	return a + tc.Comparator.String() + fmt.Sprintf("%v", tc.Value)
 }
-
 func (tc TypedComparison[t]) ToWhereClause(a string) string {
 	return a + tc.Comparator.String() + fmt.Sprintf("%v", tc.Value)
 }
@@ -476,11 +434,9 @@ type id struct {
 func (i *id) Evaluate(o *engine.Object) bool {
 	return Comparator[int64](i.c).Compare(int64(o.ID()), i.idval)
 }
-
 func (i *id) ToLDAPFilter() string {
 	return "_id" + i.c.String() + strconv.FormatInt(i.idval, 10)
 }
-
 func (i *id) ToWhereClause() string {
 	return "_id" + i.c.String() + strconv.FormatInt(i.idval, 10)
 }
@@ -493,11 +449,9 @@ func (l *Limit) Evaluate(o *engine.Object) bool {
 	l.Counter--
 	return l.Counter >= 0
 }
-
 func (l *Limit) ToLDAPFilter() string {
 	return "_limit=" + strconv.FormatInt(l.Counter, 10)
 }
-
 func (l *Limit) ToWhereClause() string {
 	return "_limit=" + strconv.FormatInt(l.Counter, 10)
 }
@@ -511,11 +465,9 @@ func (r Random100) Evaluate(o *engine.Object) bool {
 	rnd := rand.Int63n(100)
 	return Comparator[int64](r.Comparator).Compare(rnd, r.Value)
 }
-
 func (r Random100) ToLDAPFilter() string {
 	return "random100" + r.Comparator.String() + strconv.FormatInt(r.Value, 10)
 }
-
 func (r Random100) ToWhereClause() string {
 	return "RANDOM(100)" + r.Comparator.String() + strconv.FormatInt(r.Value, 10)
 }
@@ -529,18 +481,16 @@ func (ha HasAttr) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	}
 	return vals.Len() > 0
 }
-
 func (ha HasAttr) ToLDAPFilter(a string) string {
 	return a + ":count:>0"
 }
-
 func (ha HasAttr) ToWhereClause(a string) string {
 	return "COUNT(" + a + ")>0"
 }
 
 type HasStringMatch struct {
-	Casesensitive bool
 	Value         string
+	Casesensitive bool
 }
 
 func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -561,7 +511,6 @@ func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	})
 	return result
 }
-
 func (hsm HasStringMatch) ToLDAPFilter(a string) string {
 	if hsm.Casesensitive {
 		return a + "=" + hsm.Value
@@ -569,15 +518,14 @@ func (hsm HasStringMatch) ToLDAPFilter(a string) string {
 		return a + ":caseinsensitive:=" + hsm.Value
 	}
 }
-
 func (hsm HasStringMatch) ToWhereClause(a string) string {
 	return a + "=" + hsm.Value
 }
 
 type HasGlobMatch struct {
-	Casesensitive bool
-	Globstr       string
 	Match         glob.Glob
+	Globstr       string
+	Casesensitive bool
 }
 
 func (hgm HasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
@@ -598,11 +546,9 @@ func (hgm HasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	})
 	return result
 }
-
 func (hgm HasGlobMatch) ToLDAPFilter(a string) string {
 	return a + ":glob:=" + hgm.Globstr
 }
-
 func (hgm HasGlobMatch) ToWhereClause(a string) string {
 	return "GLOB(" + a + "," + hgm.Globstr + ")"
 }
@@ -621,32 +567,27 @@ func (hrm HasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result
 	})
 	return
 }
-
 func (hrm HasRegexpMatch) ToLDAPFilter(a string) string {
 	return a + "=/" + hrm.RegExp.String() + "/"
 }
-
 func (hrm HasRegexpMatch) ToWhereClause(a string) string {
 	return "REGEXP(" + a + ", " + hrm.RegExp.String() + ")"
 }
 
 type RecursiveDNmatcher struct {
-	DN string
 	AO *engine.Objects
+	DN string
 }
 
 func (rdn RecursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	return recursiveDNmatchFunc(o, a, rdn.DN, 10, rdn.AO)
 }
-
 func (rdn RecursiveDNmatcher) ToLDAPFilter(a string) string {
 	return a + ":recursiveDN:=" + rdn.DN
 }
-
 func (rdn RecursiveDNmatcher) ToWhereClause(a string) string {
 	return "RECURSIVEDNMATCH(" + a + ", " + rdn.DN + ")"
 }
-
 func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) (result bool) {
 	// Just to prevent loops
 	if maxdepth == 0 {
@@ -670,9 +611,9 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 }
 
 type EdgeQuery struct {
+	Target    NodeFilter
 	Direction engine.EdgeDirection
 	Edge      engine.Edge
-	Target    NodeFilter
 }
 
 func (p EdgeQuery) Evaluate(o *engine.Object) bool {
@@ -688,7 +629,6 @@ func (p EdgeQuery) Evaluate(o *engine.Object) bool {
 	})
 	return result
 }
-
 func (p EdgeQuery) ToLDAPFilter() string {
 	var result string
 	if p.Direction == engine.Out {
@@ -702,7 +642,6 @@ func (p EdgeQuery) ToLDAPFilter() string {
 	}
 	return result
 }
-
 func (p EdgeQuery) ToWhereClause() string {
 	var result string
 	if p.Direction == engine.Out {

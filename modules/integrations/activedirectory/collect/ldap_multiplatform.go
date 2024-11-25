@@ -4,11 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
-
-	osuser "os/user"
-
 	ber "github.com/go-asn1-ber/asn1-ber"
 	cb "github.com/golang-auth/go-channelbinding"
 	"github.com/jcmturner/gokrb5/v8/client"
@@ -19,21 +14,21 @@ import (
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/pierrec/lz4/v4"
 	"github.com/tinylib/msgp/msgp"
+	"os"
+	osuser "os/user"
+	"strings"
 )
 
 type AD struct {
-	LDAPOptions
-
 	conn   *ldap.Conn
 	cbData []byte
-
+	LDAPOptions
 	items int
 }
 
 func (ad *AD) Connect() error {
 	var cbData []byte
 	_ = cbData // for later
-
 	var chosenserver string
 	var err error
 	for _, server := range ad.Servers {
@@ -46,9 +41,7 @@ func (ad *AD) Connect() error {
 	if err != nil {
 		return fmt.Errorf("Problem connecting to any server: %v", err)
 	}
-
 	ad.conn.Debug.Enable(ad.Debug)
-
 	var gerr error
 	switch ad.AuthMode {
 	case Anonymous:
@@ -67,7 +60,6 @@ func (ad *AD) Connect() error {
 		gerr = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
 	case KerberosCache:
 		upperDomain := strings.ToUpper(ad.Domain)
-
 		kerberosConfig, err := config.NewFromString(fmt.Sprintf(`[libdefaults]
 default_realm = %s
 default_tgs_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
@@ -78,49 +70,41 @@ allow_weak_crypto = true
 %s = {
 kdc = %s:88
 default_domain = %s
-}`, upperDomain, upperDomain, chosenserver, upperDomain))
+}`,
+			upperDomain, upperDomain, chosenserver, upperDomain))
 		if err != nil {
 			return err
 		}
-
 		cachefile := os.Getenv("KRB5CCNAME")
 		if cachefile == "" {
 			usr, _ := osuser.Current()
 			cachefile = "/tmp/krb5cc_" + usr.Uid
 		}
-
 		ccache, err := credentials.LoadCCache(cachefile)
 		if err != nil {
 			return err
 		}
-
 		client, err := client.NewFromCCache(ccache, kerberosConfig)
 		if err != nil {
 			return err
 		}
-
 		spn := "ldap/" + chosenserver
-
 		// gc := &gssapi.Client{
 		// 	Client: client,
 		// }
-
 		gc := &GSSAPIState{
 			cfg:    kerberosConfig,
 			client: client,
 		}
-
 		gerr = ad.conn.GSSAPIBind(gc, spn, "")
 	case NTLM:
 		if ad.User == "" {
 			ui.Debug().Msgf("Doing integrated NTLM auth")
-
 			// Create a GSSAPI client
 			sspiClient, err := GetSSPIClient()
 			if err != nil {
 				return err
 			}
-
 			// Bind using supplied GSSAPIClient implementation
 			err = ad.conn.GSSAPIBind(sspiClient, "ldap/"+chosenserver, "")
 			if err != nil {
@@ -136,10 +120,8 @@ default_domain = %s
 	default:
 		return fmt.Errorf("unknown bind method %v", authmode)
 	}
-
 	return gerr
 }
-
 func (ad *AD) connectToServer(server string) error {
 	switch ad.TLSMode {
 	case NoTLS:
@@ -153,7 +135,6 @@ func (ad *AD) connectToServer(server string) error {
 		if err != nil {
 			return err
 		}
-
 		err = conn.StartTLS(&tls.Config{
 			ServerName:         server,
 			InsecureSkipVerify: ad.IgnoreCert,
@@ -161,7 +142,6 @@ func (ad *AD) connectToServer(server string) error {
 		if err != nil {
 			return err
 		}
-
 		ad.conn = conn
 	case TLS:
 		config := &tls.Config{
@@ -169,12 +149,10 @@ func (ad *AD) connectToServer(server string) error {
 			InsecureSkipVerify: ad.IgnoreCert,
 			MaxVersion:         tls.VersionTLS12,
 		}
-
 		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", server, ad.Port), config)
 		if err != nil {
 			return err
 		}
-
 		if ad.Channelbinding {
 			tlsState := conn.ConnectionState()
 			if len(tlsState.PeerCertificates) == 0 {
@@ -185,7 +163,6 @@ func (ad *AD) connectToServer(server string) error {
 				return err
 			}
 		}
-
 		ad.conn = ldap.NewConn(conn, true)
 		ad.conn.Start()
 	default:
@@ -193,7 +170,6 @@ func (ad *AD) connectToServer(server string) error {
 	}
 	return nil
 }
-
 func (ad *AD) Disconnect() error {
 	if ad.conn == nil {
 		return errors.New("not connected")
@@ -201,14 +177,11 @@ func (ad *AD) Disconnect() error {
 	ad.conn.Close()
 	return nil
 }
-
 func (ad *AD) RootDn() string {
 	return "dc=" + strings.Replace(ad.Domain, ".", ",dc=", -1)
 }
-
 func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	ad.items = 0
-
 	var e *msgp.Writer
 	if do.WriteToFile != "" {
 		outfile, err := os.Create(do.WriteToFile)
@@ -216,7 +189,6 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
 		}
 		defer outfile.Close()
-
 		boutfile := lz4.NewWriter(outfile)
 		lz4options := []lz4.Option{
 			lz4.BlockChecksumOption(true),
@@ -229,12 +201,9 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		defer boutfile.Close()
 		e = msgp.NewWriter(boutfile)
 	}
-
 	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
 	defer bar.Finish()
-
 	var controls []ldap.Control
-
 	if do.NoSACL {
 		sdcontrol := &ControlInteger{
 			ControlType:  "1.2.840.113556.1.4.801",
@@ -243,18 +212,14 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		}
 		controls = append(controls, sdcontrol)
 	}
-
 	if do.ChunkSize > 0 {
 		paging := ldap.NewControlPaging(uint32(do.ChunkSize))
 		controls = append(controls, paging)
 	}
-
 	if do.Query == "" {
 		do.Query = "(objectClass=*)"
 	}
-
 	var objects []activedirectory.RawObject
-
 	for {
 		request := ldap.NewSearchRequest(
 			do.SearchBase, // The base dn to search
@@ -263,17 +228,14 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 			do.Attributes, // A list attributes to retrieve
 			controls,
 		)
-
 		response, err := ad.conn.Search(request)
 		if err != nil {
 			return objects, fmt.Errorf("failed to execute search request: %w", err)
 		}
 		ui.Debug().Msgf("YOU ARE HERE")
-
 		// For a page of results, iterate through the reponse and pull the individual entries
 		for _, entry := range response.Entries {
 			ad.items++
-
 			newObject := activedirectory.RawObject{}
 			err = newObject.IngestLDAP(entry)
 			if err == nil {
@@ -301,7 +263,6 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 				bar.Add(1)
 			}
 		}
-
 		responseControl := ldap.FindControl(response.Controls, ldap.ControlTypePaging)
 		if rctrl, ok := responseControl.(*ldap.ControlPaging); rctrl != nil && ok && len(rctrl.Cookie) != 0 {
 			pagingControl := ldap.FindControl(controls, ldap.ControlTypePaging)
@@ -310,18 +271,14 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 				continue
 			}
 		}
-
 		break
 	}
-
 	bar.Finish()
 	if e != nil {
 		e.Flush()
 	}
-
 	return objects, nil
 }
-
 func (ad *AD) Len() int {
 	return ad.items
 }
@@ -344,14 +301,12 @@ func (c *ControlInteger) Encode() *ber.Packet {
 	if c.Criticality {
 		packet.AppendChild(ber.NewBoolean(ber.ClassUniversal, ber.TypePrimitive, ber.TagBoolean, c.Criticality, "Criticality"))
 	}
-
 	// p2 ber.Encode(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, nil, "Control Value")
 	p2 := ber.Encode(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, nil, "Control Value")
 	value := ber.Encode(ber.ClassUniversal, ber.TypeConstructed, ber.TagSequence, nil, "Control Value Sequence")
 	value.AppendChild(ber.NewInteger(ber.ClassUniversal, ber.TypePrimitive, ber.TagInteger, c.ControlValue, "Integer"))
 	p2.AppendChild(value)
 	packet.AppendChild(p2)
-
 	return packet
 }
 
@@ -359,7 +314,6 @@ func (c *ControlInteger) Encode() *ber.Packet {
 func (c *ControlInteger) String() string {
 	return fmt.Sprintf("Control Type: %v  Critiality: %t  Control Value: %v", c.ControlType, c.Criticality, c.ControlValue)
 }
-
 func LDAPtoMaptringInterface(e *ldap.Entry) map[string]any {
 	result := make(map[string]any)
 	for _, attribute := range e.Attributes {

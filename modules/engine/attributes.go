@@ -18,8 +18,8 @@ type attributeinfo struct {
 	onset          AttributeSetFunc
 	onget          AttributeGetFunc
 	name           string
-	tags           []string
 	description    string
+	tags           []string
 	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
 	atype          AttributeType
 	single         bool // If true, this attribute can not have multiple values

@@ -14,7 +14,6 @@ import (
 )
 
 //go:generate go run github.com/dmarkham/enumer -trimprefix=Level -type=LogLevel -output loglevel_enums.go
-
 func init() {
 	zlog.Logger = zlog.Output(zerolog.ConsoleWriter{
 		Out:        colorable.NewColorableStdout(),
@@ -38,15 +37,13 @@ const (
 var (
 	logLevel    = LevelInfo
 	clearneeded bool
-
-	Zerotime  bool
-	starttime = time.Now()
+	Zerotime    bool
+	starttime   = time.Now()
 )
 
 func SetLoglevel(i LogLevel) {
 	logLevel = i
 }
-
 func GetLoglevel() LogLevel {
 	return logLevel
 }
@@ -58,29 +55,25 @@ func SetLogFile(path string, i LogLevel) error {
 	if logfile != nil {
 		logfile.Close()
 	}
-
 	// Ensure path exists
 	os.MkdirAll(filepath.Dir(path), 0660)
-
 	var err error
 	logfile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("Failed to open logfile %s: %s", path, err)
 	}
-
 	logfilelevel = i
 	return nil
 }
 
 type Logger struct {
-	ll     LogLevel
 	output *zerolog.Event
 	pterm  pterm.PrefixPrinter
+	ll     LogLevel
 }
 
 func (t Logger) Msgf(format string, args ...any) Logger {
 	outputMutex.Lock()
-
 	var timetext string
 	if Zerotime {
 		elapsed := time.Since(starttime)
@@ -88,7 +81,6 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 	} else {
 		timetext = time.Now().Format("15:04:05.000")
 	}
-
 	if logfile != nil && logfilelevel <= t.ll {
 		fmt.Fprintf(logfile, timetext+" "+t.ll.String()+" "+format+"\n", args...)
 	}
@@ -98,7 +90,6 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 			pterm.Fprinto(t.pterm.Writer)
 			clearneeded = false
 		}
-
 		tprefix := pterm.DefaultBasicText.Sprint(timetext + " ")
 		pterm.Fprint(t.pterm.Writer, tprefix+t.pterm.Sprintfln(format, args...))
 	}
@@ -114,32 +105,28 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 	}
 	return t
 }
-
 func (t Logger) Msg(msg string) Logger {
 	t.Msgf(msg)
 	return t
 }
-
 func (t Logger) Err(e error) Logger {
 	if logLevel <= t.ll {
 		t.Msgf("Error: %v", e.Error())
 	}
 	return t
 }
-
 func Debug() Logger {
 	return Logger{
-		LevelDebug,
-		zlog.Debug(),
-		pterm.Debug,
+		ll:     LevelDebug,
+		output: zlog.Debug(),
+		pterm:  pterm.Debug,
 	}
 }
-
 func Warn() Logger {
 	return Logger{
-		LevelWarn,
-		zlog.Warn(),
-		pterm.PrefixPrinter{
+		ll:     LevelWarn,
+		output: zlog.Warn(),
+		pterm: pterm.PrefixPrinter{
 			MessageStyle: &pterm.ThemeDefault.WarningMessageStyle,
 			Prefix: pterm.Prefix{
 				Style: &pterm.ThemeDefault.WarningPrefixStyle,
@@ -148,28 +135,25 @@ func Warn() Logger {
 		},
 	}
 }
-
 func Error() Logger {
 	return Logger{
-		LevelError,
-		zlog.Error(),
-		pterm.Error,
+		ll:     LevelError,
+		output: zlog.Error(),
+		pterm:  pterm.Error,
 	}
 }
-
 func Fatal() Logger {
 	return Logger{
-		LevelFatal,
-		zlog.Fatal(),
-		pterm.Fatal,
+		ll:     LevelFatal,
+		output: zlog.Fatal(),
+		pterm:  pterm.Fatal,
 	}
 }
-
 func Info() Logger {
 	return Logger{
-		LevelInfo,
-		zlog.Info(),
-		pterm.PrefixPrinter{
+		ll:     LevelInfo,
+		output: zlog.Info(),
+		pterm: pterm.PrefixPrinter{
 			MessageStyle: &pterm.ThemeDefault.InfoMessageStyle,
 			Prefix: pterm.Prefix{
 				Style: &pterm.ThemeDefault.InfoPrefixStyle,
@@ -178,12 +162,11 @@ func Info() Logger {
 		},
 	}
 }
-
 func Trace() Logger {
 	return Logger{
-		LevelTrace,
-		zlog.Trace(),
-		pterm.PrefixPrinter{
+		ll:     LevelTrace,
+		output: zlog.Trace(),
+		pterm: pterm.PrefixPrinter{
 			MessageStyle: &pterm.ThemeDefault.InfoMessageStyle,
 			Prefix: pterm.Prefix{
 				Style: &pterm.Style{pterm.FgCyan},

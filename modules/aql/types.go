@@ -14,20 +14,17 @@ import (
 type AQLresolver interface {
 	Resolve(ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error)
 }
-
 type IndexLookup struct {
-	a engine.Attribute
 	v engine.AttributeValue
+	a engine.Attribute
 }
-
 type NodeQuery struct {
-	ReferenceName string           // For cross result reference
 	IndexLookup   IndexLookup      // Possible start of search, quickly narrows it down
 	Selector      query.NodeFilter // Where style boolean approval filter for objects
-
-	OrderBy NodeSorter // Sorting
-	Skip    int        // Skipping
-	Limit   int        // Limiting
+	OrderBy       NodeSorter       // Sorting
+	ReferenceName string           // For cross result reference
+	Skip          int              // Skipping
+	Limit         int              // Limiting
 }
 
 func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
@@ -35,18 +32,14 @@ func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
 	if nq.Selector != nil {
 		result = ao.Filter(nq.Selector.Evaluate)
 	}
-
 	if nq.Limit != 0 || nq.Skip != 0 {
 		// Get nodes as slice, then sort and filter by limit/skip
 		n := result.AsSlice()
-
 		if nq.OrderBy != nil {
 			n = nq.OrderBy.Sort(n)
 		}
-
 		n.Skip(nq.Skip)
 		n.Limit(nq.Limit)
-
 		no := engine.NewObjects()
 		n.Iterate(func(o *engine.Object) bool {
 			no.Add(o)
@@ -59,32 +52,25 @@ func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
 
 type EdgeMatcher struct {
 	Bitmap      engine.EdgeBitmap
-	Comparator  query.ComparatorType
 	Count       int64 // minimum number of edges to match
-	NoTrimEdges bool  // don't trim edges to just the filter
+	Comparator  query.ComparatorType
+	NoTrimEdges bool // don't trim edges to just the filter
 }
-
 type EdgeSearcher struct {
+	PathNodeRequirement          *NodeQuery // Nodes passed along the way must fulfill this filter
+	pathNodeRequirementCache     *engine.Objects
+	FilterEdges                  EdgeMatcher // match any of these
 	Direction                    engine.EdgeDirection
 	MinIterations, MaxIterations int // there should be between min and max iterations in the chain
-
-	FilterEdges EdgeMatcher // match any of these
-
-	PathNodeRequirement      *NodeQuery // Nodes passed along the way must fulfill this filter
-	pathNodeRequirementCache *engine.Objects
-
-	ProbabilityValue      engine.Probability
-	ProbabilityComparator query.ComparatorType
+	ProbabilityValue             engine.Probability
+	ProbabilityComparator        query.ComparatorType
 }
-
 type NodeMatcher interface {
 	Match(o *engine.Object) bool
 }
-
 type NodeSorter interface {
 	Sort(engine.ObjectSlice) engine.ObjectSlice
 }
-
 type NodeSorterImpl struct {
 	Attr       engine.Attribute
 	Descending bool
@@ -119,9 +105,7 @@ func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.O
 			}
 		}
 	}
-
 	// Post process options
-
 	return result, nil
 }
 
@@ -129,22 +113,19 @@ type QueryMode int
 
 const (
 	Walk    QueryMode = iota // No Homomorphism
-	Trail                    // Edge homomomorphism (unique edges)
-	Acyclic                  // Node homomomorphism (unique nodes)
+	Trail                    // Edge homomorphism (unique edges)
+	Acyclic                  // Node homomorphism (unique nodes)
 	Simple                   // Partial node-isomorphism
 )
 
 type AQLquery struct {
+	datasource         *engine.Objects
+	Sources            []NodeQuery // count is n
+	sourceCache        []*engine.Objects
+	Next               []EdgeSearcher // count is n-1
 	Mode               QueryMode
 	Shortest           bool
 	OverAllProbability engine.Probability
-
-	datasource *engine.Objects
-
-	Sources     []NodeQuery // count is n
-	sourceCache []*engine.Objects
-
-	Next []EdgeSearcher // count is n-1
 }
 
 func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
@@ -156,44 +137,40 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 			}
 		}
 	}
-
 	pb := ui.ProgressBar("Preparing AQL query sources", int64(len(aqlq.Sources)*2))
-
 	// Prepare all the potentialnodes by filtering them and saving them in potentialnodes[n]
 	aqlq.sourceCache = make([]*engine.Objects, len(aqlq.Sources))
 	for i, q := range aqlq.Sources {
 		aqlq.sourceCache[i] = q.Populate(aqlq.datasource)
 		pb.Add(1)
 	}
-
 	for i, q := range aqlq.Next {
 		if q.PathNodeRequirement != nil {
 			aqlq.sourceCache[i] = q.PathNodeRequirement.Populate(aqlq.datasource)
 		}
 		pb.Add(1)
 	}
-
 	pb.Add(1)
 	pb.Finish()
-
 	// nodes := make([]*engine.Objects, len(aqlq.Sources))
-
 	result := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
 	var resultlock sync.Mutex
-
 	nodeindex := 0
 	// Iterate over all starting nodes
 	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Object) bool {
-		partialresult := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
-		aqlq.resolveEdgesFrom(opts, &partialresult, nil, o, 0, 0, 0, 1)
-
+		searchResult := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+		if aqlq.Mode == Acyclic {
+			aqlq.sourceCache[nodeindex].Iterate(func(node *engine.Object) bool {
+				searchResult.AddNode(node)
+				return true
+			})
+		}
+		aqlq.resolveEdgesFrom(opts, &searchResult, nil, o, 0, 0, 0, 1)
 		resultlock.Lock()
-		result.Merge(partialresult)
+		result.Merge(searchResult)
 		resultlock.Unlock()
-
 		return true
 	}, 0)
-
 	return &result, nil
 }
 
@@ -208,15 +185,12 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	currentDepth int,
 	currentTotalDepth int,
 	currentOverAllProbability float64) {
-
 	es := aqlq.Next[currentSearchIndex]
 	targets := aqlq.sourceCache[currentSearchIndex+1] // next node query
-
 	if workingGraph == nil {
 		workingGraphTemp := (graph.NewGraph[*engine.Object, engine.EdgeBitmap]())
 		workingGraph = &workingGraphTemp
 	}
-
 	var directions []engine.EdgeDirection
 	switch es.Direction {
 	case engine.In:
@@ -226,22 +200,18 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	case engine.Any:
 		directions = []engine.EdgeDirection{engine.In, engine.Out}
 	}
-
 	// We don't need matches, so try skipping this one
 	if es.MinIterations == 0 && currentDepth == 0 && len(aqlq.Sources) > currentSearchIndex+1 {
 		aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, currentObject, currentSearchIndex+1, 0, currentTotalDepth+1, currentOverAllProbability)
 	}
-
 	// Then look for stuff that match in within the min and max iteration requirements
 	for _, direction := range directions {
 		currentDepth++
 		currentTotalDepth++
-
 		currentObject.Edges(direction).Range(func(nextObject *engine.Object, eb engine.EdgeBitmap) bool {
 			if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 				return false // stooooop
 			}
-
 			switch aqlq.Mode {
 			case Walk:
 				// Horrible, horrible, horrible
@@ -259,9 +229,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					return true
 				}
 			}
-
 			matchedEdges := es.FilterEdges.Bitmap.Intersect(eb)
-
 			// Check we have enough matches
 			if es.FilterEdges.Comparator != query.CompareInvalid {
 				if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
@@ -272,9 +240,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					return true
 				}
 			}
-
 			edgeProbability := matchedEdges.MaxProbability(currentObject, nextObject)
-
+			if edgeProbability == -1 {
+				ui.Debug().Msg("Got one")
+			}
 			// Honor query for this edge probability
 			if es.ProbabilityComparator != query.CompareInvalid {
 				if !query.Comparator[engine.Probability](es.ProbabilityComparator).Compare(edgeProbability, es.ProbabilityValue) {
@@ -282,24 +251,19 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 			}
 			// Honor options for this edge probability
-			if opts.MinEdgeProbability > 0 {
-				if edgeProbability < opts.MinEdgeProbability {
-					return true
-				}
-			}
-
-			// Honor options for overall probability
-			currentOverAllProbability *= float64(edgeProbability) / 100
-			if aqlq.OverAllProbability > 0 && currentOverAllProbability*100 < float64(aqlq.OverAllProbability) {
+			if edgeProbability < opts.MinEdgeProbability {
 				return true
 			}
-
+			// Honor options for overall probability
+			currentOverAllProbability *= float64(edgeProbability) / 100
+			if currentOverAllProbability*100 < float64(aqlq.OverAllProbability) {
+				return true
+			}
 			// Calculate the edge to add, either what we matched or the entire edge
 			addedge := matchedEdges
 			if es.FilterEdges.NoTrimEdges {
 				addedge = eb
 			}
-
 			if currentDepth >= es.MinIterations && currentDepth <= es.MaxIterations {
 				// Add this to our working graph
 				hadCurrentNode := workingGraph.HasNode(currentObject)
@@ -309,20 +273,16 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				} else {
 					workingGraph.AddEdge(nextObject, currentObject, addedge)
 				}
-
 				if !hadCurrentNode && aqlq.Sources[currentSearchIndex].ReferenceName != "" {
 					workingGraph.SetNodeData(currentObject, "reference", aqlq.Sources[currentSearchIndex].ReferenceName)
 				}
-
 				if targets.Contains(nextObject) {
 					// We could be done already, if the targetObject matches
-
 					if currentSearchIndex == len(aqlq.Next)-1 {
 						// wowzers, we're done - add this to the committed graph and return
 						if !hadNextNode && aqlq.Sources[currentSearchIndex+1].ReferenceName != "" {
 							workingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentSearchIndex+1].ReferenceName)
 						}
-
 						committedGraph.Merge(*workingGraph)
 					} else {
 						// We're not done yet, so let's recurse into the next object
@@ -335,13 +295,11 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				if currentDepth < es.MaxIterations && (es.pathNodeRequirementCache == nil || es.pathNodeRequirementCache.Contains(nextObject)) {
 					aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, nextObject, currentSearchIndex, currentDepth, currentTotalDepth, currentOverAllProbability)
 				}
-
 				if direction == engine.Out {
 					workingGraph.DeleteEdge(currentObject, nextObject)
 				} else {
 					workingGraph.DeleteEdge(nextObject, currentObject)
 				}
-
 				if !hadCurrentNode {
 					workingGraph.DeleteNode(currentObject)
 				}
@@ -349,7 +307,6 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					workingGraph.DeleteNode(nextObject)
 				}
 			}
-
 			return true
 		})
 	}
@@ -379,11 +336,9 @@ type id struct {
 func (i *id) Evaluate(o *engine.Object) bool {
 	return query.Comparator[int64](i.c).Compare(int64(o.ID()), i.idval)
 }
-
 func (i *id) ToLDAPFilter() string {
 	return "id" + i.c.String() + strconv.FormatInt(i.idval, 10)
 }
-
 func (i *id) ToWhereClause() string {
 	return "id" + i.c.String() + strconv.FormatInt(i.idval, 10)
 }

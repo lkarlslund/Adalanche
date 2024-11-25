@@ -914,14 +914,12 @@ func init() {
 			if err != nil {
 				return true
 			}
-			DCsyncObject := ao.AddNew(
-				engine.IgnoreBlanks,
-				engine.DataLoader, o.Attr(engine.DataLoader),
-				engine.DataSource, o.Attr(engine.DataSource),
+
+			DCsyncObject, _ := ao.FindTwoOrAdd(
 				engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
-				engine.Name, "DCsync",
+				engine.Name, engine.AttributeValueString("DCsync"),
 			)
-			DCsyncObject.Tag("iddqd")
+			DCsyncObject.Tag("hvt")
 
 			o.EdgeTo(DCsyncObject, activedirectory.EdgeControls)
 
@@ -1078,7 +1076,7 @@ func init() {
 			dn := o.DN()
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
-					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
+					o.Set(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
 					break
 				}
 			}
@@ -1117,7 +1115,7 @@ func init() {
 			}
 
 			if lastpart != -1 {
-				o.SetValues(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
+				o.Set(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
 			}
 			return true
 		})
@@ -1239,6 +1237,12 @@ func init() {
 	)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		DCsyncObject, _ := ao.FindTwoOrAdd(
+			engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+			engine.Name, engine.AttributeValueString("DCsync"),
+		)
+		DCsyncObject.Tag("hvt")
+
 		// Generate member of chains
 		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
@@ -1285,10 +1289,10 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.SetValues(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.Set(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.SetValues(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.Set(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
 				object.Tag("linux")
@@ -1317,6 +1321,8 @@ func init() {
 
 					// All DCs are members of Enterprise Domain Controllers
 					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+
+					DCsyncObject.EdgeTo(object, activedirectory.EdgeCall)
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
@@ -1362,7 +1368,7 @@ func init() {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
 						machine.Tag("role-domaincontroller")
-						machine.Tag("iddqd")
+						machine.Tag("hvt")
 
 						domainContext := object.OneAttr(engine.DomainContext)
 						if domainContext == nil {
@@ -1618,7 +1624,7 @@ func init() {
 				var found bool
 				if gpcachelinks, found = currentObject.Get(GPLinkCache); !found {
 					// the hard way
-					gpcachelinks = engine.NoValues{} // We assume there is nothing
+					var gpcachelinks engine.AttributeValues
 
 					gplinks := strings.Trim(currentObject.OneAttrString(activedirectory.GPLink), " ")
 					if len(gplinks) != 0 {
@@ -1628,7 +1634,7 @@ func init() {
 						} else {
 							links := strings.Split(gplinks[1:len(gplinks)-1], "][")
 
-							var collecteddata engine.AttributeValueSlice
+							var collecteddata engine.AttributeValues
 							for _, link := range links {
 								linkinfo := strings.Split(link, ";")
 								if len(linkinfo) != 2 {
@@ -1653,25 +1659,23 @@ func init() {
 							gpcachelinks = collecteddata
 						}
 					}
-					currentObject.Set(GPLinkCache, gpcachelinks)
+					currentObject.Set(GPLinkCache, gpcachelinks...)
 				}
 
 				// cached or generated - pairwise pointer to gpo object and int
-				if gplinkslice, ok := gpcachelinks.(engine.AttributeValueSlice); ok {
-					for i := 0; i < gpcachelinks.Len(); i += 2 {
-						gpo := gplinkslice[i].Raw().(*engine.Object)
-						gpLinkOptions := gplinkslice[i+1].Raw().(int64)
-						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
-						if gpLinkOptions&0x01 != 0 {
-							// GPO link is disabled
-							continue
-						}
-						if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
-							// Enforcement required, but this is not an enforced GPO
-							continue
-						}
-						gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
+				for i := 0; i < gpcachelinks.Len(); i += 2 {
+					gpo := gpcachelinks[i].Raw().(*engine.Object)
+					gpLinkOptions := gpcachelinks[i+1].Raw().(int64)
+					// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+					if gpLinkOptions&0x01 != 0 {
+						// GPO link is disabled
+						continue
 					}
+					if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
+						// Enforcement required, but this is not an enforced GPO
+						continue
+					}
+					gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 				}
 				gpoptions := currentObject.OneAttrString(activedirectory.GPOptions)
 				if gpoptions == "1" {
@@ -1843,7 +1847,7 @@ func init() {
 				return true
 			})
 			if len(groups) > 0 {
-				o.SetValues(MemberOfIndirect, groups...)
+				o.Set(MemberOfIndirect, groups...)
 			}
 
 			return true
@@ -1866,7 +1870,7 @@ func init() {
 							activedirectory.DNSHostName, cadns,
 						); found {
 							ca.Tag("role-certificate-authority")
-							ca.Tag("iddqd")
+							ca.Tag("hvt")
 						}
 					}
 

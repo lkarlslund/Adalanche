@@ -19,8 +19,8 @@ import (
 //go:generate msgp
 
 type RawObject struct {
-	DistinguishedName string
 	Attributes        map[string][]string
+	DistinguishedName string
 }
 
 func (r *RawObject) Init() {
@@ -29,7 +29,7 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
-	newobject := engine.NewPreload(len(r.Attributes))
+	newobject := engine.NewObject()
 
 	newobject.SetFlex(
 		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
@@ -52,7 +52,7 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 
 		encodedvals := EncodeAttributeData(attribute, values)
 		if encodedvals != nil {
-			newobject.Set(attribute, encodedvals)
+			newobject.Set(attribute, encodedvals...)
 		}
 	}
 
@@ -77,7 +77,7 @@ func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
 // Performance hack
 var avsPool = sync.Pool{
 	New: func() any {
-		return make(engine.AttributeValueSlice, 0, 16)
+		return make(engine.AttributeValues, 0, 16)
 	},
 }
 
@@ -86,7 +86,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		return nil
 	}
 
-	avs := avsPool.Get().(engine.AttributeValueSlice)
+	avs := avsPool.Get().(engine.AttributeValues)
 
 	var skipped int
 
@@ -225,20 +225,10 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		}
 	}
 
-	var result engine.AttributeValues
-
-	switch len(avs) {
-	case 0:
+	if len(avs) == 0 {
+		avsPool.Put(avs)
 		return nil
-	case 1:
-		result = engine.AttributeValueOne{avs[0]}
-	default:
-		new := make(engine.AttributeValueSlice, len(avs))
-		copy(new, avs)
-		result = new
 	}
 
-	avs = avs[:0]
-	avsPool.Put(avs)
-	return result
+	return avs
 }

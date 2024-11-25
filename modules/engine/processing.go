@@ -175,12 +175,12 @@ func Merge(aos []*Objects) (*Objects, error) {
 	nodatasource.shard.Iterate(func(addobject *Object) bool {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
-		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-			if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-				existing.First().AbsorbEx(addobject, true)
-				return true
-			}
-		}
+		// if dn := addobject.OneAttr(DistinguishedName); dn != nil {
+		// 	if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
+		// 		existing.First().AbsorbEx(addobject, true)
+		// 		return true
+		// 	}
+		// }
 		if i%16384 == 0 {
 			// Refresh the list of attributes, ordered by most successfull first
 			mergeon = getMergeAttributes()

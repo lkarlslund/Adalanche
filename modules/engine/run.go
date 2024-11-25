@@ -153,7 +153,6 @@ func PostProcess(ao *Objects) {
 	// objs.DropIndexes()
 
 	ao.Iterate(func(obj *Object) bool {
-		obj.values.m.Optimize(gonk.Minimize)
 		obj.edges[In].Optimize(gonk.Minimize)
 		obj.edges[Out].Optimize(gonk.Minimize)
 		return true

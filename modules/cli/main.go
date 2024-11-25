@@ -38,8 +38,10 @@ var (
 
 	embeddedprofiler  = Root.Flags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
 	cpuprofile        = Root.Flags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
-	dofgtrace         = Root.Flags().Bool("fgtrace", false, "Save CPU trace start to end of processing in datapath")
 	cpuprofiletimeout = Root.Flags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
+	memprofile        = Root.Flags().Bool("memprofile", false, "Save CPU profile from start to end of processing in datapath")
+	memprofiletimeout = Root.Flags().Int32("memprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
+	dofgtrace         = Root.Flags().Bool("fgtrace", false, "Save CPU trace start to end of processing in datapath")
 
 	// also available for subcommands
 	Datapath = Root.Flags().String("datapath", "data", "folder to store and read data")
@@ -54,7 +56,8 @@ var (
 	}
 
 	OverrideArgs   []string
-	stopprofile    = make(chan bool, 5)
+	stopcpuprofile = make(chan bool, 5)
+	stopmemprofile = make(chan bool, 5)
 	stopfgtrace    = make(chan bool, 5)
 	profilewriters sync.WaitGroup
 )
@@ -182,7 +185,7 @@ func init() {
 			profilewriters.Add(1)
 
 			go func() {
-				<-stopprofile
+				<-stopcpuprofile
 				pprof.StopCPUProfile()
 				profilewriters.Done()
 			}()
@@ -190,7 +193,30 @@ func init() {
 			if *cpuprofiletimeout > 0 {
 				go func() {
 					<-time.After(time.Second * (time.Duration(*cpuprofiletimeout)))
-					stopprofile <- true
+					stopcpuprofile <- true
+				}()
+			}
+		}
+
+		if *memprofile {
+			pproffile := filepath.Join(*Datapath, "adalanche-memprofile-"+time.Now().Format("06010215040506")+".pprof")
+			f, err := os.Create(pproffile)
+			if err != nil {
+				return fmt.Errorf("Could not set up CPU profiling in file %v: %v", pproffile, err)
+			}
+
+			profilewriters.Add(1)
+
+			go func() {
+				<-stopmemprofile
+				pprof.WriteHeapProfile(f)
+				profilewriters.Done()
+			}()
+
+			if *memprofiletimeout > 0 {
+				go func() {
+					<-time.After(time.Second * (time.Duration(*memprofiletimeout)))
+					stopmemprofile <- true
 				}()
 			}
 		}
@@ -215,7 +241,8 @@ func init() {
 	}
 	Root.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
 		stopfgtrace <- true
-		stopprofile <- true
+		stopcpuprofile <- true
+		stopmemprofile <- true
 		profilewriters.Wait()
 		return nil
 	}

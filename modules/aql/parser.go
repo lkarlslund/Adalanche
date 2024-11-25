@@ -371,7 +371,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 			if strings.EqualFold(attributename, "_pwnable") || strings.EqualFold(attributename, "in") {
 				direction = engine.In
 			}
-			return query.EdgeQuery{direction, edge, target}, nil
+			return query.EdgeQuery{
+				Direction: direction,
+				Edge:      edge,
+				Target:    target}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
@@ -400,11 +403,14 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		}
 	case 1:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
-			return query.FilterOneAttribute{attributes[0], aq}
+			return query.FilterOneAttribute{Attribute: attributes[0], FilterAttribute: aq}
 		}
 	default:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
-			return query.FilterMultipleAttributes{attributename, attributes, aq}
+			return query.FilterMultipleAttributes{
+				Attributes:          attributes,
+				AttributeGlobString: attributename,
+				FilterAttribute:     aq}
 		}
 	}
 
@@ -437,7 +443,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, errors.New("Could not parse value as a duration (5h2m)")
 		}
-		result = genwrapper(query.SinceModifier{comparator, duration})
+		result = genwrapper(query.SinceModifier{
+			Comparator: comparator,
+			TimeSpan:   duration})
 		break
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
@@ -448,7 +456,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, errors.New("Could not parse value as a duration (5h2m)")
 		}
-		result = genwrapper(query.TimediffModifier{attribute2, comparator, duration})
+		result = genwrapper(query.TimediffModifier{
+			Attribute2: attribute2,
+			Comparator: comparator,
+			TimeSpan:   duration})
 		break
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != query.CompareEquals {
@@ -470,7 +481,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		result = genwrapper(query.BinaryOrModifier{i})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		result = genwrapper(query.RecursiveDNmatcher{value.String(), ao})
+		result = genwrapper(query.RecursiveDNmatcher{
+			DN: value.String(),
+			AO: ao})
 	default:
 		return nil, errors.New("Unknown modifier " + modifier)
 	}
@@ -500,12 +513,20 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 					return nil, err
 				}
 				if casesensitive {
-					result = genwrapper(query.HasGlobMatch{true, pattern, g})
+					result = genwrapper(query.HasGlobMatch{
+						Casesensitive: true,
+						Globstr:       pattern,
+						Match:         g})
 				} else {
-					result = genwrapper(query.HasGlobMatch{false, pattern, g})
+					result = genwrapper(query.HasGlobMatch{
+						Casesensitive: false,
+						Globstr:       pattern,
+						Match:         g})
 				}
 			} else {
-				result = genwrapper(query.HasStringMatch{casesensitive, strval})
+				result = genwrapper(query.HasStringMatch{
+					Casesensitive: casesensitive,
+					Value:         strval})
 			}
 		}
 	}
@@ -516,7 +537,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, fmt.Errorf("Could not convert value to integer for numeric comparison: %v", err)
 		}
-		result = genwrapper(query.TypedComparison[int64]{comparator, i})
+		result = genwrapper(query.TypedComparison[int64]{
+			Comparator: comparator,
+			Value:      i})
 	}
 
 	if invert {

@@ -18,13 +18,11 @@ import (
 func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.Object, error) {
 	var machine *engine.Object
 	var existing bool
-
 	// See if the machine has a unique SID
 	localsid, err := windowssecurity.ParseStringSID(cinfo.Machine.LocalSID)
 	if err != nil {
 		return nil, fmt.Errorf("collected localmachine information for %v doesn't contain valid local machine SID (%v): %v", cinfo.Machine.Name, cinfo.Machine.LocalSID, err)
 	}
-
 	var domainsid windowssecurity.SID
 	if cinfo.Machine.IsDomainJoined {
 		domainsid, err = windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
@@ -36,18 +34,15 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			if existing {
 				return nil, fmt.Errorf("duplicate machine info for domain account SID %v found, not loading it. machine names %v and %v", cinfo.Machine.ComputerDomainSID, cinfo.Machine.Name, machine.Label())
 			}
-
 			// Link to the AD account
 			computer, _ := ao.FindOrAdd(
 				activedirectory.ObjectSid, engine.AttributeValueSID(domainsid),
 			)
-
 			downlevelmachinename := cinfo.Machine.Domain + "\\" + cinfo.Machine.Name + "$"
 			computer.SetFlex(
 				activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
 				engine.DownLevelLogonName, engine.AttributeValueString(downlevelmachinename),
 			)
-
 			machine.EdgeTo(computer, analyze.EdgeAuthenticatesAs)
 			machine.EdgeTo(computer, analyze.EdgeMachineAccount)
 			machine.ChildOf(computer)
@@ -55,16 +50,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	} else {
 		ui.Debug().Msg("NOT JOINED??")
 	}
-
 	if cinfo.UnprivilegedCollection {
 		ui.Info().Msgf("Loading partial information from unprivileged collector on machine %v", cinfo.Machine.Name)
 	}
-
 	if machine == nil {
 		// Not Domain Joined!?
 		machine = ao.AddNew()
 	}
-
 	machine.SetFlex(
 		engine.IgnoreBlanks,
 		engine.DisplayName, cinfo.Machine.Name,
@@ -81,7 +73,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		engine.Type, engine.AttributeValueString("Machine"),
 		engine.NewAttribute("connectivity"), cinfo.Network.InternetConnectivity,
 	)
-
 	if cinfo.Machine.WUServer != "" {
 		if u, err := url.Parse(cinfo.Machine.WUServer); err == nil {
 			host, _, _ := strings.Cut(u.Host, ":")
@@ -90,7 +81,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 		}
 	}
-
 	if cinfo.Machine.SCCMLastValidMP != "" {
 		if u, err := url.Parse(cinfo.Machine.SCCMLastValidMP); err == nil {
 			host, _, _ := strings.Cut(u.Host, ":")
@@ -99,7 +89,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 		}
 	}
-
 	var isdomaincontroller bool
 	if cinfo.Machine.ProductType != "" {
 		// New way of detecting domain controller
@@ -114,18 +103,15 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			}
 		}
 	}
-
 	if isdomaincontroller {
 		ui.Debug().Msgf("Detected %v as local machine data coming from a Domain Controller", cinfo.Machine.Name)
 	}
-
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
 	uniquesource := engine.AttributeValueString(cinfo.Machine.Name)
 	// Set source to domain NetBios name if we're a DC
 	if isdomaincontroller {
 		uniquesource = engine.AttributeValueString(cinfo.Machine.Domain)
 	}
-
 	ri := relativeInfo{
 		LocalName:          engine.AttributeValueString(cinfo.Machine.Name),
 		DomainName:         engine.AttributeValueString(cinfo.Machine.Domain),
@@ -134,44 +120,32 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		IsDomainController: isdomaincontroller,
 		ao:                 ao,
 	}
-
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
 	machine.SetFlex(engine.DataSource, uniquesource)
-
 	everyone, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Auto)
 	everyone.SetFlex(engine.Type, "Group") // This could go wrong
-
 	everyone.ChildOf(machine)
-
 	authenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.AuthenticatedUsersSID, Auto)
 	authenticatedusers.SetFlex(engine.Type, "Group") // This could go wrong
 	authenticatedusers.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
-
 	authenticatedusers.ChildOf(machine)
-
 	if cinfo.Machine.IsDomainJoined {
 		domainauthenticatedusers, _, _ := ri.GetSIDObject(windowssecurity.EveryoneSID, Domain)
 		domainauthenticatedusers.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 	}
-
 	var macaddrs, ipaddresses []string
-
 	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
 		if strings.Count(networkinterface.MACAddress, ":") == 5 {
 			// Sanity check above removes ISATAP interfaces
-
 			if strings.EqualFold(networkinterface.MACAddress, "02:00:4c:4f:4f:50") {
 				// Loopback adapter, skip it
 				continue
 			}
-
 			if strings.EqualFold(networkinterface.MACAddress, "02:50:41:00:00:01") {
 				// Palo Alto Protect network interface
 				continue
 			}
-
 			macaddrs = append(macaddrs, strings.ReplaceAll(networkinterface.MACAddress, ":", ""))
-
 			ipaddresses = append(ipaddresses, networkinterface.Addresses...)
 		}
 	}
@@ -180,16 +154,12 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		localmachine.MACAddress, macaddrs,
 		engine.IPAddress, ipaddresses,
 	)
-
 	ao.ReindexObject(machine, false) // We changed stuff after adding it
-
 	// Add local accounts as synthetic objects
 	userscontainer := engine.NewObject(activedirectory.Name, "Users")
 	ao.Add(userscontainer)
 	userscontainer.ChildOf(machine)
-
 	var rdprightshandled bool
-
 	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
 	for _, pi := range cinfo.Privileges {
 		var pwn engine.Edge
@@ -221,7 +191,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			pwn = EdgeSeTrustedCredManAccess
 		case "SeMachineAccountPrivilege":
 		// Join machine to domain
-
 		// pwn = EdgeSeMachineAccount
 		case "SeTcbPrivilege":
 			pwn = EdgeSeTcb
@@ -263,20 +232,17 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		default:
 			continue
 		}
-
 		for _, sidstring := range pi.AssignedSIDs {
 			sid, err := windowssecurity.ParseStringSID(sidstring)
 			if err != nil {
 				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
 				continue
 			}
-
 			// Potential translation
 			assignee, _, _ := ri.GetSIDObject(sid, Auto)
 			assignee.EdgeTo(machine, pwn)
 		}
 	}
-
 	if !isdomaincontroller {
 		for _, user := range cinfo.Users {
 			uac := 512
@@ -311,7 +277,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				ui.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
 			}
 		}
-
 		// Iterate over Groups
 		groupscontainer := engine.NewObject(activedirectory.Name, "Groups")
 		ao.Add(groupscontainer)
@@ -328,12 +293,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 			groupobject.ChildOf(groupscontainer)
-
 			if err != nil && group.Name != "SMS Admins" {
 				ui.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
 				continue
 			}
-
 			for _, member := range group.Members {
 				var membersid windowssecurity.SID
 				if member.SID != "" {
@@ -350,18 +313,14 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						continue
 					}
 				}
-
 				memberobject, existing, local := ri.GetSIDObject(membersid, Auto)
-
 				// Collector sometimes returns junk, but if we have downlevel logon name we store it
 				if member.Name != "" && !strings.HasSuffix(member.Name, "\\") && !strings.HasPrefix(member.Name, "S-1-") {
 					memberobject.SetFlex(
 						engine.DownLevelLogonName, member.Name,
 					)
 				}
-
 				memberobject.EdgeTo(groupobject, activedirectory.EdgeMemberOfGroup)
-
 				switch {
 				case group.Name == "SMS Admins":
 					memberobject.EdgeTo(machine, EdgeLocalSMSAdmins)
@@ -374,7 +333,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						memberobject.EdgeTo(machine, EdgeLocalRDPRights)
 					}
 				}
-
 				if local && !existing {
 					// Maybe a deleted user or group
 					memberobject.ChildOf(machine)
@@ -382,7 +340,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			}
 		}
 	}
-
 	// USERS THAT HAVE SESSIONS ON THE MACHINE ONCE IN WHILE
 	for _, login := range cinfo.LoginPopularity.Day {
 		usersid, err := windowssecurity.ParseStringSID(login.SID)
@@ -393,10 +350,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if usersid.Component(2) != 21 {
 			continue // Not a local or domain SID, skip it
 		}
-
 		// Potential translation
 		// usersid = MapSID(originalsid, localsid, usersid)
-
 		user := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 			engine.Type, "Person",
@@ -406,14 +361,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 		}
-
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
-
 		machine.EdgeTo(user, EdgeLocalSessionLastDay)
 	}
-
 	for _, login := range cinfo.LoginPopularity.Week {
 		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
@@ -423,10 +375,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
-
 		// Potential translation
 		// usersid = MapSID(originalsid, localsid, usersid)
-
 		user := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 		)
@@ -435,14 +385,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 		}
-
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
-
 		machine.EdgeTo(user, EdgeLocalSessionLastWeek)
 	}
-
 	for _, login := range cinfo.LoginPopularity.Month {
 		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
@@ -452,10 +399,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if usersid.Component(2) != 21 {
 			continue // Not a domain SID, skip it
 		}
-
 		// Potential translation
 		// usersid = MapSID(originalsid, localsid, usersid)
-
 		user := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(usersid),
 		)
@@ -464,14 +409,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 		}
-
 		if !strings.HasSuffix(login.Name, "\\") {
-			user.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
+			user.Set(engine.DownLevelLogonName, engine.AttributeValueString(login.Name))
 		}
-
 		machine.EdgeTo(user, EdgeLocalSessionLastMonth)
 	}
-
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN
 	if cinfo.Machine.DefaultUsername != "" &&
 		cinfo.Machine.DefaultDomain != "" &&
@@ -485,12 +427,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		machine.EdgeTo(user, EdgeHasAutoAdminLogonCredentials)
 	}
-
 	// SERVICES
 	servicescontainer := engine.NewObject(activedirectory.Name, "Services")
 	ao.Add(servicescontainer)
 	servicescontainer.ChildOf(machine)
-
 	// All services are a member of this group
 	localservicesgroup := ao.AddNew(
 		activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.ServicesSID),
@@ -498,7 +438,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		engine.DataSource, cinfo.Machine.Name,
 	)
 	localservicesgroup.ChildOf(machine)
-
 	for _, service := range cinfo.Services {
 		serviceobject := engine.NewObject(
 			engine.IgnoreBlanks,
@@ -509,7 +448,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			ServiceType, int64(service.Type),
 			activedirectory.Type, "Service",
 		)
-
 		if service.Start < 3 {
 			serviceobject.Tag("service_autostart")
 		}
@@ -525,16 +463,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		case 4:
 			serviceobject.Tag("service_disabled")
 		}
-
 		ao.Add(serviceobject)
 		serviceobject.ChildOf(servicescontainer)
-
 		serviceobject.EdgeTo(localservicesgroup, EdgeMemberOfGroup)
-
 		machine.EdgeTo(serviceobject, EdgeHosts)
-
 		var serviceaccountSID windowssecurity.SID
-
 		// If we have the SID use that
 		if service.AccountSID != "" {
 			serviceaccountSID, err = windowssecurity.ParseStringSID(service.AccountSID)
@@ -542,14 +475,12 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				ui.Warn().Msgf("Service account SID (%v) parsing problem: %v", service.AccountSID, err)
 			}
 		}
-
 		// Some service don't have SID, just the name
 		if serviceaccountSID.IsBlank() {
 			if strings.EqualFold(service.Account, "LocalSystem") {
 				serviceaccountSID = windowssecurity.SystemSID
 			}
 		}
-
 		var svcaccount *engine.Object
 		if !serviceaccountSID.IsBlank() {
 			svcaccount = ao.AddNew(
@@ -559,7 +490,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				svcaccount.SetFlex(
 					engine.DataSource, uniquesource,
 				)
-
 				nameparts := strings.Split(service.Account, "\\")
 				if len(nameparts) == 2 && strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
 					svcaccount.SetFlex(
@@ -597,22 +527,18 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				}
 			}
 		}
-
 		// Did we somehow manage to find an account?
 		if svcaccount != nil {
 			if serviceaccountSID.Component(2) == 21 || serviceaccountSID.Component(2) == 32 {
 				// Foreign to computer, so it gets a direct edge
 				machine.EdgeTo(svcaccount, EdgeHasServiceAccountCredentials)
 			}
-
 			if serviceaccountSID != windowssecurity.LocalServiceSID {
 				serviceobject.EdgeTo(svcaccount, analyze.EdgeAuthenticatesAs)
 			}
-
 		} else if service.Account != "" || service.AccountSID != "" {
 			ui.Warn().Msgf("Unhandled service credentials %+v", service)
 		}
-
 		// Specific service SID
 		so := ao.FindOrAddSID(windowssecurity.ServiceNameToServiceSID(service.Name))
 		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
@@ -620,7 +546,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			activedirectory.Name, engine.AttributeValueString("Service account for "+service.Name),
 		)
 		serviceobject.EdgeTo(so, analyze.EdgeAuthenticatesAs)
-
 		// Change service executable via registry
 		if service.RegistryOwner != "" {
 			ro, err := windowssecurity.ParseStringSID(service.RegistryOwner)
@@ -644,9 +569,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						// if we have local admin it's already game over so don't map this
 						continue
 					}
-
 					var o *engine.Object
-
 					if entrysid == windowssecurity.SystemSID {
 						o = machine
 					} else {
@@ -659,22 +582,18 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 							)
 						}
 					}
-
 					if entry.Mask&engine.KEY_SET_VALUE != 0 {
 						o.EdgeTo(serviceobject, EdgeRegistryWrite)
 					}
-
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
 						o.EdgeTo(serviceobject, EdgeRegistryModifyDACL)
 					}
-
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
 						o.EdgeTo(serviceobject, activedirectory.EdgeTakeOwnership)
 					}
 				}
 			}
 		}
-
 		// Change service executable contents
 		serviceimageobject := engine.NewObject(
 			activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
@@ -684,13 +603,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		ao.Add(serviceimageobject)
 		serviceimageobject.EdgeTo(serviceobject, EdgeExecuted)
 		serviceimageobject.ChildOf(serviceobject)
-
 		if ownersid, err := windowssecurity.ParseStringSID(service.ImageExecutableOwner); err == nil {
 			// Potential translation
 			if ownersid.Component(2) == 80 /* Service user */ {
 				continue
 			}
-
 			owner := ao.AddNew(
 				activedirectory.ObjectSid, engine.AttributeValueSID(ownersid),
 			)
@@ -701,7 +618,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			}
 			owner.EdgeTo(serviceimageobject, activedirectory.EdgeOwns)
 		}
-
 		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
 			for _, entry := range sd.Entries {
 				entrysid := entry.SID
@@ -714,7 +630,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 							engine.DataSource, uniquesource,
 						)
 					}
-
 					if entry.Mask&engine.FILE_WRITE_DATA != 0 {
 						o.EdgeTo(serviceimageobject, EdgeFileWrite)
 					}
@@ -729,7 +644,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			// ui.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
 		}
 	}
-
 	// SOFTWARE INVENTORY AS ATTRIBUTES
 	installedsoftware := make([]string, len(cinfo.Software))
 	for i, software := range cinfo.Software {
@@ -740,7 +654,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	if len(installedsoftware) > 0 {
 		machine.SetFlex(localmachine.InstalledSoftware, installedsoftware)
 	}
-
 	// SHARES
 	if len(cinfo.Shares) > 0 {
 		computershares := ao.AddNew(
@@ -748,7 +661,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			activedirectory.DisplayName, "Shares",
 		)
 		computershares.ChildOf(machine)
-
 		for _, share := range cinfo.Shares {
 			shareobject := ao.AddNew(
 				engine.IgnoreBlanks,
@@ -758,11 +670,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				ShareType, share.Type,
 				engine.Type, "Share",
 			)
-
 			machine.EdgeTo(shareobject, EdgeShares)
-
 			shareobject.ChildOf(computershares)
-
 			// Fileshare rights
 			if len(share.DACL) == 0 {
 				ui.Warn().Msgf("No security descriptor for machine %v file share %v", cinfo.Machine.Name, share.Name)
@@ -776,16 +685,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				for _, entry := range sd.DACL.Entries {
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						entrysid := entry.SID
-
 						o, _, _ := ri.GetSIDObject(entrysid, Auto)
-
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
 							o.EdgeTo(shareobject, EdgeFileRead)
 						}
 						if entry.Mask&engine.FILE_WRITE_DATA != 0 {
 							o.EdgeTo(shareobject, EdgeFileWrite)
 						}
-
 						if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
 							o.EdgeTo(shareobject, activedirectory.EdgeTakeOwnership) // Not sure about this one
 						}
@@ -799,18 +705,14 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			} else {
 				ui.Warn().Msgf("Could not parse machine %v file share %v security descriptor", cinfo.Machine.Name, share.Name)
 			}
-
 			pathobject := ao.AddNew(
 				engine.IgnoreBlanks,
 				activedirectory.DisplayName, share.Path,
 				AbsolutePath, share.Path,
 				engine.Type, "Directory",
 			)
-
 			pathobject.ChildOf(machine)
-
 			shareobject.EdgeTo(pathobject, EdgePublishes)
-
 			// File rights
 			if sd, err := engine.CacheOrParseSecurityDescriptor(string(share.PathDACL)); err == nil {
 				if !sd.Owner.IsNull() {
@@ -854,37 +756,31 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			}
 		}
 	}
-
 	// Everyone / World and Authenticated Users merge with Domain - not pretty IMO
 	if cinfo.Machine.IsDomainJoined && !isdomaincontroller {
 		domaineveryoneobject := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.EveryoneSID),
 			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
 		)
-
 		// Everyone who is a member of the Domain is also a member of "our" Everyone
 		domaineveryoneobject.EdgeTo(everyone, activedirectory.EdgeMemberOfGroup)
-
 		domainauthenticatedusers := ao.AddNew(
 			activedirectory.ObjectSid, engine.AttributeValueSID(windowssecurity.AuthenticatedUsersSID),
 			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
 		)
-
 		domainauthenticatedusers.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
 	}
-
 	return machine, nil
 }
 
 type relativeInfo struct {
 	LocalName          engine.AttributeValue
 	DomainName         engine.AttributeValue
+	ao                 *engine.Objects
 	MachineSID         windowssecurity.SID
 	DomainJoinedSID    windowssecurity.SID
 	IsDomainController bool
-	ao                 *engine.Objects
 }
-
 type RelativeLocation byte
 
 const (
@@ -914,7 +810,6 @@ func (ri *relativeInfo) GetSIDObject(targetSID windowssecurity.SID, location Rel
 			return assignee, existing, false
 		}
 	}
-
 	assignee, existing := ri.ao.FindTwoOrAdd(
 		activedirectory.ObjectSid, engine.AttributeValueSID(targetSID),
 		engine.DataSource, dataSource,

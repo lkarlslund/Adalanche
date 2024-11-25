@@ -108,13 +108,13 @@ func init() {
 				NodeNameCounts map[string]int `json:"nodecounts"`
 				ResultTypes    map[string]int `json:"resulttypes"`
 
+				Elements *frontend.CytoElements `json:"elements"`
+
 				StartNodes int `json:"start_nodes"`
 				EndNodes   int `json:"end_nodes"`
 
 				Total int `json:"total"`
 				Edges int `json:"edges"`
-
-				Elements *frontend.CytoElements `json:"elements"`
 			}{
 				// Reversed: mode != "normal", //FIXME
 

@@ -3,20 +3,18 @@ package persistence
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/spf13/cobra"
 	"github.com/ugorji/go/codec"
 	"go.etcd.io/bbolt"
+	"os"
+	"path/filepath"
 )
 
 var (
 	datastore *bbolt.DB
 	mh        codec.JsonHandle
 )
-
 var (
 	persistenceCmd = &cobra.Command{
 		Use:   "persistence",
@@ -26,8 +24,7 @@ var (
 		Use:   "dump",
 		Short: "Dumps the persistence database in JSON",
 	}
-	output = dumpCmd.Flags().String("output", "persistence-dump.json", "Output file for dump")
-
+	output     = dumpCmd.Flags().String("output", "persistence-dump.json", "Output file for dump")
 	restoreCmd = &cobra.Command{
 		Use:   "restore",
 		Short: "Restores the persistence database from JSON",
@@ -42,12 +39,10 @@ func init() {
 	persistenceCmd.AddCommand(restoreCmd)
 	restoreCmd.RunE = restore
 }
-
 func getDB() (*bbolt.DB, error) {
 	if datastore != nil {
 		return datastore, nil
 	}
-
 	var err error
 	datastore, err = bbolt.Open(filepath.Join(*cli.Datapath, "persistence.bbolt"), 0666, nil)
 	return datastore, err
@@ -67,11 +62,10 @@ type Identifiable interface {
 type Defaulter interface {
 	Default()
 }
-
 type storage[i Identifiable] struct {
 	db         *bbolt.DB
-	bucketname []byte
 	cache      map[string]i
+	bucketname []byte
 }
 
 func GetStorage[i Identifiable](bucketname string, cached bool) storage[i] {
@@ -89,7 +83,6 @@ func GetStorage[i Identifiable](bucketname string, cached bool) storage[i] {
 	}
 	return s
 }
-
 func (s storage[p]) Get(id string) (*p, bool) {
 	var result p
 	if s.cache != nil {
@@ -97,7 +90,6 @@ func (s storage[p]) Get(id string) (*p, bool) {
 			return &rv, true
 		}
 	}
-
 	var data []byte
 	if s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(s.bucketname))
@@ -119,7 +111,6 @@ func (s storage[p]) Get(id string) (*p, bool) {
 	}
 	return nil, false
 }
-
 func (s storage[p]) Put(saveme p) error {
 	var output []byte
 	enc := codec.NewEncoderBytes(&output, &mh)
@@ -131,7 +122,6 @@ func (s storage[p]) Put(saveme p) error {
 	if id == "" {
 		return errors.New("empty ID")
 	}
-
 	err = s.db.Update(func(tx *bbolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(s.bucketname))
 		if err != nil {
@@ -151,7 +141,6 @@ func (s storage[p]) Put(saveme p) error {
 	}
 	return nil
 }
-
 func (s storage[p]) Delete(id string) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(s.bucketname))
@@ -169,7 +158,6 @@ func (s storage[p]) Delete(id string) error {
 		return nil
 	})
 }
-
 func (s storage[p]) List() ([]p, error) {
 	var result []p
 	return result, s.db.View(func(tx *bbolt.Tx) error {
@@ -177,11 +165,9 @@ func (s storage[p]) List() ([]p, error) {
 		if b == nil {
 			return nil
 		}
-
 		// Pre-allocate the result slice to avoid re-allocations during iteration
 		stats := b.Stats()
 		result = make([]p, 0, stats.KeyN)
-
 		return b.ForEach(func(k, v []byte) error {
 			var data p
 			if isDefaulter, ok := any(data).(Defaulter); ok {
@@ -197,21 +183,17 @@ func (s storage[p]) List() ([]p, error) {
 		})
 	})
 }
-
 func dump(cmd *cobra.Command, args []string) error {
 	db, err := getDB()
 	if err != nil {
 		return fmt.Errorf("Could not open database: %v", err)
 	}
-
 	// Open output file for writing
 	jsonfile, err := os.Create(*output)
 	if err != nil {
 		return fmt.Errorf("Could not open output file: %v", err)
 	}
-
 	fmt.Fprintln(jsonfile, "[")
-
 	// Iterate over all buckets, and dump all the data
 	db.View(func(tx *bbolt.Tx) error {
 		firstbucket := true
@@ -239,13 +221,10 @@ func dump(cmd *cobra.Command, args []string) error {
 		})
 		return nil
 	})
-
 	fmt.Fprintln(jsonfile, "]")
 	jsonfile.Close()
-
 	return nil
 }
-
 func restore(cmd *cobra.Command, args []string) error {
 	return nil
 }

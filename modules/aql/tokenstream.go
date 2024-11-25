@@ -5,8 +5,8 @@ import (
 )
 
 type TokenStream struct {
-	position int
 	data     []Token
+	position int
 }
 
 func Parse(input string) (*TokenStream, error) {
@@ -14,12 +14,10 @@ func Parse(input string) (*TokenStream, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	tokens, err := t.Scanner([]byte(input))
 	if err != nil {
 		return nil, err
 	}
-
 	var result TokenStream
 	for {
 		t, err, eof := tokens.Next()
@@ -37,7 +35,6 @@ func Parse(input string) (*TokenStream, error) {
 	}
 	return &result, nil
 }
-
 func (ts *TokenStream) NextIfIs(id TokenID) bool {
 	result := ts.Token().Is(id)
 	if result {
@@ -45,7 +42,6 @@ func (ts *TokenStream) NextIfIs(id TokenID) bool {
 	}
 	return result
 }
-
 func (ts *TokenStream) Token() Token {
 	if ts.position < len(ts.data) {
 		return ts.data[ts.position]
@@ -54,7 +50,6 @@ func (ts *TokenStream) Token() Token {
 		Type: Invalid,
 	}
 }
-
 func (ts *TokenStream) PeekNextToken() Token {
 	pos := ts.position + 1
 	for ts.data[pos].Is(Whitespace) {
@@ -67,7 +62,6 @@ func (ts *TokenStream) PeekNextToken() Token {
 		Type: Invalid,
 	}
 }
-
 func (ts *TokenStream) Prev() bool {
 	if ts.position > 0 {
 		ts.position--
@@ -78,7 +72,6 @@ func (ts *TokenStream) Prev() bool {
 	}
 	return false
 }
-
 func (ts *TokenStream) Next() bool {
 	ts.position++
 	for ts.Token().Is(Whitespace) {
@@ -86,7 +79,6 @@ func (ts *TokenStream) Next() bool {
 	}
 	return ts.position < len(ts.data)
 }
-
 func (ts *TokenStream) SnarfTextUntil(id TokenID) string {
 	var result string
 	for !ts.EOF() && !ts.Token().Is(id) {
@@ -96,7 +88,6 @@ func (ts *TokenStream) SnarfTextUntil(id TokenID) string {
 	}
 	return result
 }
-
 func (ts *TokenStream) EOF() bool {
 	return !(ts.position < len(ts.data))
 }

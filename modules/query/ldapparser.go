@@ -255,7 +255,10 @@ valueloop:
 			if strings.EqualFold(attributename, "_pwnable") || strings.EqualFold(attributename, "in") {
 				direction = engine.In
 			}
-			return s, EdgeQuery{direction, edge, target}, nil
+			return s, EdgeQuery{
+				Direction: direction,
+				Edge:      edge,
+				Target:    target}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
@@ -284,11 +287,17 @@ valueloop:
 		}
 	case 1:
 		genwrapper = func(aq FilterAttribute) NodeFilter {
-			return FilterOneAttribute{attributes[0], aq}
+			return FilterOneAttribute{
+				Attribute:       attributes[0],
+				FilterAttribute: aq}
 		}
 	default:
 		genwrapper = func(aq FilterAttribute) NodeFilter {
-			return FilterMultipleAttributes{attributename, attributes, aq}
+			return FilterMultipleAttributes{
+				AttributeGlobString: attributename,
+				Attributes:          attributes,
+				FilterAttribute:     aq}
+
 		}
 	}
 
@@ -315,14 +324,18 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			result = genwrapper(SinceModifier{comparator, duration})
+			result = genwrapper(SinceModifier{
+				Comparator: comparator,
+				TimeSpan:   duration})
 			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		result = genwrapper(SinceModifier{comparator, duration})
+		result = genwrapper(SinceModifier{
+			Comparator: comparator,
+			TimeSpan:   duration})
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
@@ -333,14 +346,20 @@ valueloop:
 			if err != nil {
 				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
 			}
-			result = genwrapper(TimediffModifier{attribute2, comparator, duration})
+			result = genwrapper(TimediffModifier{
+				Attribute2: attribute2,
+				Comparator: comparator,
+				TimeSpan:   duration})
 			break
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
-		result = genwrapper(TimediffModifier{attribute2, comparator, duration})
+		result = genwrapper(TimediffModifier{
+			Attribute2: attribute2,
+			Comparator: comparator,
+			TimeSpan:   duration})
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEquals {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
@@ -353,7 +372,7 @@ valueloop:
 		result = genwrapper(BinaryOrModifier{valuenum})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		result = genwrapper(RecursiveDNmatcher{value, ao})
+		result = genwrapper(RecursiveDNmatcher{DN: value, AO: ao})
 	default:
 		return nil, nil, errors.New("Unknown modifier " + modifier)
 	}
@@ -382,12 +401,20 @@ valueloop:
 					return nil, nil, err
 				}
 				if casesensitive {
-					result = genwrapper(HasGlobMatch{true, pattern, g})
+					result = genwrapper(HasGlobMatch{
+						Casesensitive: true,
+						Globstr:       pattern,
+						Match:         g})
 				} else {
-					result = genwrapper(HasGlobMatch{false, pattern, g})
+					result = genwrapper(HasGlobMatch{
+						Casesensitive: false,
+						Globstr:       pattern,
+						Match:         g})
 				}
 			} else {
-				result = genwrapper(HasStringMatch{casesensitive, value})
+				result = genwrapper(HasStringMatch{
+					Casesensitive: casesensitive,
+					Value:         value})
 			}
 		}
 	}
@@ -397,7 +424,9 @@ valueloop:
 		if numok != nil {
 			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
 		}
-		result = genwrapper(TypedComparison[int64]{comparator, valuenum})
+		result = genwrapper(TypedComparison[int64]{
+			Comparator: comparator,
+			Value:      valuenum})
 	}
 
 	if invert {
