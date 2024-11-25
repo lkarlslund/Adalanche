@@ -16,12 +16,12 @@ func NewResolverOptions() ResolverOptions {
 }
 
 type ResolverOptions struct {
-	MaxDepth                  int
-	MaxOutgoingConnections    int
-	MinEdgeProbability        engine.Probability
-	MinAccumulatedProbability engine.Probability
-	PruneIslands              bool
-	NodeLimit                 int
+	MaxDepth                  int                `json:"max_depth,omitempty"`
+	MaxOutgoingConnections    int                `json:"max_outgoing_connections,omitempty"`
+	MinEdgeProbability        engine.Probability `json:"min_edge_probability,omitempty"`
+	MinAccumulatedProbability engine.Probability `json:"min_accumulated_probability,omitempty"`
+	PruneIslands              bool               `json:"prune_islands,omitempty"`
+	NodeLimit                 int                `json:"nodelimit,omitempty"`
 }
 
 func ResolveWithOptions(resolver AQLresolver, opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
