@@ -95,6 +95,8 @@ type WAD struct {
 	LDAPOptions
 
 	conn WLDAP
+
+	collected int
 }
 
 func (a *WAD) Connect() error {
@@ -428,6 +430,7 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 				objects = append(objects, item)
 			}
 
+			a.collected++
 			bar.Add(1)
 
 			entry = entry.next_entry()
@@ -473,6 +476,12 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	}
 
 	return objects, err
+}
+
+func (w *WAD) Len() int {
+	items := w.collected
+	w.collected = 0
+	return items
 }
 
 var (
