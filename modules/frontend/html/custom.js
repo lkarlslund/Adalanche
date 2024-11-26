@@ -235,7 +235,7 @@ function aqlanalyze(e) {
 
   $.ajax({
     type: "POST",
-    url: "/aql/analyze",
+    url: "/api/aql/analyze",
     contentType: "charset=utf-8",
     data: encodeaqlquery(),
     dataType: "json",
@@ -598,7 +598,7 @@ $(function () {
       // check query for errors when user has been idle for 200ms
       $.ajax({
         type: "GET",
-        url: "/aql/validatequery",
+        url: "/api/aql/validatequery",
         data: {
           query: e.target.value,
         },

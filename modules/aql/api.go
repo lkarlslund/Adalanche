@@ -31,7 +31,7 @@ func init() {
 		})
 
 		// Graph based query analysis - core functionality
-		ws.Router.POST("/aql/analyze", func(c *gin.Context) {
+		ws.API.POST("/aql/analyze", func(c *gin.Context) {
 			params := make(map[string]any)
 			err := c.ShouldBindBodyWith(&params, binding.JSON)
 
