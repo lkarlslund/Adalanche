@@ -1,17 +1,18 @@
 package analyze
 
 import (
+	"os"
+	"runtime"
+	"strings"
+	"sync"
+
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/mailru/easyjson"
-	"io/ioutil"
-	"runtime"
-	"strings"
-	"sync"
 )
 
-const loadername = "Local Machine JSON file"
+const Loadername = "Local Machine"
 
 var (
 	loader = engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
@@ -30,7 +31,7 @@ type LocalMachineLoader struct {
 }
 
 func (ld *LocalMachineLoader) Name() string {
-	return loadername
+	return Loadername
 }
 func (ld *LocalMachineLoader) Init() error {
 	ld.ao = engine.NewLoaderObjects(ld)
@@ -40,7 +41,7 @@ func (ld *LocalMachineLoader) Init() error {
 		ld.done.Add(1)
 		go func() {
 			for queueItem := range ld.infostoadd {
-				raw, err := ioutil.ReadFile(queueItem.path)
+				raw, err := os.ReadFile(queueItem.path)
 				if err != nil {
 					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", queueItem, err)
 					continue

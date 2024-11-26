@@ -48,7 +48,7 @@ func init() {
 
 	loader.AddProcessor(func(ao *engine.Objects) {
 		var warns int
-		ln := engine.NewAttributeValueString(loadername)
+		ln := engine.NewAttributeValueString(Loadername)
 		ao.Iterate(func(o *engine.Object) bool {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
