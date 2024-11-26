@@ -18,7 +18,8 @@ import (
 func init() {
 	// AQL support
 	frontend.AddOption(func(ws *frontend.WebService) error {
-		ws.Router.GET("/aql/validatequery", func(c *gin.Context) {
+		aql := ws.API.Group("aql")
+		aql.GET("validatequery", func(c *gin.Context) {
 			querytext := strings.Trim(c.Query("query"), " \n\r")
 			if querytext != "" {
 				_, err := ParseAQLQuery(querytext, ws.Objs)
@@ -31,7 +32,7 @@ func init() {
 		})
 
 		// Graph based query analysis - core functionality
-		ws.API.POST("/aql/analyze", func(c *gin.Context) {
+		aql.POST("analyze", func(c *gin.Context) {
 			params := make(map[string]any)
 			err := c.ShouldBindBodyWith(&params, binding.JSON)
 
