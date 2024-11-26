@@ -20,7 +20,7 @@ func ParseAQLQuery(s string, ao *engine.Objects) (AQLresolver, error) {
 	}
 	resolver, err := parseAQLstream(ts, ao)
 	if err != nil {
-		return nil, fmt.Errorf("parsing error: %v around %v", err, ts.Token().Position)
+		return nil, fmt.Errorf("parsing error: %v around position %v", err, ts.Token().Position.TC)
 	}
 	return resolver, nil
 }
@@ -52,7 +52,7 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 		Mode:       Acyclic, // default to something sane
 	}
 
-	for ts.Token().Is(Identifier) {
+	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "WALK":
 			result.Mode = Walk // Say goodbye to your CPU
@@ -102,14 +102,14 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 	var result NodeQuery
 
-	if !ts.NextIfIs(LParan) {
-		return NodeQuery{}, errors.New("Expecting ( as start of node query")
-	}
-
 	if ts.Token().Type == Identifier && (ts.PeekNextToken().Type == Colon || ts.PeekNextToken().Type == Is) {
 		result.ReferenceName = ts.Token().Value
 		ts.Next()
 		ts.Next()
+	}
+
+	if !ts.NextIfIs(LParan) {
+		return NodeQuery{}, errors.New("Expecting ( as start of node query")
 	}
 
 	// If RParan there is no selector, just select everything
@@ -120,39 +120,45 @@ func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 		}
 		result.Selector = where
 
-		// If we parse ORDER BY, it's fine
-		sorter, err := parseNodeSorter(ts, ao)
-		if err != nil {
-			return result, err
-		}
-		result.OrderBy = sorter // might be nil, if there was none
-
-		// If we parse a SKIP, it's fine
-		if ts.NextIfIs(Skip) {
-			skip := ts.Token()
-			if skip.Type != Integer {
-				return result, fmt.Errorf("SKIP value expects Integer, but I got %v (%v)", skip.Type, skip.Value)
-			}
-
-			result.Skip = int(skip.Native.(int64))
-			ts.Next()
-		}
-
-		if ts.NextIfIs(Limit) {
-			limit := ts.Token()
-			if limit.Type != Integer {
-				return result, fmt.Errorf("LIMIT value expects Integer, but I got %v", limit.Type)
-			}
-			result.Limit = int(limit.Native.(int64))
-
-			ts.Next()
-		}
-
 		if !ts.NextIfIs(RParan) {
 			return NodeQuery{}, errors.New("Expecting ) at end of LDAP filter")
 		}
-	} else {
-		result.Selector = nil // empty selector
+
+	}
+
+	// If we parse ORDER BY, it's fine
+	sorter, err := parseNodeSorter(ts, ao)
+	if err != nil {
+		return result, err
+	}
+	result.OrderBy = sorter // might be nil, if there was none
+
+	// If we parse a SKIP, it's fine
+	if ts.NextIfIs(Skip) || ts.NextIfIs(Offset) {
+		skip := ts.Token()
+		if skip.Type != Integer {
+			return result, fmt.Errorf("SKIP value expects Integer, but I got %v (%v)", skip.Type, skip.Value)
+		}
+
+		result.Skip = int(skip.Native.(int64))
+		if result.Skip == 0 {
+			return result, fmt.Errorf("SKIP value expects Integer > 0 or Integer < 0, but I got %v", skip.Value)
+		}
+
+		ts.Next()
+	}
+
+	if ts.NextIfIs(Limit) {
+		limit := ts.Token()
+		if limit.Type != Integer {
+			return result, fmt.Errorf("LIMIT value expects Integer, but I got %v", limit.Type)
+		}
+		result.Limit = int(limit.Native.(int64))
+		if result.Limit == 0 {
+			return result, fmt.Errorf("LIMIT value expects Integer > 0 or Integer < 0, but I got %v", limit.Value)
+		}
+
+		ts.Next()
 	}
 
 	return result, nil
@@ -526,7 +532,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 			} else {
 				result = genwrapper(query.HasStringMatch{
 					Casesensitive: casesensitive,
-					Value:         strval})
+					Value:         engine.NewAttributeValueString(strval)})
 			}
 		}
 	}

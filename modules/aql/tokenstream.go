@@ -62,6 +62,17 @@ func (ts *TokenStream) PeekNextToken() Token {
 		Type: Invalid,
 	}
 }
+
+func (ts *TokenStream) PeekNextRawToken() Token {
+	pos := ts.position + 1
+	if pos < len(ts.data) {
+		return ts.data[pos]
+	}
+	return Token{
+		Type: Invalid,
+	}
+}
+
 func (ts *TokenStream) Prev() bool {
 	if ts.position > 0 {
 		ts.position--

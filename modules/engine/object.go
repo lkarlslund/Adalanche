@@ -29,8 +29,8 @@ type Object struct {
 	values  AttributesAndValues
 	sdcache *SecurityDescriptor
 	parent  *Object
+	sid     windowssecurity.SID
 
-	sid      windowssecurity.SID
 	children ObjectSlice
 
 	status    atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone

@@ -19,7 +19,6 @@ require (
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/ldap/v3 v3.4.4-2.0.20240213092859-7df1bd8df6a8
-	github.com/lkarlslund/stringdedup v0.6.3-0.20231023091703-cf3e4d8e8ab3
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mailru/easyjson v0.7.7
@@ -75,7 +74,6 @@ require (
 	github.com/ugorji/go/codec v1.2.12
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
@@ -96,6 +94,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lkarlslund/gonk v0.0.0-20241109090940-dffca74316e8
+	github.com/puzpuzpuz/xsync v1.5.2
 	github.com/spf13/viper v1.19.0
 	github.com/timtadh/lexmachine v0.2.3
 	go.etcd.io/bbolt v1.3.11
@@ -106,7 +105,6 @@ require github.com/timtadh/data-structures v0.6.1 // indirect
 
 require (
 	atomicgo.dev/schedule v0.1.0 // indirect
-	github.com/Cyan4973/xxHash v0.8.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/StackExchange/wmi v1.2.0 // indirect
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
@@ -133,7 +131,6 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
-	github.com/puzpuzpuz/xsync v1.5.2 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
@@ -145,9 +142,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
-	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
-	golang.org/x/tools v0.24.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

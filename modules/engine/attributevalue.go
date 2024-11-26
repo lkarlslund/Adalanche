@@ -133,6 +133,12 @@ func (as AttributeValueString) IsZero() bool {
 }
 
 func (as AttributeValueString) Compare(c AttributeValue) int {
+	if cs, ok := c.(AttributeValueString); ok {
+		// Fast path for same string, no need to compare contents again, as unique sorts this out for us
+		if unique.Handle[string](as) == unique.Handle[string](cs) {
+			return 0
+		}
+	}
 	return strings.Compare(as.String(), c.String())
 }
 

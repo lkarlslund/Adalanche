@@ -30,7 +30,7 @@ type NodeQuery struct {
 func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
 	result := ao
 	if nq.Selector != nil {
-		result = ao.Filter(nq.Selector.Evaluate)
+		result = query.NodeFilterExecute(nq.Selector, ao)
 	}
 	if nq.Limit != 0 || nq.Skip != 0 {
 		// Get nodes as slice, then sort and filter by limit/skip
@@ -142,6 +142,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	aqlq.sourceCache = make([]*engine.Objects, len(aqlq.Sources))
 	for i, q := range aqlq.Sources {
 		aqlq.sourceCache[i] = q.Populate(aqlq.datasource)
+		ui.Debug().Msgf("Node cache %v has %v nodes", i, aqlq.sourceCache[i].Len())
 		pb.Add(1)
 	}
 	for i, q := range aqlq.Next {
@@ -174,6 +175,12 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	return &result, nil
 }
 
+var (
+	directionsIn  = []engine.EdgeDirection{engine.In}
+	directionsOut = []engine.EdgeDirection{engine.Out}
+	directionsAny = []engine.EdgeDirection{engine.In, engine.Out}
+)
+
 // Finds all edge paths that match all the constraits, and recursively finds the next ones too
 // Returns the resulting graph that matches all the constraints
 func (aqlq AQLquery) resolveEdgesFrom(
@@ -194,11 +201,11 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	var directions []engine.EdgeDirection
 	switch es.Direction {
 	case engine.In:
-		directions = []engine.EdgeDirection{engine.In}
+		directions = directionsIn
 	case engine.Out:
-		directions = []engine.EdgeDirection{engine.Out}
+		directions = directionsOut
 	case engine.Any:
-		directions = []engine.EdgeDirection{engine.In, engine.Out}
+		directions = directionsAny
 	}
 	// We don't need matches, so try skipping this one
 	if es.MinIterations == 0 && currentDepth == 0 && len(aqlq.Sources) > currentSearchIndex+1 {

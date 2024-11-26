@@ -42,12 +42,8 @@ func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
 	return pg.nodes
 }
 
-func (pg *Graph[NodeType, EdgeType]) AddNode(newnode NodeType) error {
-	if found := pg.HasNode(newnode); found {
-		return errors.New("node already exists")
-	}
+func (pg *Graph[NodeType, EdgeType]) AddNode(newnode NodeType) {
 	pg.nodes[newnode] = nil
-	return nil
 }
 
 func (pg *Graph[NodeType, EdgeType]) HasNode(find NodeType) (found bool) {

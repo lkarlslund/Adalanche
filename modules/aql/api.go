@@ -76,7 +76,7 @@ func init() {
 				}
 			}
 			if prunedislands > 0 {
-				ui.Debug().Msgf("Pruning islands removed %v nodes, leaving %v nodes", prunedislands, results.Order())
+				ui.Info().Msgf("Pruning islands removed %v nodes, leaving %v nodes", prunedislands, results.Order())
 			}
 
 			var objecttypes [256]int

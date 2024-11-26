@@ -489,7 +489,7 @@ func (ha HasAttr) ToWhereClause(a string) string {
 }
 
 type HasStringMatch struct {
-	Value         string
+	Value         engine.AttributeValueString
 	Casesensitive bool
 }
 
@@ -497,12 +497,12 @@ func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 	var result bool
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if !hsm.Casesensitive {
-			if strings.EqualFold(hsm.Value, value.String()) {
+			if strings.EqualFold(hsm.Value.String(), value.String()) {
 				result = true
 				return false // break
 			}
 		} else {
-			if hsm.Value == value.String() {
+			if engine.CompareAttributeValuesInt(value, hsm.Value) == 0 {
 				result = true
 				return false // break
 			}
@@ -513,13 +513,13 @@ func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
 }
 func (hsm HasStringMatch) ToLDAPFilter(a string) string {
 	if hsm.Casesensitive {
-		return a + "=" + hsm.Value
+		return a + "=" + hsm.Value.String()
 	} else {
-		return a + ":caseinsensitive:=" + hsm.Value
+		return a + ":caseinsensitive:=" + hsm.Value.String()
 	}
 }
 func (hsm HasStringMatch) ToWhereClause(a string) string {
-	return a + "=" + hsm.Value
+	return a + "=" + hsm.Value.String()
 }
 
 type HasGlobMatch struct {

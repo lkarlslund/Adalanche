@@ -204,14 +204,14 @@ func (os *ObjectSlice) SortFunc(lessthan func(o, o2 *Object) bool) {
 }
 
 func (os *ObjectSlice) Skip(count int) {
-	if count >= 0 {
+	if count > 0 {
 		// from start
 		if count > len(os.objects) {
 			os.objects = os.objects[count:]
 		} else {
 			os.objects = os.objects[:0]
 		}
-	} else {
+	} else if count < 0 {
 		// from end
 		count = -count
 		if count > len(os.objects) {
@@ -223,13 +223,13 @@ func (os *ObjectSlice) Skip(count int) {
 }
 
 func (os *ObjectSlice) Limit(count int) {
-	if count >= 0 {
-		if count > len(os.objects) {
+	if count > 0 {
+		if count < len(os.objects) {
 			os.objects = os.objects[:count]
 		}
-	} else {
+	} else if count < 0 {
 		count = -count
-		if count > len(os.objects) {
+		if count < len(os.objects) {
 			os.objects = os.objects[len(os.objects)-count:]
 		}
 	}

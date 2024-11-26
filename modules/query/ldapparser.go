@@ -414,7 +414,7 @@ valueloop:
 			} else {
 				result = genwrapper(HasStringMatch{
 					Casesensitive: casesensitive,
-					Value:         value})
+					Value:         engine.NewAttributeValueString(value)})
 			}
 		}
 	}
