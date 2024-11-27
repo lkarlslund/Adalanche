@@ -1748,7 +1748,7 @@ func init() {
 			object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
 				if !found {
-					var sid engine.AttributeValueSID
+					var sid engine.AttributeValue
 					if stringsid, _, found := strings.Cut(memberof.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
 						if c, err := windowssecurity.ParseStringSID(stringsid); err == nil {

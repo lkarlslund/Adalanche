@@ -248,9 +248,6 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 			}
 			edgeProbability := matchedEdges.MaxProbability(currentObject, nextObject)
-			if edgeProbability == -1 {
-				ui.Debug().Msg("Got one")
-			}
 			// Honor query for this edge probability
 			if es.ProbabilityComparator != query.CompareInvalid {
 				if !query.Comparator[engine.Probability](es.ProbabilityComparator).Compare(edgeProbability, es.ProbabilityValue) {

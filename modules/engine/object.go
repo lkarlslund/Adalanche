@@ -621,6 +621,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			ignoreblanks = true
 			continue
 		}
+		if i == nil {
+			if ignoreblanks {
+				continue
+			}
+			ui.Fatal().Msgf("Flex initialization with NIL value")
+		}
 		switch v := i.(type) {
 		case windowssecurity.SID:
 			if ignoreblanks && v.IsNull() {
@@ -728,7 +734,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				data = append(data, value)
 			}
 		case nil:
-			// Ignore it
+			// Ignore it, this doesn't work?
 		case Attribute:
 			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
 				o.set(attribute, data...)

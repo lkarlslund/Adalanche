@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
@@ -16,6 +18,7 @@ var (
 		Short: "Lanunches the interactive discovery tool in your browser",
 	}
 
+	// memlimits   = Command.Flags().Int64("memlimits", 0, "Memory limits for the analysis (in MB)")
 	bind        = Command.Flags().String("bind", "127.0.0.1:8080", "Address and port of webservice to bind to")
 	noBrowser   = Command.Flags().Bool("nobrowser", false, "Don't launch browser after starting webservice")
 	localHTML   = Command.Flags().StringSlice("localhtml", nil, "Override embedded HTML and use a local folders for webservice (for development)")
@@ -33,6 +36,12 @@ func init() {
 
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
+
+	memlimit.SetGoMemLimit(0.9)
+	debug.SetGCPercent(1000)
+
+	cpus := runtime.GOMAXPROCS(-1)
+	runtime.GOMAXPROCS(cpus * 8 / 10)
 
 	if *certificate != "" && *privateKey == "" {
 		AddOption(WithCert(*certificate, *privateKey))

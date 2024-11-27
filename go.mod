@@ -82,6 +82,7 @@ require (
 )
 
 require (
+	github.com/KimMachineGun/automemlimit v0.6.1
 	github.com/Velocidex/ordereddict v0.0.0-20230909174157-2aa49cc5d11d
 	github.com/akyoto/cache v1.0.6
 	github.com/elastic/go-windows v1.0.2
@@ -93,7 +94,7 @@ require (
 	github.com/google/certtostore v1.0.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/lkarlslund/gonk v0.0.0-20241109090940-dffca74316e8
+	github.com/lkarlslund/gonk v0.0.0-20241127131211-8ff91a8ac49f
 	github.com/puzpuzpuz/xsync v1.5.2
 	github.com/spf13/viper v1.19.0
 	github.com/timtadh/lexmachine v0.2.3
@@ -111,12 +112,18 @@ require (
 	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
 	github.com/bytedance/sonic v1.12.4 // indirect
 	github.com/bytedance/sonic/loader v0.2.1 // indirect
+	github.com/cilium/ebpf v0.16.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
+	github.com/containerd/cgroups/v3 v3.0.4 // indirect
+	github.com/containerd/log v0.1.0 // indirect
+	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/docker/go-units v0.5.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.6 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/deck v0.0.0-20230104221208-105ad94aa8ae // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -130,10 +137,14 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/moby/sys/userns v0.1.0 // indirect
+	github.com/opencontainers/runtime-spec v1.2.0 // indirect
+	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
@@ -141,7 +152,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

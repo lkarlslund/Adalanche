@@ -4,5 +4,5 @@ import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
 	InstalledSoftware = engine.NewAttribute("installedSoftware")
-	MACAddress        = engine.NewAttribute("MACAddress").Merge()
+	MACAddress        = engine.NewAttribute("mACAddress").Merge()
 )
