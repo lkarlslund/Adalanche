@@ -158,6 +158,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	}
 
 	pb := ui.ProgressBar("Preparing AQL query sources", int64(len(aqlq.Sources)*2))
+	defer pb.Finish()
 
 	// Prepare all the potentialnodes by filtering them and saving them in potentialnodes[n]
 	aqlq.sourceCache = make([]*engine.Objects, len(aqlq.Sources))
