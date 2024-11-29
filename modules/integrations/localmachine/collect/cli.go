@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	cmd = &cobra.Command{
+	Cmd = &cobra.Command{
 		Use:   "localmachine",
 		Short: "Gathers local information about a machine in the network (deploy with a sch.task via GPO for efficiency)",
 		RunE:  Execute,
@@ -22,7 +22,7 @@ var (
 )
 
 func init() {
-	clicollect.Collect.AddCommand(cmd)
+	clicollect.Collect.AddCommand(Cmd)
 }
 
 func Execute(cmd *cobra.Command, args []string) error {
