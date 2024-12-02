@@ -15,6 +15,9 @@
             return storedTheme;
         }
 
+        // temporary fix
+        return "dark";
+
         return window.matchMedia("(prefers-color-scheme: dark)").matches
             ? "dark"
             : "light";
