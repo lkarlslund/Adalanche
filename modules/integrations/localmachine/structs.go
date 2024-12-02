@@ -1,10 +1,10 @@
 package localmachine
 
-//go:generate easyjson -all structs.go
 //go:generate msgp -file structs.go
 import (
-	"github.com/lkarlslund/adalanche/modules/basedata"
 	"time"
+
+	"github.com/lkarlslund/adalanche/modules/basedata"
 )
 
 type Info struct {
