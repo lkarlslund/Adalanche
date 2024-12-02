@@ -10,6 +10,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
