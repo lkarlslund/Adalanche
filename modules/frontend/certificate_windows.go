@@ -18,8 +18,18 @@ func init() {
 			return nil
 		}
 
+		if ws.srv.TLSConfig != nil {
+			ui.Info().Msg("Skipping autoloading Windows certificate, TLS already configured")
+			return nil
+		}
+
 		// Open the local cert store. Provider generally shouldn't matter, so use Software which is ubiquitous. See comments in getHostKey.
 		store, err := certtostore.OpenWinCertStore(certtostore.ProviderMSSoftware, "", []string{"localhost"}, nil, false)
+
+		if err != nil {
+			ui.Warn().Msgf("Opening Windows certificate store failed: %v, trying platform mode", err)
+			store, err = certtostore.OpenWinCertStore(certtostore.ProviderMSPlatform, "", []string{"localhost"}, nil, false)
+		}
 
 		if err != nil {
 			ui.Warn().Msgf("Opening Windows certificate store failed: %v, continuing without it", err)
@@ -48,6 +58,7 @@ func init() {
 			return nil
 		}
 
+		ws.protocol = "https"
 		ws.srv.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{tls.Certificate{
 				Certificate: [][]byte{crt.Raw},
