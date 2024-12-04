@@ -2,66 +2,36 @@ package engine
 
 import (
 	"bytes"
-	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func CompareAttributeValues(a, b AttributeValue) bool {
-	switch na := a.(type) {
-	case AttributeValueBool:
-		nb, btype := b.(AttributeValueBool)
-		if btype {
-			return na == nb
-		}
-	case AttributeValueString:
-		nb, btype := b.(AttributeValueString)
-		if btype {
-			return strings.EqualFold(string(na), string(nb))
-		}
-	case AttributeValueInt:
-		nb, btype := b.(AttributeValueInt)
-		if btype {
-			return na == nb
-		}
-	case AttributeValueTime:
-		nb, btype := b.(AttributeValueTime)
-		if btype {
-			return time.Time(na).Equal(time.Time(nb))
-		}
-	case AttributeValueBlob:
-		nb, btype := b.(AttributeValueBlob)
-		if btype {
-			return bytes.Equal([]byte(na), []byte(nb))
-		}
-	case AttributeValueSID:
-		nb, btype := b.(AttributeValueSID)
-		if btype {
-			return string(na) == string(nb)
-		}
-	case AttributeValueGUID:
-		nb, btype := b.(AttributeValueGUID)
-		if btype {
-			return na == nb
-		}
-	case AttributeValueObject:
-		nb, btype := b.(AttributeValueObject)
-		if btype {
-			return na == nb // Exact same object pointed to in memory
-		}
-	default:
-		// Fallback
-		if a == nil || b == nil {
-			return a == b
-		}
-		return a.String() == b.String()
+	if a == b {
+		return true
 	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Compare(b) == 0
+}
 
-	return false
+func CompareAttributeValuesInt(a, b AttributeValue) int {
+	if a == b {
+		return 0
+	}
+	if a == nil {
+		return -1
+	} else if b == nil {
+		return 1
+	}
+	return a.Compare(b)
 }
 
 type AttributeAndValues struct {
@@ -70,42 +40,23 @@ type AttributeAndValues struct {
 }
 
 // AttributeValues can contain one or more values
-type AttributeValues interface {
-	First() AttributeValue
-	Iterate(func(val AttributeValue) bool)
-	StringSlice() []string
-	Len() int
+type AttributeValues []AttributeValue
+
+func (avs AttributeValues) Sort() {
+	if avs == nil {
+		return
+	}
+	slices.SortFunc[AttributeValues](avs, CompareAttributeValuesInt)
 }
 
-type NoValues struct{}
-
-func (nv NoValues) First() AttributeValue {
-	return nil
-}
-
-func (nv NoValues) Iterate(func(val AttributeValue) bool) {
-	// no op
-}
-
-func (nv NoValues) Slice() []AttributeValue {
-	return nil
-}
-
-func (nv NoValues) StringSlice() []string {
-	return nil
-}
-
-func (nv NoValues) Len() int {
-	return 0
-}
-
-type AttributeValueSlice []AttributeValue
-
-func (avs AttributeValueSlice) First() AttributeValue {
+func (avs AttributeValues) First() AttributeValue {
+	if avs == nil {
+		return nil
+	}
 	return avs[0]
 }
 
-func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
+func (avs AttributeValues) Iterate(it func(val AttributeValue) bool) {
 	for _, cval := range avs {
 		if !it(cval) {
 			break
@@ -113,7 +64,7 @@ func (avs AttributeValueSlice) Iterate(it func(val AttributeValue) bool) {
 	}
 }
 
-func (avs AttributeValueSlice) StringSlice() []string {
+func (avs AttributeValues) StringSlice() []string {
 	result := make([]string, len(avs))
 	for i := 0; i < len(avs); i++ {
 		result[i] = avs[i].String()
@@ -121,34 +72,15 @@ func (avs AttributeValueSlice) StringSlice() []string {
 	return result
 }
 
-func (avs AttributeValueSlice) Len() int {
+func (avs AttributeValues) Len() int {
 	return len(avs)
-}
-
-type AttributeValueOne struct {
-	Value AttributeValue
-}
-
-func (avo AttributeValueOne) First() AttributeValue {
-	return avo.Value
-}
-
-func (avo AttributeValueOne) Iterate(it func(val AttributeValue) bool) {
-	it(avo.Value)
-}
-
-func (avo AttributeValueOne) Len() int {
-	return 1
-}
-
-func (avo AttributeValueOne) StringSlice() []string {
-	return []string{avo.Value.String()}
 }
 
 type AttributeValue interface {
 	String() string
 	Raw() any
 	IsZero() bool
+	Compare(AttributeValue) int
 }
 
 type AttributeValuePair struct {
@@ -175,32 +107,39 @@ func (avo AttributeValueObject) IsZero() bool {
 	return avo.values.Len() == 0
 }
 
-type AttributeValueString string
+func (ab AttributeValueObject) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueObject); ok {
+		return int(ab.ID() - cb.ID())
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
+type AttributeValueString unique.Handle[string]
+
+func NewAttributeValueString(s string) AttributeValueString {
+	return AttributeValueString(unique.Make(s))
+}
 
 func (as AttributeValueString) String() string {
-	return string(as)
+	return unique.Handle[string](as).Value()
 }
 
 func (as AttributeValueString) Raw() any {
-	return string(as)
+	return unique.Handle[string](as).Value()
 }
 
 func (as AttributeValueString) IsZero() bool {
-	return len(as) == 0
+	return len(unique.Handle[string](as).Value()) == 0
 }
 
-type AttributeValueBlob string
-
-func (ab AttributeValueBlob) String() string {
-	return fmt.Sprintf("% x", []byte(ab))
-}
-
-func (ab AttributeValueBlob) Raw() any {
-	return []byte(ab)
-}
-
-func (ab AttributeValueBlob) IsZero() bool {
-	return len(ab) == 0
+func (as AttributeValueString) Compare(c AttributeValue) int {
+	if cs, ok := c.(AttributeValueString); ok {
+		// Fast path for same string, no need to compare contents again, as unique sorts this out for us
+		if unique.Handle[string](as) == unique.Handle[string](cs) {
+			return 0
+		}
+	}
+	return strings.Compare(as.String(), c.String())
 }
 
 type AttributeValueBool bool
@@ -220,6 +159,19 @@ func (ab AttributeValueBool) IsZero() bool {
 	return !bool(ab)
 }
 
+func (ab AttributeValueBool) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueBool); ok {
+		if ab == cb {
+			return 0
+		}
+		if ab == false {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
 type AttributeValueInt int64
 
 func (as AttributeValueInt) String() string {
@@ -232,6 +184,13 @@ func (as AttributeValueInt) Raw() any {
 
 func (as AttributeValueInt) IsZero() bool {
 	return int64(as) == 0
+}
+
+func (ab AttributeValueInt) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueInt); ok {
+		return int(ab - cb)
+	}
+	return strings.Compare(ab.String(), c.String())
 }
 
 type AttributeValueTime time.Time
@@ -248,32 +207,58 @@ func (as AttributeValueTime) IsZero() bool {
 	return time.Time(as).IsZero()
 }
 
-type AttributeValueSID windowssecurity.SID
+func (ab AttributeValueTime) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueTime); ok {
+		return int(time.Time(ab).Sub(time.Time(cb)))
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
+type AttributeValueSID unique.Handle[windowssecurity.SID]
+
+func NewAttributeValueSID(s windowssecurity.SID) AttributeValueSID {
+	return AttributeValueSID(unique.Make(s))
+}
 
 func (as AttributeValueSID) String() string {
-	return windowssecurity.SID(as).String()
+	return unique.Handle[windowssecurity.SID](as).Value().String()
 }
 
 func (as AttributeValueSID) Raw() any {
-	return windowssecurity.SID(as)
+	return unique.Handle[windowssecurity.SID](as).Value()
 }
 
 func (as AttributeValueSID) IsZero() bool {
-	return windowssecurity.SID(as).IsNull()
+	return unique.Handle[windowssecurity.SID](as).Value().IsNull()
 }
 
-type AttributeValueGUID uuid.UUID
+func (ab AttributeValueSID) Compare(c AttributeValue) int {
+	return strings.Compare(ab.String(), c.String())
+}
+
+type AttributeValueGUID unique.Handle[uuid.UUID]
+
+func NewAttributeValueGUID(u uuid.UUID) AttributeValueGUID {
+	return AttributeValueGUID(unique.Make(u))
+}
 
 func (as AttributeValueGUID) String() string {
-	return (uuid.UUID)(as).String()
+	return (unique.Handle[uuid.UUID])(as).Value().String()
 }
 
 func (as AttributeValueGUID) Raw() any {
-	return uuid.UUID(as)
+	return (unique.Handle[uuid.UUID])(as).Value()
 }
 
 func (as AttributeValueGUID) IsZero() bool {
-	return uuid.UUID(as).IsNil()
+	return (unique.Handle[uuid.UUID])(as).Value().IsNil()
+}
+
+func (ab AttributeValueGUID) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueGUID); ok {
+		return bytes.Compare((unique.Handle[uuid.UUID])(ab).Value().Bytes(), (unique.Handle[uuid.UUID])(cb).Value().Bytes())
+	}
+	return strings.Compare(ab.String(), c.String())
 }
 
 type AttributeValueSecurityDescriptor struct {
@@ -290,4 +275,11 @@ func (as AttributeValueSecurityDescriptor) Raw() any {
 
 func (as AttributeValueSecurityDescriptor) IsZero() bool {
 	return len(as.SD.DACL.Entries) == 0
+}
+
+func (ab AttributeValueSecurityDescriptor) Compare(c AttributeValue) int {
+	if cb, ok := c.(AttributeValueSecurityDescriptor); ok {
+		return bytes.Compare([]byte(ab.SD.Raw), []byte(cb.SD.Raw))
+	}
+	return strings.Compare(ab.String(), c.String())
 }

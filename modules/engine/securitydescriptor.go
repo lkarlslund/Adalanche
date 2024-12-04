@@ -454,7 +454,7 @@ func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUI
 			if !found {
 				// Not in cache, let's populate it
 				cachedset = UnknownGUID // Assume failure
-				if s, found := ao.Find(SchemaIDGUID, AttributeValueGUID(g)); found {
+				if s, found := ao.Find(SchemaIDGUID, NewAttributeValueGUID(g)); found {
 					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
 						cachedset = set
 						if cachedset.IsNil() {
@@ -521,7 +521,7 @@ func (a ACE) String(ao *Objects) string {
 	if a.Flags&OBJECT_TYPE_PRESENT != 0 {
 		// ui.Debug().Msgf("Looking for right %v", a.ObjectType)
 		result += " OBJECT_TYPE_PRESENT"
-		av := AttributeValueGUID(a.ObjectType)
+		av := NewAttributeValueGUID(a.ObjectType)
 		if ao != nil {
 			if o, found := ao.Find(RightsGUID, av); found {
 				result += fmt.Sprintf(" RIGHT %v (%v)", o.OneAttr(Name), a.ObjectType)
@@ -547,7 +547,7 @@ func (a ACE) String(ao *Objects) string {
 			result += a.InheritedObjectType.String()
 		} else {
 			if ao != nil {
-				if o, found := ao.Find(SchemaIDGUID, AttributeValueGUID(a.InheritedObjectType)); found {
+				if o, found := ao.Find(SchemaIDGUID, NewAttributeValueGUID(a.InheritedObjectType)); found {
 					result += fmt.Sprintf("CLASS %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
 				} else {
 					result += " " + a.InheritedObjectType.String() + " (not found)"

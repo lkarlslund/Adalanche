@@ -2,15 +2,13 @@ package frontend
 
 import (
 	"encoding/xml"
-
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
-// type XGMML struct {
-// 	XMLNAme xml.Name `xml:"graph"`
-// 	Graph   XGMMLGraph
-// }
-
+//	type XGMML struct {
+//		XMLNAme xml.Name `xml:"graph"`
+//		Graph   XGMMLGraph
+//	}
 func NewXGMMLGraph() XGMMLGraph {
 	return XGMMLGraph{
 		XMLNS:      "http://www.cs.rpi.edu/XGMML",
@@ -29,31 +27,26 @@ type XGMMLGraph struct {
 	XMLNSXLINK string   `xml:"xmlns:xlink,attr"`
 	XMLNSRDF   string   `xml:"xmlns:rdf,attr"`
 	XMLNSCY    string   `xml:"xmlns:cy,attr"`
-
-	Directed int    `xml:"directed,attr"`
-	Label    string `xml:"label,attr,omitempty"`
-	RootNode int    `xml:"Rootnode,attr,omitempty"`
-
-	Nodes []XGMMLNode
-	Edges []XGMMLEdge
+	Label      string   `xml:"label,attr,omitempty"`
+	Nodes      []XGMMLNode
+	Edges      []XGMMLEdge
+	Directed   int `xml:"directed,attr"`
+	RootNode   int `xml:"Rootnode,attr,omitempty"`
 }
-
 type XGMMLNode struct {
-	XMLName    xml.Name        `xml:"node"`
-	Id         engine.ObjectID `xml:"id,attr"`
-	Label      string          `xml:"label,attr"`
-	Weight     int             `xml:"weight,attr,omitempty"`
+	XMLName    xml.Name `xml:"node"`
+	Label      string   `xml:"label,attr"`
 	Attributes []XGMMLAttribute
+	Weight     int             `xml:"weight,attr,omitempty"`
+	Id         engine.ObjectID `xml:"id,attr"`
 }
-
 type XGMMLEdge struct {
-	XMLName    xml.Name        `xml:"edge"`
+	XMLName    xml.Name `xml:"edge"`
+	Label      string   `xml:"label,attr"`
+	Attributes []XGMMLAttribute
 	Source     engine.ObjectID `xml:"source,attr"`
 	Target     engine.ObjectID `xml:"target,attr"`
-	Label      string          `xml:"label,attr"`
-	Attributes []XGMMLAttribute
 }
-
 type XGMMLAttribute struct {
 	XMLName xml.Name `xml:"att"`
 	Name    string   `xml:"name,attr"`

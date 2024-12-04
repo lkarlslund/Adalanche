@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/gonk"
 )
@@ -104,7 +103,7 @@ func PostProcess(ao *Objects) {
 		Process(ao, fmt.Sprintf("Postprocessing global objects priority %v", priority.String()), -1, priority)
 	}
 
-	ui.Info().Msgf("Post-processing completed in %v", time.Since(starttime))
+	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
 
 	type statentry struct {
 		name  string
@@ -147,13 +146,9 @@ func PostProcess(ao *Objects) {
 		ui.Debug().Msgf("%v: %v", se.name, se.count)
 	}
 
-	// Try to recover some memory
-	dedup.D.Flush()
-
 	// objs.DropIndexes()
 
 	ao.Iterate(func(obj *Object) bool {
-		obj.values.m.Optimize(gonk.Minimize)
 		obj.edges[In].Optimize(gonk.Minimize)
 		obj.edges[Out].Optimize(gonk.Minimize)
 		return true

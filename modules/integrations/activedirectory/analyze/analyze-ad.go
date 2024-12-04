@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -13,6 +14,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+	"github.com/puzpuzpuz/xsync"
 )
 
 // Interesting permissions on AD
@@ -104,8 +106,8 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NewAttributeValueString("ms-Mcs-AdmPwd"),
+			engine.ObjectClass, engine.NewAttributeValueString("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsGUID = objectGUID
@@ -141,7 +143,7 @@ func init() {
 			if machinesid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
+			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
 				return true
@@ -162,8 +164,8 @@ func init() {
 		var lapsV2PasswordGUID uuid.UUID
 		var lapsV2EncryptedPasswordGUID uuid.UUID
 
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-Password"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NewAttributeValueString("ms-LAPS-Password"),
+			engine.ObjectClass, engine.NewAttributeValueString("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsV2PasswordGUID = objectGUID
@@ -171,8 +173,8 @@ func init() {
 				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
 			}
 		}
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-EncryptedPassword"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NewAttributeValueString("ms-LAPS-EncryptedPassword"),
+			engine.ObjectClass, engine.NewAttributeValueString("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsV2EncryptedPasswordGUID = objectGUID
@@ -208,7 +210,7 @@ func init() {
 			if machinesid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.AttributeValueSID(machinesid))
+			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
 				return true
@@ -463,7 +465,7 @@ func init() {
 	}, "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
-		kerberoast := engine.AttributeValueString("kerberoast")
+		kerberoast := "kerberoast"
 		authusers := FindWellKnown(ao, windowssecurity.AuthenticatedUsersSID)
 		if authusers == nil {
 			ui.Error().Msgf("Could not locate Authenticated Users")
@@ -485,7 +487,6 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		anonymous := FindWellKnown(ao, windowssecurity.AnonymousLogonSID)
-		asreproast := engine.AttributeValueString("asreproast")
 
 		if anonymous == nil {
 			ui.Error().Msgf("Could not locate Anonymous Logon")
@@ -498,7 +499,7 @@ func init() {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-				o.Tag(asreproast)
+				o.Tag("asreproast")
 				anonymous.EdgeTo(o, activedirectory.EdgeDontReqPreauth)
 			}
 			return true
@@ -617,8 +618,8 @@ func init() {
 							ui.Debug().Msgf("Constrained delegation host name %v is not FQDN, adding domain context DNS", val.String())
 							host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
 						}
-						if target, found := ao.FindTwo(DnsHostName, engine.AttributeValueString(host),
-							engine.Type, engine.AttributeValueString("Machine"),
+						if target, found := ao.FindTwo(DnsHostName, engine.NewAttributeValueString(host),
+							engine.Type, engine.NewAttributeValueString("Machine"),
 						); found {
 							o.EdgeTo(target, EdgeCD)
 						} else {
@@ -914,14 +915,12 @@ func init() {
 			if err != nil {
 				return true
 			}
-			DCsyncObject := ao.AddNew(
-				engine.IgnoreBlanks,
-				engine.DataLoader, o.Attr(engine.DataLoader),
-				engine.DataSource, o.Attr(engine.DataSource),
+
+			DCsyncObject, _ := ao.FindTwoOrAdd(
 				engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
-				engine.Name, "DCsync",
+				engine.Name, engine.NewAttributeValueString("DCsync"),
 			)
-			DCsyncObject.Tag("iddqd")
+			DCsyncObject.Tag("hvt")
 
 			o.EdgeTo(DCsyncObject, activedirectory.EdgeControls)
 
@@ -1035,7 +1034,7 @@ func init() {
 		}
 		var domains []domaininfo
 
-		results, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("crossRef"))
+		results, found := ao.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("crossRef"))
 
 		if !found {
 			ui.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
@@ -1078,7 +1077,7 @@ func init() {
 			dn := o.DN()
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
-					o.SetValues(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
+					o.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
 					break
 				}
 			}
@@ -1117,7 +1116,7 @@ func init() {
 			}
 
 			if lastpart != -1 {
-				o.SetValues(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
+				o.Set(engine.DomainContext, engine.NewAttributeValueString(strings.Join(parts[lastpart:], ",")))
 			}
 			return true
 		})
@@ -1138,7 +1137,7 @@ func init() {
 
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.NewAttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
 					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
@@ -1225,11 +1224,11 @@ func init() {
 				dn := "CN=" + name + ",CN=microsoft-builtin"
 				ui.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 				ao.Add(engine.NewObject(
-					engine.DistinguishedName, engine.AttributeValueString(dn),
-					engine.Name, engine.AttributeValueString(name),
-					engine.ObjectSid, engine.AttributeValueSID(binsid),
-					engine.ObjectClass, engine.AttributeValueString("person"), engine.AttributeValueString("user"), engine.AttributeValueString("top"),
-					engine.Type, engine.AttributeValueString("Group"),
+					engine.DistinguishedName, engine.NewAttributeValueString(dn),
+					engine.Name, engine.NewAttributeValueString(name),
+					engine.ObjectSid, engine.NewAttributeValueSID(binsid),
+					engine.ObjectClass, engine.NewAttributeValueString("person"), engine.NewAttributeValueString("user"), engine.NewAttributeValueString("top"),
+					engine.Type, engine.NewAttributeValueString("Group"),
 				))
 			}
 		}
@@ -1239,6 +1238,12 @@ func init() {
 	)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		DCsyncObject, _ := ao.FindTwoOrAdd(
+			engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+			engine.Name, engine.NewAttributeValueString("DCsync"),
+		)
+		DCsyncObject.Tag("hvt")
+
 		// Generate member of chains
 		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
@@ -1285,10 +1290,10 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.SetValues(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.Set(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.SetValues(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.Set(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
 				object.Tag("linux")
@@ -1317,6 +1322,8 @@ func init() {
 
 					// All DCs are members of Enterprise Domain Controllers
 					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+
+					DCsyncObject.EdgeTo(object, activedirectory.EdgeCall)
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
@@ -1356,34 +1363,34 @@ func init() {
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
 					// find the machine object for this
-					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
-						DomainJoinedSID, engine.AttributeValueSID(object.SID()))
+					machine, found := ao.FindTwo(engine.Type, engine.NewAttributeValueString("Machine"),
+						DomainJoinedSID, engine.NewAttributeValueSID(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
 						machine.Tag("role-domaincontroller")
-						machine.Tag("iddqd")
+						machine.Tag("hvt")
 
 						domainContext := object.OneAttr(engine.DomainContext)
 						if domainContext == nil {
 							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
 						}
 
-						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.AdministratorsSID),
+						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.AdministratorsSID),
 							engine.DomainContext, domainContext); found {
 							administrators.EdgeTo(machine, activedirectory.EdgeLocalAdminRights)
 						} else {
 							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 						}
 
-						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
+						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
 							engine.DomainContext, domainContext); found {
 							remotedesktopusers.EdgeTo(machine, activedirectory.EdgeLocalRDPRights)
 						} else {
 							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 						}
 
-						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.DCOMUsersSID),
+						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.DCOMUsersSID),
 							engine.DomainContext, domainContext); found {
 							distributeddcomusers.EdgeTo(machine, activedirectory.EdgeLocalDCOMRights)
 						} else {
@@ -1394,8 +1401,8 @@ func init() {
 
 				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.AttributeValueInt(521)) {
 					// Read Only Domain Controller
-					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
-						DomainJoinedSID, engine.AttributeValueSID(object.SID()))
+					machine, found := ao.FindTwo(engine.Type, engine.NewAttributeValueString("Machine"),
+						DomainJoinedSID, engine.NewAttributeValueSID(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
 					} else {
@@ -1478,8 +1485,8 @@ func init() {
 			var objectcategoryguid engine.AttributeValue
 			var simple engine.AttributeValue
 
-			objectcategoryguid = engine.AttributeValueGUID(engine.UnknownGUID)
-			simple = engine.AttributeValueString("Unknown")
+			objectcategoryguid = engine.NewAttributeValueGUID(engine.UnknownGUID)
+			simple = engine.NewAttributeValueString("Unknown")
 
 			typedn := object.OneAttr(engine.ObjectCategory)
 
@@ -1529,7 +1536,7 @@ func init() {
 	// 	// Find all the DomainDNS objects, and find the domain object
 	// 	domains := make(map[string]windowssecurity.SID)
 
-	// 	domaindnsobjects, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
+	// 	domaindnsobjects, found := ao.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("domainDNS"))
 
 	// 	if !found {
 	// 		ui.Error().Msg("Could not find any domainDNS objects")
@@ -1558,7 +1565,7 @@ func init() {
 	// 			} else {
 	// 				// ui.Debug().Msgf("Found a 'lost' foreign SID object %v, adding it as a synthetic Foreign-Security-Principal", o.SID())
 	// 				o.SetFlex(
-	// 					engine.DistinguishedName, engine.AttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
+	// 					engine.DistinguishedName, engine.NewAttributeValueString(o.SID().String()+",CN=ForeignSecurityPrincipals,"+ourDomainDN),
 	// 					engine.ObjectCategorySimple, "Foreign-Security-Principal",
 	// 					engine.DataLoader, "Autogenerated",
 	// 				)
@@ -1618,7 +1625,7 @@ func init() {
 				var found bool
 				if gpcachelinks, found = currentObject.Get(GPLinkCache); !found {
 					// the hard way
-					gpcachelinks = engine.NoValues{} // We assume there is nothing
+					var gpcachelinks engine.AttributeValues
 
 					gplinks := strings.Trim(currentObject.OneAttrString(activedirectory.GPLink), " ")
 					if len(gplinks) != 0 {
@@ -1628,7 +1635,7 @@ func init() {
 						} else {
 							links := strings.Split(gplinks[1:len(gplinks)-1], "][")
 
-							var collecteddata engine.AttributeValueSlice
+							var collecteddata engine.AttributeValues
 							for _, link := range links {
 								linkinfo := strings.Split(link, ";")
 								if len(linkinfo) != 2 {
@@ -1637,7 +1644,7 @@ func init() {
 								}
 								linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
 
-								gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
+								gpo, found := ao.Find(engine.DistinguishedName, engine.NewAttributeValueString(linkedgpodn))
 								if !found {
 									if _, warned := warnedgpos[linkedgpodn]; !warned {
 										warnedgpos[linkedgpodn] = struct{}{}
@@ -1653,25 +1660,23 @@ func init() {
 							gpcachelinks = collecteddata
 						}
 					}
-					currentObject.Set(GPLinkCache, gpcachelinks)
+					currentObject.Set(GPLinkCache, gpcachelinks...)
 				}
 
 				// cached or generated - pairwise pointer to gpo object and int
-				if gplinkslice, ok := gpcachelinks.(engine.AttributeValueSlice); ok {
-					for i := 0; i < gpcachelinks.Len(); i += 2 {
-						gpo := gplinkslice[i].Raw().(*engine.Object)
-						gpLinkOptions := gplinkslice[i+1].Raw().(int64)
-						// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
-						if gpLinkOptions&0x01 != 0 {
-							// GPO link is disabled
-							continue
-						}
-						if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
-							// Enforcement required, but this is not an enforced GPO
-							continue
-						}
-						gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
+				for i := 0; i < gpcachelinks.Len(); i += 2 {
+					gpo := gpcachelinks[i].Raw().(*engine.Object)
+					gpLinkOptions := gpcachelinks[i+1].Raw().(int64)
+					// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gpol/08090b22-bc16-49f4-8e10-f27a8fb16d18
+					if gpLinkOptions&0x01 != 0 {
+						// GPO link is disabled
+						continue
 					}
+					if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
+						// Enforcement required, but this is not an enforced GPO
+						continue
+					}
+					gpo.EdgeTo(machine, activedirectory.EdgeAffectedByGPO)
 				}
 				gpoptions := currentObject.OneAttrString(activedirectory.GPOptions)
 				if gpoptions == "1" {
@@ -1743,11 +1748,11 @@ func init() {
 			object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
 				group, found := ao.Find(engine.DistinguishedName, memberof)
 				if !found {
-					var sid engine.AttributeValueSID
+					var sid engine.AttributeValue
 					if stringsid, _, found := strings.Cut(memberof.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
 						if c, err := windowssecurity.ParseStringSID(stringsid); err == nil {
-							sid = engine.AttributeValueSID(c)
+							sid = engine.NewAttributeValueSID(c)
 						}
 						ui.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), memberof)
 					} else {
@@ -1756,12 +1761,12 @@ func init() {
 					group = engine.NewObject(
 						engine.IgnoreBlanks,
 						engine.DistinguishedName, memberof,
-						engine.Type, engine.AttributeValueString("Group"),
-						engine.ObjectClass, engine.AttributeValueString("top"), engine.AttributeValueString("group"),
-						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
-						engine.Description, engine.AttributeValueString("Synthetic group"),
+						engine.Type, engine.NewAttributeValueString("Group"),
+						engine.ObjectClass, engine.NewAttributeValueString("top"), engine.NewAttributeValueString("group"),
+						engine.Name, engine.NewAttributeValueString("Synthetic group "+memberof.String()),
+						engine.Description, engine.NewAttributeValueString("Synthetic group"),
 						engine.ObjectSid, sid,
-						engine.DataLoader, engine.AttributeValueString("Autogenerated"),
+						engine.DataLoader, engine.NewAttributeValueString("Autogenerated"),
 					)
 					ao.Add(group)
 				}
@@ -1784,7 +1789,7 @@ func init() {
 						}
 					}
 					if memberobject == nil {
-						ui.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic group. Your analysis will be degraded, try dumping with Domain Admin rights.", object.DN(), member)
+						ui.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic member. Your analysis will be degraded, try dumping with Domain Admin rights.", member, object.DN())
 						memberobject, _ = ao.FindOrAdd(engine.DistinguishedName, member,
 							engine.DataLoader, "Autogenerated",
 						)
@@ -1822,6 +1827,10 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
+		cacheMap := xsync.NewTypedMapOf[*engine.Object, []engine.AttributeValue](func(o *engine.Object) uint64 {
+			return uint64(uintptr(unsafe.Pointer(o)))
+		})
+
 		ao.IterateParallel(func(o *engine.Object) bool {
 			// Object that is member of something
 			if o.Type() == engine.ObjectTypeGroup {
@@ -1830,21 +1839,25 @@ func init() {
 			}
 
 			// Search from all groups towards incoming memberships
-			groups := make([]engine.AttributeValue, 0, 256)
 			o.EdgeIteratorRecursive(engine.Out, edgematch, true, func(member, memberof *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+				if memberOfIndirects, found := cacheMap.Load(memberof); found {
+					o.Add(MemberOfIndirect, memberOfIndirects...)
+					return false // don't go deeper
+				}
 				if depth > 1 && memberof.Type() == engine.ObjectTypeGroup {
 					member.EdgeTo(memberof, activedirectory.EdgeMemberOfGroupIndirect)
 
 					dn := memberof.Attr(engine.DistinguishedName)
 					if dn.First() != nil {
-						groups = append(groups, dn.First())
+						o.Add(MemberOfIndirect, dn.First())
 					}
 				}
-				return true
+				return true // deeper!!
 			})
-			if len(groups) > 0 {
-				o.SetValues(MemberOfIndirect, groups...)
-			}
+
+			// Populate cache
+			memberOfIndirect, _ := o.Get(MemberOfIndirect)
+			cacheMap.Store(o, memberOfIndirect)
 
 			return true
 		}, 0)
@@ -1866,7 +1879,7 @@ func init() {
 							activedirectory.DNSHostName, cadns,
 						); found {
 							ca.Tag("role-certificate-authority")
-							ca.Tag("iddqd")
+							ca.Tag("hvt")
 						}
 					}
 
@@ -1874,7 +1887,7 @@ func init() {
 					enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
 
 						templates, found := ao.FindTwoMulti(engine.Name, templatename,
-							engine.ObjectClass, engine.AttributeValueString("pKICertificateTemplate"))
+							engine.ObjectClass, engine.NewAttributeValueString("pKICertificateTemplate"))
 
 						if found {
 							alreadyset := false
@@ -1888,7 +1901,7 @@ func init() {
 								}
 
 								template.SetFlex(
-									PublishedBy, engine.AttributeValueString(enrollementService.DN()),
+									PublishedBy, engine.NewAttributeValueString(enrollementService.DN()),
 									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
 								)
 
@@ -1994,8 +2007,8 @@ func init() {
 				if found && domaininfo.domainContext != domainContext {
 					// it's foreign, find the local one
 					nativeObjects, found := ao.FindTwoMulti(
-						engine.ObjectSid, engine.AttributeValueSID(sid),
-						engine.DomainContext, engine.AttributeValueString(domainContext),
+						engine.ObjectSid, engine.NewAttributeValueSID(sid),
+						engine.DomainContext, engine.NewAttributeValueString(domainContext),
 					)
 					if found {
 						nativeobject := nativeObjects.First()
@@ -2045,7 +2058,7 @@ func init() {
 								realgroup = netbiosdomain + "\\" + realgroup
 							}
 							targetgroups, _ = ao.FindMulti(
-								engine.DownLevelLogonName, engine.AttributeValueString(realgroup),
+								engine.DownLevelLogonName, engine.NewAttributeValueString(realgroup),
 							)
 
 							if targetgroups.Len() == 0 {

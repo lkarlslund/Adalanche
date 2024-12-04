@@ -18,7 +18,8 @@ import (
 func init() {
 	// AQL support
 	frontend.AddOption(func(ws *frontend.WebService) error {
-		ws.Router.GET("/aql/validatequery", func(c *gin.Context) {
+		aql := ws.API.Group("aql")
+		aql.GET("validatequery", func(c *gin.Context) {
 			querytext := strings.Trim(c.Query("query"), " \n\r")
 			if querytext != "" {
 				_, err := ParseAQLQuery(querytext, ws.Objs)
@@ -31,7 +32,7 @@ func init() {
 		})
 
 		// Graph based query analysis - core functionality
-		ws.Router.POST("/aql/analyze", func(c *gin.Context) {
+		aql.POST("analyze", func(c *gin.Context) {
 			params := make(map[string]any)
 			err := c.ShouldBindBodyWith(&params, binding.JSON)
 
@@ -76,7 +77,7 @@ func init() {
 				}
 			}
 			if prunedislands > 0 {
-				ui.Debug().Msgf("Pruning islands removed %v nodes, leaving %v nodes", prunedislands, results.Order())
+				ui.Info().Msgf("Pruning islands removed %v nodes, leaving %v nodes", prunedislands, results.Order())
 			}
 
 			var objecttypes [256]int
@@ -108,13 +109,13 @@ func init() {
 				NodeNameCounts map[string]int `json:"nodecounts"`
 				ResultTypes    map[string]int `json:"resulttypes"`
 
+				Elements *frontend.CytoElements `json:"elements"`
+
 				StartNodes int `json:"start_nodes"`
 				EndNodes   int `json:"end_nodes"`
 
 				Total int `json:"total"`
 				Edges int `json:"edges"`
-
-				Elements *frontend.CytoElements `json:"elements"`
 			}{
 				// Reversed: mode != "normal", //FIXME
 

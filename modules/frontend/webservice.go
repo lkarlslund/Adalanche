@@ -6,14 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
-	"net"
-	"net/http"
-	"os"
-	"text/template"
-	"time"
-
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
@@ -21,11 +13,17 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
+	"io"
+	"io/fs"
+	"net"
+	"net/http"
+	"os"
+	"text/template"
+	"time"
 )
 
 //go:embed html/*
 var embeddedassets embed.FS
-
 var (
 	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
 )
@@ -37,7 +35,6 @@ type UnionFS struct {
 func (ufs *UnionFS) AddFS(newfs http.FileSystem) {
 	ufs.filesystems = append(ufs.filesystems, newfs)
 }
-
 func (ufs UnionFS) Open(filename string) (http.File, error) {
 	for _, fs := range ufs.filesystems {
 		if f, err := fs.Open(filename); err == nil {
@@ -46,38 +43,27 @@ func (ufs UnionFS) Open(filename string) (http.File, error) {
 	}
 	return nil, os.ErrNotExist
 }
-
 func (ufs UnionFS) Exists(prefix, filename string) bool {
 	_, err := ufs.Open(filename)
 	return err != os.ErrNotExist
 }
 
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
-
 type optionsetter func(ws *WebService) error
-
 type WebService struct {
-	Initialized bool
-	quit        chan bool
-
-	srv http.Server
-
+	quit     chan bool
+	engine   *gin.Engine
+	Router   *gin.RouterGroup
+	API      *gin.RouterGroup
+	Objs     *engine.Objects
 	protocol string
-
-	engine *gin.Engine
-	Router *gin.RouterGroup
-	API    *gin.RouterGroup
-
-	localhtmlused bool
 	UnionFS
-
-	status WebServiceStatus
-
-	Objs *engine.Objects
-
 	// srv *http.Server
-
 	AdditionalHeaders []string // Additional things to add to the main page
+	srv               http.Server
+	status            WebServiceStatus
+	Initialized       bool
+	localhtmlused     bool
 }
 
 var globaloptions []optionsetter
@@ -85,7 +71,6 @@ var globaloptions []optionsetter
 func AddOption(os optionsetter) {
 	globaloptions = append(globaloptions, os)
 }
-
 func NewWebservice() *WebService {
 	gin.SetMode(gin.ReleaseMode) // Has to happen first
 	ws := &WebService{
@@ -93,27 +78,20 @@ func NewWebservice() *WebService {
 		engine:   gin.New(),
 		protocol: "http",
 	}
-
 	ws.engine.Use(func(c *gin.Context) {
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
-
 		// Process request
 		c.Next()
-
 		logger := ui.Info()
 		if c.Writer.Status() >= 500 {
 			logger = ui.Error()
 		}
-
 		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
 	})
 	ws.engine.Use(gin.Recovery()) // adds the default recovery middleware
-
 	ws.Router = ws.engine.Group("")
-
 	ws.API = ws.Router.Group("/api")
-
 	// Error handling
 	ws.API.Use(func(ctx *gin.Context) {
 		ctx.Next()
@@ -140,23 +118,18 @@ func NewWebservice() *WebService {
 
 		}
 	})
-
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
 	ws.AddFS(http.FS(htmlFs))
-
 	// Add debug functions
 	if ui.GetLoglevel() >= ui.LevelDebug {
 		debugfuncs(ws)
 	}
-
 	// Change settings
 	for _, os := range globaloptions {
 		os(ws)
 	}
-
 	return ws
 }
-
 func (ws *WebService) RequireData(minimumStatus WebServiceStatus) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
 		if ws.status < minimumStatus {
@@ -164,7 +137,6 @@ func (ws *WebService) RequireData(minimumStatus WebServiceStatus) func(ctx *gin.
 		}
 	}
 }
-
 func WithCert(certfile, keyfile string) optionsetter {
 	return func(ws *WebService) error {
 		// create certificate from pem strings directly
@@ -175,20 +147,16 @@ func WithCert(certfile, keyfile string) optionsetter {
 		} else {
 			cert, err = tls.X509KeyPair([]byte(certfile), []byte(keyfile))
 		}
-
 		if err != nil {
 			return err
 		}
-
 		ws.protocol = "https"
 		ws.srv.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
 		}
-
 		return nil
 	}
 }
-
 func WithLocalHTML(path string) optionsetter {
 	return func(ws *WebService) error {
 		if !ws.localhtmlused {
@@ -207,21 +175,17 @@ func WithLocalHTML(path string) optionsetter {
 		return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)
 	}
 }
-
 func (ws *WebService) Init(r gin.IRoutes) {
 	// Add stock functions
 	ws.Initialized = true
-
 	AddUIEndpoints(ws)
 	AddPreferencesEndpoints(ws)
 	AddDataEndpoints(ws)
 }
-
 func (ws *WebService) Analyze(paths ...string) error {
 	if ws.status != NoData && ws.status != Ready {
 		return errors.New("Adalanche is already busy loading data")
 	}
-
 	ws.status = Analyzing
 	objs, err := engine.Run(paths...)
 	if err != nil {
@@ -229,30 +193,23 @@ func (ws *WebService) Analyze(paths ...string) error {
 		return err
 	}
 	ws.Objs = objs
-
 	ws.status = PostAnalyzing
 	engine.PostProcess(objs)
-
 	ws.status = Ready
 	return nil
 }
-
 func (ws *WebService) QuitChan() <-chan bool {
 	return ws.quit
 }
-
 func (ws *WebService) Quit() {
 	close(ws.quit)
 }
-
 func (ws *WebService) Start(bind string) error {
 	if !ws.Initialized {
 		ws.Init(ws.Router)
 	}
-
 	ws.srv.Addr = bind
 	ws.srv.Handler = ws.engine
-
 	ws.Router.GET("/", func(c *gin.Context) {
 		indexfile, err := ws.UnionFS.Open("index.html")
 		if err != nil {
@@ -260,7 +217,6 @@ func (ws *WebService) Start(bind string) error {
 		}
 		rawindex, _ := io.ReadAll(indexfile)
 		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
-
 		err = indextemplate.Execute(c.Writer, struct {
 			AdditionalHeaders []string
 		}{
@@ -271,13 +227,11 @@ func (ws *WebService) Start(bind string) error {
 		}
 	})
 	ws.engine.Use(static.Serve("", ws.UnionFS))
-
 	// bind to port and start listening for requests
 	conn, err := net.Listen("tcp", ws.srv.Addr)
 	if err != nil {
 		return err
 	}
-
 	switch ws.protocol {
 	case "http":
 		go func() {
@@ -292,12 +246,9 @@ func (ws *WebService) Start(bind string) error {
 			}
 		}()
 	}
-
 	ui.Info().Msgf("Adalanche Web Service listening at %v://%v/ ... (ctrl-c or similar to quit)", ws.protocol, bind)
-
 	return nil
 }
-
 func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	templatefile, err := ws.UnionFS.Open(path)
 	if err != nil {
@@ -311,7 +262,6 @@ func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	}
 	template.Execute(c.Writer, data)
 }
-
 func WithProfiling() func(*WebService) {
 	return func(ws *WebService) {
 		// Profiling

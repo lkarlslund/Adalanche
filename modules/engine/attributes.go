@@ -18,8 +18,8 @@ type attributeinfo struct {
 	onset          AttributeSetFunc
 	onget          AttributeGetFunc
 	name           string
-	tags           []string
 	description    string
+	tags           []string
 	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
 	atype          AttributeType
 	single         bool // If true, this attribute can not have multiple values
@@ -83,7 +83,7 @@ var (
 	DataLoader = NewAttribute("dataLoader").SetDescription("Where did data in this object come from")
 	DataSource = NewAttribute("dataSource").SetDescription("Data from different sources are never merged together")
 
-	IPAddress          = NewAttribute("IPAddress")
+	IPAddress          = NewAttribute("iPAddress")
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
 	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
 	NetbiosDomain      = NewAttribute("netbiosDomain").Single() // Used to merge users with - if we only have a DOMAIN\USER type of info

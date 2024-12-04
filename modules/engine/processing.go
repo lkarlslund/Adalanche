@@ -46,11 +46,11 @@ func Merge(aos []*Objects) (*Objects, error) {
 	// Find all the attributes that can be merged objects on
 	globalobjects := NewObjects()
 	globalroot := NewObject(
-		Name, AttributeValueString("Adalanche root node"),
-		Type, AttributeValueString("Root"),
+		Name, NewAttributeValueString("Adalanche root node"),
+		Type, NewAttributeValueString("Root"),
 	)
 	globalobjects.SetRoot(globalroot)
-	orphancontainer := NewObject(Name, AttributeValueString("Orphans"))
+	orphancontainer := NewObject(Name, NewAttributeValueString("Orphans"))
 	orphancontainer.ChildOf(globalroot)
 	globalobjects.Add(orphancontainer)
 
@@ -88,7 +88,7 @@ func Merge(aos []*Objects) (*Objects, error) {
 				if ds != nil {
 					ds = AttributeValueToIndex(ds)
 				} else {
-					ds = AttributeValueString("")
+					ds = NewAttributeValueString("")
 				}
 
 				info, loaded := sourcemap.LoadOrStore(ds.String(), nextshard)
@@ -175,12 +175,12 @@ func Merge(aos []*Objects) (*Objects, error) {
 	nodatasource.shard.Iterate(func(addobject *Object) bool {
 		pb.Add(1)
 		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
-		if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-			if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-				existing.First().AbsorbEx(addobject, true)
-				return true
-			}
-		}
+		// if dn := addobject.OneAttr(DistinguishedName); dn != nil {
+		// 	if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
+		// 		existing.First().AbsorbEx(addobject, true)
+		// 		return true
+		// 	}
+		// }
 		if i%16384 == 0 {
 			// Refresh the list of attributes, ordered by most successfull first
 			mergeon = getMergeAttributes()

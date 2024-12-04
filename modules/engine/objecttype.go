@@ -5,14 +5,6 @@ import (
 	"sync"
 )
 
-type PriorityFML byte
-
-const (
-	First PriorityFML = iota
-	Middle
-	Last
-)
-
 type ObjectType byte
 
 var (
@@ -20,15 +12,15 @@ var (
 	ObjectTypeOther                      = NewObjectType("Other", "")
 	ObjectTypeCallableServicePoint       = NewObjectType("CallableService", "Callable-Service-Point")
 	ObjectTypeDomainDNS                  = NewObjectType("DomainDNS", "Domain-DNS")
-	ObjectTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node").SetDefault(Last, false)
-	ObjectTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone").SetDefault(Last, false)
+	ObjectTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node") //.SetDefault(Last, false)
+	ObjectTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone") //.SetDefault(Last, false)
 	ObjectTypeUser                       = NewObjectType("User", "Person")
 	ObjectTypeGroup                      = NewObjectType("Group", "Group")
 	ObjectTypeGroupManagedServiceAccount = NewObjectType("GroupManagedServiceAccount", "ms-DS-Group-Managed-Service-Account")
 	ObjectTypeManagedServiceAccount      = NewObjectType("ManagedServiceAccount", "ms-DS-Managed-Service-Account")
-	ObjectTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit").SetDefault(Last, false)
+	ObjectTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit") //.SetDefault(Last, false)
 	ObjectTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
-	ObjectTypeContainer                  = NewObjectType("Container", "Container").SetDefault(Last, false)
+	ObjectTypeContainer                  = NewObjectType("Container", "Container") //.SetDefault(Last, false)
 	ObjectTypeComputer                   = NewObjectType("Computer", "Computer")
 	ObjectTypeMachine                    = NewObjectType("Machine", "Machine")
 	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
@@ -40,20 +32,18 @@ var (
 	ObjectTypePKIEnrollmentService       = NewObjectType("PKIEnrollmentService", "PKI-Enrollment-Service")
 	ObjectTypeCertificationAuthority     = NewObjectType("CertificationAuthority", "Certification-Authority")
 	ObjectTypeForeignSecurityPrincipal   = NewObjectType("ForeignSecurityPrincipal", "Foreign-Security-Principal")
-	ObjectTypeService                    = NewObjectType("Service", "Service").SetDefault(Last, false)
-	ObjectTypeExecutable                 = NewObjectType("Executable", "Executable").SetDefault(Last, false)
-	ObjectTypeDirectory                  = NewObjectType("Directory", "Directory").SetDefault(Last, false)
-	ObjectTypeFile                       = NewObjectType("File", "File").SetDefault(Last, false)
+	ObjectTypeService                    = NewObjectType("Service", "Service")       //.SetDefault(Last, false)
+	ObjectTypeExecutable                 = NewObjectType("Executable", "Executable") //.SetDefault(Last, false)
+	ObjectTypeDirectory                  = NewObjectType("Directory", "Directory")   //.SetDefault(Last, false)
+	ObjectTypeFile                       = NewObjectType("File", "File")             //.SetDefault(Last, false)
 )
 
 var objecttypenames = make(map[string]ObjectType)
 
 type objecttypeinfo struct {
-	Name            string
-	Lookup          string
-	DefaultEnabledF bool
-	DefaultEnabledM bool
-	DefaultEnabledL bool
+	Name           string
+	Lookup         string
+	DefaultEnabled bool
 }
 
 var objecttypenums = []objecttypeinfo{
@@ -86,11 +76,9 @@ func NewObjectType(name, lookup string) ObjectType {
 	objecttypenames[lookup] = newindex
 
 	objecttypenums = append(objecttypenums, objecttypeinfo{
-		Name:            name,
-		Lookup:          lookup,
-		DefaultEnabledF: true,
-		DefaultEnabledM: true,
-		DefaultEnabledL: true,
+		Name:           name,
+		Lookup:         lookup,
+		DefaultEnabled: true,
 	})
 	objecttypemutex.Unlock()
 
@@ -129,24 +117,17 @@ func (ot ObjectType) String() string {
 }
 
 func (ot ObjectType) ValueString() AttributeValueString {
-	return AttributeValueString(objecttypenums[ot].Lookup)
+	return NewAttributeValueString(objecttypenums[ot].Lookup)
 }
 
 func (ot ObjectType) Lookup() string {
 	return objecttypenums[ot].Lookup
 }
 
-func (ot ObjectType) SetDefault(p PriorityFML, enabled bool) ObjectType {
+func (ot ObjectType) SetDefault(enabled bool) ObjectType {
 	objecttypemutex.Lock()
-	defer objecttypemutex.Unlock()
-	switch p {
-	case First:
-		objecttypenums[ot].DefaultEnabledF = enabled
-	case Middle:
-		objecttypenums[ot].DefaultEnabledM = enabled
-	case Last:
-		objecttypenums[ot].DefaultEnabledL = enabled
-	}
+	objecttypenums[ot].DefaultEnabled = enabled
+	objecttypemutex.Unlock()
 	return ot
 }
 

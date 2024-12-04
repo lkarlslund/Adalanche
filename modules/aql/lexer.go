@@ -19,17 +19,8 @@ var Lexer *lexmachine.Lexer // The lexer object. Use this to construct a Scanner
 
 const (
 	Invalid TokenID = iota
-	Integer
-	Float
 
-	UnquotedLDAPString
-	QuotedString // Quoted string
-
-	Identifier
-	HashIdentifier
-	AtIdentifier
-
-	Comment
+	// ORDERING MATTERS!
 
 	Star
 	Slash
@@ -72,6 +63,7 @@ const (
 	Match
 	Where
 	Skip
+	Offset
 	Limit
 	OrderBy
 	Desc
@@ -84,6 +76,20 @@ const (
 	Keyword
 
 	Whitespace
+
+	Integer
+	Float
+
+	UnquotedLDAPString
+	QuotedString // Quoted string
+
+	Identifier
+	HashIdentifier
+	AtIdentifier
+
+	Comment
+
+	MAXTOKEN = Comment
 )
 
 var StaticLexers = map[string]TokenID{
@@ -127,14 +133,15 @@ var StaticLexers = map[string]TokenID{
 	"\\-\\>": EdgeOut,
 	"\\<\\-": EdgeIn,
 
-	"MATCH ":    Match,
-	" IS":       Is,
-	" WHERE":    Where,
-	" SKIP":     Skip,
-	" LIMIT":    Limit,
-	" ORDER BY": OrderBy,
-	" DESC":     Desc,
-	" UNION":    Union,
+	"MATCH":    Match,
+	"IS":       Is,
+	"WHERE":    Where,
+	"SKIP":     Skip,
+	"OFFSET":   Offset,
+	"LIMIT":    Limit,
+	"ORDER BY": OrderBy,
+	"DESC":     Desc,
+	"UNION":    Union,
 
 	`//[^\n]*\n?`: Comment,
 	`/\*([^*]|\r|\n|(\*+([^*/]|\r|\n)))*\*+/`: Comment,
@@ -149,8 +156,13 @@ var StaticLexers = map[string]TokenID{
 func getLexer() (*lexmachine.Lexer, error) {
 	lexer := lexmachine.NewLexer()
 
-	for autolex, id := range StaticLexers {
-		lexer.Add([]byte(autolex), tokenid(id))
+	// Preserve ordering in the dumbest way possible
+	for currentid := range MAXTOKEN {
+		for autolex, id := range StaticLexers {
+			if currentid+1 == id {
+				lexer.Add([]byte(autolex), tokenid(id))
+			}
+		}
 	}
 
 	// lexer.Add([]byte(`([^)]|(\\.))+`),

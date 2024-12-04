@@ -13,7 +13,7 @@ var (
 	ErrEdgeNotFound = errors.New("edge not found")
 )
 
-type ProbabilityCalculatorFunction func(source, target *Object, edge EdgeBitmap) Probability
+type ProbabilityCalculatorFunction func(source, target *Object, edge *EdgeBitmap) Probability
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
@@ -25,7 +25,7 @@ func (pm Edge) Describe(description string) Edge {
 	return pm
 }
 
-func (pm Edge) Probability(source, target *Object, edges EdgeBitmap) Probability {
+func (pm Edge) Probability(source, target *Object, edges *EdgeBitmap) Probability {
 	if f := edgeInfos[pm].probability; f != nil {
 		return f(source, target, edges)
 	}
@@ -236,10 +236,10 @@ var edgeNames = make(map[string]Edge)
 var edgeInfos []*edgeInfo
 
 type edgeInfo struct {
+	Tags                         map[string]struct{}
 	probability                  ProbabilityCalculatorFunction
 	Name                         string
 	Description                  string
-	Tags                         map[string]struct{}
 	Multi                        bool // If true, this attribute can have multiple values
 	Nonunique                    bool // Doing a Find on this attribute will return multiple results
 	Merge                        bool // If true, objects can be merged on this attribute
@@ -379,12 +379,12 @@ func init() {
 	}
 }
 
-func (m EdgeBitmap) IsSet(edge Edge) bool {
+func (m *EdgeBitmap) IsSet(edge Edge) bool {
 	index, bits := bitIndex(edge)
 	return (atomic.LoadUint64(&m[index]) & bits) != 0
 }
 
-func (m EdgeBitmap) MaxProbability(source, target *Object) Probability {
+func (m *EdgeBitmap) MaxProbability(source, target *Object) Probability {
 	max := MINPROBABILITY
 	for i := 0; i < len(edgeInfos); i++ {
 		if m.IsSet(Edge(i)) {

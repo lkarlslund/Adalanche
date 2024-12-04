@@ -2,7 +2,7 @@ package activedirectory
 
 import "github.com/lkarlslund/adalanche/modules/engine"
 
-func OnlyIfTargetAccountEnabled(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+func OnlyIfTargetAccountEnabled(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 	if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 		return 100
 	}
@@ -10,7 +10,7 @@ func OnlyIfTargetAccountEnabled(source, target *engine.Object, edges engine.Edge
 }
 
 func FixedProbability(probability int) engine.ProbabilityCalculatorFunction {
-	return func(source, target *engine.Object, edge engine.EdgeBitmap) engine.Probability {
+	return func(source, target *engine.Object, edge *engine.EdgeBitmap) engine.Probability {
 		return engine.Probability(probability)
 	}
 }
@@ -26,13 +26,13 @@ var (
 	EdgeWriteExtendedAll = engine.NewEdge("WriteExtendedAll").Tag("Informative").RegisterProbabilityCalculator(FixedProbability(0))
 	EdgeTakeOwnership    = engine.NewEdge("TakeOwnership").Tag("Pivot")
 	EdgeWriteDACL        = engine.NewEdge("WriteDACL").Tag("Pivot")
-	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_active") {
 			return 50
 		}
 		return 0
 	}).Tag("Pivot")
-	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_active") {
 			return 50
 		}
@@ -45,7 +45,7 @@ var (
 	EdgeAddSelfMember            = engine.NewEdge("AddSelfMember").Tag("Pivot")
 	EdgeReadGMSAPassword         = engine.NewEdge("ReadGMSAPassword").Tag("Pivot")
 	EdgeHasMSA                   = engine.NewEdge("HasMSA").Tag("Granted")
-	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		/*if uac, ok := target.AttrInt(activedirectory.UserAccountControl); ok && uac&0x0002 != 0 { //UAC_ACCOUNTDISABLE
 			// Account is disabled
 			return 0
@@ -53,7 +53,7 @@ var (
 		return 50
 	}).Tag("Pivot")
 
-	EdgeWriteKeyCredentialLink = engine.NewEdge("WriteKeyCredentialLink").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeWriteKeyCredentialLink = engine.NewEdge("WriteKeyCredentialLink").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return 100
 		}
@@ -71,14 +71,14 @@ var (
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword").Tag("Pivot").Tag("Granted")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup").Tag("Granted")
 	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false).Tag("Granted")
-	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return 50
 		}
 		// Account is disabled
 		return 0
 	}).Tag("Pivot")
-	EdgeDontReqPreauth = engine.NewEdge("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges engine.EdgeBitmap) engine.Probability {
+	EdgeDontReqPreauth = engine.NewEdge("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return 50
 		}

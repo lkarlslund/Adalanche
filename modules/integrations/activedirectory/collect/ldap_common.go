@@ -1,19 +1,17 @@
 package collect
 
 import (
-	"net"
-	"os"
-	"runtime"
-	"strings"
-
 	"github.com/Showmax/go-fqdn"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
+	"net"
+	"os"
+	"runtime"
+	"strings"
 )
 
 //go:generate go run github.com/dmarkham/enumer -type=TLSmode,AuthMode,LDAPScope,LDAPError,LDAPOption -json -output ldap_enums.go
-
 type AuthMode byte
 
 const (
@@ -24,7 +22,6 @@ const (
 	NTLM
 	NTLMPTH
 	Negotiate
-
 	MD5    = Digest
 	Unauth = Anonymous
 	Simple = Basic
@@ -141,25 +138,22 @@ const (
 	LDAP_OPT_SSPI_FLAGS             LDAPOption = 0x92
 	LDAP_OPT_TCP_KEEPALIVE          LDAPOption = 0x40
 	LDAP_OPT_TIMELIMIT              LDAPOption = 0x04
-
-	LDAP_VERSION3 = 3
+	LDAP_VERSION3                              = 3
 )
 
 type LDAPOptions struct {
 	Domain         string   `json:"domain"`
-	Servers        []string `json:"server"` // tries servers in this order
-	Port           int16    `json:"port"`
 	User           string   `json:"user"`
 	Password       string   `json:"password"`
 	AuthDomain     string   `json:"authdomain"`
+	Servers        []string `json:"server"` // tries servers in this order
+	SizeLimit      int      `json:"sizelimit"`
+	Port           int16    `json:"port"`
 	AuthMode       AuthMode `json:"authmode"`
 	TLSMode        TLSmode  `json:"tlsmode"`
 	Channelbinding bool     `json:"channelbinding"`
-	SizeLimit      int      `json:"sizelimit"`
-
-	IgnoreCert bool `json:"ignorecert"`
-
-	Debug bool `json:"debug"`
+	IgnoreCert     bool     `json:"ignorecert"`
+	Debug          bool     `json:"debug"`
 }
 
 func NewLDAPOptions() LDAPOptions {
@@ -167,8 +161,8 @@ func NewLDAPOptions() LDAPOptions {
 }
 
 type DomainDetector struct {
-	Name string
 	Func func() string
+	Name string
 }
 
 var (
@@ -202,10 +196,8 @@ func (ldo *LDAPOptions) Autodetect() error {
 			ldo.Port = 389
 		}
 	}
-
 	if ldo.Domain == "" {
 		ui.Info().Msg("No domain supplied, auto-detecting")
-
 		for _, f := range findDomain {
 			ldo.Domain = f.Func()
 			if ldo.Domain != "" {
@@ -216,13 +208,11 @@ func (ldo *LDAPOptions) Autodetect() error {
 			}
 		}
 	}
-
 	if len(ldo.Servers) == 0 {
 		if ldo.Domain == "" {
 			return errors.New("Server auto-detection failed, we don't know the domain")
 		}
 		ui.Info().Msgf("Trying to auto-detect servers on domain '%v'", ldo.Domain)
-
 		// Auto-detect server
 		cname, dnsservers, err := net.LookupSRV("", "", "_ldap._tcp.dc._msdcs."+ldo.Domain)
 		if err == nil && cname != "" && len(dnsservers) != 0 {
@@ -234,7 +224,6 @@ func (ldo *LDAPOptions) Autodetect() error {
 			return errors.New("AD controller auto-detection failed, use '--server' parameter")
 		}
 	}
-
 	if runtime.GOOS != "windows" && ldo.User == "" && ldo.AuthMode != KerberosCache {
 		// Auto-detect user
 		ldo.User = os.Getenv("USERNAME")
@@ -244,26 +233,22 @@ func (ldo *LDAPOptions) Autodetect() error {
 			return errors.New("Username autodetection failed - please use '--username' parameter")
 		}
 	}
-
 	if ldo.AuthDomain == "" {
 		ldo.AuthDomain = ldo.Domain
 	}
-
 	return nil
 }
 
 type objectCallbackFunc func(ro *activedirectory.RawObject) error
-
 type DumpOptions struct {
-	SearchBase string
-	Scope      int
-	Query      string
-	Attributes []string
-	NoSACL     bool
-	ChunkSize  int
-
 	OnObject      objectCallbackFunc
+	SearchBase    string
+	Query         string
 	WriteToFile   string
+	Attributes    []string
+	Scope         int
+	ChunkSize     int
+	NoSACL        bool
 	ReturnObjects bool
 }
 
@@ -276,8 +261,8 @@ func NewDumpOptions() DumpOptions {
 type LDAPDumper interface {
 	Connect() error
 	Disconnect() error
-
 	Dump(opts DumpOptions) ([]activedirectory.RawObject, error)
+	Len() int // Number of objects in the dump (if known)
 }
 
 var CreateDumper = func(opts LDAPOptions) LDAPDumper {

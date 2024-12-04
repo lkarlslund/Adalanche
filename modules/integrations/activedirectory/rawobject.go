@@ -19,8 +19,8 @@ import (
 //go:generate msgp
 
 type RawObject struct {
-	DistinguishedName string
 	Attributes        map[string][]string
+	DistinguishedName string
 }
 
 func (r *RawObject) Init() {
@@ -29,10 +29,10 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
-	newobject := engine.NewPreload(len(r.Attributes))
+	newobject := engine.NewObject()
 
 	newobject.SetFlex(
-		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
+		DistinguishedName, engine.NewAttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 
 	for name, values := range r.Attributes {
@@ -52,7 +52,7 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 
 		encodedvals := EncodeAttributeData(attribute, values)
 		if encodedvals != nil {
-			newobject.Set(attribute, encodedvals)
+			newobject.Set(attribute, encodedvals...)
 		}
 	}
 
@@ -77,7 +77,7 @@ func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
 // Performance hack
 var avsPool = sync.Pool{
 	New: func() any {
-		return make(engine.AttributeValueSlice, 0, 16)
+		return make(engine.AttributeValues, 0, 16)
 	},
 }
 
@@ -86,7 +86,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		return nil
 	}
 
-	avs := avsPool.Get().(engine.AttributeValueSlice)
+	avs := avsPool.Get().(engine.AttributeValues)
 
 	var skipped int
 
@@ -147,9 +147,9 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				period = fmt.Sprintf("v% hours", secs/3600)
 			}
 			if period != "" {
-				attributevalue = engine.AttributeValueString(period)
+				attributevalue = engine.NewAttributeValueString(period)
 			} else {
-				attributevalue = engine.AttributeValueString(value)
+				attributevalue = engine.NewAttributeValueString(value)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
@@ -157,14 +157,14 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 				guid, err := uuid.FromBytes([]byte(value))
 				if err == nil {
 					guid = util.SwapUUIDEndianess(guid)
-					attributevalue = engine.AttributeValueGUID(guid)
+					attributevalue = engine.NewAttributeValueGUID(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 				}
 			case 36:
 				guid, err := uuid.FromString(value)
 				if err == nil {
-					attributevalue = engine.AttributeValueGUID(guid)
+					attributevalue = engine.NewAttributeValueGUID(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
 				}
@@ -173,13 +173,13 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				// 	guid = SwapUUIDEndianess(guid)
-				attributevalue = engine.AttributeValueGUID(guid)
+				attributevalue = engine.NewAttributeValueGUID(guid)
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			sid, _, _ := windowssecurity.BytesToSID([]byte(value))
-			attributevalue = engine.AttributeValueSID(sid)
+			attributevalue = engine.NewAttributeValueSID(sid)
 		case MSDSAllowedToActOnBehalfOfOtherIdentity, FRSRootSecurity, MSDFSLinkSecurityDescriptorv2,
 			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
 			sd, err := engine.CacheOrParseSecurityDescriptor(value)
@@ -215,7 +215,7 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 			}
 
 			// Just a string
-			attributevalue = engine.AttributeValueString(value)
+			attributevalue = engine.NewAttributeValueString(value)
 		}
 
 		if attributevalue != nil {
@@ -225,20 +225,10 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		}
 	}
 
-	var result engine.AttributeValues
-
-	switch len(avs) {
-	case 0:
+	if len(avs) == 0 {
+		avsPool.Put(avs)
 		return nil
-	case 1:
-		result = engine.AttributeValueOne{avs[0]}
-	default:
-		new := make(engine.AttributeValueSlice, len(avs))
-		copy(new, avs)
-		result = new
 	}
 
-	avs = avs[:0]
-	avsPool.Put(avs)
-	return result
+	return avs
 }

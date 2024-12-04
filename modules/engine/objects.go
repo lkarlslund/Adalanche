@@ -249,12 +249,12 @@ func AttributeValueToIndex(value AttributeValue) AttributeValue {
 	if value == nil {
 		return nil
 	}
-	if vs, ok := value.(AttributeValueString); ok {
-		s := string(vs)
+	if _, ok := value.(AttributeValueString); ok {
+		s := value.String()
 		if lowered, found := avtiCache.Get(s); found {
 			return lowered.(AttributeValue)
 		}
-		lowered := AttributeValueString(strings.ToLower(string(vs)))
+		lowered := NewAttributeValueString(strings.ToLower(s))
 		avtiCache.Set(s, lowered, time.Second*30)
 		return lowered
 	}
@@ -644,7 +644,7 @@ func (os *Objects) DistinguishedParent(o *Object) (*Object, bool) {
 		return directparent, true
 	}
 
-	return os.Find(DistinguishedName, AttributeValueString(dn))
+	return os.Find(DistinguishedName, NewAttributeValueString(dn))
 }
 
 func (os *Objects) Subordinates(o *Object) *Objects {
@@ -665,9 +665,9 @@ func (os *Objects) Subordinates(o *Object) *Objects {
 }
 
 func (os *Objects) FindOrAddSID(s windowssecurity.SID) *Object {
-	o, _ := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
+	o, _ := os.FindMultiOrAdd(ObjectSid, NewAttributeValueSID(s), func() *Object {
 		no := NewObject(
-			ObjectSid, AttributeValueSID(s),
+			ObjectSid, NewAttributeValueSID(s),
 		)
 		if os.DefaultValues != nil {
 			no.SetFlex(os.DefaultValues...)
@@ -686,16 +686,16 @@ func (os *Objects) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Object, f
 	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
 	if r.Type() == ObjectTypeMachine && r.HasAttr(DataSource) {
 		// See if we can find it relative to the computer
-		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
 			return o.First(), true
 		}
 	}
 
 	// Let's assume it's not relative to a computer, and therefore truly unique
 	if s.Component(2) == 21 && s.Component(3) != 0 {
-		result, found := os.FindMultiOrAdd(ObjectSid, AttributeValueSID(s), func() *Object {
+		result, found := os.FindMultiOrAdd(ObjectSid, NewAttributeValueSID(s), func() *Object {
 			no := NewObject(
-				ObjectSid, AttributeValueSID(s),
+				ObjectSid, NewAttributeValueSID(s),
 			)
 			no.SetFlex(flexinit...)
 			return no
@@ -705,20 +705,20 @@ func (os *Objects) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Object, f
 
 	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
 	if r.HasAttr(DomainContext) {
-		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
 			return o.First(), true
 		}
 	}
 
 	// Use the objects datasource as the relative reference
 	if r.HasAttr(DataSource) {
-		if o, found := os.FindTwoMulti(ObjectSid, AttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
 			return o.First(), true
 		}
 	}
 
 	// Not found, so fall back to just looking up the SID
-	no, found := os.FindOrAdd(ObjectSid, AttributeValueSID(s),
+	no, found := os.FindOrAdd(ObjectSid, NewAttributeValueSID(s),
 		IgnoreBlanks,
 		DomainContext, r.Attr(DomainContext),
 		DataSource, r.Attr(DataSource),
@@ -749,5 +749,5 @@ func findMostLocal(os []*Object) *Object {
 }
 
 func (os *Objects) FindGUID(g uuid.UUID) (o *Object, found bool) {
-	return os.Find(ObjectGUID, AttributeValueGUID(g))
+	return os.Find(ObjectGUID, NewAttributeValueGUID(g))
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,52 +16,36 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
-	"github.com/lkarlslund/stringdedup"
 )
 
 var threadbuckets = runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
-
-func init() {
-	stringdedup.YesIKnowThisCouldGoHorriblyWrong = true
-}
-
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
-	values AttributeValueMap
-	// edges  [2]EdgeConnections
-	edges    [2]EdgeConnectionsPlus
-	sdcache  *SecurityDescriptor
-	parent   *Object
+	edges   [2]EdgeConnectionsPlus
+	values  AttributesAndValues
+	sdcache *SecurityDescriptor
+	parent  *Object
+	sid     windowssecurity.SID
+
 	children ObjectSlice
 
-	sid windowssecurity.SID
-
-	id         ObjectID
-	objecttype ObjectType
-
+	status    atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone
+	id        ObjectID
 	sidcached atomic.Bool
 
-	status atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone
+	objecttype ObjectType
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
 
 func NewObject(flexinit ...any) *Object {
 	var result Object
-	result.init(0)
+	result.init()
 	result.setFlex(flexinit...)
-
-	return &result
-}
-
-func NewPreload(preloadAttributes int) *Object {
-	var result Object
-	result.init(preloadAttributes)
 
 	return &result
 }
@@ -100,23 +85,41 @@ func (o *Object) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
-var lockwithMu sync.Mutex
+// var lockwithMu sync.Mutex
 
 func (o *Object) lockwith(o2 *Object) {
-	if o.lockbucket() == o2.lockbucket() {
+	ol := o.lockbucket()
+	ol2 := o2.lockbucket()
+
+	if ol == ol2 {
 		o.lock()
-	} else {
-		lockwithMu.Lock() // Prevent deadlocks
-		o.lock()
-		o2.lock()
-		lockwithMu.Unlock()
+		return
 	}
+
+	if ol > ol2 {
+		o, o2 = o2, o
+	}
+
+	// lockwithMu.Lock() // Prevent deadlocks
+	o.lock()
+	o2.lock()
+	// lockwithMu.Unlock()
 }
 
 func (o *Object) unlockwith(o2 *Object) {
-	if o.lockbucket() != o2.lockbucket() {
-		o2.unlock()
+	ol := o.lockbucket()
+	ol2 := o2.lockbucket()
+
+	if ol == ol2 {
+		o.unlock()
+		return
 	}
+
+	if ol > ol2 {
+		o, o2 = o2, o
+	}
+
+	o2.unlock()
 	o.unlock()
 }
 
@@ -146,18 +149,15 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	}
 
 	// Fast mode does not merge values, it just relinks the source to the target
-
 	if fast {
 		// Just merge this one
 		val := MergeValues(source.attr(DataSource), target.attr(DataSource))
 		if val != nil {
-			target.set(DataSource, val)
+			target.set(DataSource, val...)
 		}
 	} else {
-		source.AttrIterator(func(attr Attribute, values AttributeValues) bool {
-			target.set(attr, MergeValues(target.attr(attr), values))
-			return true
-		})
+		newvalues := target.values.Merge(&source.values)
+		target.values = *newvalues
 	}
 
 	// fmt.Println("----------------------------------------")
@@ -296,49 +296,49 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 }
 
 func MergeValues(v1, v2 AttributeValues) AttributeValues {
-	var val AttributeValues
 	if v1.Len() == 0 {
-		val = v2
-	} else if v2.Len() == 0 {
-		return nil
-	} else if v1.Len() == 1 && v2.Len() == 1 {
-		v1val := v1.First()
-		v2val := v2.First()
-
-		if CompareAttributeValues(v1val, v2val) {
-			val = v1 // They're the same, so pick any
-		} else {
-			// They're not the same, join them
-			val = AttributeValueSlice{v1val, v2val}
-		}
-	} else {
-		// One or more of them have more than one value, do it the hard way
-		var biggest AttributeValues
-		var smallest AttributeValues
-
-		if v1.Len() > v2.Len() {
-			biggest = v1
-			smallest = v2
-		} else {
-			biggest = v2
-			smallest = v1
-		}
-
-		resultingvalues := biggest.(AttributeValueSlice)
-
-		smallest.Iterate(func(valueFromSmallest AttributeValue) bool {
-			for _, existingvalue := range resultingvalues {
-				if CompareAttributeValues(existingvalue, valueFromSmallest) { // Crap!!
-					return true // Continue
-				}
-			}
-			resultingvalues = append(resultingvalues, valueFromSmallest)
-			return true
-		})
-
-		val = resultingvalues
+		return v2
 	}
-	return val
+	if v2.Len() == 0 {
+		return v1
+	}
+	if v1.Len() == 1 && v2.Len() == 1 {
+		if CompareAttributeValues(v1[0], v2[0]) {
+			return v1 // They're the same, so pick any
+		}
+		// They're not the same, join them
+		return AttributeValues{v1[0], v2[0]}
+	}
+
+	slices.SortFunc(v1, CompareAttributeValuesInt)
+	slices.SortFunc(v2, CompareAttributeValuesInt)
+	resultingvalues := make(AttributeValues, 0, len(v1)+len(v2))
+
+	// Perform a merge sort of v1 and v2 into resultingvalues
+	i := 0
+	j := 0
+	for i < len(v1) && j < len(v2) {
+		comparison := CompareAttributeValuesInt(v1[i], v2[j])
+		if comparison < 0 {
+			resultingvalues = append(resultingvalues, v1[i])
+			i++
+		} else if comparison == 0 {
+			resultingvalues = append(resultingvalues, v1[i])
+			i++
+			j++ // dedup
+		} else {
+			resultingvalues = append(resultingvalues, v2[j])
+			j++
+		}
+	}
+	if i < len(v1) {
+		resultingvalues = append(resultingvalues, v1[i:]...)
+	}
+	if j < len(v2) {
+		resultingvalues = append(resultingvalues, v2[j:]...)
+	}
+
+	return resultingvalues
 }
 
 type StringMap map[string][]string
@@ -429,7 +429,7 @@ func (o *Object) PrimaryID() (Attribute, AttributeValue) {
 			}
 		}
 	}
-	return NonExistingAttribute, AttributeValueString("N/A")
+	return NonExistingAttribute, NewAttributeValueString("N/A")
 }
 
 func (o *Object) Type() ObjectType {
@@ -482,7 +482,7 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 // Returns synthetic blank attribute value if it isn't set
 func (o *Object) get(attr Attribute) (AttributeValues, bool) {
 	if attr == NonExistingAttribute {
-		return NoValues{}, false
+		return nil, false
 	}
 	if attributeinfos[attr].onget != nil {
 		return attributeinfos[attr].onget(o, attr)
@@ -504,7 +504,7 @@ func (o *Object) attr(attr Attribute) AttributeValues {
 		}
 		return attrs
 	}
-	return NoValues{}
+	return nil
 }
 
 // Returns synthetic blank attribute value if it isn't set
@@ -597,28 +597,13 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 }
 */
 
-// Wrapper for Set - easier to call
-func (o *Object) SetValues(a Attribute, values ...AttributeValue) {
-	if values == nil {
-		panic(fmt.Sprintf("tried to set attribute %v to NIL value", a.String()))
-	}
-	if len(values) == 0 {
-		panic(fmt.Sprintf("tried to set attribute %v to NO values", a.String()))
-	}
-	if len(values) == 1 {
-		o.Set(a, AttributeValueOne{values[0]})
-	} else {
-		o.Set(a, AttributeValueSlice(values))
-	}
-}
-
 func (o *Object) SetFlex(flexinit ...any) {
 	o.setFlex(flexinit...)
 }
 
 var avsPool = sync.Pool{
 	New: func() any {
-		avs := make(AttributeValueSlice, 0, 16)
+		avs := make(AttributeValues, 0, 16)
 		return &avs
 	},
 }
@@ -628,19 +613,26 @@ func (o *Object) setFlex(flexinit ...any) {
 
 	attribute := NonExistingAttribute
 
-	data := *(avsPool.Get().(*AttributeValueSlice))
+	slice := avsPool.Get().(*AttributeValues)
+	data := *slice
 
 	for _, i := range flexinit {
 		if i == IgnoreBlanks {
 			ignoreblanks = true
 			continue
 		}
+		if i == nil {
+			if ignoreblanks {
+				continue
+			}
+			ui.Fatal().Msgf("Flex initialization with NIL value")
+		}
 		switch v := i.(type) {
 		case windowssecurity.SID:
 			if ignoreblanks && v.IsNull() {
 				continue
 			}
-			data = append(data, AttributeValueSID(v))
+			data = append(data, NewAttributeValueSID(v))
 		case *[]string:
 			if v == nil {
 				continue
@@ -652,7 +644,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NewAttributeValueString(s))
 			}
 		case []string:
 			if ignoreblanks && len(v) == 0 {
@@ -662,7 +654,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NewAttributeValueString(s))
 			}
 		case *string:
 			if v == nil {
@@ -671,12 +663,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && len(*v) == 0 {
 				continue
 			}
-			data = append(data, AttributeValueString(*v))
+			data = append(data, NewAttributeValueString(*v))
 		case string:
 			if ignoreblanks && len(v) == 0 {
 				continue
 			}
-			data = append(data, AttributeValueString(v))
+			data = append(data, NewAttributeValueString(v))
 		case *time.Time:
 			if v == nil {
 				continue
@@ -694,12 +686,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && v.IsNil() {
 				continue
 			}
-			data = append(data, AttributeValueGUID(v))
+			data = append(data, NewAttributeValueGUID(v))
 		case *uuid.UUID:
 			if ignoreblanks && v.IsNil() {
 				continue
 			}
-			data = append(data, AttributeValueGUID(*v))
+			data = append(data, NewAttributeValueGUID(*v))
 		case *bool:
 			if v == nil {
 				continue
@@ -727,8 +719,6 @@ func (o *Object) setFlex(flexinit ...any) {
 				continue
 			}
 			data = append(data, v)
-		case AttributeValueOne:
-			data = append(data, v.Value)
 		case []AttributeValue:
 			for _, value := range v {
 				if ignoreblanks && value.IsZero() {
@@ -736,27 +726,18 @@ func (o *Object) setFlex(flexinit ...any) {
 				}
 				data = append(data, value)
 			}
-		case AttributeValueSlice:
+		case AttributeValues:
 			for _, value := range v {
 				if ignoreblanks && value.IsZero() {
 					continue
 				}
 				data = append(data, value)
 			}
-		case NoValues:
-			// Ignore it
+		case nil:
+			// Ignore it, this doesn't work?
 		case Attribute:
 			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-				switch len(data) {
-				case 0:
-					o.set(attribute, NoValues{})
-				case 1:
-					o.set(attribute, AttributeValueOne{data[0]})
-				default:
-					newdata := make(AttributeValueSlice, len(data))
-					copy(newdata, data)
-					o.set(attribute, newdata)
-				}
+				o.set(attribute, data...)
 			}
 			data = data[:0]
 			attribute = v
@@ -765,59 +746,39 @@ func (o *Object) setFlex(flexinit ...any) {
 		}
 	}
 	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
-		switch len(data) {
-		case 0:
-			o.set(attribute, NoValues{})
-		case 1:
-			o.set(attribute, AttributeValueOne{data[0]})
-		default:
-			newdata := make(AttributeValueSlice, len(data))
-			copy(newdata, data)
-			o.set(attribute, newdata)
-		}
+		o.set(attribute, data...)
 	}
 	data = data[:0]
-	avsPool.Put(&data)
+
+	*slice = data
+	avsPool.Put(slice)
 }
 
-func (o *Object) Set(a Attribute, values AttributeValues) {
-	o.set(a, values)
+func (o *Object) Set(a Attribute, values ...AttributeValue) {
+	o.set(a, values...)
+}
+
+func (o *Object) Add(a Attribute, values ...AttributeValue) {
+	o.add(a, values...)
 }
 
 func (o *Object) Clear(a Attribute) {
 	o.values.Clear(a)
 }
 
-func (o *Object) Tag(v AttributeValueString) {
-	oldtags, found := o.Get(Tag)
-	if !found {
-		o.Set(Tag, AttributeValueOne{v})
-	} else {
-		var exists bool
-		values := make(AttributeValueSlice, 0, oldtags.Len()+1)
-		oldtags.Iterate(func(val AttributeValue) bool {
-			if val.String() == v.String() {
-				exists = true
-				return false
-			}
-			values = append(values, val)
-			return true
-		})
-		if !exists {
-			o.Set(Tag, append(values, v))
-		}
-	}
+func (o *Object) Tag(v string) {
+	o.Add(Tag, NewAttributeValueString(v))
 }
 
 // FIXME performance optimization/redesign needed, but needs to work with Objects indexes
-func (o *Object) HasTag(v AttributeValueString) bool {
+func (o *Object) HasTag(v string) bool {
 	tags, found := o.Get(Tag)
 	if !found {
 		return false
 	}
 	var exists bool
 	tags.Iterate(func(val AttributeValue) bool {
-		if val.String() == v.String() {
+		if val.String() == v {
 			exists = true
 			return false
 		}
@@ -826,21 +787,33 @@ func (o *Object) HasTag(v AttributeValueString) bool {
 	return exists
 }
 
-func (o *Object) set(a Attribute, values AttributeValues) {
-	if a.IsSingle() && values.Len() > 1 {
-		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(values.StringSlice(), ", "))
+func (o *Object) add(a Attribute, values ...AttributeValue) {
+	oldvalues, found := o.values.Get(a)
+	if !found {
+		o.set(a, values...)
+	} else {
+		data := make([]AttributeValue, len(oldvalues)+len(values))
+		copy(data, oldvalues)
+		copy(data[len(oldvalues):], values)
+		o.set(a, data...)
+	}
+}
+
+func (o *Object) set(a Attribute, values ...AttributeValue) {
+	if a.IsSingle() && len(values) > 1 {
+		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(AttributeValues(values).StringSlice(), ", "))
 	}
 
 	if a == NTSecurityDescriptor {
-		o.sdcache = values.First().Raw().(*SecurityDescriptor)
+		o.sdcache = values[0].Raw().(*SecurityDescriptor)
 	}
 
 	if a == DownLevelLogonName {
 		// There's been so many problems with DLLN that we're going to just check for these
-		if values.Len() != 1 {
-			ui.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(values.StringSlice(), ", "))
+		if len(values) != 1 {
+			ui.Warn().Msgf("Found DownLevelLogonName with multiple values: %v", strings.Join(AttributeValues(values).StringSlice(), ", "))
 		}
-		values.Iterate(func(value AttributeValue) bool {
+		AttributeValues(values).Iterate(func(value AttributeValue) bool {
 			dlln := value.String()
 			if dlln == "," {
 				ui.Fatal().Msgf("Setting DownLevelLogonName to ',' is not allowed")
@@ -849,7 +822,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 				ui.Fatal().Msgf("Setting DownLevelLogonName to blank is not allowed")
 			}
 			if strings.HasPrefix(dlln, "S-") {
-				ui.Warn().Msgf("DownLevelLogonName contains SID: %v", values.StringSlice())
+				ui.Warn().Msgf("DownLevelLogonName contains SID: %v", AttributeValues(values).StringSlice())
 			}
 			if strings.HasSuffix(dlln, "\\") {
 				ui.Fatal().Msgf("DownLevelLogonName %v ends with \\", dlln)
@@ -866,7 +839,7 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 			if o.HasAttr(DataSource) {
 				netbios, _, didsplit := strings.Cut(dlln, "\\")
 				datasource := o.OneAttrString(DataSource)
-				if didsplit && !strings.EqualFold(datasource, netbios) && !strings.HasPrefix(netbios, "NT-") && !strings.HasPrefix(netbios, "NT ") {
+				if didsplit && !strings.EqualFold(datasource, netbios) && !strings.HasPrefix(netbios, "NT-") && !strings.HasPrefix(netbios, "NT ") && !strings.HasSuffix(netbios, " NT") {
 					ui.Warn().Msgf("Object DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
 				}
 			}
@@ -880,49 +853,14 @@ func (o *Object) set(a Attribute, values AttributeValues) {
 		o.objecttype = 0
 	}
 
-	// Deduplication of values
-	switch vs := values.(type) {
-	case AttributeValueSlice:
-		if len(vs) == 1 {
-			ui.Error().Msg("Wrong type")
-		}
-		for i, value := range vs {
-			if value == nil {
-				panic("tried to set nil value")
-			}
-
-			switch avs := value.(type) {
-			case AttributeValueSID:
-				vs[i] = AttributeValueSID(dedup.D.S(string(avs)))
-			case AttributeValueString:
-				vs[i] = AttributeValueString(dedup.D.S(string(avs)))
-			case AttributeValueBlob:
-				vs[i] = AttributeValueBlob(dedup.D.S(string(avs)))
-			}
-		}
-	case AttributeValueOne:
-		if vs.Value == nil {
+	// Check it's not nil
+	for _, value := range values {
+		if value == nil {
 			panic("tried to set nil value")
 		}
-
-		switch avs := vs.Value.(type) {
-		case AttributeValueSID:
-			vs.Value = AttributeValueSID(dedup.D.S(string(avs)))
-		case AttributeValueString:
-			vs.Value = AttributeValueString(dedup.D.S(string(avs)))
-		case AttributeValueBlob:
-			vs.Value = AttributeValueBlob(dedup.D.S(string(avs)))
-		}
-
 	}
 
-	// if attributenums[a].onset != nil {
-	// 	attributenums[a].onset(o, a, av)
-	// 	o.values.Set(a, nil) // placeholder for iteration over attributes that are set
-	// } else {
-
 	o.values.Set(a, values)
-	// }
 }
 
 func (o *Object) Meta() map[string]string {
@@ -936,16 +874,10 @@ func (o *Object) Meta() map[string]string {
 	return result
 }
 
-func (o *Object) init(preloadAttributes int) {
+func (o *Object) init() {
 	o.id = ObjectID(atomic.AddUint32(&idcounter, 1))
-	// o.edges[In].init()
-	// o.edges[Out].init()
-	if preloadAttributes > 0 {
-		o.values.init(preloadAttributes)
-	}
-
+	o.values.init()
 	o.status.Store(1)
-	// onAddObject(o)
 }
 
 func (o *Object) String() string {

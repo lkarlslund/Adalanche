@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const _TokenIDName = "InvalidIntegerFloatUnquotedLDAPStringQuotedStringIdentifierHashIdentifierAtIdentifierCommentStarSlashExclamationDotDotdotCommaColonEqualsTildeLessThanLessThanEqualsGreaterThanGreaterThanEqualsAndOrXorNotBinaryAndBinaryOrBinaryNotLParanRParanLBracketRBracketLBraceRBraceEdgeAnyDirectionEdgeInEdgeOutIsMatchWhereSkipLimitOrderByDescUnionTrueFalseLiteralKeywordWhitespace"
+const _TokenIDName = "InvalidStarSlashExclamationDotDotdotCommaColonEqualsTildeLessThanLessThanEqualsGreaterThanGreaterThanEqualsAndOrXorNotBinaryAndBinaryOrBinaryNotLParanRParanLBracketRBracketLBraceRBraceEdgeAnyDirectionEdgeInEdgeOutIsMatchWhereSkipOffsetLimitOrderByDescUnionTrueFalseLiteralKeywordWhitespaceIntegerFloatUnquotedLDAPStringQuotedStringIdentifierHashIdentifierAtIdentifierComment"
 
-var _TokenIDIndex = [...]uint16{0, 7, 14, 19, 37, 49, 59, 73, 85, 92, 96, 101, 112, 115, 121, 126, 131, 137, 142, 150, 164, 175, 192, 195, 197, 200, 203, 212, 220, 229, 235, 241, 249, 257, 263, 269, 285, 291, 298, 300, 305, 310, 314, 319, 326, 330, 335, 339, 344, 351, 358, 368}
+var _TokenIDIndex = [...]uint16{0, 7, 11, 16, 27, 30, 36, 41, 46, 52, 57, 65, 79, 90, 107, 110, 112, 115, 118, 127, 135, 144, 150, 156, 164, 172, 178, 184, 200, 206, 213, 215, 220, 225, 229, 235, 240, 247, 251, 256, 260, 265, 272, 279, 289, 296, 301, 319, 331, 341, 355, 367, 374}
 
-const _TokenIDLowerName = "invalidintegerfloatunquotedldapstringquotedstringidentifierhashidentifieratidentifiercommentstarslashexclamationdotdotdotcommacolonequalstildelessthanlessthanequalsgreaterthangreaterthanequalsandorxornotbinaryandbinaryorbinarynotlparanrparanlbracketrbracketlbracerbraceedgeanydirectionedgeinedgeoutismatchwhereskiplimitorderbydescuniontruefalseliteralkeywordwhitespace"
+const _TokenIDLowerName = "invalidstarslashexclamationdotdotdotcommacolonequalstildelessthanlessthanequalsgreaterthangreaterthanequalsandorxornotbinaryandbinaryorbinarynotlparanrparanlbracketrbracketlbracerbraceedgeanydirectionedgeinedgeoutismatchwhereskipoffsetlimitorderbydescuniontruefalseliteralkeywordwhitespaceintegerfloatunquotedldapstringquotedstringidentifierhashidentifieratidentifiercomment"
 
 func (i TokenID) String() string {
 	if i < 0 || i >= TokenID(len(_TokenIDIndex)-1) {
@@ -25,217 +25,221 @@ func (i TokenID) String() string {
 func _TokenIDNoOp() {
 	var x [1]struct{}
 	_ = x[Invalid-(0)]
-	_ = x[Integer-(1)]
-	_ = x[Float-(2)]
-	_ = x[UnquotedLDAPString-(3)]
-	_ = x[QuotedString-(4)]
-	_ = x[Identifier-(5)]
-	_ = x[HashIdentifier-(6)]
-	_ = x[AtIdentifier-(7)]
-	_ = x[Comment-(8)]
-	_ = x[Star-(9)]
-	_ = x[Slash-(10)]
-	_ = x[Exclamation-(11)]
-	_ = x[Dot-(12)]
-	_ = x[Dotdot-(13)]
-	_ = x[Comma-(14)]
-	_ = x[Colon-(15)]
-	_ = x[Equals-(16)]
-	_ = x[Tilde-(17)]
-	_ = x[LessThan-(18)]
-	_ = x[LessThanEquals-(19)]
-	_ = x[GreaterThan-(20)]
-	_ = x[GreaterThanEquals-(21)]
-	_ = x[And-(22)]
-	_ = x[Or-(23)]
-	_ = x[Xor-(24)]
-	_ = x[Not-(25)]
-	_ = x[BinaryAnd-(26)]
-	_ = x[BinaryOr-(27)]
-	_ = x[BinaryNot-(28)]
-	_ = x[LParan-(29)]
-	_ = x[RParan-(30)]
-	_ = x[LBracket-(31)]
-	_ = x[RBracket-(32)]
-	_ = x[LBrace-(33)]
-	_ = x[RBrace-(34)]
-	_ = x[EdgeAnyDirection-(35)]
-	_ = x[EdgeIn-(36)]
-	_ = x[EdgeOut-(37)]
-	_ = x[Is-(38)]
-	_ = x[Match-(39)]
-	_ = x[Where-(40)]
-	_ = x[Skip-(41)]
-	_ = x[Limit-(42)]
-	_ = x[OrderBy-(43)]
-	_ = x[Desc-(44)]
-	_ = x[Union-(45)]
-	_ = x[True-(46)]
-	_ = x[False-(47)]
-	_ = x[Literal-(48)]
-	_ = x[Keyword-(49)]
-	_ = x[Whitespace-(50)]
+	_ = x[Star-(1)]
+	_ = x[Slash-(2)]
+	_ = x[Exclamation-(3)]
+	_ = x[Dot-(4)]
+	_ = x[Dotdot-(5)]
+	_ = x[Comma-(6)]
+	_ = x[Colon-(7)]
+	_ = x[Equals-(8)]
+	_ = x[Tilde-(9)]
+	_ = x[LessThan-(10)]
+	_ = x[LessThanEquals-(11)]
+	_ = x[GreaterThan-(12)]
+	_ = x[GreaterThanEquals-(13)]
+	_ = x[And-(14)]
+	_ = x[Or-(15)]
+	_ = x[Xor-(16)]
+	_ = x[Not-(17)]
+	_ = x[BinaryAnd-(18)]
+	_ = x[BinaryOr-(19)]
+	_ = x[BinaryNot-(20)]
+	_ = x[LParan-(21)]
+	_ = x[RParan-(22)]
+	_ = x[LBracket-(23)]
+	_ = x[RBracket-(24)]
+	_ = x[LBrace-(25)]
+	_ = x[RBrace-(26)]
+	_ = x[EdgeAnyDirection-(27)]
+	_ = x[EdgeIn-(28)]
+	_ = x[EdgeOut-(29)]
+	_ = x[Is-(30)]
+	_ = x[Match-(31)]
+	_ = x[Where-(32)]
+	_ = x[Skip-(33)]
+	_ = x[Offset-(34)]
+	_ = x[Limit-(35)]
+	_ = x[OrderBy-(36)]
+	_ = x[Desc-(37)]
+	_ = x[Union-(38)]
+	_ = x[True-(39)]
+	_ = x[False-(40)]
+	_ = x[Literal-(41)]
+	_ = x[Keyword-(42)]
+	_ = x[Whitespace-(43)]
+	_ = x[Integer-(44)]
+	_ = x[Float-(45)]
+	_ = x[UnquotedLDAPString-(46)]
+	_ = x[QuotedString-(47)]
+	_ = x[Identifier-(48)]
+	_ = x[HashIdentifier-(49)]
+	_ = x[AtIdentifier-(50)]
+	_ = x[Comment-(51)]
 }
 
-var _TokenIDValues = []TokenID{Invalid, Integer, Float, UnquotedLDAPString, QuotedString, Identifier, HashIdentifier, AtIdentifier, Comment, Star, Slash, Exclamation, Dot, Dotdot, Comma, Colon, Equals, Tilde, LessThan, LessThanEquals, GreaterThan, GreaterThanEquals, And, Or, Xor, Not, BinaryAnd, BinaryOr, BinaryNot, LParan, RParan, LBracket, RBracket, LBrace, RBrace, EdgeAnyDirection, EdgeIn, EdgeOut, Is, Match, Where, Skip, Limit, OrderBy, Desc, Union, True, False, Literal, Keyword, Whitespace}
+var _TokenIDValues = []TokenID{Invalid, Star, Slash, Exclamation, Dot, Dotdot, Comma, Colon, Equals, Tilde, LessThan, LessThanEquals, GreaterThan, GreaterThanEquals, And, Or, Xor, Not, BinaryAnd, BinaryOr, BinaryNot, LParan, RParan, LBracket, RBracket, LBrace, RBrace, EdgeAnyDirection, EdgeIn, EdgeOut, Is, Match, Where, Skip, Offset, Limit, OrderBy, Desc, Union, True, False, Literal, Keyword, Whitespace, Integer, Float, UnquotedLDAPString, QuotedString, Identifier, HashIdentifier, AtIdentifier, Comment}
 
 var _TokenIDNameToValueMap = map[string]TokenID{
 	_TokenIDName[0:7]:          Invalid,
 	_TokenIDLowerName[0:7]:     Invalid,
-	_TokenIDName[7:14]:         Integer,
-	_TokenIDLowerName[7:14]:    Integer,
-	_TokenIDName[14:19]:        Float,
-	_TokenIDLowerName[14:19]:   Float,
-	_TokenIDName[19:37]:        UnquotedLDAPString,
-	_TokenIDLowerName[19:37]:   UnquotedLDAPString,
-	_TokenIDName[37:49]:        QuotedString,
-	_TokenIDLowerName[37:49]:   QuotedString,
-	_TokenIDName[49:59]:        Identifier,
-	_TokenIDLowerName[49:59]:   Identifier,
-	_TokenIDName[59:73]:        HashIdentifier,
-	_TokenIDLowerName[59:73]:   HashIdentifier,
-	_TokenIDName[73:85]:        AtIdentifier,
-	_TokenIDLowerName[73:85]:   AtIdentifier,
-	_TokenIDName[85:92]:        Comment,
-	_TokenIDLowerName[85:92]:   Comment,
-	_TokenIDName[92:96]:        Star,
-	_TokenIDLowerName[92:96]:   Star,
-	_TokenIDName[96:101]:       Slash,
-	_TokenIDLowerName[96:101]:  Slash,
-	_TokenIDName[101:112]:      Exclamation,
-	_TokenIDLowerName[101:112]: Exclamation,
-	_TokenIDName[112:115]:      Dot,
-	_TokenIDLowerName[112:115]: Dot,
-	_TokenIDName[115:121]:      Dotdot,
-	_TokenIDLowerName[115:121]: Dotdot,
-	_TokenIDName[121:126]:      Comma,
-	_TokenIDLowerName[121:126]: Comma,
-	_TokenIDName[126:131]:      Colon,
-	_TokenIDLowerName[126:131]: Colon,
-	_TokenIDName[131:137]:      Equals,
-	_TokenIDLowerName[131:137]: Equals,
-	_TokenIDName[137:142]:      Tilde,
-	_TokenIDLowerName[137:142]: Tilde,
-	_TokenIDName[142:150]:      LessThan,
-	_TokenIDLowerName[142:150]: LessThan,
-	_TokenIDName[150:164]:      LessThanEquals,
-	_TokenIDLowerName[150:164]: LessThanEquals,
-	_TokenIDName[164:175]:      GreaterThan,
-	_TokenIDLowerName[164:175]: GreaterThan,
-	_TokenIDName[175:192]:      GreaterThanEquals,
-	_TokenIDLowerName[175:192]: GreaterThanEquals,
-	_TokenIDName[192:195]:      And,
-	_TokenIDLowerName[192:195]: And,
-	_TokenIDName[195:197]:      Or,
-	_TokenIDLowerName[195:197]: Or,
-	_TokenIDName[197:200]:      Xor,
-	_TokenIDLowerName[197:200]: Xor,
-	_TokenIDName[200:203]:      Not,
-	_TokenIDLowerName[200:203]: Not,
-	_TokenIDName[203:212]:      BinaryAnd,
-	_TokenIDLowerName[203:212]: BinaryAnd,
-	_TokenIDName[212:220]:      BinaryOr,
-	_TokenIDLowerName[212:220]: BinaryOr,
-	_TokenIDName[220:229]:      BinaryNot,
-	_TokenIDLowerName[220:229]: BinaryNot,
-	_TokenIDName[229:235]:      LParan,
-	_TokenIDLowerName[229:235]: LParan,
-	_TokenIDName[235:241]:      RParan,
-	_TokenIDLowerName[235:241]: RParan,
-	_TokenIDName[241:249]:      LBracket,
-	_TokenIDLowerName[241:249]: LBracket,
-	_TokenIDName[249:257]:      RBracket,
-	_TokenIDLowerName[249:257]: RBracket,
-	_TokenIDName[257:263]:      LBrace,
-	_TokenIDLowerName[257:263]: LBrace,
-	_TokenIDName[263:269]:      RBrace,
-	_TokenIDLowerName[263:269]: RBrace,
-	_TokenIDName[269:285]:      EdgeAnyDirection,
-	_TokenIDLowerName[269:285]: EdgeAnyDirection,
-	_TokenIDName[285:291]:      EdgeIn,
-	_TokenIDLowerName[285:291]: EdgeIn,
-	_TokenIDName[291:298]:      EdgeOut,
-	_TokenIDLowerName[291:298]: EdgeOut,
-	_TokenIDName[298:300]:      Is,
-	_TokenIDLowerName[298:300]: Is,
-	_TokenIDName[300:305]:      Match,
-	_TokenIDLowerName[300:305]: Match,
-	_TokenIDName[305:310]:      Where,
-	_TokenIDLowerName[305:310]: Where,
-	_TokenIDName[310:314]:      Skip,
-	_TokenIDLowerName[310:314]: Skip,
-	_TokenIDName[314:319]:      Limit,
-	_TokenIDLowerName[314:319]: Limit,
-	_TokenIDName[319:326]:      OrderBy,
-	_TokenIDLowerName[319:326]: OrderBy,
-	_TokenIDName[326:330]:      Desc,
-	_TokenIDLowerName[326:330]: Desc,
-	_TokenIDName[330:335]:      Union,
-	_TokenIDLowerName[330:335]: Union,
-	_TokenIDName[335:339]:      True,
-	_TokenIDLowerName[335:339]: True,
-	_TokenIDName[339:344]:      False,
-	_TokenIDLowerName[339:344]: False,
-	_TokenIDName[344:351]:      Literal,
-	_TokenIDLowerName[344:351]: Literal,
-	_TokenIDName[351:358]:      Keyword,
-	_TokenIDLowerName[351:358]: Keyword,
-	_TokenIDName[358:368]:      Whitespace,
-	_TokenIDLowerName[358:368]: Whitespace,
+	_TokenIDName[7:11]:         Star,
+	_TokenIDLowerName[7:11]:    Star,
+	_TokenIDName[11:16]:        Slash,
+	_TokenIDLowerName[11:16]:   Slash,
+	_TokenIDName[16:27]:        Exclamation,
+	_TokenIDLowerName[16:27]:   Exclamation,
+	_TokenIDName[27:30]:        Dot,
+	_TokenIDLowerName[27:30]:   Dot,
+	_TokenIDName[30:36]:        Dotdot,
+	_TokenIDLowerName[30:36]:   Dotdot,
+	_TokenIDName[36:41]:        Comma,
+	_TokenIDLowerName[36:41]:   Comma,
+	_TokenIDName[41:46]:        Colon,
+	_TokenIDLowerName[41:46]:   Colon,
+	_TokenIDName[46:52]:        Equals,
+	_TokenIDLowerName[46:52]:   Equals,
+	_TokenIDName[52:57]:        Tilde,
+	_TokenIDLowerName[52:57]:   Tilde,
+	_TokenIDName[57:65]:        LessThan,
+	_TokenIDLowerName[57:65]:   LessThan,
+	_TokenIDName[65:79]:        LessThanEquals,
+	_TokenIDLowerName[65:79]:   LessThanEquals,
+	_TokenIDName[79:90]:        GreaterThan,
+	_TokenIDLowerName[79:90]:   GreaterThan,
+	_TokenIDName[90:107]:       GreaterThanEquals,
+	_TokenIDLowerName[90:107]:  GreaterThanEquals,
+	_TokenIDName[107:110]:      And,
+	_TokenIDLowerName[107:110]: And,
+	_TokenIDName[110:112]:      Or,
+	_TokenIDLowerName[110:112]: Or,
+	_TokenIDName[112:115]:      Xor,
+	_TokenIDLowerName[112:115]: Xor,
+	_TokenIDName[115:118]:      Not,
+	_TokenIDLowerName[115:118]: Not,
+	_TokenIDName[118:127]:      BinaryAnd,
+	_TokenIDLowerName[118:127]: BinaryAnd,
+	_TokenIDName[127:135]:      BinaryOr,
+	_TokenIDLowerName[127:135]: BinaryOr,
+	_TokenIDName[135:144]:      BinaryNot,
+	_TokenIDLowerName[135:144]: BinaryNot,
+	_TokenIDName[144:150]:      LParan,
+	_TokenIDLowerName[144:150]: LParan,
+	_TokenIDName[150:156]:      RParan,
+	_TokenIDLowerName[150:156]: RParan,
+	_TokenIDName[156:164]:      LBracket,
+	_TokenIDLowerName[156:164]: LBracket,
+	_TokenIDName[164:172]:      RBracket,
+	_TokenIDLowerName[164:172]: RBracket,
+	_TokenIDName[172:178]:      LBrace,
+	_TokenIDLowerName[172:178]: LBrace,
+	_TokenIDName[178:184]:      RBrace,
+	_TokenIDLowerName[178:184]: RBrace,
+	_TokenIDName[184:200]:      EdgeAnyDirection,
+	_TokenIDLowerName[184:200]: EdgeAnyDirection,
+	_TokenIDName[200:206]:      EdgeIn,
+	_TokenIDLowerName[200:206]: EdgeIn,
+	_TokenIDName[206:213]:      EdgeOut,
+	_TokenIDLowerName[206:213]: EdgeOut,
+	_TokenIDName[213:215]:      Is,
+	_TokenIDLowerName[213:215]: Is,
+	_TokenIDName[215:220]:      Match,
+	_TokenIDLowerName[215:220]: Match,
+	_TokenIDName[220:225]:      Where,
+	_TokenIDLowerName[220:225]: Where,
+	_TokenIDName[225:229]:      Skip,
+	_TokenIDLowerName[225:229]: Skip,
+	_TokenIDName[229:235]:      Offset,
+	_TokenIDLowerName[229:235]: Offset,
+	_TokenIDName[235:240]:      Limit,
+	_TokenIDLowerName[235:240]: Limit,
+	_TokenIDName[240:247]:      OrderBy,
+	_TokenIDLowerName[240:247]: OrderBy,
+	_TokenIDName[247:251]:      Desc,
+	_TokenIDLowerName[247:251]: Desc,
+	_TokenIDName[251:256]:      Union,
+	_TokenIDLowerName[251:256]: Union,
+	_TokenIDName[256:260]:      True,
+	_TokenIDLowerName[256:260]: True,
+	_TokenIDName[260:265]:      False,
+	_TokenIDLowerName[260:265]: False,
+	_TokenIDName[265:272]:      Literal,
+	_TokenIDLowerName[265:272]: Literal,
+	_TokenIDName[272:279]:      Keyword,
+	_TokenIDLowerName[272:279]: Keyword,
+	_TokenIDName[279:289]:      Whitespace,
+	_TokenIDLowerName[279:289]: Whitespace,
+	_TokenIDName[289:296]:      Integer,
+	_TokenIDLowerName[289:296]: Integer,
+	_TokenIDName[296:301]:      Float,
+	_TokenIDLowerName[296:301]: Float,
+	_TokenIDName[301:319]:      UnquotedLDAPString,
+	_TokenIDLowerName[301:319]: UnquotedLDAPString,
+	_TokenIDName[319:331]:      QuotedString,
+	_TokenIDLowerName[319:331]: QuotedString,
+	_TokenIDName[331:341]:      Identifier,
+	_TokenIDLowerName[331:341]: Identifier,
+	_TokenIDName[341:355]:      HashIdentifier,
+	_TokenIDLowerName[341:355]: HashIdentifier,
+	_TokenIDName[355:367]:      AtIdentifier,
+	_TokenIDLowerName[355:367]: AtIdentifier,
+	_TokenIDName[367:374]:      Comment,
+	_TokenIDLowerName[367:374]: Comment,
 }
 
 var _TokenIDNames = []string{
 	_TokenIDName[0:7],
-	_TokenIDName[7:14],
-	_TokenIDName[14:19],
-	_TokenIDName[19:37],
-	_TokenIDName[37:49],
-	_TokenIDName[49:59],
-	_TokenIDName[59:73],
-	_TokenIDName[73:85],
-	_TokenIDName[85:92],
-	_TokenIDName[92:96],
-	_TokenIDName[96:101],
-	_TokenIDName[101:112],
+	_TokenIDName[7:11],
+	_TokenIDName[11:16],
+	_TokenIDName[16:27],
+	_TokenIDName[27:30],
+	_TokenIDName[30:36],
+	_TokenIDName[36:41],
+	_TokenIDName[41:46],
+	_TokenIDName[46:52],
+	_TokenIDName[52:57],
+	_TokenIDName[57:65],
+	_TokenIDName[65:79],
+	_TokenIDName[79:90],
+	_TokenIDName[90:107],
+	_TokenIDName[107:110],
+	_TokenIDName[110:112],
 	_TokenIDName[112:115],
-	_TokenIDName[115:121],
-	_TokenIDName[121:126],
-	_TokenIDName[126:131],
-	_TokenIDName[131:137],
-	_TokenIDName[137:142],
-	_TokenIDName[142:150],
-	_TokenIDName[150:164],
-	_TokenIDName[164:175],
-	_TokenIDName[175:192],
-	_TokenIDName[192:195],
-	_TokenIDName[195:197],
-	_TokenIDName[197:200],
-	_TokenIDName[200:203],
-	_TokenIDName[203:212],
-	_TokenIDName[212:220],
-	_TokenIDName[220:229],
+	_TokenIDName[115:118],
+	_TokenIDName[118:127],
+	_TokenIDName[127:135],
+	_TokenIDName[135:144],
+	_TokenIDName[144:150],
+	_TokenIDName[150:156],
+	_TokenIDName[156:164],
+	_TokenIDName[164:172],
+	_TokenIDName[172:178],
+	_TokenIDName[178:184],
+	_TokenIDName[184:200],
+	_TokenIDName[200:206],
+	_TokenIDName[206:213],
+	_TokenIDName[213:215],
+	_TokenIDName[215:220],
+	_TokenIDName[220:225],
+	_TokenIDName[225:229],
 	_TokenIDName[229:235],
-	_TokenIDName[235:241],
-	_TokenIDName[241:249],
-	_TokenIDName[249:257],
-	_TokenIDName[257:263],
-	_TokenIDName[263:269],
-	_TokenIDName[269:285],
-	_TokenIDName[285:291],
-	_TokenIDName[291:298],
-	_TokenIDName[298:300],
-	_TokenIDName[300:305],
-	_TokenIDName[305:310],
-	_TokenIDName[310:314],
-	_TokenIDName[314:319],
-	_TokenIDName[319:326],
-	_TokenIDName[326:330],
-	_TokenIDName[330:335],
-	_TokenIDName[335:339],
-	_TokenIDName[339:344],
-	_TokenIDName[344:351],
-	_TokenIDName[351:358],
-	_TokenIDName[358:368],
+	_TokenIDName[235:240],
+	_TokenIDName[240:247],
+	_TokenIDName[247:251],
+	_TokenIDName[251:256],
+	_TokenIDName[256:260],
+	_TokenIDName[260:265],
+	_TokenIDName[265:272],
+	_TokenIDName[272:279],
+	_TokenIDName[279:289],
+	_TokenIDName[289:296],
+	_TokenIDName[296:301],
+	_TokenIDName[301:319],
+	_TokenIDName[319:331],
+	_TokenIDName[331:341],
+	_TokenIDName[341:355],
+	_TokenIDName[355:367],
+	_TokenIDName[367:374],
 }
 
 // TokenIDString retrieves an enum value from the enum constants string name.

@@ -7,12 +7,12 @@ import (
 
 // Can return built in queries and user defined persisted queries
 type QueryDefinition struct {
-	Name    string `json:"name"`
-	Default bool   `json:"default,omitempty"`
-	Query   string `json:"query,omitempty"`
+	Name  string `json:"name"`
+	Query string `json:"query,omitempty"`
 
 	MaxDepth                  int                `json:"max_depth,omitempty"`
 	MaxOutgoingConnections    int                `json:"max_outgoing_connections,omitempty"`
+	Default                   bool               `json:"default,omitempty"`
 	MinAccumulatedProbability engine.Probability `json:"min_accumulated_probability,omitempty"`
 
 	UserDefined bool `json:"user_defined,omitempty"`

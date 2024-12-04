@@ -28,15 +28,19 @@ const (
 
 var (
 	nameTranslationTable = map[string]windowssecurity.SID{
-		strings.ToLower("Administrators"):  windowssecurity.AdministratorsSID, // EN
-		strings.ToLower("Administratorer"): windowssecurity.AdministratorsSID, // DK
+		strings.ToLower("Administratorer"):            windowssecurity.AdministratorsSID,     // DK
+		strings.ToLower("Interaktiv"):                 windowssecurity.InteractiveSID,        // DK
+		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.RemoteDesktopUsersSID, // DK
+		strings.ToLower("Superbrugere"):               windowssecurity.PowerUsersSID,         // DK
+
+		strings.ToLower("Administrators"):       windowssecurity.AdministratorsSID,     // EN
+		strings.ToLower("Remote Desktop Users"): windowssecurity.RemoteDesktopUsersSID, // EN
+
 		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // DE
 		strings.ToLower("Administrateurs"): windowssecurity.AdministratorsSID, // FR
 		strings.ToLower("Administradores"): windowssecurity.AdministratorsSID, // ES
 		strings.ToLower("Administratorzy"): windowssecurity.AdministratorsSID, // PL
 
-		strings.ToLower("Remote Desktop Users"):       windowssecurity.RemoteDesktopUsersSID, // EN
-		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.RemoteDesktopUsersSID, // DK
 	}
 )
 
@@ -48,7 +52,7 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 }
 
 func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
-	results, _ := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(s))
+	results, _ := ao.FindMulti(engine.ObjectSid, engine.NewAttributeValueSID(s))
 	var result *engine.Object
 	results.Iterate(func(o *engine.Object) bool {
 		result = o
@@ -58,7 +62,7 @@ func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
 }
 
 func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
-	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
+	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("domainDNS"))
 	if !found {
 		err = errors.New("No domain info found in collection")
 		return
@@ -102,8 +106,8 @@ func GetDomainInfo(domain *engine.Object, ao *engine.Objects) (domaincontext, ne
 
 	// Find translation to NETBIOS name
 	crossRef, found := ao.FindTwo(
-		engine.ObjectClass, engine.AttributeValueString("crossRef"),
-		NCName, engine.AttributeValueString(domaincontext),
+		engine.ObjectClass, engine.NewAttributeValueString("crossRef"),
+		NCName, engine.NewAttributeValueString(domaincontext),
 	)
 	if !found {
 		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)

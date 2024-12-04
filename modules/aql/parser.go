@@ -20,7 +20,7 @@ func ParseAQLQuery(s string, ao *engine.Objects) (AQLresolver, error) {
 	}
 	resolver, err := parseAQLstream(ts, ao)
 	if err != nil {
-		return nil, fmt.Errorf("parsing error: %v around %v", err, ts.Token().Position)
+		return nil, fmt.Errorf("parsing error: %v around position %v", err, ts.Token().Position.TC)
 	}
 	return resolver, nil
 }
@@ -52,7 +52,7 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 		Mode:       Acyclic, // default to something sane
 	}
 
-	for ts.Token().Is(Identifier) {
+	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "WALK":
 			result.Mode = Walk // Say goodbye to your CPU
@@ -102,14 +102,14 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 	var result NodeQuery
 
-	if !ts.NextIfIs(LParan) {
-		return NodeQuery{}, errors.New("Expecting ( as start of node query")
-	}
-
 	if ts.Token().Type == Identifier && (ts.PeekNextToken().Type == Colon || ts.PeekNextToken().Type == Is) {
 		result.ReferenceName = ts.Token().Value
 		ts.Next()
 		ts.Next()
+	}
+
+	if !ts.NextIfIs(LParan) {
+		return NodeQuery{}, errors.New("Expecting ( as start of node query")
 	}
 
 	// If RParan there is no selector, just select everything
@@ -120,39 +120,45 @@ func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 		}
 		result.Selector = where
 
-		// If we parse ORDER BY, it's fine
-		sorter, err := parseNodeSorter(ts, ao)
-		if err != nil {
-			return result, err
-		}
-		result.OrderBy = sorter // might be nil, if there was none
-
-		// If we parse a SKIP, it's fine
-		if ts.NextIfIs(Skip) {
-			skip := ts.Token()
-			if skip.Type != Integer {
-				return result, fmt.Errorf("SKIP value expects Integer, but I got %v (%v)", skip.Type, skip.Value)
-			}
-
-			result.Skip = int(skip.Native.(int64))
-			ts.Next()
-		}
-
-		if ts.NextIfIs(Limit) {
-			limit := ts.Token()
-			if limit.Type != Integer {
-				return result, fmt.Errorf("LIMIT value expects Integer, but I got %v", limit.Type)
-			}
-			result.Limit = int(limit.Native.(int64))
-
-			ts.Next()
-		}
-
 		if !ts.NextIfIs(RParan) {
 			return NodeQuery{}, errors.New("Expecting ) at end of LDAP filter")
 		}
-	} else {
-		result.Selector = nil // empty selector
+
+	}
+
+	// If we parse ORDER BY, it's fine
+	sorter, err := parseNodeSorter(ts, ao)
+	if err != nil {
+		return result, err
+	}
+	result.OrderBy = sorter // might be nil, if there was none
+
+	// If we parse a SKIP, it's fine
+	if ts.NextIfIs(Skip) || ts.NextIfIs(Offset) {
+		skip := ts.Token()
+		if skip.Type != Integer {
+			return result, fmt.Errorf("SKIP value expects Integer, but I got %v (%v)", skip.Type, skip.Value)
+		}
+
+		result.Skip = int(skip.Native.(int64))
+		if result.Skip == 0 {
+			return result, fmt.Errorf("SKIP value expects Integer > 0 or Integer < 0, but I got %v", skip.Value)
+		}
+
+		ts.Next()
+	}
+
+	if ts.NextIfIs(Limit) {
+		limit := ts.Token()
+		if limit.Type != Integer {
+			return result, fmt.Errorf("LIMIT value expects Integer, but I got %v", limit.Type)
+		}
+		result.Limit = int(limit.Native.(int64))
+		if result.Limit == 0 {
+			return result, fmt.Errorf("LIMIT value expects Integer > 0 or Integer < 0, but I got %v", limit.Value)
+		}
+
+		ts.Next()
 	}
 
 	return result, nil
@@ -371,7 +377,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 			if strings.EqualFold(attributename, "_pwnable") || strings.EqualFold(attributename, "in") {
 				direction = engine.In
 			}
-			return query.EdgeQuery{direction, edge, target}, nil
+			return query.EdgeQuery{
+				Direction: direction,
+				Edge:      edge,
+				Target:    target}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
@@ -400,11 +409,14 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		}
 	case 1:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
-			return query.FilterOneAttribute{attributes[0], aq}
+			return query.FilterOneAttribute{Attribute: attributes[0], FilterAttribute: aq}
 		}
 	default:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
-			return query.FilterMultipleAttributes{attributename, attributes, aq}
+			return query.FilterMultipleAttributes{
+				Attributes:          attributes,
+				AttributeGlobString: attributename,
+				FilterAttribute:     aq}
 		}
 	}
 
@@ -437,7 +449,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, errors.New("Could not parse value as a duration (5h2m)")
 		}
-		result = genwrapper(query.SinceModifier{comparator, duration})
+		result = genwrapper(query.SinceModifier{
+			Comparator: comparator,
+			TimeSpan:   duration})
 		break
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
@@ -448,7 +462,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, errors.New("Could not parse value as a duration (5h2m)")
 		}
-		result = genwrapper(query.TimediffModifier{attribute2, comparator, duration})
+		result = genwrapper(query.TimediffModifier{
+			Attribute2: attribute2,
+			Comparator: comparator,
+			TimeSpan:   duration})
 		break
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != query.CompareEquals {
@@ -470,7 +487,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		result = genwrapper(query.BinaryOrModifier{i})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
-		result = genwrapper(query.RecursiveDNmatcher{value.String(), ao})
+		result = genwrapper(query.RecursiveDNmatcher{
+			DN: value.String(),
+			AO: ao})
 	default:
 		return nil, errors.New("Unknown modifier " + modifier)
 	}
@@ -500,12 +519,20 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 					return nil, err
 				}
 				if casesensitive {
-					result = genwrapper(query.HasGlobMatch{true, pattern, g})
+					result = genwrapper(query.HasGlobMatch{
+						Casesensitive: true,
+						Globstr:       pattern,
+						Match:         g})
 				} else {
-					result = genwrapper(query.HasGlobMatch{false, pattern, g})
+					result = genwrapper(query.HasGlobMatch{
+						Casesensitive: false,
+						Globstr:       pattern,
+						Match:         g})
 				}
 			} else {
-				result = genwrapper(query.HasStringMatch{casesensitive, strval})
+				result = genwrapper(query.HasStringMatch{
+					Casesensitive: casesensitive,
+					Value:         engine.NewAttributeValueString(strval)})
 			}
 		}
 	}
@@ -516,7 +543,9 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if err != nil {
 			return nil, fmt.Errorf("Could not convert value to integer for numeric comparison: %v", err)
 		}
-		result = genwrapper(query.TypedComparison[int64]{comparator, i})
+		result = genwrapper(query.TypedComparison[int64]{
+			Comparator: comparator,
+			Value:      i})
 	}
 
 	if invert {
@@ -529,11 +558,11 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 // allows unquoted strings as values
 func parseRelaxedValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
 	if ts.Token().Is(QuotedString) {
-		value := engine.AttributeValueString(ts.Token().String())
+		value := engine.NewAttributeValueString(ts.Token().String())
 		ts.Next()
 		return value, nil
 	}
-	return engine.AttributeValueString(ts.SnarfTextUntil(RParan)), nil
+	return engine.NewAttributeValueString(ts.SnarfTextUntil(RParan)), nil
 }
 
 func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
@@ -544,7 +573,7 @@ func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, err
 	case Float:
 		return nil, errors.New("float type not supported yet")
 	case QuotedString:
-		value = engine.AttributeValueString(ts.Token().Value)
+		value = engine.NewAttributeValueString(ts.Token().Value)
 	case True, False:
 		value = engine.AttributeValueBool(ts.Token().Type == True) // brilliant++
 	default:

@@ -27,44 +27,35 @@ func AddUIEndpoints(ws *WebService) {
 	// Lists available edges that Adalanche understands - this allows us to expand functionality
 	// in the code, without touching the HTML
 	backend := ws.API.Group("backend")
-
 	backend.GET("filteroptions", func(c *gin.Context) {
 		type filterinfo struct {
-			Name            string `json:"name"`
-			Lookup          string `json:"lookup"`
-			Description     string `json:"description"`
-			DefaultEnabledF bool   `json:"defaultenabled_f"`
-			DefaultEnabledM bool   `json:"defaultenabled_m"`
-			DefaultEnabledL bool   `json:"defaultenabled_l"`
+			Name           string `json:"name"`
+			Lookup         string `json:"lookup"`
+			Description    string `json:"description"`
+			Explainer      string `json:"explainer"`
+			DefaultEnabled bool   `json:"defaultenabled"`
 		}
 		type returnobject struct {
 			ObjectTypes []filterinfo `json:"objecttypes"`
 			Methods     []filterinfo `json:"edges"`
 		}
 		var results returnobject
-
 		for _, edge := range engine.Edges() {
 			if !edge.IsHidden() {
 				results.Methods = append(results.Methods, filterinfo{
-					Name:            edge.String(),
-					Lookup:          edge.String(),
-					DefaultEnabledF: edge.DefaultF(),
-					DefaultEnabledM: edge.DefaultM(),
-					DefaultEnabledL: edge.DefaultL(),
+					Name:           edge.String(),
+					Lookup:         edge.String(),
+					DefaultEnabled: edge.DefaultF(),
 				})
 			}
 		}
-
 		for _, objecttype := range engine.ObjectTypes() {
 			results.ObjectTypes = append(results.ObjectTypes, filterinfo{
-				Name:            objecttype.Name,
-				Lookup:          objecttype.Lookup,
-				DefaultEnabledF: objecttype.DefaultEnabledF,
-				DefaultEnabledM: objecttype.DefaultEnabledM,
-				DefaultEnabledL: objecttype.DefaultEnabledL,
+				Name:           objecttype.Name,
+				Lookup:         objecttype.Lookup,
+				DefaultEnabled: objecttype.DefaultEnabled,
 			})
 		}
-
 		c.JSON(200, results)
 	})
 	// Checks a LDAP style query for input errors, and returns a hint to the user
@@ -80,11 +71,9 @@ func AddUIEndpoints(ws *WebService) {
 		}
 		c.JSON(200, gin.H{"success": true})
 	})
-
 	backend.GET("types", func(c *gin.Context) {
 		c.JSON(200, typeInfos)
 	})
-
 	backend.GET("statistics", func(c *gin.Context) {
 		var result struct {
 			Adalanche  map[string]string `json:"adalanche"`
@@ -96,9 +85,7 @@ func AddUIEndpoints(ws *WebService) {
 		result.Adalanche["version"] = version.Version
 		result.Adalanche["commit"] = version.Commit
 		result.Adalanche["status"] = ws.status.String()
-
 		result.Statistics = make(map[string]int)
-
 		if ws.Objs != nil {
 			for objecttype, count := range ws.Objs.Statistics() {
 				if objecttype == 0 {
@@ -117,10 +104,8 @@ func AddUIEndpoints(ws *WebService) {
 			result.Statistics["Total"] = ws.Objs.Len()
 			result.Statistics["PwnConnections"] = edgeCount
 		}
-
 		c.JSON(200, result)
 	})
-
 	backend.GET("progress", func(c *gin.Context) {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
@@ -132,41 +117,42 @@ func AddUIEndpoints(ws *WebService) {
 		}
 		defer conn.Close()
 
+		var laststatus string
 		var lastpbr []ui.ProgressReport
 		var skipcounter int
+
 		for {
-			time.Sleep(250 * time.Millisecond)
+			currentstatus := ws.status.String()
 			pbr := ui.GetProgressReport()
-			sort.Slice(pbr, func(i, j int) bool {
-				return pbr[i].StartTime.Before(pbr[j].StartTime)
+			slices.SortStableFunc(pbr, func(i, j ui.ProgressReport) int {
+				return int(i.StartTime.Sub(j.StartTime))
 			})
 
-			if reflect.DeepEqual(lastpbr, pbr) {
+			if reflect.DeepEqual(lastpbr, pbr) && currentstatus == laststatus {
+				time.Sleep(250 * time.Millisecond)
 				skipcounter++
 				if skipcounter < 120 {
 					continue
 				}
 			}
-			skipcounter = 0
 
+			skipcounter = 0
 			output := struct {
 				Status   string              `json:"status"`
 				Progress []ui.ProgressReport `json:"progressbars"`
 			}{
-				Status:   ws.status.String(),
+				Status:   currentstatus,
 				Progress: pbr,
 			}
-
 			conn.SetWriteDeadline(time.Now().Add(time.Second * 15))
 			err = conn.WriteJSON(output)
 			if err != nil {
 				return
 			}
-
 			lastpbr = pbr
+			laststatus = currentstatus
 		}
 	})
-
 	// Ready status
 	backend.GET("status", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": ws.status.String()})
@@ -177,30 +163,23 @@ func AddUIEndpoints(ws *WebService) {
 			c.Status(500)
 			return
 		}
-
 		for ws.status != waitfor {
 			time.Sleep(time.Millisecond * 10)
 		}
-
 		c.JSON(200, gin.H{"status": ws.status.String()})
 	})
-
 	// Shutdown
 	backend.GET("quit", func(c *gin.Context) {
 		ws.quit <- true
 	})
-
 }
-
 func AddPreferencesEndpoints(ws *WebService) {
 	// Saved preferences
 	err := settings.Load()
 	if err != nil {
 		ui.Warn().Msgf("Problem loading preferences: %v", err)
 	}
-
 	preferences := ws.API.Group("preferences")
-
 	preferences.GET("", func(c *gin.Context) {
 		c.JSON(200, settings.All())
 	})
@@ -210,19 +189,16 @@ func AddPreferencesEndpoints(ws *WebService) {
 		if err != nil {
 			c.String(500, err.Error())
 		}
-
 		for key, value := range prefsmap {
 			settings.Set(key, value)
 		}
 		settings.Save()
 	})
-
 	preferences.GET(":key", func(c *gin.Context) {
 		key := c.Param("key")
 		out, _ := json.Marshal(settings.Get(key))
 		c.Writer.Write(out)
 	})
-
 	preferences.GET(":key/:value", func(c *gin.Context) {
 		key := c.Param("key")
 		value := c.Param("value")
@@ -230,10 +206,8 @@ func AddPreferencesEndpoints(ws *WebService) {
 		settings.Save()
 	})
 }
-
 func AddDataEndpoints(ws *WebService) {
 	api := ws.API
-
 	// Returns JSON describing an object located by distinguishedName, sid or guid
 	api.GET("details/:locateby/:id", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Object
@@ -247,46 +221,41 @@ func AddDataEndpoints(ws *WebService) {
 			}
 			o, found = ws.Objs.FindID(engine.ObjectID(id))
 		case "dn", "distinguishedname":
-			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
+			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(c.Param("id")))
 		case "sid":
 			sid, err := windowssecurity.ParseStringSID(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.AttributeValueSID(sid))
+			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
 		case "guid":
 			u, err := uuid.FromString(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.AttributeValueGUID(u))
+			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
 		}
 		if !found {
 			c.AbortWithStatus(404)
 			return
 		}
-
 		if c.Query("format") == "objectdump" {
 			c.Writer.Write([]byte(o.StringACL(ws.Objs)))
 			return
 		}
-
 		// default format
-
 		type ObjectDetails struct {
-			DistinguishedName string              `json:"distinguishedname"`
 			Attributes        map[string][]string `json:"attributes"`
 			CanPwn            map[string][]string `json:"can_pwn"`
 			PwnableBy         map[string][]string `json:"pwnable_by"`
+			DistinguishedName string              `json:"distinguishedname"`
 		}
-
 		od := ObjectDetails{
 			DistinguishedName: o.DN(),
 			Attributes:        make(map[string][]string),
 		}
-
 		o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
 			slice := values.StringSlice()
 			for i := range slice {
@@ -301,18 +270,14 @@ func AddDataEndpoints(ws *WebService) {
 			od.Attributes[attr.String()] = slice
 			return true
 		})
-
 		if c.Query("format") == "json" {
 			c.JSON(200, od.Attributes)
 			return
 		}
-
 		c.JSON(200, od)
 	})
-
 	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {
 		idstr := c.Query("id")
-
 		var children engine.ObjectSlice
 		if idstr == "#" {
 			children = ws.Objs.Root().Children()
@@ -322,7 +287,6 @@ func AddDataEndpoints(ws *WebService) {
 				c.String(400, "Problem converting id %v: %v", idstr, err)
 				return
 			}
-
 			if parent, found := ws.Objs.FindID(engine.ObjectID(id)); found {
 				children = parent.Children()
 			} else {
@@ -330,14 +294,12 @@ func AddDataEndpoints(ws *WebService) {
 				return
 			}
 		}
-
 		type treeData struct {
 			Label    string          `json:"text"`
 			Type     string          `json:"type,omitempty"`
 			ID       engine.ObjectID `json:"id"`
 			Children bool            `json:"children,omitempty"`
 		}
-
 		var results []treeData
 		children.Iterate(func(object *engine.Object) bool {
 			results = append(results, treeData{
@@ -348,17 +310,13 @@ func AddDataEndpoints(ws *WebService) {
 			})
 			return true
 		})
-
 		c.JSON(200, results)
 	})
-
 	api.GET("export-words", ws.RequireData(Ready), func(c *gin.Context) {
 		split := c.Query("split") == "true"
-
 		// Set header for download as a text file
 		c.Header("Content-Type", "text/plain")
 		c.Header("Content-Disposition", "attachment; filename=adalanche-wordlist.txt")
-
 		scrapeatttributes := []engine.Attribute{
 			engine.DistinguishedName,
 			engine.LookupAttribute("name"),
@@ -403,7 +361,6 @@ func AddDataEndpoints(ws *WebService) {
 			engine.LookupAttribute("title"),
 			engine.LookupAttribute("userPrincipalName"),
 		}
-
 		pb := ui.ProgressBar("Extracting words", int64(ws.Objs.Len()))
 		wordmap := make(map[string]struct{})
 		ws.Objs.Iterate(func(object *engine.Object) bool {
@@ -434,7 +391,6 @@ func AddDataEndpoints(ws *WebService) {
 		}
 	})
 }
-
 func extractwords(input string, split bool) []string {
 	result := []string{input}
 	if split {
