@@ -272,287 +272,299 @@ var fixedlayout = {
     name: 'preset'
 }
 
-if (typeof myfunction != 'getPreferredTheme') {
-    window.getPreferredTheme = function(){ return "dark"; };
-}
-
-var cytostyle = [{
+var cytostyle = [
+  {
     selector: "node, edge",
     style: {
-        "min-zoomed-font-size": 12,
-        "font-family": "oswald",
-    }
-}, {
+      "min-zoomed-font-size": 12,
+      "font-family": "oswald",
+    },
+  },
+  {
     selector: "node",
     style: {
-        "label": function (ele) { return nodelabel(ele); },
-        "color": getPreferredTheme()=="dark" ? "white" : "black",
-        "background-width": "80%",
-        "background-height": "80%"
-    }
-},
-{
+      label: function (ele) {
+        return nodelabel(ele);
+      },
+      color: function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "black";
+      },
+      "background-width": "80%",
+      "background-height": "80%",
+    },
+  },
+  {
     selector: "node.target",
     style: {
-        "border-color": "white",
-        "border-width": 3
-    }
-},
-{
+      "border-color": function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "black";
+      },
+      "border-width": 3,
+    },
+  },
+  {
     selector: "node.source",
     style: {
-        "border-color": "green",
-        "border-width": 3
-    }
-},
-{
+      "border-color": "green",
+      "border-width": 3,
+    },
+  },
+  {
     selector: 'node[type="Group"]',
     style: {
-        "shape": "cut-rectangle",
-        "background-image": "icons/people-fill.svg",
-        "background-color": "orange"
-    }
-},
-{
+      shape: "cut-rectangle",
+      "background-image": "icons/people-fill.svg",
+      "background-color": "orange",
+    },
+  },
+  {
     selector: 'node[type="User"]',
     style: {
-        "background-image": "icons/person-fill.svg",
-        "background-color": "green"
-    }
-},
-{
-    selector: 'node[account_inactive]',
+      "background-image": "icons/person-fill.svg",
+      "background-color": "green",
+    },
+  },
+  {
+    selector: "node[account_inactive]",
     style: {
-        "background-image": "icons/no_accounts_black_48dp.svg",
-    }
-},
-{
+      "background-image": "icons/no_accounts_black_48dp.svg",
+    },
+  },
+  {
     selector: 'node[type="ManagedServiceAccount"]',
     style: {
-        "background-image": "icons/manage_accounts_black_24dp.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      "background-image": "icons/manage_accounts_black_24dp.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="GroupManagedServiceAccount"]',
     style: {
-        "background-image": "icons/manage_accounts_black_24dp.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      "background-image": "icons/manage_accounts_black_24dp.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="ForeignSecurityPrincipal"]',
     style: {
-        "background-image": "icons/badge_black_24dp.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      "background-image": "icons/badge_black_24dp.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="Service"]',
     style: {
-        shape: "diamond",
-        "background-image": "icons/service.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      shape: "diamond",
+      "background-image": "icons/service.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="CallableService"]',
     style: {
-        "background-image": "icons/service.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      "background-image": "icons/service.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="Directory"]',
     style: {
-        "shape": "diamond",
-        "background-image": "icons/source_black_24dp.svg",
-        "background-color": "lightblue"
-    }
-},
-{
+      shape: "diamond",
+      "background-image": "icons/source_black_24dp.svg",
+      "background-color": "lightblue",
+    },
+  },
+  {
     selector: 'node[type="File"]',
     style: {
-        "shape": "diamond",
-        "background-image": "icons/article_black_24dp.svg",
-        "background-color": "lightblue"
-    }
-},
-{
+      shape: "diamond",
+      "background-image": "icons/article_black_24dp.svg",
+      "background-color": "lightblue",
+    },
+  },
+  {
     selector: 'node[type="Executable"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/binary-code.svg",
-        "background-color": "lightgreen"
-    }
-},
+      shape: "rectangle",
+      "background-image": "icons/binary-code.svg",
+      "background-color": "lightgreen",
+    },
+  },
 
-{
+  {
     selector: 'node[type="GroupPolicyContainer"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/gpo.svg",
-        "background-color": "purple"
-    }
-},
-{
+      shape: "rectangle",
+      "background-image": "icons/gpo.svg",
+      "background-color": "purple",
+    },
+  },
+  {
     selector: 'node[type="OrganizationalUnit"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/source_black_24dp.svg",
-        "background-color": "lightgray"
-    }
-},
-{
+      shape: "rectangle",
+      "background-image": "icons/source_black_24dp.svg",
+      "background-color": "lightgray",
+    },
+  },
+  {
     selector: 'node[type="Container"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/folder_black_24dp.svg",
-        "background-color": "lightgray"
-    }
-},
-{
+      shape: "rectangle",
+      "background-image": "icons/folder_black_24dp.svg",
+      "background-color": "lightgray",
+    },
+  },
+  {
     selector: 'node[type="CertificateTemplate"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/certificate.svg",
-        "background-color": "pink"
-    }
-},
-{
+      shape: "rectangle",
+      "background-image": "icons/certificate.svg",
+      "background-color": "pink",
+    },
+  },
+  {
     selector: 'node[type="DNSNode"]',
     style: {
-        "shape": "rectangle",
-        "background-image": "icons/dns.svg",
-    }
-},
-{
+      shape: "rectangle",
+      "background-image": "icons/dns.svg",
+    },
+  },
+  {
     selector: 'node[type="Computer"]',
     style: {
-        "shape": "round-octagon",
-        "background-image": "icons/tv-fill.svg",
-        "background-color": "lightgreen"
-    }
-},
-{
+      shape: "round-octagon",
+      "background-image": "icons/tv-fill.svg",
+      "background-color": "lightgreen",
+    },
+  },
+  {
     selector: 'node[type="Machine"]',
     style: {
-        "shape": "round-octagon",
-        "background-image": "icons/tv-fill.svg",
-        "background-color": "teal"
-    }
-},
-{
+      shape: "round-octagon",
+      "background-image": "icons/tv-fill.svg",
+      "background-color": "teal",
+    },
+  },
+  {
     selector: "node[?_canexpand]",
     style: {
-        "font-style": "italic",
-        "color": "yellow",
-        "background-color": "yellow"
-    }
-},
-{
+      "font-style": "italic",
+      color: "yellow",
+      "background-color": "yellow",
+    },
+  },
+  {
     selector: 'node[reference="start"]',
     style: {
-        "border-color": "red",
-        "border-width": 3,
-    }
-},
-{
+      "border-color": "red",
+      "border-width": 3,
+    },
+  },
+  {
     selector: 'node[reference="end"]',
     style: {
-        "border-color": "blue",
-        "border-width": 3,
-    }
-},
-{
+      "border-color": "blue",
+      "border-width": 3,
+    },
+  },
+  {
     selector: "edge",
     style: {
-        // "label": function (ele) { return edgelabel(ele); }, 
-        "text-wrap": "wrap",
-        // "text-rotation": "autorotate",
-        "text-justification": "center",
-        "color": "white",
-        "curve-style": "straight",
-        "target-arrow-shape": "triangle"
-    }
-},
-{
-    selector: 'edge[_maxprob<=90]',
+      // "label": function (ele) { return edgelabel(ele); },
+      "text-wrap": "wrap",
+      // "text-rotation": "autorotate",
+      "text-justification": "center",
+      color: function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "black";
+      },
+      "curve-style": "straight",
+      "target-arrow-shape": "triangle",
+    },
+  },
+  {
+    selector: "edge[_maxprob<=90]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [9, 1]
-    }
-},
-{
-    selector: 'edge[_maxprob<=80]',
+      "line-style": "dashed",
+      "line-dash-pattern": [9, 1],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=80]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [8, 2]
-    }
-},
-{
-    selector: 'edge[_maxprob<=70]',
+      "line-style": "dashed",
+      "line-dash-pattern": [8, 2],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=70]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [7, 3]
-    }
-},
-{
-    selector: 'edge[_maxprob<=60]',
+      "line-style": "dashed",
+      "line-dash-pattern": [7, 3],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=60]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [6, 4]
-    }
-},
-{
-    selector: 'edge[_maxprob<=50]',
+      "line-style": "dashed",
+      "line-dash-pattern": [6, 4],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=50]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [5, 5]
-    }
-},
-{
-    selector: 'edge[_maxprob<=40]',
+      "line-style": "dashed",
+      "line-dash-pattern": [5, 5],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=40]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [4, 6]
-    }
-},
-{
-    selector: 'edge[_maxprob<=30]',
+      "line-style": "dashed",
+      "line-dash-pattern": [4, 6],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=30]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [3, 7]
-    }
-},
-{
-    selector: 'edge[_maxprob<=20]',
+      "line-style": "dashed",
+      "line-dash-pattern": [3, 7],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=20]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [2, 8]
-    }
-},
-{
-    selector: 'edge[_maxprob<=10]',
+      "line-style": "dashed",
+      "line-dash-pattern": [2, 8],
+    },
+  },
+  {
+    selector: "edge[_maxprob<=10]",
     style: {
-        "line-style": "dashed",
-        "line-dash-pattern": [1, 9]
-    }
-},
-{
+      "line-style": "dashed",
+      "line-dash-pattern": [1, 9],
+    },
+  },
+  {
     selector: "node:selected",
     style: {
-        "background-color": "white"
-    }
-},
-{
+      "background-color": function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "grey";
+      },
+    },
+  },
+  {
     selector: "edge:selected",
     style: {
-        "target-arrow-color": "white",
-        "line-color": "white",
-        "width": 8
-    }
-}
+      "target-arrow-color": function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "black";
+      },
+      "line-color": function (ele) {
+        return getPreferredTheme() == "dark" ? "white" : "black";
+      },
+      width: 8,
+    },
+  },
 ];
 
 function getGraphlayout(choice) {
@@ -1003,28 +1015,33 @@ function initgraph(data) {
     getGraphlayout($("#graphlayout").val()).run()
 }
 
+function getEdgeColor(ele) {
+        color = getPreferredTheme() == "dark" ? "white" : "black";
+        if (ele.data("methods").includes("MemberOfGroup")) {
+          color = "orange";
+        } else if (ele.data("methods").includes("MemberOfGroupIndirect")) {
+          color = "darkorange";
+        } else if (ele.data("methods").includes("ForeignIdentity")) {
+          color = "lightgreen";
+        } else if (ele.data("methods").includes("ResetPassword")) {
+          color = "red";
+        } else if (ele.data("methods").includes("AddMember")) {
+          color = "yellow";
+        } else if (ele.data("methods").includes("TakeOwnership")) {
+          color = "lightblue";
+        } else if (ele.data("methods").includes("WriteDACL")) {
+          color = "lightblue";
+        } else if (ele.data("methods").includes("Owns")) {
+          color = "blue";
+        }
+        return color;
+}
+
 function applyEdgeStyles(cy) {
     cy.edges().each(function (ele) {
-        color = "white";
-        if (ele.data("methods").includes("MemberOfGroup")) {
-            color = "orange"
-        } else if (ele.data("methods").includes("MemberOfGroupIndirect")) {
-            color = "darkorange"
-        } else if (ele.data("methods").includes("ForeignIdentity")) {
-            color = "lightgreen"
-        } else if (ele.data("methods").includes("ResetPassword")) {
-            color = "red"
-        } else if (ele.data("methods").includes("AddMember")) {
-            color = "yellow"
-        } else if (ele.data("methods").includes("TakeOwnership")) {
-            color = "lightblue"
-        } else if (ele.data("methods").includes("WriteDACL")) {
-            color = "lightblue"
-        } else if (ele.data("methods").includes("Owns")) {
-            color = "blue"
-        }
-        ele.style('target-arrow-color', color);
-        ele.style('line-color', color);
+      color = getEdgeColor(ele);
+      ele.style('target-arrow-color', color);
+      ele.style('line-color', color);
     });
 };
 

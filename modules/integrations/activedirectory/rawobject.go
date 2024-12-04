@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -35,6 +34,8 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 		DistinguishedName, engine.NewAttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 
+	// Reusable slice
+	var convertedvalues []engine.AttributeValue
 	for name, values := range r.Attributes {
 		if len(values) == 0 || (len(values) == 1 && values[0] == "") {
 			continue
@@ -50,9 +51,9 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
 			attribute = engine.NewAttribute(name)
 		}
 
-		encodedvals := EncodeAttributeData(attribute, values)
-		if encodedvals != nil {
-			newobject.Set(attribute, encodedvals...)
+		convertedvalues = EncodeAttributeData(attribute, convertedvalues, values)
+		if len(convertedvalues) > 0 {
+			newobject.Set(attribute, convertedvalues...)
 		}
 	}
 
@@ -74,21 +75,18 @@ func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
 	return nil
 }
 
-// Performance hack
-var avsPool = sync.Pool{
-	New: func() any {
-		return make(engine.AttributeValues, 0, 16)
-	},
-}
-
-func EncodeAttributeData(attribute engine.Attribute, values []string) engine.AttributeValues {
+func EncodeAttributeData(attribute engine.Attribute, destination []engine.AttributeValue, values []string) []engine.AttributeValue {
 	if len(values) == 0 {
-		return nil
+		return destination[:0]
 	}
 
-	avs := avsPool.Get().(engine.AttributeValues)
-
 	var skipped int
+
+	if cap(destination) < len(values) {
+		destination = make(engine.AttributeValues, 0, len(values))
+	} else {
+		destination = destination[:0]
+	}
 
 	for _, value := range values {
 		var attributevalue engine.AttributeValue
@@ -219,16 +217,11 @@ func EncodeAttributeData(attribute engine.Attribute, values []string) engine.Att
 		}
 
 		if attributevalue != nil {
-			avs = append(avs, attributevalue)
+			destination = append(destination, attributevalue)
 		} else {
 			skipped++
 		}
 	}
 
-	if len(avs) == 0 {
-		avsPool.Put(avs)
-		return nil
-	}
-
-	return avs
+	return destination
 }

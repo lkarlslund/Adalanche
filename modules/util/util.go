@@ -217,5 +217,5 @@ func ExePath() (string, error) {
 
 func PathExists(name string) bool {
 	_, err := os.Stat(name)
-	return !os.IsNotExist(err)
+	return err == nil // invalid path names on Windows returns strange errors, so just check for nil error
 }

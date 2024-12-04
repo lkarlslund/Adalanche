@@ -60,8 +60,8 @@
     <script src="preferences.js"></script>
 
     <script src="extrafuncs.js"></script>
-    <script src="colortoggle.js"></script>
     <script src="graph.js"></script>
+    <script src="themes.js"></script> <!-- depends on cy veriable in graph.js, sic -->
     <script src="custom.js"></script>
 
     {{range .AdditionalHeaders}} {{.}} {{end}}
@@ -102,9 +102,6 @@
           </div>
         </div>
         <div id="commandbuttons" class="pt-10 pe-auto">
-          <!--        <button id="darktoggle" data-bs-theme-value="dark" class="btn btn-primary">Dark mode</button>
-        <button id="lighttoggle" data-bs-theme-value="light" class="btn btn-primary">Light mode</button>
-      -->
           <button id="explore" class="btn btn-primary">Explore</button>
           <a
             href="/api/export-words?split=true"
@@ -310,10 +307,10 @@
               <summary
                 class="collapse-header bg-primary text-dark p-1 border-bottom"
               >
-                Visualization
+                Graph Visualization
               </summary>
               <div class="collapse-content p-1">
-                <label for="graphlayout">Choose layout</label>
+                <label for="graphlayout">Graph layout engine</label>
                 <select
                   class="form-control"
                   id="graphlayout"
@@ -374,6 +371,7 @@
                     >
                   </div>
                 </div>
+
 
                 <!-- <label for="edgelabels">Edge labels</label>
             <select class="form-control" id="edgelabels" preference="graph.labels" defaultpref="normal">
@@ -436,6 +434,20 @@
                     >
                   </div>
                 </div>
+                <div class="mb-1" id="themeradios">
+                    Theme
+                    <div class="float-end">
+                    <input type="radio" class="btn-check" name="theme" value="light" id="theme-light" preference="theme" autocomplete="off">
+                    <label class="btn" for="theme-light">Light</label>
+                      
+                    <input type="radio" class="btn-check" name="theme" value="auto" id="theme-auto" preference="theme" defaultpref="true" autocomplete="off">
+                    <label class="btn" for="theme-auto">Auto</label>
+
+                    <input type="radio" class="btn-check" name="theme" value="dark" id="theme-dark" preference="theme" autocomplete="off">
+                    <label class="btn" for="theme-dark">Dark</label>
+                    </div>
+                </div>
+
               </div>
             </details>
           </div>

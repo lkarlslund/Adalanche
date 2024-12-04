@@ -94,11 +94,12 @@ func loadConfiguration(cmd *cobra.Command) {
 	viper.AutomaticEnv()
 
 	// Use config file from the flag.
-	viper.SetConfigFile(filepath.Join(*Datapath, "configuration.yaml"))
+	configfilename := filepath.Join(*Datapath, "configuration.yaml")
+	viper.SetConfigFile(configfilename)
 	if err := viper.ReadInConfig(); err == nil {
 		ui.Info().Msgf("Using configuration file: %v", viper.ConfigFileUsed())
 	} else {
-		ui.Debug().Msgf("No settings loaded: %v", err.Error())
+		ui.Info().Msgf("No settings loaded from %v: %v", err.Error())
 	}
 
 	bindFlags(cmd)

@@ -1,6 +1,5 @@
 package localmachine
 
-//go:generate easyjson -all structs.go
 //go:generate msgp -file structs.go
 
 import (

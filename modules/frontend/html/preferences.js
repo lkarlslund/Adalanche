@@ -20,6 +20,8 @@ function updatecontrol(ele) {
     if (val != null) {
         if (ele.attr("type") == "checkbox") {
             ele.prop("checked", val)
+        } else if (ele.attr("type") == "radio") {
+            ele.prop("checked", ele.val() == val)
         } else {
             ele.val(val)
         }

@@ -1,15 +1,15 @@
 package analyze
 
 import (
-	"io/ioutil"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/bytedance/sonic"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/mailru/easyjson"
 )
 
 const loadername = "Local Machine JSON file"
@@ -44,14 +44,16 @@ func (ld *LocalMachineLoader) Init() error {
 		ld.done.Add(1)
 		go func() {
 			for queueItem := range ld.infostoadd {
-				raw, err := ioutil.ReadFile(queueItem.path)
+				r, err := os.Open(queueItem.path)
 				if err != nil {
 					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", queueItem, err)
 					continue
 				}
+				defer r.Close()
 
 				var cinfo localmachine.Info
-				err = easyjson.Unmarshal(raw, &cinfo)
+				var dec = sonic.ConfigDefault.NewDecoder(r)
+				err = dec.Decode(&cinfo)
 				if err != nil {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)
 					continue

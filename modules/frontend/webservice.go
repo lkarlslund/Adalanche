@@ -6,6 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+	"text/template"
+	"time"
+
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
@@ -13,13 +23,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
-	"io"
-	"io/fs"
-	"net"
-	"net/http"
-	"os"
-	"text/template"
-	"time"
 )
 
 //go:embed html/*
@@ -67,10 +70,14 @@ type WebService struct {
 }
 
 var globaloptions []optionsetter
+var optionsmutex sync.Mutex
 
 func AddOption(os optionsetter) {
+	optionsmutex.Lock()
 	globaloptions = append(globaloptions, os)
+	optionsmutex.Unlock()
 }
+
 func NewWebservice() *WebService {
 	gin.SetMode(gin.ReleaseMode) // Has to happen first
 	ws := &WebService{
@@ -126,7 +133,10 @@ func NewWebservice() *WebService {
 	}
 	// Change settings
 	for _, os := range globaloptions {
-		os(ws)
+		err := os(ws)
+		if err != nil {
+			ui.Error().Msgf("Error setting frontend option: %v", err)
+		}
 	}
 	return ws
 }
@@ -154,6 +164,7 @@ func WithCert(certfile, keyfile string) optionsetter {
 		ws.srv.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
 		}
+		ui.Info().Msgf("Certificate loaded and configured for DNS names %v", strings.Join(ws.srv.TLSConfig.Certificates[0].Leaf.DNSNames, ", "))
 		return nil
 	}
 }
