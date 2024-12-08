@@ -205,12 +205,11 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	}
 	// We don't need matches, so try skipping this one
 	if es.MinIterations == 0 && currentDepth == 0 {
-		if len(aqlq.Sources) > currentSearchIndex+1 {
+		if len(aqlq.Next) > currentSearchIndex+1 {
 			aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, currentObject, currentSearchIndex+1, 0, currentTotalDepth+1, currentOverAllProbability)
 		} else {
 			// can't go deeper, it's the last one and it isn't required, so we're done :-)
 			committedGraph.Merge(*workingGraph)
-			return
 		}
 	}
 	// Then look for stuff that match in within the min and max iteration requirements
