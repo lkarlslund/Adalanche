@@ -31,9 +31,7 @@ type progressBar struct {
 	RoundingFactor time.Duration
 
 	lastReport int64
-	mutex      sync.Mutex
 
-	mu      sync.Mutex
 	Percent float32 // Percentage done
 	ID      uuid.UUID
 	Done    bool
@@ -58,7 +56,7 @@ func GetProgressReport() []ProgressReport {
 	pbLock.Lock()
 	pbr := make([]ProgressReport, len(progressbars))
 	var i int
-	for pb, _ := range progressbars {
+	for pb := range progressbars {
 		if pb.Done && pb.lastReport == pb.Current {
 			continue
 		}
