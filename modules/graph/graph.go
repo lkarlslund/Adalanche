@@ -22,6 +22,7 @@ type NodePair[NodeType GraphNodeInterface[NodeType]] struct {
 
 type Edge[EdgeType GraphEdgeInterface[EdgeType]] struct {
 	Edge EdgeType
+	Flow int
 	Data map[string]any
 }
 
@@ -111,6 +112,7 @@ func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, edge EdgeT
 	pg.AddNode(target)
 	existing, _ := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
 	existing.Edge = edge
+	existing.Flow++
 	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
 }
 
@@ -181,7 +183,7 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 					mergeddata[k] = v
 				}
 			}
-			pg.edges[otherconnection] = Edge[EdgeType]{Edge: mergededge, Data: mergeddata}
+			pg.edges[otherconnection] = Edge[EdgeType]{Edge: mergededge, Flow: ouredge.Flow + 1, Data: mergeddata}
 		} else {
 			pg.edges[otherconnection] = otheredge
 		}
