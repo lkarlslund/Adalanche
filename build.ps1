@@ -43,11 +43,15 @@ if ("$DIRTYFILES" -ne "") {
 $LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 
 # Release
-#BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "32bit,collector") -prefix adalanche-collector -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
-#BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "collector") -prefix adalanche-collector -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
-#BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
-#BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "freebsd", "openbsd", "linux")
+BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "32bit,collector") -prefix adalanche-collector -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
+BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "collector") -prefix adalanche-collector -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
+BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
+BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "freebsd", "openbsd", "linux")
 
-$BUILDER = "~/go/bin/go1.20.14"
-BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "32bit,collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
-BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
+$COLLECTORGO = "~/go/bin/go1.20.14"
+if (Get-Command "go1.20.14" -ErrorAction SilentlyContinue) {
+  $BUILDER = $COLLECTORGO
+  BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "32bit,collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
+  BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
+}
+
