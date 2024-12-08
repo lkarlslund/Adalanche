@@ -65,7 +65,7 @@ func SetLogFile(path string, i LogLevel) error {
 	var err error
 	logfile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return fmt.Errorf("Failed to open logfile %s: %s", path, err)
+		return fmt.Errorf("failed to open logfile %s: %s", path, err)
 	}
 
 	logfilelevel = i
