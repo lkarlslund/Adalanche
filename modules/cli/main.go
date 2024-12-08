@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/felixge/fgprof"
 	"github.com/felixge/fgtrace"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/version"
@@ -41,7 +42,8 @@ var (
 	cpuprofiletimeout = Root.Flags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
 	memprofile        = Root.Flags().Bool("memprofile", false, "Save CPU profile from start to end of processing in datapath")
 	memprofiletimeout = Root.Flags().Int32("memprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout)")
-	dofgtrace         = Root.Flags().Bool("fgtrace", false, "Save CPU trace start to end of processing in datapath")
+	dofgtrace         = Root.Flags().Bool("fgtrace", false, "Save CPU fgtrace start to end of processing in datapath")
+	dofgprof          = Root.Flags().Bool("fgprof", false, "Save CPU fgprof start to end of processing in datapath")
 
 	// also available for subcommands
 	Datapath = Root.Flags().String("datapath", "data", "folder to store and read data")
@@ -59,6 +61,7 @@ var (
 	stopcpuprofile = make(chan bool, 5)
 	stopmemprofile = make(chan bool, 5)
 	stopfgtrace    = make(chan bool, 5)
+	stopfgprof     = make(chan bool, 5)
 	profilewriters sync.WaitGroup
 )
 
@@ -149,6 +152,33 @@ func init() {
 				}
 				ui.Info().Msgf("Profiling listener started on port %v", port)
 			}()
+		}
+
+		if *dofgprof {
+			tracefilename := filepath.Join(*Datapath, "adalanche-fgprof-"+time.Now().Format("06010215040506")+".json")
+			tracefile, err := os.Create(tracefilename)
+			if err != nil {
+				ui.Fatal().Msgf("Error creating fgprof file %v: %v", tracefilename, err)
+			}
+			tracestopper := fgprof.Start(tracefile, fgprof.FormatPprof)
+			profilewriters.Add(1)
+
+			go func() {
+				<-stopfgprof
+				err = tracestopper()
+				if err != nil {
+					ui.Error().Msgf("Problem stopping fgprof: %v", err)
+				}
+				profilewriters.Done()
+			}()
+
+			if *cpuprofiletimeout > 0 {
+				go func() {
+					<-time.After(time.Second * (time.Duration(*cpuprofiletimeout)))
+					stopfgprof <- true
+				}()
+			}
+
 		}
 
 		if *dofgtrace {
@@ -242,6 +272,7 @@ func init() {
 	}
 	Root.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
 		stopfgtrace <- true
+		stopfgprof <- true
 		stopcpuprofile <- true
 		stopmemprofile <- true
 		profilewriters.Wait()

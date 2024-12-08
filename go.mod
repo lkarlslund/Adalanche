@@ -21,7 +21,6 @@ require (
 	github.com/lkarlslund/ldap/v3 v3.4.4-2.0.20240213092859-7df1bd8df6a8
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
-	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-colorable v0.1.13
 	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/pkg/errors v0.9.1
@@ -52,7 +51,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/color v1.5.4
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/josharian/intern v1.0.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae // indirect
@@ -85,7 +83,9 @@ require (
 	github.com/KimMachineGun/automemlimit v0.6.1
 	github.com/Velocidex/ordereddict v0.0.0-20230909174157-2aa49cc5d11d
 	github.com/akyoto/cache v1.0.6
+	github.com/bytedance/sonic v1.12.4
 	github.com/elastic/go-windows v1.0.2
+	github.com/felixge/fgprof v0.9.5
 	github.com/felixge/fgtrace v0.2.0
 	github.com/gammazero/deque v1.0.0
 	github.com/gin-contrib/pprof v1.5.1
@@ -99,6 +99,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/timtadh/lexmachine v0.2.3
 	go.etcd.io/bbolt v1.3.11
+	go.uber.org/automaxprocs v1.6.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
 
@@ -110,7 +111,6 @@ require (
 	github.com/StackExchange/wmi v1.2.0 // indirect
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
 	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
-	github.com/bytedance/sonic v1.12.4 // indirect
 	github.com/bytedance/sonic/loader v0.2.1 // indirect
 	github.com/cilium/ebpf v0.16.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
@@ -125,6 +125,7 @@ require (
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/deck v0.0.0-20230104221208-105ad94aa8ae // indirect
+	github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
@@ -150,7 +151,6 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
