@@ -20,7 +20,7 @@ function BuildVariants {
         $namearch = "x64"
       }
 
-      & $BUILDER build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$namearch-$VERSION$suffix -trimpath  @compileflags $path
+      & $BUILDER build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$namearch-$VERSION$suffix @compileflags $path
       if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
       {
         cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json -main $path .
@@ -43,7 +43,11 @@ if ("$DIRTYFILES" -ne "") {
 $LDFLAGS = "-X github.com/lkarlslund/adalanche/modules/version.Commit=$COMMIT -X github.com/lkarlslund/adalanche/modules/version.Version=$VERSION"
 
 # Release
-BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "32bit,collector") -prefix adalanche-collector -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
-BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "collector") -prefix adalanche-collector -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
-BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
-BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "freebsd", "openbsd", "linux")
+#BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "32bit,collector") -prefix adalanche-collector -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
+#BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "collector") -prefix adalanche-collector -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
+#BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
+#BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "freebsd", "openbsd", "linux")
+
+$BUILDER = "~/go/bin/go1.20.14"
+BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "32bit,collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
+BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"

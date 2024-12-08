@@ -13,7 +13,8 @@ type IndexSelectorInfo struct {
 	queryIndex int
 }
 
-func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
+// Semi optimized way of executing a node filter
+func NodeFilterExecute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 	var potentialindexes []IndexSelectorInfo
 	switch t := q.(type) {
 	case AndQuery:
@@ -24,7 +25,7 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 					// This might be in an index
 					potentialindexes = append(potentialindexes, IndexSelectorInfo{
 						a:     qo.Attribute,
-						match: sm.Value,
+						match: sm.Value.String(),
 					})
 				}
 			}
@@ -35,7 +36,7 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 			// This might be in an index
 			potentialindexes = append(potentialindexes, IndexSelectorInfo{
 				a:          qo.Attribute,
-				match:      sm.Value,
+				match:      sm.Value.String(),
 				queryIndex: -1,
 			})
 		}
@@ -48,7 +49,7 @@ func Execute(q NodeFilter, ao *engine.Objects) *engine.Objects {
 
 	for i, potentialIndex := range potentialindexes {
 		index := ao.GetIndex(potentialIndex.a)
-		foundObjects, found := index.Lookup(engine.AttributeValueString(potentialIndex.match))
+		foundObjects, found := index.Lookup(engine.NewAttributeValueString(potentialIndex.match))
 		if found {
 			potentialindexes[i].results = foundObjects
 		}

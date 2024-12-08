@@ -15,26 +15,28 @@ import (
 )
 
 type progressBar struct {
-	ID                  uuid.UUID
-	Title               string
-	ItemType            string
-	titleStyle          *pterm.Style
-	barStyle            *pterm.Style
-	Current, Total      int64   // Absolute done and total
-	Percent             float32 // Percentage done
-	RoundingFactor      time.Duration
 	Started, Lastupdate time.Time
-	mutex               sync.Mutex
-	barCharacter        string
-	lastCharacter       string
-	barFiller           string
-
-	lastReport int64
-	Done       bool
 
 	writer io.Writer
 
-	mu sync.Mutex
+	titleStyle    *pterm.Style
+	barStyle      *pterm.Style
+	Title         string
+	ItemType      string
+	barCharacter  string
+	lastCharacter string
+	barFiller     string
+
+	Current, Total int64 // Absolute done and total
+	RoundingFactor time.Duration
+
+	lastReport int64
+	mutex      sync.Mutex
+
+	mu      sync.Mutex
+	Percent float32 // Percentage done
+	ID      uuid.UUID
+	Done    bool
 }
 
 var (
@@ -43,13 +45,13 @@ var (
 )
 
 type ProgressReport struct {
-	ID             uuid.UUID
+	StartTime      time.Time
 	Title          string
 	ItemType       string
 	Current, Total int64
 	Percent        float32
+	ID             uuid.UUID
 	Done           bool
-	StartTime      time.Time
 }
 
 func GetProgressReport() []ProgressReport {

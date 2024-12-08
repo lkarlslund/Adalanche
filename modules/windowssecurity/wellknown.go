@@ -87,6 +87,7 @@ var (
 
 	AdministratorsSID, _     = ParseStringSID("S-1-5-32-544")
 	RemoteDesktopUsersSID, _ = ParseStringSID("S-1-5-32-555")
+	PowerUsersSID, _         = ParseStringSID("S-1-5-32-547")
 	DCOMUsersSID, _          = ParseStringSID("S-1-5-32-562")
 
 	OwnerSID, _              = ParseStringSID("S-1-3-4")

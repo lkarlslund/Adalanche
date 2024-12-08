@@ -23,14 +23,14 @@ func LinkSCCM(ao *engine.Objects) {
 			for _, host := range hosts {
 				// Try full DNS name
 				servers, found := ao.FindTwoMulti(
-					DNSHostname, engine.AttributeValueString(host),
-					engine.Type, engine.AttributeValueString("Machine"),
+					DNSHostname, engine.NewAttributeValueString(host),
+					engine.Type, engine.NewAttributeValueString("Machine"),
 				)
 				// .. or fallback to just the name
 				if !found {
 					servers, found = ao.FindTwoMulti(
-						engine.Name, engine.AttributeValueString(host),
-						engine.Type, engine.AttributeValueString("Machine"),
+						engine.Name, engine.NewAttributeValueString(host),
+						engine.Type, engine.NewAttributeValueString("Machine"),
 					)
 				}
 				if !found {

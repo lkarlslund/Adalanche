@@ -11,7 +11,6 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/lkarlslund/adalanche/modules/dedup"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -44,7 +43,7 @@ func BytesToSID(data []byte) (SID, []byte, error) {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
 	sidend := 8 + 4*subauthoritycount
-	return SID(dedup.D.BS(data[2:sidend])), data[sidend:], nil
+	return SID(data[2:sidend]), data[sidend:], nil
 }
 
 func ParseStringSID(input string) (SID, error) {
@@ -85,7 +84,7 @@ func ParseStringSID(input string) (SID, error) {
 		}
 		binary.LittleEndian.PutUint32(sid[6+4*i:], uint32(subauthority))
 	}
-	return SID(dedup.D.S(string(sid))), nil
+	return SID(sid), nil
 }
 
 func MustParseStringSID(input string) SID {
