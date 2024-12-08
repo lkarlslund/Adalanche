@@ -38,8 +38,8 @@ func init() {
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
 
-	memlimit.SetGoMemLimit(0.9)
-	debug.SetGCPercent(1000)
+	memlimit.SetGoMemLimit(0.8)
+	debug.SetGCPercent(200)
 
 	cpus := runtime.GOMAXPROCS(-1)
 	runtime.GOMAXPROCS(cpus * 8 / 10)
