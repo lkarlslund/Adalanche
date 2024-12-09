@@ -313,26 +313,42 @@ function aqlanalyze(e) {
   });
 }
 
-function refreshProgress() {
-  var lastwasidle = false;
-  var progressSocket = new WebSocket(
+
+let lastwasidle;
+let progressSocket;
+
+function connectProgress() {
+  progressSocket = new WebSocket(
     location.origin.replace(/^http/, "ws") + "/api/backend/progress"
   );
 
+  progressSocket.onopen = function (event) {
+    console.log("Open event");  
+    console.log(event);
+    lastwasidle = false;
+  }
+
+  /*
   progressSocket.onerror = function (event) {
+    console.log("Error event");
+    console.log(event);
+
     $("#backendstatus").html("Adalanche backend is still offline");
     $("#upperstatus").show();
     $("#progressbars").empty().hide();
     $("#offlineblur").show();
-    setTimeout(refreshProgress, 3000);
   };
+  */
 
   progressSocket.onclose = function (event) {
+    console.log("Close event");
+    console.log(event);
+
     $("#backendstatus").html("Adalanche backend is offline");
     $("#upperstatus").show();
     $("#progressbars").empty().hide();
     $("#offlineblur").show();
-    setTimeout(refreshProgress, 3000);
+    setTimeout(connectProgress, 3000);
   };
 
   progressSocket.onmessage = function (message) {
@@ -397,9 +413,10 @@ function refreshProgress() {
       lastwasidle = true;
     }
   };
-}
+};
 
-refreshProgress();
+connectProgress();
+
 
 function toast(contents) {
   Toastify({
