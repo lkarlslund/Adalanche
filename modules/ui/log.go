@@ -78,7 +78,7 @@ type Logger struct {
 	pterm  pterm.PrefixPrinter
 }
 
-func (t Logger) Msgf(format string, args ...any) Logger {
+func (t Logger) Msgf(format string, args ...any) {
 	outputMutex.Lock()
 
 	var timetext string
@@ -112,7 +112,6 @@ func (t Logger) Msgf(format string, args ...any) Logger {
 	if t.ll == LevelPanic {
 		panic(fmt.Sprintf(format, args...))
 	}
-	return t
 }
 
 func (t Logger) Msg(msg string) Logger {
