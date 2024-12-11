@@ -10,7 +10,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
-	_ "go.uber.org/automaxprocs"
+	"go.uber.org/automaxprocs/maxprocs"
 )
 
 var (
@@ -38,11 +38,10 @@ func init() {
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
 
+	// Memory, GC and CPU settings
 	memlimit.SetGoMemLimit(0.8)
 	debug.SetGCPercent(200)
-
-	cpus := runtime.GOMAXPROCS(-1)
-	runtime.GOMAXPROCS(cpus * 8 / 10)
+	maxprocs.Set(maxprocs.Logger(ui.Debug().Msgf))
 
 	if *certificate != "" && *privateKey == "" {
 		AddOption(WithCert(*certificate, *privateKey))
