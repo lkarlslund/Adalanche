@@ -50,7 +50,7 @@ func (avs AttributeValues) Sort() {
 }
 
 func (avs AttributeValues) First() AttributeValue {
-	if avs == nil {
+	if len(avs) == 0 {
 		return nil
 	}
 	return avs[0]
