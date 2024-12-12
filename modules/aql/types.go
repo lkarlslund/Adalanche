@@ -14,10 +14,12 @@ import (
 type AQLresolver interface {
 	Resolve(ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error)
 }
+
 type IndexLookup struct {
 	v engine.AttributeValue
 	a engine.Attribute
 }
+
 type NodeQuery struct {
 	IndexLookup   IndexLookup      // Possible start of search, quickly narrows it down
 	Selector      query.NodeFilter // Where style boolean approval filter for objects
@@ -157,6 +159,18 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	pb.Finish()
 	// nodes := make([]*engine.Objects, len(aqlq.Sources))
 	result := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+
+	if len(aqlq.Sources) == 1 {
+		aqlq.sourceCache[0].Iterate(func(o *engine.Object) bool {
+			result.AddNode(o)
+			if aqlq.Sources[0].ReferenceName != "" {
+				result.SetNodeData(o, "reference", aqlq.Sources[0].ReferenceName)
+			}
+			return true
+		})
+		return &result, nil
+	}
+
 	var resultlock sync.Mutex
 	nodeindex := 0
 	// Iterate over all starting nodes
