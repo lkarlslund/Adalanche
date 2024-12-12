@@ -20,7 +20,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-var threadbuckets = runtime.NumCPU() * 64
+var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
