@@ -1,7 +1,7 @@
 let prefs = {};
 
 function loadprefs() {
-    $.ajax({
+    return $.ajax({
         url: "/api/preferences",
         dataType: "json",
         success: function (data) {
@@ -34,16 +34,6 @@ function onchangepreference(ele) {
     } else {
         setpref(ele.attr("preference"), ele.val())
     }
-    saveprefs()
-}
-
-function saveprefs() {
-    $.ajax({
-      method: "POST",
-      url: "/api/preferences",
-      dataType: "json",
-      data: JSON.stringify(prefs),
-    });
 }
 
 function getpref(key, defvalue) {
@@ -59,7 +49,10 @@ function getpref(key, defvalue) {
 
 function setpref(key, value) {
     prefs[key] = value;
-    saveprefs();
+    $.ajax({
+        method: "GET",
+        url: `/api/preferences/${key}/${value}`,
+    });
 }
 
 $(function () {

@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -16,7 +15,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/query"
-	"github.com/lkarlslund/adalanche/modules/settings"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/version"
@@ -171,39 +169,6 @@ func AddUIEndpoints(ws *WebService) {
 	// Shutdown
 	backend.GET("quit", func(c *gin.Context) {
 		ws.quit <- true
-	})
-}
-func AddPreferencesEndpoints(ws *WebService) {
-	// Saved preferences
-	err := settings.Load()
-	if err != nil {
-		ui.Warn().Msgf("Problem loading preferences: %v", err)
-	}
-	preferences := ws.API.Group("preferences")
-	preferences.GET("", func(c *gin.Context) {
-		c.JSON(200, settings.All())
-	})
-	preferences.POST("", func(c *gin.Context) {
-		var prefsmap = make(map[string]any)
-		err := c.BindJSON(&prefsmap)
-		if err != nil {
-			c.String(500, err.Error())
-		}
-		for key, value := range prefsmap {
-			settings.Set(key, value)
-		}
-		settings.Save()
-	})
-	preferences.GET(":key", func(c *gin.Context) {
-		key := c.Param("key")
-		out, _ := json.Marshal(settings.Get(key))
-		c.Writer.Write(out)
-	})
-	preferences.GET(":key/:value", func(c *gin.Context) {
-		key := c.Param("key")
-		value := c.Param("value")
-		settings.Set(key, value)
-		settings.Save()
 	})
 }
 func AddDataEndpoints(ws *WebService) {
