@@ -967,7 +967,7 @@ func init() {
 				DomainJoinedSID, sid,
 				engine.IgnoreBlanks,
 				engine.Name, computeraccount.Attr(engine.Name),
-				activedirectory.Type, "Machine",
+				activedirectory.Type, ObjectTypeMachine.ValueString(),
 				DnsHostName, computeraccount.Attr(DnsHostName),
 			)
 			// ui.Debug().Msgf("Added machine for SID %v", sid.String())
@@ -980,7 +980,7 @@ func init() {
 		})
 	},
 		"creating Machine objects (representing the machine running the OS)",
-		engine.BeforeMerge)
+		engine.BeforeMergeLow)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
@@ -1238,12 +1238,6 @@ func init() {
 	)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
-		DCsyncObject, _ := ao.FindTwoOrAdd(
-			engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
-			engine.Name, engine.NewAttributeValueString("DCsync"),
-		)
-		DCsyncObject.Tag("hvt")
-
 		// Generate member of chains
 		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
 		everyone := FindWellKnown(ao, everyonesid)
@@ -1263,6 +1257,12 @@ func init() {
 		if err != nil {
 			ui.Fatal().Msgf("Could not get needed domain information (%v), aborting", err)
 		}
+
+		DCsyncObject, _ := ao.FindTwoOrAdd(
+			engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+			engine.Name, engine.NewAttributeValueString("DCsync"),
+		)
+		DCsyncObject.Tag("hvt")
 
 		dnsroot = strings.ToLower(dnsroot)
 		TrustMap.Store(TrustPair{
@@ -1407,6 +1407,7 @@ func init() {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
 					} else {
 						machine.Tag("role-readonly-domaincontroller")
+						machine.Tag("hvt")
 					}
 
 					// Figure out what hashes this machine has cached - FIXME!
@@ -1880,6 +1881,8 @@ func init() {
 						); found {
 							ca.Tag("role-certificate-authority")
 							ca.Tag("hvt")
+						} else {
+							ui.Warn().Msgf("Couldn't locate dnsHostName %v acting as enrollmentservice", cadns)
 						}
 					}
 
