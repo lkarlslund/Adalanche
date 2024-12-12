@@ -149,7 +149,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	}
 	for i, q := range aqlq.Next {
 		if q.PathNodeRequirement != nil {
-			aqlq.sourceCache[i] = q.PathNodeRequirement.Populate(aqlq.datasource)
+			aqlq.Next[i].pathNodeRequirementCache = q.PathNodeRequirement.Populate(aqlq.datasource)
 		}
 		pb.Add(1)
 	}
@@ -188,8 +188,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	currentDepth int,
 	currentTotalDepth int,
 	currentOverAllProbability float64) {
+
 	es := aqlq.Next[currentSearchIndex]
 	targets := aqlq.sourceCache[currentSearchIndex+1] // next node query
+
 	if workingGraph == nil {
 		workingGraphTemp := (graph.NewGraph[*engine.Object, engine.EdgeBitmap]())
 		workingGraph = &workingGraphTemp
@@ -203,6 +205,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	case engine.Any:
 		directions = directionsAny
 	}
+
 	// We don't need matches, so try skipping this one
 	if es.MinIterations == 0 && currentDepth == 0 {
 		if len(aqlq.Next) > currentSearchIndex+1 {
@@ -238,6 +241,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 			}
 			matchedEdges := es.FilterEdges.Bitmap.Intersect(eb)
+
 			// Check we have enough matches
 			if es.FilterEdges.Comparator != query.CompareInvalid {
 				if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
@@ -248,6 +252,12 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					return true
 				}
 			}
+
+			if es.pathNodeRequirementCache != nil && !es.pathNodeRequirementCache.Contains(nextObject) {
+				// Node we reached is not wanted
+				return true
+			}
+
 			edgeProbability := matchedEdges.MaxProbability(currentObject, nextObject)
 			// Honor query for this edge probability
 			if es.ProbabilityComparator != query.CompareInvalid {
@@ -255,10 +265,12 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					return true
 				}
 			}
+
 			// Honor options for this edge probability
 			if edgeProbability < opts.MinEdgeProbability {
 				return true
 			}
+
 			// Honor options for overall probability
 			currentOverAllProbability *= float64(edgeProbability) / 100
 			if currentOverAllProbability*100 < float64(aqlq.OverAllProbability) {
@@ -269,6 +281,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			if es.FilterEdges.NoTrimEdges {
 				addedge = eb
 			}
+
 			if currentDepth >= es.MinIterations && currentDepth <= es.MaxIterations {
 				// Add this to our working graph
 				hadCurrentNode := workingGraph.HasNode(currentObject)
@@ -297,7 +310,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					}
 				}
 				// can we go deeper?
-				if currentDepth < es.MaxIterations && (es.pathNodeRequirementCache == nil || es.pathNodeRequirementCache.Contains(nextObject)) {
+				if currentDepth < es.MaxIterations {
 					aqlq.resolveEdgesFrom(opts, committedGraph, workingGraph, nextObject, currentSearchIndex, currentDepth, currentTotalDepth, currentOverAllProbability)
 				}
 				if direction == engine.Out {
