@@ -3,12 +3,13 @@ package persistence
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/lkarlslund/adalanche/modules/cli"
 	"github.com/spf13/cobra"
 	"github.com/ugorji/go/codec"
 	"go.etcd.io/bbolt"
-	"os"
-	"path/filepath"
 )
 
 var (
@@ -62,18 +63,18 @@ type Identifiable interface {
 type Defaulter interface {
 	Default()
 }
-type storage[i Identifiable] struct {
+type Store[i Identifiable] struct {
 	db         *bbolt.DB
 	cache      map[string]i
 	bucketname []byte
 }
 
-func GetStorage[i Identifiable](bucketname string, cached bool) storage[i] {
+func GetStorage[i Identifiable](bucketname string, cached bool) Store[i] {
 	db, err := getDB()
 	if err != nil {
 		panic(err) // FIXME
 	}
-	s := storage[i]{
+	s := Store[i]{
 		db:         db,
 		bucketname: []byte(bucketname),
 		// cache:      make(map[string]i),
@@ -83,7 +84,7 @@ func GetStorage[i Identifiable](bucketname string, cached bool) storage[i] {
 	}
 	return s
 }
-func (s storage[p]) Get(id string) (*p, bool) {
+func (s Store[p]) Get(id string) (*p, bool) {
 	var result p
 	if s.cache != nil {
 		if rv, found := s.cache[string(id)]; found {
@@ -111,7 +112,7 @@ func (s storage[p]) Get(id string) (*p, bool) {
 	}
 	return nil, false
 }
-func (s storage[p]) Put(saveme p) error {
+func (s Store[p]) Put(saveme p) error {
 	var output []byte
 	enc := codec.NewEncoderBytes(&output, &mh)
 	err := enc.Encode(saveme)
@@ -141,7 +142,7 @@ func (s storage[p]) Put(saveme p) error {
 	}
 	return nil
 }
-func (s storage[p]) Delete(id string) error {
+func (s Store[p]) Delete(id string) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(s.bucketname))
 		if b == nil {
@@ -158,7 +159,7 @@ func (s storage[p]) Delete(id string) error {
 		return nil
 	})
 }
-func (s storage[p]) List() ([]p, error) {
+func (s Store[p]) List() ([]p, error) {
 	var result []p
 	return result, s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(s.bucketname))
