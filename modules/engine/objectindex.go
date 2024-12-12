@@ -1,7 +1,5 @@
 package engine
 
-var RememberedObjects, NukedObjects uint64
-
 type ObjectID uint32
 
 // var idToObject gsync.MapOf[uint32, uintptr]

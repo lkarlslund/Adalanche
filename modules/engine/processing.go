@@ -196,8 +196,6 @@ func Merge(aos []*Objects) (*Objects, error) {
 	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
 
 	runtime.GC()
-	runtime.GC()
-	ui.Info().Msgf("We freed %v objects", NukedObjects)
 
 	var orphans int
 	processed := make(map[ObjectID]struct{})
