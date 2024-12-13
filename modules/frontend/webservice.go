@@ -197,17 +197,18 @@ func (ws *WebService) Analyze(paths ...string) error {
 	if ws.status != NoData && ws.status != Ready {
 		return errors.New("Adalanche is already busy loading data")
 	}
+
 	ws.status = Analyzing
-	objs, err := engine.Run(paths...)
+
+	var err error
+	ws.Objs, err = engine.Run(paths...)
 	if err != nil {
 		ws.status = Error
 		return err
 	}
-	ws.Objs = objs
-	ws.status = PostAnalyzing
-	engine.PostProcess(objs)
 	ws.status = Ready
 	return nil
+
 }
 func (ws *WebService) QuitChan() <-chan bool {
 	return ws.quit

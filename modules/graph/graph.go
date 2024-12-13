@@ -93,9 +93,9 @@ func (pg *Graph[NodeType, EdgeType]) autoCleanupEdges() {
 	pg.cleanupEdgesNeeded = false
 }
 
-func (pg *Graph[NodeType, EdgeType]) IterateEdges(ef func(NodeType, NodeType, EdgeType) bool) {
+func (pg *Graph[NodeType, EdgeType]) IterateEdges(ef func(NodeType, NodeType, EdgeType, int) bool) {
 	for pair, edge := range pg.edges {
-		if !ef(pair.Source, pair.Target, edge.Edge) {
+		if !ef(pair.Source, pair.Target, edge.Edge, edge.Flow) {
 			break
 		}
 	}
@@ -110,7 +110,7 @@ func (pg *Graph[NodeType, EdgeType]) IterateEdges(ef func(NodeType, NodeType, Ed
 func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, edge EdgeType) {
 	pg.AddNode(source)
 	pg.AddNode(target)
-	existing, _ := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	existing := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
 	existing.Edge = edge
 	existing.Flow++
 	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
@@ -183,7 +183,10 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 					mergeddata[k] = v
 				}
 			}
-			pg.edges[otherconnection] = Edge[EdgeType]{Edge: mergededge, Flow: ouredge.Flow + 1, Data: mergeddata}
+			pg.edges[otherconnection] = Edge[EdgeType]{
+				Edge: mergededge,
+				Flow: ouredge.Flow + otheredge.Flow,
+				Data: mergeddata}
 		} else {
 			pg.edges[otherconnection] = otheredge
 		}

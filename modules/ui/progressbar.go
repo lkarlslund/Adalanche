@@ -135,6 +135,10 @@ func (pb *progressBar) Set(i int64) {
 	pb.update()
 }
 
+func (pb *progressBar) SetTitle(title string) {
+	pb.Title = title
+}
+
 func (pb *progressBar) Finish() {
 	// Save it
 	pbLock.Lock()

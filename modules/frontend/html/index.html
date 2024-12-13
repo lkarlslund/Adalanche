@@ -32,7 +32,8 @@
     <script src="external/graph/cytoscape.min.js"></script>
     <script src="external/graph/cytoscape-context-menus.js"></script>
     <script src="external/graph/cytoscape-popper.js"></script>
-
+    <script src="external/graph/cytoscape-expand-collapse.js"></script>
+    
     <script src="external/graph/d3-dispatch.v3.js"></script>
     <script src="external/graph/d3-quadtree.v3.js"></script>
     <script src="external/graph/d3-timer.v3.js"></script>
@@ -101,13 +102,7 @@
           </div>
         </div>
         <div id="commandbuttons" class="pt-10 pe-auto">
-          <button id="explore" class="btn btn-primary">Explore</button>
-          <a
-            href="/api/export-words?split=true"
-            id="extract-words"
-            class="btn btn-primary"
-            >Export words</a
-          >
+
         </div>
       </div>
 
@@ -385,7 +380,7 @@
               <summary
                 class="collapse-header bg-primary text-dark p-1 border-bottom"
               >
-                Options
+                UI Settings
               </summary>
               <div class="collapse-content p-1">
                 <div class="input-group">
@@ -448,6 +443,27 @@
                 </div>
 
               </div>
+            </details>
+            <details class="collapse-panel">
+              <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
+                Tools
+              </summary>
+              <div id="tools" class="d-flex d-flex-wrap collapse-content p-1">
+                <div class="toolbutton" id="explore" data-bs-toggle="tooltip" data-bs-title="Opens a browsable tree for exploring objects">
+                  <div class="bi-search"></div>
+                    Explore
+                </div>
+                <div class="toolbutton" id="export-words" data-bs-toggle="tooltip" data-bs-title="Exports wordlist from objects to use with hashcat">
+                  <div class="bi-body-text"></div>
+                    Words
+                </div>
+
+                <a 
+            href="/api/export-words?split=true"
+            id="extract-words"
+            class="btn btn-primary"
+            >Export words</a
+          >
             </details>
           </div>
         </div>

@@ -3,8 +3,10 @@ package analyze
 import (
 	"encoding/json"
 	"io/ioutil"
+	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -109,10 +111,6 @@ func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 func (ld *GPOLoader) Close() ([]*engine.Objects, error) {
 	close(ld.gpofiletoprocess)
 	ld.done.Wait()
-	var aos []*engine.Objects
-	for _, ao := range ld.dco {
-		aos = append(aos, ao)
-	}
-	ld.dco = nil
-	return aos, nil
+
+	return slices.Collect(maps.Values(ld.dco)), nil
 }

@@ -64,8 +64,8 @@ type loaderobjects struct {
 	Objects *Objects
 }
 
-// Load runs all registered loaders
-func Load(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
+// loadWithLoaders runs all registered loaders
+func loadWithLoaders(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
 	if st, err := os.Stat(path); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("%v is no a directory", path)
 	}

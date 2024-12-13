@@ -19,6 +19,8 @@ func Run(paths ...string) (*Objects, error) {
 	var loaders []Loader
 	gonk.SetGrowStrategy(gonk.Double)
 
+	overallprogress := ui.ProgressBar("Loading and analyzing", 8)
+
 	for _, lg := range loadergenerators {
 		loader := lg()
 
@@ -33,12 +35,9 @@ func Run(paths ...string) (*Objects, error) {
 	// Load everything
 	loadbar := ui.ProgressBar("Loading data", 0)
 
-	// Enable deduplication
-	// DedupValues(true)
-
 	var lo []loaderobjects
 	for _, path := range paths {
-		los, err := Load(loaders, path, func(cur, max int) {
+		los, err := loadWithLoaders(loaders, path, func(cur, max int) {
 			if max > 0 {
 				loadbar.ChangeMax(int64(max))
 			} else if max < 0 {
@@ -57,9 +56,11 @@ func Run(paths ...string) (*Objects, error) {
 	}
 	loadbar.Finish()
 
+	overallprogress.Add(1)
+
 	var preprocessWG sync.WaitGroup
 	for _, os := range lo {
-		if os.Objects.Len() == 0 {
+		if os.Objects.Len() < 2 {
 			// Don't bother with empty objects
 			continue
 		}
@@ -83,6 +84,8 @@ func Run(paths ...string) (*Objects, error) {
 	}
 	preprocessWG.Wait()
 
+	overallprogress.Add(1)
+
 	// Merging
 	objs := make([]*Objects, len(lo))
 	for i, lobj := range lo {
@@ -90,20 +93,14 @@ func Run(paths ...string) (*Objects, error) {
 	}
 	ao, err := Merge(objs)
 
-	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
+	overallprogress.Add(1)
 
-	return ao, err
-}
-
-func PostProcess(ao *Objects) {
-	starttime := time.Now()
-
-	// Do global post-processing
 	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
-		Process(ao, fmt.Sprintf("Postprocessing global objects priority %v", priority.String()), -1, priority)
+		PostProcess(ao, priority)
+		overallprogress.Add(1)
 	}
 
-	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
+	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
 
 	type statentry struct {
 		name  string
@@ -161,4 +158,18 @@ func PostProcess(ao *Objects) {
 	debug.FreeOSMemory()
 
 	gonk.SetGrowStrategy(gonk.FourItems)
+
+	overallprogress.Add(1)
+	overallprogress.Finish()
+
+	return ao, err
+}
+
+func PostProcess(ao *Objects, priority ProcessPriority) {
+	starttime := time.Now()
+
+	// Do global post-processing
+	Process(ao, fmt.Sprintf("Postprocessing priority %v", priority.String()), -1, priority)
+
+	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
 }

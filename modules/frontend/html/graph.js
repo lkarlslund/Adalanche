@@ -845,7 +845,7 @@ function initgraph(data) {
             },
             {
                 id: 'whatcanipwn',
-                content: 'What can this node pwn?',
+                content: 'What can this node reach?',
                 tooltipText: 'Does reverse search on this node (clears graph)',
                 selector: 'node',
                 onClickFunction: function (evt) {
@@ -854,19 +854,33 @@ function initgraph(data) {
                         url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
-                            clear_query();
                             if (data.attributes["distinguishedName"]) {
-                                $("#query_start").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                                set_query(
+                                  "(distinguishedname=" +
+                                    data.attributes["distinguishedName"] +
+                                    ")-[]{1,3}->()"
+                                );
                             } else if (data.attributes["objectSid"]) {
-                                $("#query_start").val("(objectSid=" + data.attributes["objectSid"] + ")")
+                                set_query(
+                                  "(objectSid=" +
+                                    data.attributes["objectSid"] +
+                                    ")-[]{1,3}->()"
+                                );
                             } else if (data.attributes["objectGuid"]) {
-                                $("#query_start").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                                set_query(
+                                  "(objectGuid=" +
+                                    data.attributes["objectGuid"] +
+                                    ")-[]{1,3}->()"
+                                );
                             } else {
-                                $("#query_start").val("(_id=" + evt.target.id().substring(1) + ")")
+                                set_query(
+                                  "(_id=" +
+                                    evt.target.id().substring(1) +
+                                    ")-[]{1,3}->()"
+                                );
                             }
-                            set_querymode('Out');
 
-                            analyze();
+                            aqlanalyze();
                         },
                         error: function (xhr, status, error) {
                             toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
@@ -876,8 +890,8 @@ function initgraph(data) {
             },
             {
                 id: 'whocanpwn',
-                content: 'Who can pwn this node?',
-                tooltipText: 'Does normal search for this node (clears graph)',
+                content: 'Who can reach this node?',
+                tooltipText: 'Does incoming search for this node (clears graph)',
                 selector: 'node',
                 onClickFunction: function (evt) {
                     $.ajax({
@@ -885,19 +899,33 @@ function initgraph(data) {
                         url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
                         dataType: "json",
                         success: function (data) {
-                            clear_query();
                             if (data.attributes["distinguishedName"]) {
-                                $("#query_start").val("(distinguishedname=" + data.attributes["distinguishedName"] + ")")
+                                $("#query_start").val(
+                                  "(distinguishedname=" +
+                                    data.attributes["distinguishedName"] +
+                                    ")<-[]{1,3}-()"
+                                );
                             } else if (data.attributes["objectSid"]) {
-                                $("#query_start").val("(objectSid=" + data.attributes["objectSid"] + ")")
+                                $("#query_start").val(
+                                  "(objectSid=" +
+                                    data.attributes["objectSid"] +
+                                    ")<-[]{1,3}-()"
+                                );
                             } else if (data.attributes["objectGuid"]) {
-                                $("#query_start").val("(objectGuid=" + data.attributes["objectGuid"] + ")")
+                                $("#query_start").val(
+                                  "(objectGuid=" +
+                                    data.attributes["objectGuid"] +
+                                    ")<-[]{1,3}-()"
+                                );
                             } else {
-                                $("#query_start").val("(_id=" + evt.target.id().substring(1) + ")")
+                                $("#query_start").val(
+                                  "(_id=" +
+                                    evt.target.id().substring(1) +
+                                    ")<-[]{1,3}-()"
+                                );
                             }
-                            set_querymode('In');
 
-                            analyze();
+                            aqlanalyze();
                         },
                         error: function (xhr, status, error) {
                             toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
@@ -921,6 +949,11 @@ function initgraph(data) {
 
         cy.on('click', 'node', function (evt) {
             // console.log('clicked node ' + this.id());
+            // console.log(evt);
+            if (evt.originalEvent.altKey || evt.originalEvent.ctrlKey || evt.originalEvent.shiftKey) {
+              return;
+            }
+
             $.ajax({
                 type: "GET",
                 url: "api/details/id/" + (evt.target.id().substring(1)), // n123 format -> 123
@@ -1009,6 +1042,30 @@ function initgraph(data) {
     // Load data into Cytoscape
     cy.add(data);
 
+    cy.expandCollapse({
+      layoutBy: null, // to rearrange after expand/collapse. It's just layout options or whole layout function. Choose your side!
+      // recommended usage: use cose-bilkent layout with randomize: false to preserve mental map upon expand/collapse
+      fisheye: true, // whether to perform fisheye view after expand/collapse you can specify a function too
+      animate: true, // whether to animate on drawing changes you can specify a function too
+      animationDuration: 1000, // when animate is true, the duration in milliseconds of the animation
+      ready: function () {
+        console.log("collapse init");
+      }, // callback when expand/collapse initialized
+      undoable: true, // and if undoRedoExtension exists,
+
+      cueEnabled: true, // Whether cues are enabled
+      expandCollapseCuePosition: "top-left", // default cue position is top left you can specify a function per node too
+      expandCollapseCueSize: 12, // size of expand-collapse cue
+      expandCollapseCueLineSize: 8, // size of lines used for drawing plus-minus icons
+      expandCueImage: undefined, // image of expand icon if undefined draw regular expand cue
+      collapseCueImage: undefined, // image of collapse icon if undefined draw regular collapse cue
+      expandCollapseCueSensitivity: 1, // sensitivity of expand-collapse cues
+      edgeTypeInfo: "edgeType", // the name of the field that has the edge type, retrieved from edge.data(), can be a function, if reading the field returns undefined the collapsed edge type will be "unknown"
+      groupEdgesOfSameTypeOnCollapse: false, // if true, the edges to be collapsed will be grouped according to their types, and the created collapsed edges will have same type as their group. if false the collapased edge will have "unknown" type.
+      allowNestedEdgeCollapse: true, // when you want to collapse a compound edge (edge which contains other edges) and normal edge, should it collapse without expanding the compound first
+      zIndex: 999, // z-index value of the canvas in which cue ımages are drawn
+    });
+
     applyEdgeStyles(cy);
     applyNodeStyles(cy);
 
@@ -1042,6 +1099,7 @@ function applyEdgeStyles(cy) {
       color = getEdgeColor(ele);
       ele.style('target-arrow-color', color);
       ele.style('line-color', color);
+      ele.style('width', 1+Math.log(ele.data("flow")));
     });
 };
 

@@ -1,8 +1,8 @@
 const getPreferredTheme = () => {
     const storedTheme = getpref("theme", "auto");
     if (storedTheme == "auto") {
-        console.log("Auto detected theme");
-        console.log(window.matchMedia("(prefers-color-scheme: dark)"));
+        // console.log("Auto detected theme");
+        // console.log(window.matchMedia("(prefers-color-scheme: dark)"));
 
         return window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"

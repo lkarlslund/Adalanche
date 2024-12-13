@@ -15,9 +15,8 @@ window.onpopstate = function (event) {
   $("body").html(event.state);
 };
 
-function set_query(index) {
-  query = queries[index];
-  $("#aqlquerytext").val(query.query);
+function set_query(query) {
+  $("#aqlquerytext").val(query);
 }
 
 function dragMoveListener(event) {
@@ -306,9 +305,7 @@ function aqlanalyze(e) {
       }
     },
     error: function (xhr, status, error) {
-      $("#status")
-        .html("Problem loading graph:<br>" + xhr.responseText)
-        .show();
+      toast("Problem loading graph:<br>" + xhr.responseText);
     },
   });
 }
@@ -467,7 +464,8 @@ function updateQueries() {
         if (event.target !== this) return; // not children, only the li
 
         console.log("You clicked the drop downs", event.target);
-        set_query(event.target.getAttribute("querynum"));
+
+        set_query(queries[event.target.getAttribute("querynum")].query);
         $("#queriesbutton").toggleClass("active");
         $("#queriesdropdown").toggleClass("show");
       });
@@ -493,7 +491,7 @@ function updateQueries() {
 
       if (firstQueryLoad) {
         console.log("Setting default query ...");
-        set_query($("#defaultquery").attr("querynum"));
+        set_query(queries[$("#defaultquery").attr("querynum")].query);
         firstQueryLoad = false;
       }
     },

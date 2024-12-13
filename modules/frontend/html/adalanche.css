@@ -110,6 +110,21 @@ body {
   display: inline-block;
 }
 
+.toolbutton {
+  border: 1px solid;
+  padding-top: 0.3em;
+  margin-right: 1em; /* space between buttons */
+  margin-bottom: 1em; /* space between rows of buttons */
+  height: 4em;
+  width: 4em;
+  text-align: center;
+  /* display: inline-block; */
+}
+
+.toolbutton > div {
+
+}
+
 #windows {
   width: 100vw;
   height: 100vh;

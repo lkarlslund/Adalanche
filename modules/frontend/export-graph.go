@@ -25,7 +25,7 @@ func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename 
 	}
 	fmt.Fprintln(df, "")
 
-	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap) bool {
+	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap, flow int) bool {
 		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", source, target, edge.JoinedString())
 		return true
 	})
@@ -127,22 +127,18 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 		i++
 	}
 
-	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap) bool {
+	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap, flow int) bool {
 		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
-				"id":     fmt.Sprintf("e%v-%v", source.ID(), target.ID()),
-				"source": fmt.Sprintf("n%v", source.ID()),
-				"target": fmt.Sprintf("n%v", target.ID()),
+				"id":       fmt.Sprintf("e%v-%v", source.ID(), target.ID()),
+				"source":   fmt.Sprintf("n%v", source.ID()),
+				"target":   fmt.Sprintf("n%v", target.ID()),
+				"flow":     flow,
+				"_maxprob": edge.MaxProbability(source, target),
+				"methods":  edge.StringSlice(),
 			},
 		}
-
-		// for key, value := range edge.DynamicFields {
-		// 	cytoedge.Data[key] = value
-		// }
-
-		cytoedge.Data["_maxprob"] = edge.MaxProbability(source, target)
-		cytoedge.Data["methods"] = edge.StringSlice()
 
 		g.Elements[i] = cytoedge
 

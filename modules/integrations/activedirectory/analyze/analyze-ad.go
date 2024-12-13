@@ -145,7 +145,7 @@ func init() {
 			}
 			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
 			if !found {
-				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
+				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", machinesid)
 				return true
 			}
 			machine.Tag("laps")
@@ -212,7 +212,7 @@ func init() {
 			}
 			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
 			if !found {
-				ui.Error().Msgf("Could not locate machine for domain SID %v", machinesid)
+				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v2", machinesid)
 				return true
 			}
 			machine.Tag("laps")
@@ -953,6 +953,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
+		var added int
 		ao.Iterate(func(computeraccount *engine.Object) bool {
 			if computeraccount.Type() != engine.ObjectTypeComputer {
 				return true
@@ -976,8 +977,13 @@ func init() {
 			machine.EdgeTo(computeraccount, EdgeMachineAccount)
 			machine.ChildOf(computeraccount)
 
+			added++
+
 			return true
 		})
+		if added > 0 {
+			ui.Debug().Msgf("Added %v machines", added)
+		}
 	},
 		"creating Machine objects (representing the machine running the OS)",
 		engine.BeforeMergeLow)
@@ -1833,12 +1839,6 @@ func init() {
 		})
 
 		ao.IterateParallel(func(o *engine.Object) bool {
-			// Object that is member of something
-			if o.Type() == engine.ObjectTypeGroup {
-				// Skip
-				return true
-			}
-
 			// Search from all groups towards incoming memberships
 			o.EdgeIteratorRecursive(engine.Out, edgematch, true, func(member, memberof *engine.Object, edge engine.EdgeBitmap, depth int) bool {
 				if memberOfIndirects, found := cacheMap.Load(memberof); found {

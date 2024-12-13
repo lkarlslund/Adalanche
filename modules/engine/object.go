@@ -22,6 +22,7 @@ import (
 
 var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
+
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 type Object struct {
@@ -71,6 +72,10 @@ func (o *Object) lockbucket() int {
 
 func (o *Object) lock() {
 	threadsafeobjectmutexes[o.lockbucket()].Lock()
+}
+
+func (o *Object) trylock() bool {
+	return threadsafeobjectmutexes[o.lockbucket()].TryLock()
 }
 
 func (o *Object) rlock() {
@@ -134,13 +139,15 @@ var absorbCriticalSection sync.Mutex
 // Absorbs data and Pwn relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
 func (target *Object) AbsorbEx(source *Object, fast bool) {
+
 	if target == source {
 		panic("Can't absorb myself")
 	}
 
 	// Keep normies out
-	target.lockwith(source)
+	// target.lockwith(source)
 
+	// ongoingAbsorbs.Store(source, target)
 	absorbCriticalSection.Lock()
 
 	if !source.status.CompareAndSwap(1, 2) {
@@ -161,93 +168,91 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	}
 
 	// fmt.Println("----------------------------------------")
-	ongoingAbsorbs.Store(source, target)
-	source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
-		if source == outgoingTarget {
-			panic("Pointing at myself")
-		}
 
-		// Load edges from target, and merge with source edges
-		target.edges[Out].setEdges(outgoingTarget, edges)
-		source.edges[Out].del(outgoingTarget)
-
-		// The target has incoming edges, so redirect those
-		moveto := outgoingTarget
-		for moveto.status.Load() == 2 {
-			var success bool
-			moveto, success = ongoingAbsorbs.Load(moveto)
-			if !success {
-				panic("Could not map to next ongoing absorb")
+	edgesdone := false
+	for !edgesdone {
+		edgesdone = true
+		source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
+			edgesdone = false
+			if source == outgoingTarget {
+				panic("Pointing at myself")
 			}
-		}
 
-		if moveto == target {
-			panic("Moveto pointing at target")
-		}
-		if moveto == source {
-			panic("Moveto pointing at source")
-		}
+			// Load edges from target, and merge with source edges
+			target.edges[Out].setEdges(outgoingTarget, edges)
+			source.edges[Out].del(outgoingTarget)
 
-		moveto.edges[In].setEdges(target, edges)
-		outgoingTarget.edges[In].del(source)
+			/*
 
-		return true
-	})
+				// The target has incoming edges, so redirect those
+				moveto := outgoingTarget
 
-	source.edges[In].Range(func(incomingTarget *Object, edges EdgeBitmap) bool {
-		if source == incomingTarget {
-			panic("Pointing at myself")
-		}
+				for moveto.status.Load() == 2 {
+					var success bool
+					moveto, success = ongoingAbsorbs.Load(moveto)
+					if !success {
+						panic("Could not map to next ongoing absorb")
+					}
+				}
 
-		target.edges[In].setEdges(incomingTarget, edges)
-		source.edges[In].del(incomingTarget)
+				if moveto == target {
+					panic("Moveto pointing at target")
+				}
+				if moveto == source {
+					panic("Moveto pointing at source")
+				}
 
-		// The target has incoming edges, so redirect those
-		moveto := incomingTarget
-		for moveto.status.Load() == 2 {
-			var success bool
-			moveto, success = ongoingAbsorbs.Load(moveto)
-			if !success {
-				panic("Could not map to next ongoing absorb")
-			}
-		}
+				moveto.edges[In].setEdges(target, edges)
+			*/
 
-		if moveto == target {
-			panic("Moveto pointing at target")
-		}
-		if moveto == source {
-			panic("Moveto pointing at source")
-		}
+			outgoingTarget.edges[In].setEdges(target, edges)
+			outgoingTarget.edges[In].del(source)
 
-		moveto.edges[Out].setEdges(target, edges)
-		incomingTarget.edges[Out].del(source)
-
-		return true
-	})
-	// Clear all edges from absorbed object
-
-	if source.edges[Out].Len() > 0 || source.edges[In].Len() > 0 {
-		source.edges[In].Range(func(o *Object, edges EdgeBitmap) bool {
-			ui.Debug().Msgf("In: %v", o.Label())
 			return true
 		})
-		source.edges[Out].Range(func(o *Object, edges EdgeBitmap) bool {
-			ui.Debug().Msgf("Out: %v", o.Label())
-			return true
-		})
-		panic("WTF")
 	}
 
-	source.children.Iterate(func(child *Object) bool {
-		if child.parent != source {
-			panic("Child/parent mismatch")
-		}
-		target.children.Add(child)
+	// Someone is pointing at us, so we need to help them to point to our new target
 
-		child.parent = target
-		return true
-	})
-	source.children = ObjectSlice{}
+	edgesdone = false
+	for !edgesdone {
+		edgesdone = true
+		source.edges[In].Range(func(incomingTarget *Object, edges EdgeBitmap) bool {
+			edgesdone = false
+			if source == incomingTarget {
+				panic("Pointing at myself")
+			}
+
+			target.edges[In].setEdges(incomingTarget, edges)
+			source.edges[In].del(incomingTarget)
+
+			/*
+				// The target has incoming edges, so redirect those
+				moveto := incomingTarget
+				for moveto.status.Load() == 2 {
+					var success bool
+					moveto, success = ongoingAbsorbs.Load(moveto)
+					if !success {
+						panic("Could not map to next ongoing absorb")
+					}
+				}
+
+				if moveto == target {
+					panic("Moveto pointing at target")
+				}
+				if moveto == source {
+					panic("Moveto pointing at source")
+				}
+
+				moveto.edges[Out].setEdges(target, edges)
+			*/
+
+			incomingTarget.edges[Out].setEdges(target, edges)
+			incomingTarget.edges[Out].del(source)
+
+			return true
+		})
+	}
 
 	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
 	if source.parent != nil {
@@ -270,7 +275,16 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 		source.parent = nil
 	}
 
-	ongoingAbsorbs.Delete(source)
+	source.children.Iterate(func(child *Object) bool {
+		if child.parent != source {
+			panic("Child/parent mismatch")
+		}
+		target.children.Add(child)
+
+		child.parent = target
+		return true
+	})
+	source.children = ObjectSlice{}
 
 	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 	if source.sdcache != nil && target.sdcache != nil {
@@ -289,10 +303,26 @@ func (target *Object) AbsorbEx(source *Object, fast bool) {
 	if !source.status.CompareAndSwap(2, 3) {
 		panic("Unpossible absorption mutation occurred")
 	}
+	// ongoingAbsorbs.Delete(source)
 
 	absorbCriticalSection.Unlock()
 
-	target.unlockwith(source)
+	/*
+		// Disable this when everything is under control
+		if source.edges[Out].Len() > 0 || source.edges[In].Len() > 0 {
+			source.edges[In].Range(func(o *Object, edges EdgeBitmap) bool {
+				ui.Debug().Msgf("In: %v", o.Label())
+				return true
+			})
+			source.edges[Out].Range(func(o *Object, edges EdgeBitmap) bool {
+				ui.Debug().Msgf("Out: %v", o.Label())
+				return true
+			})
+			panic("WTF")
+		}
+	*/
+
+	// target.unlockwith(source)
 }
 
 func MergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -767,7 +797,9 @@ func (o *Object) Clear(a Attribute) {
 }
 
 func (o *Object) Tag(v string) {
-	o.Add(Tag, NewAttributeValueString(v))
+	if !o.HasTag(v) {
+		o.Add(Tag, NewAttributeValueString(v))
+	}
 }
 
 // FIXME performance optimization/redesign needed, but needs to work with Objects indexes
@@ -839,7 +871,13 @@ func (o *Object) set(a Attribute, values ...AttributeValue) {
 			if o.HasAttr(DataSource) {
 				netbios, _, didsplit := strings.Cut(dlln, "\\")
 				datasource := o.OneAttrString(DataSource)
-				if didsplit && !strings.EqualFold(datasource, netbios) && !strings.HasPrefix(netbios, "NT-") && !strings.HasPrefix(netbios, "NT ") && !strings.HasSuffix(netbios, " NT") {
+				if didsplit &&
+					!strings.EqualFold(datasource, netbios) &&
+					!strings.HasPrefix(netbios, "NT-") &&
+					!strings.HasPrefix(netbios, "NT ") &&
+					!strings.HasSuffix(netbios, " NT") &&
+					netbios != "BUILTIN" &&
+					netbios != "IIS POOL" {
 					ui.Warn().Msgf("Object DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
 				}
 			}
@@ -1008,23 +1046,23 @@ func (o *Object) Edges(direction EdgeDirection) *EdgeConnectionsPlus {
 	return &o.edges[direction]
 }
 
-func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, af func(source, target *Object, edge EdgeBitmap, depth int) bool) {
+func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, goDeeperFunc func(source, target *Object, edge EdgeBitmap, depth int) bool) {
 	o.panicIfNotValid()
 	seenobjects := make(map[*Object]struct{})
 	if excludemyself {
 		seenobjects[o] = struct{}{}
 	}
-	o.edgeIteratorRecursive(direction, edgeMatch, af, seenobjects, 1)
+	o.edgeIteratorRecursive(direction, edgeMatch, goDeeperFunc, seenobjects, 1)
 }
 
-func (o *Object) edgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, af func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
+func (o *Object) edgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, goDeeperFunc func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
 	o.Edges(direction).Range(func(target *Object, edge EdgeBitmap) bool {
 		if _, found := appliedTo[target]; !found {
 			edgeMatches := edge.Intersect(edgeMatch)
 			if !edgeMatches.IsBlank() {
 				appliedTo[target] = struct{}{}
-				if af(o, target, edgeMatches, depth) {
-					target.edgeIteratorRecursive(direction, edgeMatch, af, appliedTo, depth+1)
+				if goDeeperFunc(o, target, edgeMatches, depth) {
+					target.edgeIteratorRecursive(direction, edgeMatch, goDeeperFunc, appliedTo, depth+1)
 				}
 			}
 		}

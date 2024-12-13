@@ -22,6 +22,7 @@ type loaderQueueItem struct {
 	cb   engine.ProgressCallbackFunc
 	path string
 }
+
 type LocalMachineLoader struct {
 	ao          *engine.Objects
 	machinesids map[string]*engine.ObjectSlice
@@ -83,6 +84,11 @@ func (ld *LocalMachineLoader) Init() error {
 func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
+
+	if ld.ao.Len() == 1 {
+		return nil, nil // nothing generated
+	}
+
 	// Knot all the objects with colliding SIDs together
 	for _, os := range ld.machinesids {
 		os.Iterate(func(o *engine.Object) bool {
@@ -95,10 +101,10 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 			return true
 		})
 	}
-	result := []*engine.Objects{ld.ao}
-	ld.ao = nil
-	return result, nil
+
+	return []*engine.Objects{ld.ao}, nil
 }
+
 func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
 		return engine.ErrUninterested
@@ -107,6 +113,7 @@ func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFu
 	cb(0, -100)
 	return nil
 }
+
 func (ld *LocalMachineLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if !strings.HasSuffix(path, localmachine.Suffix) {
 		return engine.ErrUninterested
