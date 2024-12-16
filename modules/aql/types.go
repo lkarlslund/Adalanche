@@ -178,9 +178,12 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 		searchResult := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
 		aqlq.resolveEdgesFrom(opts, &searchResult, nil, o, 0, 0, 0, 1)
 		resultlock.Lock()
-		result.Merge(searchResult)
-		resultlock.Unlock()
-		return true
+		defer resultlock.Unlock()
+		if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
+			result.Merge(searchResult)
+			return true
+		}
+		return false
 	}, 0)
 	return &result, nil
 }
