@@ -953,7 +953,6 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
-		var added int
 		ao.Iterate(func(computeraccount *engine.Object) bool {
 			if computeraccount.Type() != engine.ObjectTypeComputer {
 				return true
@@ -977,16 +976,11 @@ func init() {
 			machine.EdgeTo(computeraccount, EdgeMachineAccount)
 			machine.ChildOf(computeraccount)
 
-			added++
-
 			return true
 		})
-		if added > 0 {
-			ui.Debug().Msgf("Added %v machines", added)
-		}
 	},
 		"creating Machine objects (representing the machine running the OS)",
-		engine.BeforeMergeLow)
+		engine.BeforeMerge)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		// Ensure everyone has a family
@@ -1464,7 +1458,7 @@ func init() {
 		})
 	},
 		"Active Directory objects and metadata",
-		engine.BeforeMerge)
+		engine.BeforeMergeHigh)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(object *engine.Object) bool {

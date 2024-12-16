@@ -47,10 +47,8 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 func Process(ao *Objects, statustext string, l LoaderID, priority ProcessPriority) error {
 	var priorityProcessors []ppfInfo
 	for _, potentialProcessor := range registeredProcessors {
-		if potentialProcessor.loader == l || l == -1 {
-			if potentialProcessor.priority == priority {
-				priorityProcessors = append(priorityProcessors, potentialProcessor)
-			}
+		if (potentialProcessor.loader == l || l == -1) && potentialProcessor.priority == priority {
+			priorityProcessors = append(priorityProcessors, potentialProcessor)
 		}
 	}
 

@@ -76,7 +76,9 @@ func Run(paths ...string) (*Objects, error) {
 			}
 
 			for priority := BeforeMergeLow; priority <= BeforeMergeFinal; priority++ {
-				Process(lobj.Objects, fmt.Sprintf("Preprocessing %v priority %v", lobj.Loader.Name(), priority.String()), loaderid, priority)
+				status := fmt.Sprintf("Preprocessing %v priority %v with %v objects", lobj.Loader.Name(), priority.String(), lobj.Objects.Len())
+				ui.Debug().Msg(status)
+				Process(lobj.Objects, status, loaderid, priority)
 			}
 
 			preprocessWG.Done()
