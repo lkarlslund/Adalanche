@@ -16,21 +16,38 @@ function loadprefs() {
 }
 
 function updatecontrol(ele) {
-    val = getpref(ele.attr("preference"), ele.data("defaultpref"))
+    defaultval = $('input[name="'+ele.attr("name")+'"][defaultpref]').attr("defaultpref");
+    val = getpref(ele.attr("preference"), defaultval);
+    console.log(
+      "Loaded settings for " +
+        ele.attr("preference") +
+        " with default value " +
+        defaultval + " value " + val
+    );
     if (val != null) {
         if (ele.attr("type") == "checkbox") {
             ele.prop("checked", val)
         } else if (ele.attr("type") == "radio") {
-            ele.prop("checked", ele.val() == val)
+            $('[type=radio][name="'+ele.attr("name")+'"]').each(function (index, radioitem) {
+                console.log(radioitem);
+                $(this).prop("checked", $(this).attr("value") == val);
+            });
         } else {
             ele.val(val)
         }
+        console.log("Triggering change event for element with preference "+ele.attr("preference")+" with value "+val);
+        ele.trigger("change");
     }
 }
 
 function onchangepreference(ele) {
     if (ele.attr("type") == "checkbox") {
         setpref(ele.attr("preference"), ele.prop("checked"))
+    } else if (ele.attr("type") == "radio") {
+        $('input[name="'+ele.attr("name")+'"]:checked').each(function( index, checkedele ) {
+            console.log("Updating radio to "+$(this).val());
+            setpref(ele.attr("preference"), $(this).val());
+        });
     } else {
         setpref(ele.attr("preference"), ele.val())
     }
