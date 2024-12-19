@@ -162,9 +162,16 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			)
 
 			// The account targeted
-			target, _ := ao.FindOrAdd(
-				engine.SAMAccountName, engine.NewAttributeValueString(e.Username),
-			)
+			var target *engine.Object
+			if strings.Contains(e.Username, "\\") {
+				target, _ = ao.FindOrAdd(
+					engine.DownLevelLogonName, engine.NewAttributeValueString(e.Username),
+				)
+			} else {
+				target, _ = ao.FindOrAdd(
+					engine.SAMAccountName, engine.NewAttributeValueString(e.Username),
+				)
+			}
 
 			// GPO exposes this object
 			itemobject.EdgeTo(expobj, EdgeContainsSensitiveData)
