@@ -877,7 +877,7 @@ func (o *Object) set(a Attribute, values ...AttributeValue) {
 					!strings.HasPrefix(netbios, "NT ") &&
 					!strings.HasSuffix(netbios, " NT") &&
 					netbios != "BUILTIN" &&
-					netbios != "IIS POOL" {
+					netbios != "IIS APPPOOL" {
 					ui.Warn().Msgf("Object DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
 				}
 			}
