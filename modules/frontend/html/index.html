@@ -57,12 +57,13 @@
     <script src="external/graph/cytoscape-dagre.js"></script>
 
     <script src="anonymizer.js"></script>
-    <script src="preferences.js"></script>
 
     <script src="extrafuncs.js"></script>
     <script src="graph.js"></script>
     <script src="themes.js"></script> <!-- depends on cy veriable in graph.js, sic -->
     <script src="custom.js"></script>
+
+    <script src="preferences.js"></script> <!-- last to ensure prefs loading triggering changes are detected -->
 
     {{range .AdditionalHeaders}} {{.}} {{end}}
   </head>
