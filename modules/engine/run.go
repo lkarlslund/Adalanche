@@ -86,6 +86,7 @@ func Run(paths ...string) (*Objects, error) {
 	}
 	preprocessWG.Wait()
 
+	runtime.GC()
 	overallprogress.Add(1)
 
 	// Merging
@@ -95,10 +96,12 @@ func Run(paths ...string) (*Objects, error) {
 	}
 	ao, err := Merge(objs)
 
+	runtime.GC()
 	overallprogress.Add(1)
 
 	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
 		PostProcess(ao, priority)
+		runtime.GC()
 		overallprogress.Add(1)
 	}
 
