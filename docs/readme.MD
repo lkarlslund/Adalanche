@@ -341,4 +341,4 @@ Commercial editions with improved functionality are available for purchase from 
 
 ## Happy hunting!
 
-Feedback is welcome -> Mastodon [@lkarlslund](https://infosec.exchange/@lkarlslund) / Twitter [@lkarlslund](https://twitter.com/lkarlslund) / LinkedIn [Lars Karlslund](https://www.linkedin.com/in/lkarlslund/)
+Feedback is welcome -> BlueSky to [@lkarlslund](https://bsky.app/profile/lkarlslund.bsky.social) / Mastodon [@lkarlslund](https://infosec.exchange/@lkarlslund) / LinkedIn [Lars Karlslund](https://www.linkedin.com/in/lkarlslund/)
