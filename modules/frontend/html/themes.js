@@ -1,15 +1,14 @@
-const getPreferredTheme = () => {
-    const storedTheme = getpref("theme", "auto");
-    if (storedTheme == "auto") {
-        // console.log("Auto detected theme");
-        // console.log(window.matchMedia("(prefers-color-scheme: dark)"));
+const translateAutoTheme = (theme) => {
+    if (theme == "auto") {
+        console.log("Auto detecting theme from browser: ");
+        console.log(window.matchMedia("(prefers-color-scheme: dark)"));
 
         return window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light";
     }
 
-    return storedTheme;
+    return theme;
 };
 
 const setTheme = (theme) => {
@@ -20,10 +19,7 @@ const setTheme = (theme) => {
     }
 };
 
-// Init to the right one
-setTheme(getPreferredTheme());
-
-var lasttheme = getPreferredTheme(); // Store the last theme for comparison
+var lasttheme = ""; // Store the last theme for comparison
 
 // jquery ready
 $(document).ready(function () {
@@ -31,11 +27,15 @@ $(document).ready(function () {
         var selectedTheme = $("input[name='theme']:checked").val();
         console.log("theme is "+ selectedTheme+", was "+lasttheme);
         if (selectedTheme != lasttheme) {
-            console.log("theme changed");
-            setTheme(getPreferredTheme());
+            console.log("theme changed to "+ selectedTheme);
+            setTheme(translateAutoTheme(selectedTheme));
         }
 
         lasttheme = selectedTheme; // Update the last theme after setting it
     });
 });
 
+// Apply correct theme when preferences are loaded
+$(document).on("prefereces.loaded", function (evt) {
+  setTheme(translateAutoTheme(getpref("theme", "auto")));
+});
