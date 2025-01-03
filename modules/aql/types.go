@@ -21,12 +21,12 @@ type IndexLookup struct {
 }
 
 type NodeQuery struct {
-	IndexLookup   IndexLookup      // Possible start of search, quickly narrows it down
-	Selector      query.NodeFilter // Where style boolean approval filter for objects
-	OrderBy       NodeSorter       // Sorting
-	ReferenceName string           // For cross result reference
-	Skip          int              // Skipping
-	Limit         int              // Limiting
+	IndexLookup IndexLookup      // Possible start of search, quickly narrows it down
+	Selector    query.NodeFilter // Where style boolean approval filter for objects
+	OrderBy     NodeSorter       // Sorting
+	Reference   string           // For cross result reference
+	Skip        int              // Skipping
+	Limit       int              // Limiting
 }
 
 func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
@@ -163,8 +163,8 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	if len(aqlq.Sources) == 1 {
 		aqlq.sourceCache[0].Iterate(func(o *engine.Object) bool {
 			result.AddNode(o)
-			if aqlq.Sources[0].ReferenceName != "" {
-				result.SetNodeData(o, "reference", aqlq.Sources[0].ReferenceName)
+			if aqlq.Sources[0].Reference != "" {
+				result.SetNodeData(o, "reference", aqlq.Sources[0].Reference)
 			}
 			return true
 		})
@@ -308,15 +308,15 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				} else {
 					workingGraph.AddEdge(nextObject, currentObject, addedge)
 				}
-				if !hadCurrentNode && aqlq.Sources[currentSearchIndex].ReferenceName != "" {
-					workingGraph.SetNodeData(currentObject, "reference", aqlq.Sources[currentSearchIndex].ReferenceName)
+				if !hadCurrentNode && aqlq.Sources[currentSearchIndex].Reference != "" {
+					workingGraph.SetNodeData(currentObject, "reference", aqlq.Sources[currentSearchIndex].Reference)
 				}
 				if targets.Contains(nextObject) {
 					// We could be done already, if the targetObject matches
 					if currentSearchIndex == len(aqlq.Next)-1 {
 						// wowzers, we're done - add this to the committed graph and return
-						if !hadNextNode && aqlq.Sources[currentSearchIndex+1].ReferenceName != "" {
-							workingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentSearchIndex+1].ReferenceName)
+						if !hadNextNode && aqlq.Sources[currentSearchIndex+1].Reference != "" {
+							workingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentSearchIndex+1].Reference)
 						}
 						committedGraph.Merge(*workingGraph)
 					} else {

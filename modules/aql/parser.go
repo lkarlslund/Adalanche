@@ -103,7 +103,7 @@ func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 	var result NodeQuery
 
 	if ts.Token().Type == Identifier && (ts.PeekNextToken().Type == Colon || ts.PeekNextToken().Type == Is) {
-		result.ReferenceName = ts.Token().Value
+		result.Reference = ts.Token().Value
 		ts.Next()
 		ts.Next()
 	}
