@@ -305,7 +305,8 @@ function aqlanalyze(e) {
       }
     },
     error: function (xhr, status, error) {
-      toast("Problem loading graph:<br>" + xhr.responseText);
+      toast("Problem loading graph:\n\n" + xhr.responseText);
+      $("#status").empty().hide();
     },
   });
 }
@@ -320,12 +321,17 @@ function connectProgress() {
     $.ajax({
       url: "/api/backend/progress",
       dataType: "json",
-      timeout: 15,
+      timeout: 2000,
       success: function (data) {
         handleProgressData(data);
         setTimeout(connectProgress, 2000);
       },
       error: function (e) {
+        $("#backendstatus").html("Adalanche backend is offline");
+        $("#upperstatus").show();
+        $("#progressbars").empty().hide();
+        $("#offlineblur").show();
+
         setTimeout(connectProgress, 10000);
       },
     })
@@ -345,7 +351,7 @@ function connectProgress() {
       console.log("Error event");
       console.log(event);
 
-      $("#backendstatus").html("Adalanche backend is still offline");
+      $("#backendstatus").html("Adalanche backend is offline");
       $("#upperstatus").show();
       $("#progressbars").empty().hide();
       $("#offlineblur").show();
@@ -363,7 +369,6 @@ function connectProgress() {
     };
 
     progressSocket.onmessage = function (message) {
-      $("#offlineblur").hide();
       progress = $.parseJSON(message.data);
       handleProgressData(progress);
     }
@@ -371,6 +376,8 @@ function connectProgress() {
 }
 
 function handleProgressData(progress) {
+  $("#offlineblur").hide();
+
   status = progress.status;
 
   progressbars = progress.progressbars;
@@ -430,8 +437,8 @@ function handleProgressData(progress) {
   }
 }
 
+// start update cycle
 connectProgress();
-
 
 function toast(contents) {
   Toastify({
@@ -857,9 +864,11 @@ $(function () {
 
   $(document).on("prefereces.loaded", function (evt) {
     if (getpref("run.query.on.startup")) {
-      analyze();
+      aqlanalyze();
     }
   });
+
+  prefsinit();
 
   // End of on document loaded function
 });
