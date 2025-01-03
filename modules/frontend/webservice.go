@@ -38,6 +38,7 @@ type UnionFS struct {
 func (ufs *UnionFS) AddFS(newfs http.FileSystem) {
 	ufs.filesystems = append(ufs.filesystems, newfs)
 }
+
 func (ufs UnionFS) Open(filename string) (http.File, error) {
 	for _, fs := range ufs.filesystems {
 		if f, err := fs.Open(filename); err == nil {
@@ -101,7 +102,11 @@ func NewWebservice() *WebService {
 	ws.API = ws.Router.Group("/api")
 	// Error handling
 	ws.API.Use(func(ctx *gin.Context) {
+		ctx.Header(`Cache-Control`, `no-cache, no-store, no-transform, must-revalidate, private, max-age=0`)
+		ctx.Header(`Pragma`, `no-cache`)
+
 		ctx.Next()
+
 		if !ctx.Writer.Written() {
 			if ctx.IsAborted() {
 				if ctx.Request.Response.StatusCode == 0 {
