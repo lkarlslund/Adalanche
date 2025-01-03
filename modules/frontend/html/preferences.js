@@ -72,7 +72,7 @@ function setpref(key, value) {
     });
 }
 
-$(function () {
+function prefsinit() {
     // Load preferences
     loadprefs();
 
@@ -98,4 +98,4 @@ $(function () {
     $('[preference]').change(function () {
         onchangepreference($(this));
     });
-});
+};
