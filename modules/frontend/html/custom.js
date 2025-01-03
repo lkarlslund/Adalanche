@@ -315,102 +315,120 @@ let lastwasidle;
 let progressSocket;
 
 function connectProgress() {
-  progressSocket = new WebSocket(
-    location.origin.replace(/^http/, "ws") + "/api/backend/progress"
-  );
+  if (location.origin.startsWith("https://")) {
+    // Polled
+    $.ajax({
+      url: "/api/backend/progress",
+      dataType: "json",
+      timeout: 15,
+      success: function (data) {
+        handleProgressData(data);
+        setTimeout(connectProgress, 2000);
+      },
+      error: function (e) {
+        setTimeout(connectProgress, 10000);
+      },
+    })
+  } else {
+    // Websocket
+    progressSocket = new WebSocket(
+      location.origin.replace(/^http/, "ws") + "/api/backend/ws-progress"
+    );
 
-  progressSocket.onopen = function (event) {
-    console.log("Open event");  
-    console.log(event);
-    lastwasidle = false;
-  }
-
-  /*
-  progressSocket.onerror = function (event) {
-    console.log("Error event");
-    console.log(event);
-
-    $("#backendstatus").html("Adalanche backend is still offline");
-    $("#upperstatus").show();
-    $("#progressbars").empty().hide();
-    $("#offlineblur").show();
-  };
-  */
-
-  progressSocket.onclose = function (event) {
-    console.log("Close event");
-    console.log(event);
-
-    $("#backendstatus").html("Adalanche backend is offline");
-    $("#upperstatus").show();
-    $("#progressbars").empty().hide();
-    $("#offlineblur").show();
-    setTimeout(connectProgress, 3000);
-  };
-
-  progressSocket.onmessage = function (message) {
-    $("#offlineblur").hide();
-    progress = $.parseJSON(message.data);
-
-    status = progress.status;
-
-    progressbars = progress.progressbars;
-    if (progressbars.length > 0) {
+    progressSocket.onopen = function (event) {
+      console.log("Open event");  
+      console.log(event);
       lastwasidle = false;
-      keepProgressbars = new Set();
-      for (i in progressbars) {
-        progressbar = progressbars[i];
-        if (progressbar.Done) {
-          continue;
-        }
-        keepProgressbars.add(progressbar.ID);
-
-        // find progressbar
-        pb = $("#" + progressbar.ID);
-        if (pb.length == 0 && !progressbar.Done) {
-          $("#progressbars").append(
-            `<div class="progress-group"><span class="progress-group-label">` +
-              progressbar.Title +
-              `</span><div class="progress"><div id="` +
-              progressbar.ID +
-              `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`
-          );
-          pb = $("#" + progressbar.ID);
-        }
-
-        // Update progressbar
-        pb.attr("aria-valuenow", progressbar.Percent.toFixed(0));
-        pb.css("width", progressbar.Percent.toFixed(0) + "%");
-        pb.parent()
-          .next()
-          .html(progressbar.Percent.toFixed(2) + "%");
-      }
-      // remove old progressbars
-      $("#progressbars .progress-bar").each(function (index) {
-        id = $(this).attr("id");
-        if (!keepProgressbars.has(id)) {
-          $(this)
-            .parent()
-            .parent()
-            .slideUp("slow", function () {
-              $(this).remove();
-            });
-        }
-      });
-
-      $("#upperstatus").show();
-      $("#progressbars").show();
-      $("#backendstatus").html("Adalanche is processing");
-    } else {
-      if (!lastwasidle) {
-        $("#progressbars").empty().hide();
-        $("#backendstatus").html("Adalanche backend is idle");
-        $("#upperstatus").fadeOut("slow");
-      }
-      lastwasidle = true;
     }
-  };
-};
+
+    progressSocket.onerror = function (event) {
+      console.log("Error event");
+      console.log(event);
+
+      $("#backendstatus").html("Adalanche backend is still offline");
+      $("#upperstatus").show();
+      $("#progressbars").empty().hide();
+      $("#offlineblur").show();
+    };
+
+    progressSocket.onclose = function (event) {
+      console.log("Close event");
+      console.log(event);
+
+      $("#backendstatus").html("Adalanche backend is offline");
+      $("#upperstatus").show();
+      $("#progressbars").empty().hide();
+      $("#offlineblur").show();
+      setTimeout(connectProgress, 3000);
+    };
+
+    progressSocket.onmessage = function (message) {
+      $("#offlineblur").hide();
+      progress = $.parseJSON(message.data);
+      handleProgressData(progress);
+    }
+  }
+}
+
+function handleProgressData(progress) {
+  status = progress.status;
+
+  progressbars = progress.progressbars;
+  if (progressbars.length > 0) {
+    lastwasidle = false;
+    keepProgressbars = new Set();
+    for (i in progressbars) {
+      progressbar = progressbars[i];
+      if (progressbar.Done) {
+        continue;
+      }
+      keepProgressbars.add(progressbar.ID);
+
+      // find progressbar
+      pb = $("#" + progressbar.ID);
+      if (pb.length == 0 && !progressbar.Done) {
+        $("#progressbars").append(
+          `<div class="progress-group"><span class="progress-group-label">` +
+            progressbar.Title +
+            `</span><div class="progress"><div id="` +
+            progressbar.ID +
+            `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`
+        );
+        pb = $("#" + progressbar.ID);
+      }
+
+      // Update progressbar
+      pb.attr("aria-valuenow", progressbar.Percent.toFixed(0));
+      pb.css("width", progressbar.Percent.toFixed(0) + "%");
+      pb.parent()
+        .next()
+        .html(progressbar.Percent.toFixed(2) + "%");
+    }
+    // remove old progressbars
+    $("#progressbars .progress-bar").each(function (index) {
+      id = $(this).attr("id");
+      if (!keepProgressbars.has(id)) {
+        $(this)
+          .parent()
+          .parent()
+          .slideUp("slow", function () {
+            $(this).remove();
+          });
+      }
+    });
+
+    $("#upperstatus").show();
+    $("#progressbars").show();
+    $("#backendstatus").html("Adalanche is processing");
+  } else {
+    if (!lastwasidle) {
+      $("#progressbars").empty().hide();
+      $("#backendstatus").html("Adalanche backend is idle");
+      $("#upperstatus").fadeOut("slow");
+    }
+    lastwasidle = true;
+  }
+}
 
 connectProgress();
 

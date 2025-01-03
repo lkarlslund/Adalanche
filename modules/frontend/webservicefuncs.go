@@ -104,7 +104,9 @@ func AddUIEndpoints(ws *WebService) {
 		}
 		c.JSON(200, result)
 	})
-	backend.GET("progress", func(c *gin.Context) {
+
+	// WebSocket progress status
+	backend.GET("ws-progress", func(c *gin.Context) {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -145,12 +147,32 @@ func AddUIEndpoints(ws *WebService) {
 			conn.SetWriteDeadline(time.Now().Add(time.Second * 15))
 			err = conn.WriteJSON(output)
 			if err != nil {
+				ui.Error().Msgf("Error sending websocket message: %v", err)
 				return
 			}
 			lastpbr = pbr
 			laststatus = currentstatus
 		}
 	})
+
+	// Polled progress status
+	backend.GET("progress", func(c *gin.Context) {
+		currentstatus := ws.status.String()
+		pbr := ui.GetProgressReport()
+		slices.SortStableFunc(pbr, func(i, j ui.ProgressReport) int {
+			return int(i.StartTime.Sub(j.StartTime))
+		})
+
+		output := struct {
+			Status   string              `json:"status"`
+			Progress []ui.ProgressReport `json:"progressbars"`
+		}{
+			Status:   currentstatus,
+			Progress: pbr,
+		}
+		c.JSON(200, output)
+	})
+
 	// Ready status
 	backend.GET("status", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": ws.status.String()})
