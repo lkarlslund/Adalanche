@@ -57,7 +57,7 @@ var (
 	nosacl   = Command.Flags().Bool("nosacl", true, "Request data with NO SACL flag, allows normal users to dump ntSecurityDescriptor field")
 	pagesize = Command.Flags().Int("pagesize", 1000, "Number of objects per request to collect (increase for performance, but some DCs have limits)")
 
-	obfuscatedquery = Command.Flags().Bool("obfuscatedquery", false, "Change query from (objectclass=*) to something different in order to evade detection")
+	objectquery = Command.Flags().String("obfuscatedquery", "(objectclass=*)", "Change query from (objectclass=*) to something different in order to evade detection")
 
 	collectconfiguration = Command.Flags().String("configuration", "auto", "Collect Active Directory Configuration")
 	collectschema        = Command.Flags().String("schema", "auto", "Collect Active Directory Schema")
@@ -281,12 +281,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 		ui.Info().Msg("Probing RootDSE ...")
 		do := DumpOptions{
 			SearchBase:    "",
-			Query:         "(objectClass=*)",
+			Query:         *objectquery,
 			Scope:         ldap.ScopeBaseObject,
 			ReturnObjects: true,
-		}
-		if *obfuscatedquery {
-			do.Query = generateObfuscatedQuery()
 		}
 
 		rootdse, err := ad.Dump(do)
@@ -371,7 +368,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		do = DumpOptions{
 			Attributes:    attributes,
-			Query:         "(objectClass=*)",
+			Query:         *objectquery,
 			Scope:         ldap.ScopeWholeSubtree,
 			NoSACL:        *nosacl,
 			ChunkSize:     *pagesize,
@@ -382,9 +379,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if (*collectschema == "auto" && schemaContext != "") || cs {
 			ui.Info().Msgf("Collecting schema objects from %v ...", schemaContext)
 			do.SearchBase = schemaContext
-			if *obfuscatedquery {
-				do.Query = generateObfuscatedQuery()
-			}
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
 			_, err = ad.Dump(do)
 			if err != nil {
@@ -399,9 +393,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 			ui.Info().Msgf("Collecting configuration objects from %v ...", configContext)
 			do.SearchBase = configContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-			if *obfuscatedquery {
-				do.Query = generateObfuscatedQuery()
-			}
 
 			if *collectgpos == "auto" || cp {
 				do.OnObject = func(ro *activedirectory.RawObject) error {
@@ -427,9 +418,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 				ui.Info().Msgf("Collecting from base DN %v ...", context)
 				do.SearchBase = context
 				do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-				if *obfuscatedquery {
-					do.Query = generateObfuscatedQuery()
-				}
 
 				_, err = ad.Dump(do)
 				if err != nil {
@@ -445,9 +433,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 			ui.Info().Msgf("Collecting main AD objects from %v ...", domainContext)
 			do.SearchBase = domainContext
 			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-			if *obfuscatedquery {
-				do.Query = generateObfuscatedQuery()
-			}
 
 			if *collectgpos == "auto" || cp {
 				do.OnObject = func(ro *activedirectory.RawObject) error {
