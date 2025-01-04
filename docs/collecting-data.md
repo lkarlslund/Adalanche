@@ -1,2 +1,0 @@
-## Collecting Data and Analyzing
-
