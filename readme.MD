@@ -1,4 +1,4 @@
-# <img src="modules/analyze/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img src="modules/analyze/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche Open Source
+# <img src="modules/frontend/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img src="modules/frontend/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche Open Source
 
 *Active Directory ACL Visualizer and Explorer*
 
