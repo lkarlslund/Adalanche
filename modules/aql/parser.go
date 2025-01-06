@@ -649,6 +649,8 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.Objects) (EdgeSearcher, error) {
 			Comparator: query.CompareGreaterThanEqual,
 			Count:      1,
 		},
+		ProbabilityComparator: query.CompareGreaterThanEqual,
+		ProbabilityValue:      1,
 	}
 
 	if ts.NextIfIs(EdgeAnyDirection) {
