@@ -7,8 +7,10 @@ import (
 
 // Can return built in queries and user defined persisted queries
 type QueryDefinition struct {
-	Name  string `json:"name"`
-	Query string `json:"query,omitempty"`
+	Name        string `json:"name"`
+	Query       string `json:"query,omitempty"`
+	Category    string `json:"category,omitempty"` // Optional category for grouping queries in UI
+	Description string `json:"description,omitempty"`
 
 	MaxDepth                  int                `json:"max_depth,omitempty"`
 	MaxOutgoingConnections    int                `json:"max_outgoing_connections,omitempty"`
