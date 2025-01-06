@@ -287,7 +287,7 @@ var cytostyle = [
         return nodelabel(ele);
       },
       color: function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "black";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
       },
       "background-width": "80%",
       "background-height": "80%",
@@ -297,7 +297,7 @@ var cytostyle = [
     selector: "node.target",
     style: {
       "border-color": function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "black";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
       },
       "border-width": 3,
     },
@@ -476,7 +476,7 @@ var cytostyle = [
       // "text-rotation": "autorotate",
       "text-justification": "center",
       color: function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "black";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
       },
       "curve-style": "straight",
       "target-arrow-shape": "triangle",
@@ -549,7 +549,7 @@ var cytostyle = [
     selector: "node:selected",
     style: {
       "background-color": function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "grey";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "grey";
       },
     },
   },
@@ -557,10 +557,12 @@ var cytostyle = [
     selector: "edge:selected",
     style: {
       "target-arrow-color": function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "black";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark"
+          ? "white"
+          : "black";
       },
       "line-color": function (ele) {
-        return translateAutoTheme() == "dark" ? "white" : "black";
+        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
       },
       width: 8,
     },
@@ -1073,7 +1075,10 @@ function initgraph(data) {
 }
 
 function getEdgeColor(ele) {
-        color = translateAutoTheme() == "dark" ? "white" : "black";
+        color =
+          translateAutoTheme(getpref("theme", "auto")) == "dark"
+            ? "white"
+            : "black";
         if (ele.data("methods").includes("MemberOfGroup")) {
           color = "orange";
         } else if (ele.data("methods").includes("MemberOfGroupIndirect")) {
