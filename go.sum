@@ -149,6 +149,8 @@ github.com/golang/protobuf v1.4.0-rc.2/go.mod h1:LlEzMj4AhA7rCAGe4KMBDvJI+AwstrU
 github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0/go.mod h1:WU3c8KckQ9AFe+yFwt9sWVRKCVIyN9cPHBJSNnbL67w=
 github.com/golang/protobuf v1.4.0/go.mod h1:jodUvKwWbYaEsadDk5Fwe5c77LiNKVO9IDvqG2KuDX0=
 github.com/golang/protobuf v1.4.2/go.mod h1:oDoupMAO8OvCJWAcko0GGGIgR6R6ocIYbsSw735rRwI=
+github.com/gomarkdown/markdown v0.0.0-20241205020045-f7e15b2f3e62 h1:pbAFUZisjG4s6sxvRJvf2N7vhpCvx2Oxb3PmS6pDO1g=
+github.com/gomarkdown/markdown v0.0.0-20241205020045-f7e15b2f3e62/go.mod h1:JDGcbDT52eL4fju3sZ4TeHGsQwhG9nbDV21aMyhwPoA=
 github.com/google/aukera v0.0.0-20201117230544-d145c8357fea/go.mod h1:oXqTZORBzdwQ6L32YjJmaPajqIV/hoGEouwpFMf4cJE=
 github.com/google/cabbie v1.0.2/go.mod h1:6MmHaUrgfabehCHAIaxdrbmvHSxUVXj3Abs08FMABSo=
 github.com/google/cabbie v1.0.5 h1:j+JWBiMpzJCTkVLKrzsNBQLkRff55sjzXc0AQOTV2JU=

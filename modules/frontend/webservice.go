@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -280,7 +283,19 @@ func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 }
 
 func serveMarkDown(r io.Reader, ctx *gin.Context) {
+	md, _ := io.ReadAll(r)
 
+	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
+	p := parser.NewWithExtensions(extensions)
+	doc := p.Parse(md)
+
+	// create HTML renderer with extensions
+	htmlFlags := html.CommonFlags | html.HrefTargetBlank
+	opts := html.RendererOptions{Flags: htmlFlags}
+	renderer := html.NewRenderer(opts)
+
+	ctx.Status(200)
+	ctx.Writer.Write(markdown.Render(doc, renderer))
 }
 
 func serveTemplate(r io.Reader, ctx *gin.Context, data any) {
