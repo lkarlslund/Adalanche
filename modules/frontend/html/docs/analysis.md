@@ -19,7 +19,7 @@ There are some options here as well - try <code>adalanche analyze --help</code>
 
 # User Interface
 
-<img src="readme-images/welcome.png" width="80%">
+<img src="images/welcome.png" width="80%">
 
 When launched, you'll see some  statistics on what's loaded into memory and how many edges are detected between objects. Don't worry, Adalanche can handle millions of objects and edges, if you have enough RAM ;)
 
@@ -35,7 +35,7 @@ To ease the learning experience, there are a number of pre-defined queries built
 
 #### Analysis Options
 
-<img src="readme-images/analysis-options.png" width="50%">
+<img src="images/analysis-options.png" width="50%">
 
 If your query returns more than 2500 objects (default), Adalanche will limit the output and give you the results that approximately fit within the limit. This limitation is because it has the potential to crash your browser, and is not an Adalanche restriction - feel free to adjust as needed.
 
@@ -51,20 +51,20 @@ Each edge has a probability of success, and you can limit the graph by choosing 
 
 Press the "Edges" tab to allow you to do edge based filtering. 
 
-<img src="readme-images/analysis-methods.png" width="50%">
+<img src="images/analysis-methods.png" width="50%">
 
 FML is not the usual abbreviation, but represents First, Middle and Last. Disabling the "Middle" selector, will also prevent "Last" in the results, unless it's picked up as the "First" due to the way the search is done.
 
 #### Nodes
 
-<img src="readme-images/object-types.png" width="50%">
+<img src="images/object-types.png" width="50%">
 
 This works the same way as the "Edges" limiter above.
 
 #### LDAP query pop-out
 When you press the "LDAP Query" tab on the bottom portion of the page, and you get the search interface:
 
-<img src="readme-images/ldap-query.png" width="50%">
+<img src="images/ldap-query.png" width="50%">
 
 You enter a query for things you want to search for, with the "start query" setting your targets. Optionally you can also add a secondary query the following nodes must match. If you put a filter in the "end query" then nodes not matching this will be removed from the outer objects (end of graph).
 
@@ -168,14 +168,14 @@ This list is not exhaustive.
 
 There is a right click menu on objects, so you can to searches in the displayed graph. First right click a target:
 
-<img src="readme-images/set-as-target.png" width="50%">
+<img src="images/set-as-target.png" width="50%">
 
 Then find a source to trace from:
 
-<img src="readme-images/route-to-target.png" width="50%">
+<img src="images/route-to-target.png" width="50%">
 
 If there's a connection from source to target, you'll get the entire attack path presented like this:
 
-<img src="readme-images/found-route.png" width="50%">
+<img src="images/found-route.png" width="50%">
 
 You can also pick any object on the graph, and perform an inbound or outbound search from it.

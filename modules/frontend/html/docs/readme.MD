@@ -4,13 +4,12 @@
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/lkarlslund/Adalanche)](https://github.com/lkarlslund/Adalanche/releases/latest) ![GitHub all releases](https://img.shields.io/github/downloads/lkarlslund/Adalanche/total) ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/lkarlslund/Adalanche/prerelease.yml?branch=master)
 
-<img align="right" src="readme-images/goad-graph.png" width="40%" alt="Sample Adalanche Graph using the GOAD lab">
+<img align="right" src="images/goad-graph.png" width="40%" alt="Sample Adalanche Graph using the GOAD lab">
 Adalanche gives instant insight into what assigned permissions affect users and groups have in  Active Directory and surrounding infrastructure. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
 ## Ransomware attacks thrive on bad Active Directory configurations
 
 Active Directory security is notoriously difficult. Small organizations generally have no idea what they're doing, and way too many people are just added to Domain Admins. In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
-
 
 ## Current status
 

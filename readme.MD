@@ -4,7 +4,7 @@
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/lkarlslund/Adalanche)](https://github.com/lkarlslund/Adalanche/releases/latest) ![GitHub all releases](https://img.shields.io/github/downloads/lkarlslund/Adalanche/total) ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/lkarlslund/Adalanche/prerelease.yml?branch=master)
 
-<img align="right" src="readme-images/goad-graph.png" width="40%" alt="Sample Adalanche Graph using the GOAD lab">
+<img align="right" src="modules/frontend/html/docs/images/goad-graph.png" width="40%" alt="Sample Adalanche Graph using the GOAD lab">
 Adalanche gives instant results, showing you what permissions users and groups have in an Active Directory. It is useful for visualizing and exploring who can take over accounts, machines or the entire domain, and can be used to find and show misconfigurations.
 
 ## I Can Haz Domain Admin?
@@ -155,7 +155,7 @@ There are some options here as well - try <code>adalanche analyze --help</code>
 
 ### User Interface
 
-<img src="readme-images/welcome.png" width="80%">
+<img src="modules/frontend/html/docs/images/welcome.png" width="80%">
 
 When launched, you'll see some statistics on what's loaded into memory and how many edges are detected between objects. Don't worry, Adalanche can handle millions of objects and edges, if you have enough RAM ;)
 
@@ -171,7 +171,7 @@ To ease the learning experience, there are a number of sample queries built into
 
 #### Analysis Options
 
-<img src="readme-images/analysis-options.png" width="50%">
+<img src="modules/frontend/html/docs/images/analysis-options.png" width="50%">
 
 Query direction:
 - In "incoming" mode you select target nodes, and Adalanche figures out who can reach these target nodes (most common search)
@@ -193,20 +193,20 @@ Each edge has a probability of success, and you can limit the graph by choosing 
 
 Press the "Edges" tab to allow you to do edge based filtering. 
 
-<img src="readme-images/analysis-methods.png" width="50%">
+<img src="modules/frontend/html/docs/images/analysis-methods.png" width="50%">
 
 FML is not the usual abbreviation, but represents First, Middle and Last. Disabling the "Middle" selector, will also prevent "Last" in the results, unless it's picked up as the "First" due to the way the search is done.
 
 #### Nodes
 
-<img src="readme-images/object-types.png" width="50%">
+<img src="modules/frontend/html/docs/images/object-types.png" width="50%">
 
 This works the same way as the "Edges" limiter above.
 
 #### LDAP query pop-out
 When you press the "LDAP Query" tab on the bottom portion of the page, and you get the search interface:
 
-<img src="readme-images/ldap-query.png" width="50%">
+<img src="modules/frontend/html/docs/images/ldap-query.png" width="50%">
 
 You enter a query for things you want to search for, with the "start query" setting your targets. Optionally you can also add a secondary query the following nodes must match. If you put a filter in the "end query" then nodes not matching this will be removed from the outer objects (end of graph).
 
@@ -310,15 +310,15 @@ This list is not exhaustive.
 
 There is a right click menu on objects, so you can to searches in the displayed graph. First right click a target:
 
-<img src="readme-images/set-as-target.png" width="50%">
+<img src="modules/frontend/html/docs/images/set-as-target.png" width="50%">
 
 Then find a source to trace from:
 
-<img src="readme-images/route-to-target.png" width="50%">
+<img src="modules/frontend/html/docs/images/route-to-target.png" width="50%">
 
 If there's a connection from source to target, you'll get the entire attack path presented like this:
 
-<img src="readme-images/found-route.png" width="50%">
+<img src="modules/frontend/html/docs/images/found-route.png" width="50%">
 
 You can also pick any object on the graph, and perform an inbound or outbound search from it.
 
