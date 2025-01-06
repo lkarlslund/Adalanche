@@ -1,6 +1,6 @@
 package frontend
 
-//go:generate go run github.com/dmarkham/enumer -type=WebServiceStatus -output enums.go
+//go:generate go run github.com/dmarkham/enumer -type=WebServiceStatus -output status_enums.go
 
 type WebServiceStatus int
 

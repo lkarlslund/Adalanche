@@ -1,28 +1,25 @@
 package frontend
 
 import (
-	"crypto/tls"
 	"embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
-	"github.com/gin-contrib/pprof"
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/util"
 )
 
 //go:embed html/*
@@ -91,9 +88,13 @@ func NewWebservice() *WebService {
 		path := c.Request.URL.Path
 		// Process request
 		c.Next()
+
 		logger := ui.Info()
 		if c.Writer.Status() >= 500 {
 			logger = ui.Error()
+		}
+		if c.Writer.Status() >= 400 {
+			logger = ui.Warn()
 		}
 		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
 	})
@@ -102,10 +103,10 @@ func NewWebservice() *WebService {
 	ws.API = ws.Router.Group("/api")
 	// Error handling
 	ws.API.Use(func(ctx *gin.Context) {
+		ctx.Next()
+
 		ctx.Header(`Cache-Control`, `no-cache, no-store, no-transform, must-revalidate, private, max-age=0`)
 		ctx.Header(`Pragma`, `no-cache`)
-
-		ctx.Next()
 
 		if !ctx.Writer.Written() {
 			if ctx.IsAborted() {
@@ -145,52 +146,8 @@ func NewWebservice() *WebService {
 	}
 	return ws
 }
-func (ws *WebService) RequireData(minimumStatus WebServiceStatus) func(ctx *gin.Context) {
-	return func(ctx *gin.Context) {
-		if ws.status < minimumStatus {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "no data"})
-		}
-	}
-}
-func WithCert(certfile, keyfile string) optionsetter {
-	return func(ws *WebService) error {
-		// create certificate from pem strings directly
-		var cert tls.Certificate
-		var err error
-		if util.PathExists(certfile) && util.PathExists(keyfile) {
-			cert, err = tls.LoadX509KeyPair(certfile, keyfile)
-		} else {
-			cert, err = tls.X509KeyPair([]byte(certfile), []byte(keyfile))
-		}
-		if err != nil {
-			return err
-		}
-		ws.protocol = "https"
-		ws.srv.TLSConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		}
-		ui.Info().Msgf("Certificate loaded and configured for DNS names %v", strings.Join(ws.srv.TLSConfig.Certificates[0].Leaf.DNSNames, ", "))
-		return nil
-	}
-}
-func WithLocalHTML(path string) optionsetter {
-	return func(ws *WebService) error {
-		if !ws.localhtmlused {
-			// Clear embedded html filesystem
-			ws.UnionFS = UnionFS{}
-			ws.localhtmlused = true
-		}
-		// Override embedded HTML if asked to
-		stat, err := os.Stat(path)
-		if err == nil && stat.IsDir() {
-			// Use local files if they exist
-			ui.Info().Msgf("Adding local HTML folder %v", path)
-			ws.AddFS(http.FS(os.DirFS(path)))
-			return nil
-		}
-		return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)
-	}
-}
+
+// Init initializes the web service by adding stock functions and setting up routes.
 func (ws *WebService) Init(r gin.IRoutes) {
 	// Add stock functions
 	ws.Initialized = true
@@ -198,6 +155,8 @@ func (ws *WebService) Init(r gin.IRoutes) {
 	AddPreferencesEndpoints(ws)
 	AddDataEndpoints(ws)
 }
+
+// Analyze analyzes paths for some purpose, though its implementation is missing in the provided code.
 func (ws *WebService) Analyze(paths ...string) error {
 	if ws.status != NoData && ws.status != Ready {
 		return errors.New("Adalanche is already busy loading data")
@@ -227,23 +186,62 @@ func (ws *WebService) Start(bind string) error {
 	}
 	ws.srv.Addr = bind
 	ws.srv.Handler = ws.engine
-	ws.Router.GET("/", func(c *gin.Context) {
-		indexfile, err := ws.UnionFS.Open("index.html")
-		if err != nil {
-			ui.Error().Msgf("Could not open index.html: %v", err)
+
+	ws.engine.Use(func(ctx *gin.Context) {
+		file := ctx.Request.URL.Path
+		if file == "/" {
+			contents, err := ws.UnionFS.Open("index.html")
+			if err != nil {
+				ui.Error().Msgf("Could not open index.html: %v", err)
+				ctx.Error(err)
+				return
+			}
+			serveTemplate(contents, ctx, struct {
+				AdditionalHeaders []string
+			}{
+				AdditionalHeaders: ws.AdditionalHeaders,
+			})
+			return
 		}
-		rawindex, _ := io.ReadAll(indexfile)
-		indextemplate := template.Must(template.New("index").Parse(string(rawindex)))
-		err = indextemplate.Execute(c.Writer, struct {
-			AdditionalHeaders []string
-		}{
-			AdditionalHeaders: ws.AdditionalHeaders,
-		})
-		if err != nil {
-			ui.Error().Msgf("Could not render template index.html: %v", err)
+
+		if !ws.UnionFS.Exists("", file) {
+			ctx.AbortWithStatus(404)
+			return
+		}
+
+		f, err := ws.UnionFS.Open(file)
+		if err == nil {
+			stat, err := f.Stat()
+			if err != nil {
+				ui.Error().Msgf("Problem doing stat on file %v in embedded fs: %v", file, err)
+				ctx.AbortWithStatus(500)
+				return
+			}
+
+			if stat.IsDir() {
+				ctx.AbortWithStatus(403)
+				return
+			}
+
+			switch strings.ToLower(filepath.Ext(file)) {
+			case ".md":
+				serveMarkDown(f, ctx)
+			case ".tmpl":
+				serveTemplate(f, ctx, nil)
+			default:
+				// derive content type from extension
+				ct := mime.TypeByExtension(filepath.Ext(file))
+				if ct == "" {
+					// if no content type could be derived, try to detect it from the file's contents
+					c, _ := io.ReadAll(io.LimitReader(f, 512)) // read up to 512 bytes for detection
+					f.Seek(0, 0)                               // reset file pointer after detection
+					ct = http.DetectContentType(c)
+				}
+				ctx.DataFromReader(200, stat.Size(), ct, f, nil)
+			}
 		}
 	})
-	ws.engine.Use(static.Serve("", ws.UnionFS))
+
 	// bind to port and start listening for requests
 	conn, err := net.Listen("tcp", ws.srv.Addr)
 	if err != nil {
@@ -266,6 +264,7 @@ func (ws *WebService) Start(bind string) error {
 	ui.Info().Msgf("Adalanche Web Service listening at %v://%v/ ... (ctrl-c or similar to quit)", ws.protocol, bind)
 	return nil
 }
+
 func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	templatefile, err := ws.UnionFS.Open(path)
 	if err != nil {
@@ -279,9 +278,24 @@ func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	}
 	template.Execute(c.Writer, data)
 }
-func WithProfiling() func(*WebService) {
-	return func(ws *WebService) {
-		// Profiling
-		pprof.Register(ws.Router)
+
+func serveMarkDown(r io.Reader, ctx *gin.Context) {
+
+}
+
+func serveTemplate(r io.Reader, ctx *gin.Context, data any) {
+	rawindex, _ := io.ReadAll(r)
+	template, err := template.New("template").Parse(string(rawindex))
+	if err != nil {
+		ui.Error().Msgf("Error parsing template: %v", err)
+		ctx.AbortWithError(500, err)
+		return
+	}
+	ctx.Status(200)
+	err = template.Execute(ctx.Writer, data)
+	if err != nil {
+		ui.Error().Msgf("Could not render template: %v", err)
+		ctx.AbortWithError(500, err)
+		return
 	}
 }
