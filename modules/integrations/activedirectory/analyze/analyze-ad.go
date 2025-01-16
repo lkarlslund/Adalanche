@@ -1323,7 +1323,7 @@ func init() {
 					// All DCs are members of Enterprise Domain Controllers
 					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
 
-					DCsyncObject.EdgeTo(object, activedirectory.EdgeCall)
+					object.EdgeTo(DCsyncObject, activedirectory.EdgeCall)
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
