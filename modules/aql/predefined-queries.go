@@ -4,7 +4,7 @@ var (
 	PredefinedQueries = []QueryDefinition{
 		{
 			Name:        "High Value Targets",
-			Query:       "ACYCLIC start:(tag=hvt)<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:       "ACYCLIC start:(tag=hvt)<-[]{1,10}-end:(&(dataLoader=Active Directory)(|(&(tag=account_enabled)(type=Person))(type=Group)))",
 			Description: "High value targets in the network, that will compromise the entire AD if they're reached. This is the query to rule them all.",
 			Default:     true,
 		},
