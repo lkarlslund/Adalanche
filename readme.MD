@@ -34,4 +34,4 @@ Reporting: in development*
 
 ## Tell me more
 
-Since the [documentation](modules/frontend/html/docs/readme.md) has gotten comprehensive, it's moved to it's own place. You can look through it here on GitHub, and it's also available from within the Adalanche UI when you get started.
+Since the [documentation](modules/frontend/html/docs/index.md) has gotten comprehensive, it's moved to it's own place. You can look through it here on GitHub, and it's also available from within the Adalanche UI when you get started.
