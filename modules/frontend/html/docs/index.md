@@ -1,5 +1,5 @@
 <div class="title">
-<img class="only-light" src="../icons/adalanche-logo-black.svg" height="256px"><img class="only-dark" src="../icons/adalanche-logo.svg" height="256px">
+<img class="only-light" src="../icons/adalanche-logo-black.svg#gh-light-mode-only" height="256px"><img class="only-dark" src="../icons/adalanche-logo.svg#gh-dark-mode-only" height="256px">
 <br>
 Adalanche Documentation
 </div>
