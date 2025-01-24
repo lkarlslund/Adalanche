@@ -3,7 +3,6 @@ package frontend
 import (
 	"crypto/tls"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
@@ -48,7 +47,7 @@ func WithLocalHTML(path string) optionsetter {
 		if err == nil && stat.IsDir() {
 			// Use local files if they exist
 			ui.Info().Msgf("Adding local HTML folder %v", path)
-			ws.AddFS(http.FS(os.DirFS(path)))
+			ws.AddFS(os.DirFS(path))
 			return nil
 		}
 		return fmt.Errorf("could not add local HTML folder %v, failure: %v", path, err)

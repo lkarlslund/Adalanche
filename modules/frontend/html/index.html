@@ -1,3 +1,4 @@
+{{/* Index page template for Adalanche */}}
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
   <head>
@@ -29,7 +30,7 @@
     <script src="external/jstree/jstree.min.js"></script>
     <script src="external/autosize.js"></script>
 
-    <script src="external/graph/cytoscape.min.js"></script>
+    <script src="external/graph/cytoscape.umd.js"></script>
     <script src="external/graph/cytoscape-context-menus.js"></script>
     <script src="external/graph/cytoscape-popper.js"></script>
     <script src="external/graph/cytoscape-expand-collapse.js"></script>
@@ -66,11 +67,10 @@
     <script src="themes.js"></script> <!-- depends on cy veriable in graph.js, sic -->
     <script src="custom.js"></script>
 
-
     {{range .AdditionalHeaders}} {{.}} {{end}}
   </head>
 
-  <body class="z-0">
+  <body id="body" class="z-0">
     <div id="windows">
       <div class="sticky-alerts"></div>
     </div>
@@ -90,7 +90,8 @@
       <div id="lower-left">
         <div id="about" class="pb-2">
           <div>
-            <img src="icons/adalanche-logo.svg" height="26px" />
+            <img class="only-dark" src="icons/adalanche-logo.svg" height="26px" />
+            <img class="only-light" src="icons/adalanche-logo-black.svg" height="26px" />
             <span id="programinfo">Adalanche</span>
           </div>
           <div>
@@ -124,11 +125,11 @@
       <div id="options" class="float-end">
         <div
           id="optionstogglevisibility"
-          class="d-inline-block align-top bs-bg-dark border p-1 pe-auto"
+          class="d-inline-block align-top border p-1 pe-auto card"
         >
           Options <i class="bi-arrow-left-right"></i>
         </div>
-        <div id="optionspanel" class="bg-dark overflow-y-auto pe-auto">
+        <div id="optionspanel" class="card overflow-y-auto pe-auto">
           <div id="optionscontent" class="w-100">
             <details class="collapse-panel">
               <summary
@@ -279,7 +280,7 @@
                     >
                   </div>
 
-                  <div class="form-check">
+                  <!-- <div class="form-check">
                     <input
                       class="form-check-input"
                       id="dont-expand-au-eo"
@@ -296,7 +297,7 @@
                       data-bs-title="Expanding these groups usually gives an unreasonable amount of data in the graph"
                       >Don't expand "Authenticated Users" / "Everyone"</label
                     >
-                  </div>
+                  </div> -->
                 </form>
               </div>
             </details>
@@ -431,7 +432,7 @@
                     >
                   </div>
                 </div>
-                <div class="mb-1" id="themeradios">
+                <div class="mb-2" id="themeradios">
                     Theme
                     <div class="float-end">
                     <input type="radio" class="btn-check" name="theme" value="light" id="theme-light" preference="theme" autocomplete="off">
@@ -451,29 +452,28 @@
               <summary class="collapse-header bg-primary text-dark p-1 border-bottom">
                 Tools
               </summary>
-              <div id="tools" class="d-flex d-flex-wrap collapse-content p-1">
-                <div class="toolbutton" id="explore" data-bs-toggle="tooltip" data-bs-title="Opens a browsable tree for exploring objects">
-                  <div class="bi-search"></div>
-                    Explore
+              <div id="tools" class="collapse-content p-1 toolbox">
+                <!-- Open new tab with the documentation endpoint -->
+                <div class="toolbutton" id="docs" data-bs-toggle="tooltip" data-bs-title="Open documentation in new tab" onclick="window.open('/docs', '_blank');">
+                  <div class="bi-file-richtext"></div>Docs
                 </div>
-                <div class="toolbutton" id="export-words" data-bs-toggle="tooltip" data-bs-title="Exports wordlist from objects to use with hashcat">
-                  <div class="bi-body-text"></div>
-                    Words
+                <div class="toolbutton" id="explore" data-bs-toggle="tooltip" data-bs-title="Opens a browsable tree for exploring nodes">
+                  <div class="bi-list-ul"></div>Explore
                 </div>
-
-                <a 
-            href="/api/export-words?split=true"
-            id="extract-words"
-            class="btn btn-primary"
-            >Export words</a
-          >
+                <div id="highlightbutton" class="toolbutton" data-bs-toggle="tooltip" data-bs-title="Opens a search window for highligting nodes in the results">
+                  <div class="bi-search"></div>Highlight
+                </div>
+                <!-- Open new tab with the export-words endpoint -->
+                <div class="toolbutton" id="export-words" data-bs-toggle="tooltip" data-bs-title="Exports wordlist from nodes to use with hashcat" onclick="window.open('/api/export-words?split=true', '_blank');">
+                  <div class="bi-body-text"></div>Words
+                </div>
             </details>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="status" class="border bg-dark p-2 shadow pe-auto z-40"></div>
+    <div id="status" class="border card p-2 shadow pe-auto z-40"></div>
 
     <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-50">
       <div id="togglequeryvisible" class="text-center mx-4">AQL Search <i class="bi-arrow-down-up"></i></div>

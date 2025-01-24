@@ -74,6 +74,9 @@
     --bs-secondary-switch-svg: var(--bs-orange-switch-svg);
 
   --bs-body-font-family: Oswald;
+
+  --sidebar-width: 280px;
+  --sidebar-width-collapsed: 0px;
 }
 
 @font-face {
@@ -81,9 +84,9 @@
   src: url(/external/Oswald-VariableFont_wght.ttf);
 }
 
-body {
+#ui body {
   overflow: hidden;
-    z-index: -2;
+  z-index: -2;
 }
 
 .no-wrap {
@@ -102,6 +105,11 @@ body {
   height: 100vh;
 }
 
+/* #options {
+  background-color: var(--bs-light);
+  color: var(--bs-dark)
+} */
+
 #optionspanel {
   max-height: 100vh;
   max-width: 20em;
@@ -110,19 +118,22 @@ body {
   display: inline-block;
 }
 
+.toolbox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em; /* Space between buttons
+  /* max-width: calc(64px * 4 + (4 - 1) * 10px); */
+}
+
 .toolbutton {
+  display: block;
   border: 1px solid;
   padding-top: 0.3em;
-  margin-right: 1em; /* space between buttons */
-  margin-bottom: 1em; /* space between rows of buttons */
   height: 4em;
   width: 4em;
   text-align: center;
-  /* display: inline-block; */
-}
-
-.toolbutton > div {
-
+  flex-shrink: 0; /* dont shrink */
+  cursor: pointer;
 }
 
 #windows {
@@ -139,6 +150,8 @@ body {
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: column;
+  max-width: 80vw;
+  max-height: 98vw;
   z-index: 30;
 }
 
@@ -146,26 +159,16 @@ body {
   overflow: auto;
 }
 
-.window-content {
-}
-
 .window-front {
   z-index: 31;
 }
 
-.rotated-text-90 {
-  -ms-writing-mode: tb-rl;
-  -webkit-writing-mode: vertical-rl;
-  writing-mode: vertical-rl;
-  white-space: nowrap;
+/* show only when body data-bs-theme is dark */
+[data-bs-theme="light"] .only-dark {
+  display: none;
 }
-
-.rotated-text-270 {
-  -ms-writing-mode: tb-rl;
-  -webkit-writing-mode: vertical-rl;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  white-space: nowrap;
+[data-bs-theme="dark"] .only-light {
+  display: none;
 }
 
 #upperstatus {
@@ -203,10 +206,6 @@ body {
   left: 10px;
   bottom: 10px;
   white-space: nowrap;
-}
-
-#commandbuttons .btn {
-  margin-right: 5px;
 }
 
 .z-0 {

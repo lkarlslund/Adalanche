@@ -6,7 +6,7 @@ var d3forcelayout = {
     name: "d3-force",
     animate: true, // whether to show the layout as it's running; special 'end' value makes the layout animate like a discrete layout
     maxIterations: 0, // max iterations before the layout will bail out
-    maxSimulationTime: 0, // max length in ms to run the layout
+    maxSimulationTime: 10000, // max length in ms to run the layout
     ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
     fixedAfterDragging: false, // fixed node after dragging
     fit: true, // on every layout reposition of nodes, fit the viewport
@@ -15,18 +15,18 @@ var d3forcelayout = {
     /**d3-force API**/
     alpha: 0.4, // sets the current alpha to the specified number in the range [0,1]
     alphaMin: 0.001, // sets the minimum alpha to the specified number in the range [0,1]
-    alphaDecay: 0.1,
+    alphaDecay: 0.2,
     // alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
     alphaTarget: 0, // sets the current target alpha to the specified number in the range [0,1]
-    velocityDecay: 0.2, // sets the velocity decay factor to the specified number in the range [0,1]
-    collideRadius: 80, // sets the radius accessor to the specified number or function
+    velocityDecay: 0.1, // sets the velocity decay factor to the specified number in the range [0,1]
+    collideRadius: 180, // sets the radius accessor to the specified number or function
     collideStrength: 0.7, // sets the force strength to the specified number in the range [0,1]
     collideIterations: 1, // sets the number of iterations per application to the specified number
     linkId: function id(d) {
         // return d.index;
         return d.id;
     }, // sets the node id accessor to the specified function
-    linkDistance: 20, // sets the distance accessor to the specified number or function
+    // linkDistance: 10, // sets the distance accessor to the specified number or function
     linkStrength: function strength(link) {
         // return 1 / Math.min(count(link.source), count(link.target));
         return 8 / link._maxprob;
@@ -40,7 +40,7 @@ var d3forcelayout = {
     xX: 0, // sets the x-coordinate accessor to the specified number or function
     yStrength: 0.1, // sets the strength accessor to the specified number or function
     yY: 0, // sets the y-coordinate accessor to the specified number or function
-    radialStrength: 0.1, // sets the strength accessor to the specified number or function
+    radialStrength: 0.05, // sets the strength accessor to the specified number or function
     radialRadius: 5, // sets the circle radius to the specified number or function
     radialX: 0, // sets the x-coordinate of the circle center to the specified number
     radialY: 0, // sets the y-coordinate of the circle center to the specified number
@@ -107,7 +107,7 @@ var fcoselayout = {
     // - "draft" only applies spectral layout 
     // - "default" improves the quality with incremental layout (fast cooling rate)
     // - "proof" improves the quality with incremental layout (slow cooling rate) 
-    quality: "proof",
+    quality: "default",
     // Use random node positions at beginning of layout
     // if this is set to false, then quality option must be "proof"
     randomize: true,
@@ -124,14 +124,14 @@ var fcoselayout = {
     // Whether to include labels in node dimensions. Valid in "proof" quality
     nodeDimensionsIncludeLabels: true,
     // Whether or not simple nodes (non-compound nodes) are of uniform dimensions
-    uniformNodeDimensions: false,
+    uniformNodeDimensions: true,
     // Whether to pack disconnected components - valid only if randomize: true
     packComponents: true,
 
     /* spectral layout options */
 
     // False for random, true for greedy sampling
-    samplingType: true,
+    samplingType: false,
     // Sample size to construct distance matrix
     sampleSize: 100,
     // Separation amount between nodes
@@ -764,11 +764,17 @@ function edgeprobability(ele) {
 }
 
 function initgraph(data) {
-    cy = (window.cy = cytoscape({
-        container: document.getElementById("cy"),
-        wheelSensitivity: 0.2,
-        style: cytostyle,
-    }));
+    cy = window.cy = cytoscape({
+      container: document.getElementById("cy"),
+      wheelSensitivity: 0.2,
+      style: cytostyle,
+
+      renderer: {
+        name: "canvas", // still uses the canvas renderer
+        webgl: false, // turns on WebGL mode, beta, node selection etc does not work :-(
+        showFps: false,
+      },
+    });
 
     cy.ready(function () {
         busystatus("Rendering graph");

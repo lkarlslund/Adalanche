@@ -18,12 +18,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/ast"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
+
+type WSFileSystem interface {
+	fs.ReadDirFS
+	fs.StatFS
+}
 
 //go:embed html/*
 var embeddedassets embed.FS
@@ -32,14 +38,14 @@ var (
 )
 
 type UnionFS struct {
-	filesystems []http.FileSystem
+	filesystems []fs.FS
 }
 
-func (ufs *UnionFS) AddFS(newfs http.FileSystem) {
+func (ufs *UnionFS) AddFS(newfs fs.FS) {
 	ufs.filesystems = append(ufs.filesystems, newfs)
 }
 
-func (ufs UnionFS) Open(filename string) (http.File, error) {
+func (ufs UnionFS) Open(filename string) (fs.File, error) {
 	for _, fs := range ufs.filesystems {
 		if f, err := fs.Open(filename); err == nil {
 			return f, nil
@@ -47,9 +53,21 @@ func (ufs UnionFS) Open(filename string) (http.File, error) {
 	}
 	return nil, os.ErrNotExist
 }
-func (ufs UnionFS) Exists(prefix, filename string) bool {
+
+func (ufs UnionFS) Exists(filename string) bool {
 	_, err := ufs.Open(filename)
 	return err != os.ErrNotExist
+}
+
+func (ufs UnionFS) OpenDir(name string) ([]fs.DirEntry, error) {
+	for _, ufs := range ufs.filesystems {
+		if rdfs, ok := ufs.(fs.ReadDirFS); ok {
+			if f, err := rdfs.ReadDir(name); err == nil {
+				return f, nil
+			}
+		}
+	}
+	return nil, os.ErrNotExist
 }
 
 type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
@@ -135,7 +153,7 @@ func NewWebservice() *WebService {
 		}
 	})
 	htmlFs, _ := fs.Sub(embeddedassets, "html")
-	ws.AddFS(http.FS(htmlFs))
+	ws.AddFS(htmlFs)
 	// Add debug functions
 	if ui.GetLoglevel() >= ui.LevelDebug {
 		debugfuncs(ws)
@@ -154,6 +172,84 @@ func NewWebservice() *WebService {
 func (ws *WebService) Init(r gin.IRoutes) {
 	// Add stock functions
 	ws.Initialized = true
+
+	// ws.Router.GET("docs", func(ctx *gin.Context) {
+	// 	// index all headlines in markdown in the docs folder
+	// 	markdownfiles, err := ws.UnionFS.OpenDir("docs")
+	// 	if err != nil {
+	// 		ui.Error().Msgf("Error opening docs folder: %v", err)
+	// 		return
+	// 	}
+
+	// 	for _, markdownfile := range markdownfiles {
+	// 		if strings.HasSuffix(markdownfile.Name(), ".md") {
+	// 			mdr, _ := ws.UnionFS.Open(filepath.Join("docs", markdownfile.Name()))
+	// 			rawmd, _ := io.ReadAll(mdr)
+
+	// 			extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
+	// 			p := parser.NewWithExtensions(extensions)
+	// 			doc := p.Parse(rawmd)
+
+	// 			buf := bytes.Buffer{}
+
+	// 			// inHeading := false
+	// 			tocLevel := 0
+	// 			headingCount := 0
+
+	// 			ast.WalkFunc(doc, func(node ast.Node, entering bool) ast.WalkStatus {
+	// 				if nodeData, ok := node.(*ast.Heading); ok && !nodeData.IsTitleblock {
+	// 					// inHeading = entering
+	// 					if !entering {
+	// 						buf.WriteString("</a>")
+	// 						return ast.GoToNext
+	// 					}
+	// 					if nodeData.HeadingID == "" {
+	// 						nodeData.HeadingID = fmt.Sprintf("toc_%d", headingCount)
+	// 					}
+	// 					if nodeData.Level == tocLevel {
+	// 						buf.WriteString("</li>\n\n<li>")
+	// 					} else if nodeData.Level < tocLevel {
+	// 						for nodeData.Level < tocLevel {
+	// 							tocLevel--
+	// 							buf.WriteString("</li>\n</ul>")
+	// 						}
+	// 						buf.WriteString("</li>\n\n<li>")
+	// 					} else {
+	// 						for nodeData.Level > tocLevel {
+	// 							tocLevel++
+	// 							buf.WriteString("\n<ul>\n<li>")
+	// 						}
+	// 					}
+
+	// 					fmt.Fprintf(&buf, `<a href="#%s">`, nodeData.HeadingID)
+	// 					fmt.Fprintf(&buf, `%s`, string(nodeData.Container.AsLeaf().Literal))
+
+	// 					headingCount++
+	// 					return ast.GoToNext
+	// 				}
+
+	// 				// if inHeading {
+	// 				// 	return r.RenderNode(&buf, node, entering)
+	// 				// }
+
+	// 				return ast.GoToNext
+	// 			})
+
+	// 			for ; tocLevel > 0; tocLevel-- {
+	// 				buf.WriteString("</li>\n</ul>")
+	// 			}
+
+	// 			if buf.Len() > 0 {
+	// 				io.WriteString(ctx.Writer, "<nav>\n")
+	// 				ctx.Writer.Write(buf.Bytes())
+	// 				io.WriteString(ctx.Writer, "\n\n</nav>\n")
+	// 			}
+	// 			// var r MarkDownIndexRenderer
+	// 			// markdown.Render(doc, &r)
+	// 		}
+	// 	}
+	// })
+
 	AddUIEndpoints(ws)
 	AddPreferencesEndpoints(ws)
 	AddDataEndpoints(ws)
@@ -191,15 +287,15 @@ func (ws *WebService) Start(bind string) error {
 	ws.srv.Handler = ws.engine
 
 	ws.engine.Use(func(ctx *gin.Context) {
-		file := ctx.Request.URL.Path
-		if file == "/" {
+		file := strings.Trim(ctx.Request.URL.Path, "/")
+		if file == "" {
 			contents, err := ws.UnionFS.Open("index.html")
 			if err != nil {
 				ui.Error().Msgf("Could not open index.html: %v", err)
 				ctx.Error(err)
 				return
 			}
-			serveTemplate(contents, ctx, struct {
+			ws.serveTemplate(contents, ctx, struct {
 				AdditionalHeaders []string
 			}{
 				AdditionalHeaders: ws.AdditionalHeaders,
@@ -207,7 +303,8 @@ func (ws *WebService) Start(bind string) error {
 			return
 		}
 
-		if !ws.UnionFS.Exists("", file) {
+		if !ws.UnionFS.Exists(file) {
+			ui.Warn().Msgf("Not found %v", file)
 			ctx.AbortWithStatus(404)
 			return
 		}
@@ -222,22 +319,36 @@ func (ws *WebService) Start(bind string) error {
 			}
 
 			if stat.IsDir() {
+				// check if an index.html, readme.md, index.md exists in the folder, and then redirect to that
+				for _, tryfile := range []string{"index.html", "readme.md", "index.md"} {
+					trypath := filepath.Join(file, tryfile)
+					if ws.UnionFS.Exists(trypath) {
+						ctx.Redirect(http.StatusFound, "/"+trypath)
+						return
+					}
+				}
+
 				ctx.AbortWithStatus(403)
 				return
 			}
 
 			switch strings.ToLower(filepath.Ext(file)) {
 			case ".md":
-				serveMarkDown(f, ctx)
+				ws.serveMarkDown(f, ctx)
 			case ".tmpl":
-				serveTemplate(f, ctx, nil)
+				ws.serveTemplate(f, ctx, nil)
 			default:
 				// derive content type from extension
 				ct := mime.TypeByExtension(filepath.Ext(file))
 				if ct == "" {
 					// if no content type could be derived, try to detect it from the file's contents
 					c, _ := io.ReadAll(io.LimitReader(f, 512)) // read up to 512 bytes for detection
-					f.Seek(0, 0)                               // reset file pointer after detection
+					if fs, ok := f.(io.Seeker); ok {
+						fs.Seek(0, 0) // reset file pointer to start
+					} else {
+						f.Close()
+						f, _ = ws.UnionFS.Open(file) // reopen file if it's not seekable
+					}
 					ct = http.DetectContentType(c)
 				}
 				ctx.DataFromReader(200, stat.Size(), ct, f, nil)
@@ -273,32 +384,48 @@ func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	if err != nil {
 		ui.Fatal().Msgf("Could not open template %v: %v", path, err)
 	}
-	rawtemplate, _ := io.ReadAll(templatefile)
-	template, err := template.New(path).Parse(string(rawtemplate))
-	if err != nil {
-		c.AbortWithError(500, err)
-		return
-	}
-	template.Execute(c.Writer, data)
+	ws.serveTemplate(templatefile, c, data)
 }
 
-func serveMarkDown(r io.Reader, ctx *gin.Context) {
-	md, _ := io.ReadAll(r)
+func (ws *WebService) serveMarkDown(r io.Reader, ctx *gin.Context) {
+	rawmd, _ := io.ReadAll(r)
 
 	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
 	p := parser.NewWithExtensions(extensions)
-	doc := p.Parse(md)
+	doc := p.Parse(rawmd)
 
 	// create HTML renderer with extensions
-	htmlFlags := html.CommonFlags | html.HrefTargetBlank
-	opts := html.RendererOptions{Flags: htmlFlags}
-	renderer := html.NewRenderer(opts)
-
 	ctx.Status(200)
-	ctx.Writer.Write(markdown.Render(doc, renderer))
+
+	var tocdone bool
+	toc := string(markdown.Render(doc, html.NewRenderer(
+		html.RendererOptions{
+			Flags: html.TOC,
+			RenderNodeHook: func(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus, bool) {
+				if !tocdone {
+					tocdone = true
+				}
+				if tocdone && node == doc {
+					return ast.Terminate, true
+				}
+				return ast.GoToNext, false
+			},
+		})))
+	contents := string(markdown.Render(doc, html.NewRenderer(
+		html.RendererOptions{
+			Flags: html.CommonFlags,
+		})))
+
+	ws.ServeTemplate(ctx, "markdown.tmpl.html", struct {
+		TOC      string
+		Contents string
+	}{
+		TOC:      toc,
+		Contents: contents,
+	})
 }
 
-func serveTemplate(r io.Reader, ctx *gin.Context, data any) {
+func (ws *WebService) serveTemplate(r io.Reader, ctx *gin.Context, data any) {
 	rawindex, _ := io.ReadAll(r)
 	template, err := template.New("template").Parse(string(rawindex))
 	if err != nil {

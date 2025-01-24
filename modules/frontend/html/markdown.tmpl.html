@@ -1,0 +1,46 @@
+{{/* Index page template for Adalanche */}}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <title>Adalanche - Graph Analytics Platform</title>
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1"
+    />
+
+    <link rel="icon" type="image/png" href="/icons/adalanche-favicon.png" />
+
+    <link rel="stylesheet" type="text/css" href="/external/halfmoon-ui/halfmoon.css" />
+    <link rel="stylesheet" type="text/css" href="/external/bootstrap-icons/bootstrap-icons.css" />
+    <link rel="stylesheet" type="text/css" href="/external/toastify.min.css">
+    <script src="/external/jquery-3.7.1.min.js"></script>
+
+    <!-- we put everything custom here, so we can override earlier variables -->
+    <link rel="stylesheet" href="/adalanche.css" />
+    <link rel="stylesheet" href="/adalanche-docs.css" />
+  </head>
+  <body>
+    <div class="d-flex">
+        <nav class="sidebar d-flex flex-column flex-shrink-0 position-fixed no-print">
+          {{ .TOC }}
+        </nav>
+        <main class="main-content">
+          <button class="toggle-btn float-end" onclick="toggleSidebar()">
+              <i class="bi-arrow-left-right"></i>
+          </button>
+          <div id="docs" class="container-fluid">
+            {{ .Contents }}
+          </div>
+        </main>
+    </div>
+    <script>
+      function toggleSidebar() {
+          const sidebar = document.querySelector('.sidebar');
+          sidebar.classList.toggle('collapsed');
+      }
+      $(document).ready(function() {
+        $('.sidebar nav').addClass('hide-on-collapse');
+      });
+    </script>
+  </body>
+</html>

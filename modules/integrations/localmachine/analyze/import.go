@@ -247,17 +247,20 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		for _, user := range cinfo.Users {
 			uac := 512
 			if !user.IsEnabled {
-				uac += 2
+				uac += engine.UAC_ACCOUNTDISABLE
 			}
 			if user.IsLocked {
-				uac += 16
+				uac += engine.UAC_LOCKOUT
+			}
+			if user.PasswordNeverExpires {
+				uac += engine.UAC_DONT_EXPIRE_PASSWORD
 			}
 			if user.NoChangePassword {
-				uac += 0x10000
+				uac += engine.UAC_PASSWD_CANT_CHANGE
 			}
 			usid, err := windowssecurity.ParseStringSID(user.SID)
 			if err == nil {
-				user := ao.AddNew(
+				uo := ao.AddNew(
 					engine.IgnoreBlanks,
 					activedirectory.ObjectSid, engine.NewAttributeValueSID(usid),
 					activedirectory.Type, "Person",
@@ -271,8 +274,23 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					activedirectory.LogonCount, user.NumberOfLogins,
 					engine.DataSource, uniquesource,
 				)
-				user.ChildOf(userscontainer)
-				user.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
+				uo.ChildOf(userscontainer)
+				uo.EdgeTo(authenticatedusers, activedirectory.EdgeMemberOfGroup)
+
+				if user.IsEnabled {
+					uo.Tag("account_enabled")
+				} else {
+					uo.Tag("account_disabled")
+				}
+				if user.IsLocked {
+					uo.Tag("account_locked")
+				}
+				if user.NoChangePassword {
+					uo.Tag("password_cant_change")
+				}
+				if user.PasswordNeverExpires {
+					uo.Tag("password_never_expires")
+				}
 			} else {
 				ui.Warn().Msgf("Invalid user SID in dump: %v", user.SID)
 			}
@@ -435,7 +453,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	localservicesgroup := ao.AddNew(
 		activedirectory.ObjectSid, engine.NewAttributeValueSID(windowssecurity.ServicesSID),
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
+		engine.DisplayName, "Services (local)",
 		engine.DataSource, cinfo.Machine.Name,
+		engine.Type, "Group",
 	)
 	localservicesgroup.ChildOf(machine)
 	for _, service := range cinfo.Services {

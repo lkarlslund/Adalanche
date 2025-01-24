@@ -1328,12 +1328,16 @@ func init() {
 					// Also they can DCsync because of this membership ... FIXME
 				}
 
-				var expired, inactive bool
-				inactive = uac&engine.UAC_ACCOUNTDISABLE != 0
-				if inactive {
+				var expired, disabled bool
+				disabled = uac&engine.UAC_ACCOUNTDISABLE != 0
+				if disabled {
 					object.Tag("account_disabled")
 				} else {
 					object.Tag("account_enabled")
+				}
+
+				if uac&engine.UAC_LOCKOUT != 0 {
+					object.Tag("account_locked")
 				}
 
 				if object.HasAttr(activedirectory.AccountExpires) {
@@ -1345,7 +1349,7 @@ func init() {
 					}
 				}
 
-				if inactive || expired {
+				if disabled || expired {
 					object.Tag("account_inactive")
 				} else {
 					object.Tag("account_active")

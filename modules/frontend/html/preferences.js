@@ -18,18 +18,18 @@ function loadprefs() {
 function updatecontrol(ele) {
     defaultval = $('input[name="'+ele.attr("name")+'"][defaultpref]').attr("defaultpref");
     val = getpref(ele.attr("preference"), defaultval);
-    console.log(
-      "Loaded settings for " +
-        ele.attr("preference") +
-        " with default value " +
-        defaultval + " value " + val
-    );
+    // console.log(
+    //   "Loaded settings for " +
+    //     ele.attr("preference") +
+    //     " with default value " +
+    //     defaultval + " value " + val
+    // );
     if (val != null) {
         if (ele.attr("type") == "checkbox") {
             ele.prop("checked", val)
         } else if (ele.attr("type") == "radio") {
             $('[type=radio][name="'+ele.attr("name")+'"]').each(function (index, radioitem) {
-                console.log(radioitem);
+                // console.log(radioitem);
                 $(this).prop("checked", $(this).attr("value") == val);
             });
         } else {
@@ -45,7 +45,7 @@ function onchangepreference(ele) {
         setpref(ele.attr("preference"), ele.prop("checked"))
     } else if (ele.attr("type") == "radio") {
         $('input[name="'+ele.attr("name")+'"]:checked').each(function( index, checkedele ) {
-            console.log("Updating radio to "+$(this).val());
+            // console.log("Updating radio to "+$(this).val());
             setpref(ele.attr("preference"), $(this).val());
         });
     } else {

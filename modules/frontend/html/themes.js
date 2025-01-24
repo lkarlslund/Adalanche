@@ -1,8 +1,7 @@
 const translateAutoTheme = (theme) => {
     if (theme == "auto") {
-        console.log("Auto detecting theme from browser: ");
-        console.log(window.matchMedia("(prefers-color-scheme: dark)"));
-
+        // console.log("Auto detecting theme from browser: ");
+        // console.log(window.matchMedia("(prefers-color-scheme: dark)"));
         return window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light";
@@ -25,9 +24,9 @@ var lasttheme = ""; // Store the last theme for comparison
 $(document).ready(function () {
     $("input[name='theme']").on("change", function () {
         var selectedTheme = $("input[name='theme']:checked").val();
-        console.log("theme is "+ selectedTheme+", was "+lasttheme);
+        // console.log("theme is "+ selectedTheme+", was "+lasttheme);
         if (selectedTheme != lasttheme) {
-            console.log("theme changed to "+ selectedTheme);
+            // console.log("theme changed to "+ selectedTheme);
             setTheme(translateAutoTheme(selectedTheme));
         }
 

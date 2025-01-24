@@ -92,6 +92,7 @@ function new_window(
 
     // closing
     $("#close", mywindow).click(function (event) {
+      interact(`#window_${id}`).unset();
       $(this).parents(".window").remove();
     });
 
@@ -150,7 +151,7 @@ function new_window(
         modifiers: [
           interact.modifiers.restrictRect({
             restriction: "parent",
-            endOnly: true,
+            endOnly: false,
           }),
         ],
         allowFrom: ".window-header",
@@ -294,9 +295,9 @@ function aqlanalyze(e) {
 
         if (
           $("#hidequeryonanalysis").prop("checked") &&
-          $("#querydiv").prop("height") != 0
+          $("#querybox").prop("height") != 0
         ) {
-          $("#querydiv").slideToggle("fast");
+          $("#querybox").slideToggle("fast");
         }
 
         initgraph(data.elements);
@@ -610,7 +611,7 @@ $(function () {
         dataType: "json",
         data: encodeaqlquery(),
         error: function (xhr, status, error) {
-          toast("Error saving query: "+error);
+          toast("Error saving query: " + error);
         },
         success: function (data) {
           toast("Query saved successfully");
@@ -627,6 +628,60 @@ $(function () {
   // $("#querydiv").slideUp("fast")
   $("#togglequeryvisible").on("click", function () {
     $("#querybox").slideToggle("fast");
+  });
+
+  $("#highlightbutton").on("click", function () {
+    if (
+      new_window(
+        "highlight",
+        "Highlight nodes",
+        '<textarea id="highlighttext" class="mb-2" placeholder="(name=*admin*)"></textarea><div id="highlightqueryerror"></div><button id="searchandhighlight" class="btn btn-primary float-end">Highlight</button>'
+      )
+    ) {
+      var highlightchangetimer;
+      $("#highlighttext").on("input", function () {
+        clearTimeout(highlightchangetimer);
+        highlightchangetimer = setTimeout(function () {
+          // check query for errors when user has been idle for 200ms
+          $.ajax({
+            type: "GET",
+            url: "/api/backend/validatequery",
+            data: {
+              query: $("#highlighttext").val(),
+            },
+            success: function (data) {
+              console.log(data);
+              $("#searchandhighlight").attr("disabled", false);
+              $("#highlightqueryerror").hide();
+            },
+            error: function (xhr, status, error) {
+              $("#searchandhighlight").attr("disabled", true);
+              $("#highlightqueryerror").html(xhr.responseText).show();
+            },
+          });
+        }, 200);
+      });
+
+      $("#searchandhighlight").on("click", function () {
+        if (cy) {
+          $.ajax({
+            type: "GET",
+            url: "/search/get-ids?query=" + $("#highlighttext").val(),
+            contentType: "charset=utf-8",
+            data: {
+              query: $("#highlighttext").val(),
+            },
+            dataType: "json",
+            success: function (data) {
+              cy.$("*").unselect();
+              for (var id of data) {
+                cy.$("#" + id).select();
+              }
+            },
+          });
+        }
+      });
+    }
   });
 
   // $('[data-toggle="tooltip"]').tooltip()
@@ -661,7 +716,7 @@ $(function () {
     dataType: "json",
     success: function (data) {
       statustext =
-        "<div class='text-center pt-10'><img height=128 src='icons/adalanche-logo.svg'></div><div class='text-center'><h2>" +
+        "<div class='text-center pt-10'><img class='only-dark' height=128 src='icons/adalanche-logo.svg'><img class='only-light' height=128 src='icons/adalanche-logo-black.svg'></div><div class='text-center'><h2>" +
         data.adalanche.program +
         "</h2><b>" +
         data.adalanche.shortversion +
@@ -862,8 +917,9 @@ $(function () {
 
   updateQueries();
 
-  $(document).on("prefereces.loaded", function (evt) {
-    if (getpref("run.query.on.startup")) {
+  $(document).on("preferences.loaded", function (evt) {
+    console.log("autorun query?");
+    if (getpref("ui.run.query.on.startup")) {
       aqlanalyze();
     }
   });
