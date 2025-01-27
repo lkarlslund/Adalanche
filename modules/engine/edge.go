@@ -78,6 +78,16 @@ func (eb EdgeBitmap) ToStringSlice() []string {
 	return edgenames
 }
 
+func (eb EdgeBitmap) Range(f func(e Edge) bool) {
+	for index := 0; index < MAXEDGEPOSSIBLE; index++ {
+		if eb.IsSet(Edge(index)) {
+			if !f(Edge(index)) {
+				return
+			}
+		}
+	}
+}
+
 func (eb EdgeBitmap) Set(edge Edge) EdgeBitmap {
 	if !eb.IsSet(edge) {
 		atomic.AddUint64(&EdgePopularity[edge], 1)
