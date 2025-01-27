@@ -193,6 +193,65 @@ func AddUIEndpoints(ws *WebService) {
 		ws.quit <- true
 	})
 }
+
+type APINodeDetails struct {
+	Attributes        map[string][]string `json:"attributes"`
+	Label             string              `json:"label"`
+	CanPwn            map[string][]string `json:"can_pwn"`
+	PwnableBy         map[string][]string `json:"pwnable_by"`
+	DistinguishedName string              `json:"distinguishedname"`
+}
+
+type APIEdgeDetails struct {
+	From  APINodeDetails                `json:"from"`
+	To    APINodeDetails                `json:"to"`
+	Edges map[string]engine.Probability `json:"edges"`
+}
+
+func apiNodeDetails(o *engine.Object) APINodeDetails {
+	od := APINodeDetails{
+		DistinguishedName: o.DN(),
+		Label:             o.Label(),
+		Attributes:        make(map[string][]string),
+	}
+	o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
+		slice := values.StringSlice()
+		for i := range slice {
+			if !util.IsASCII(slice[i]) {
+				slice[i] = util.Hexify(slice[i])
+			}
+			if len(slice[i]) > 256 {
+				slice[i] = slice[i][:256] + " ..."
+			}
+		}
+		sort.StringSlice(slice).Sort()
+		od.Attributes[attr.String()] = slice
+		return true
+	})
+	return od
+}
+
+func apiEdgeDetails(from, to *engine.Object) APIEdgeDetails {
+	ed := APIEdgeDetails{
+		From:  apiNodeDetails(from),
+		To:    apiNodeDetails(to),
+		Edges: make(map[string]engine.Probability),
+	}
+
+	from.Edges(engine.Out).Range(func(maybeTo *engine.Object, eb engine.EdgeBitmap) bool {
+		if maybeTo != to {
+			return true
+		}
+
+		eb.Range(func(e engine.Edge) bool {
+			ed.Edges[e.String()] = e.Probability(from, to, &eb)
+			return true
+		})
+		return false
+	})
+	return ed
+}
+
 func AddDataEndpoints(ws *WebService) {
 	api := ws.API
 	// Returns JSON describing an object located by distinguishedName, sid or guid
@@ -232,37 +291,76 @@ func AddDataEndpoints(ws *WebService) {
 			c.Writer.Write([]byte(o.StringACL(ws.Objs)))
 			return
 		}
-		// default format
-		type ObjectDetails struct {
-			Attributes        map[string][]string `json:"attributes"`
-			CanPwn            map[string][]string `json:"can_pwn"`
-			PwnableBy         map[string][]string `json:"pwnable_by"`
-			DistinguishedName string              `json:"distinguishedname"`
-		}
-		od := ObjectDetails{
-			DistinguishedName: o.DN(),
-			Attributes:        make(map[string][]string),
-		}
-		o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
-			slice := values.StringSlice()
-			for i := range slice {
-				if !util.IsASCII(slice[i]) {
-					slice[i] = util.Hexify(slice[i])
+
+		c.JSON(200, apiNodeDetails(o))
+	})
+	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {
+		var o *engine.Object
+		var found bool
+
+		ids := strings.Split(c.Param("id"), ",")
+		nodes := make([]*engine.Object, len(ids))
+
+		switch strings.ToLower(c.Param("locateby")) {
+		case "id":
+			for i, id := range ids {
+				thisId, err := strconv.Atoi(id)
+				if err != nil {
+					c.String(500, err.Error())
+					return
 				}
-				if len(slice[i]) > 256 {
-					slice[i] = slice[i][:256] + " ..."
+				o, found = ws.Objs.FindID(engine.ObjectID(thisId))
+				if !found {
+					c.AbortWithStatus(404)
+					return
 				}
+				nodes[i] = o
 			}
-			sort.StringSlice(slice).Sort()
-			od.Attributes[attr.String()] = slice
-			return true
-		})
-		if c.Query("format") == "json" {
-			c.JSON(200, od.Attributes)
+		case "dn", "distinguishedname":
+			for i, id := range ids {
+				o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(id))
+				if !found {
+					c.AbortWithStatus(404)
+					return
+				}
+				nodes[i] = o
+			}
+		case "sid":
+			for i, id := range ids {
+				sid, err := windowssecurity.ParseStringSID(id)
+				if err != nil {
+					c.String(500, err.Error())
+					return
+				}
+				o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
+				if !found {
+					c.AbortWithStatus(404)
+					return
+				}
+				nodes[i] = o
+			}
+		case "guid":
+			for i, id := range ids {
+				u, err := uuid.FromString(id)
+				if err != nil {
+					c.String(500, err.Error())
+					return
+				}
+				o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
+				if !found {
+					c.AbortWithStatus(404)
+					return
+				}
+				nodes[i] = o
+			}
+		default:
+			c.String(400, "Unknown lookup attribute %v", strings.ToLower(c.Param("locateby")))
 			return
 		}
-		c.JSON(200, od)
+
+		c.JSON(200, apiNodeDetails(o))
 	})
+
 	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {
 		idstr := c.Query("id")
 		var children engine.ObjectSlice
