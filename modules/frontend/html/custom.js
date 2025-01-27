@@ -57,7 +57,7 @@ function new_window(
   $(".window-front").removeClass("window-front");
 
   var mywindow = $(`#windows #window_${id}`);
-  var itsnew = false;
+  var itsnew = true;
 
   var maxheight = $(window).height() * 0.8;
   var maxwidth = $(window).width() * 0.6;
@@ -75,106 +75,114 @@ function new_window(
       break;
   }
 
-  // add the new one
-  if (mywindow.length == 0) {
-    mywindow = $(
-      `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
-            <div id='header' class='window-header mb-1 bg-primary text-dark p-1'>
-            <span id="title" class="col">${title}</span><span id="close" class="border float-end cursor-pointer">X</span>
-            </div>
-            <div class="window-wrapper">
-            <div class="window-content p-1" id="contents">${content}</div>
-            </div>
-            </div>`
-    );
+  // Remove the old
+  if (mywindow.length != 0) {
+    interact(`#window_${id}`).unset();
+    mywindow.remove();
+  };
 
-    $("#windows").append(mywindow);
+  // Create the new
+  mywindow = $(
+    `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
+          <div id='header' class='window-header mb-1 bg-primary text-dark p-1'>
+          <span id="title" class="col">${title}</span><span id="close" class="border float-top float-end cursor-pointer">X</span>
+          </div>
+          <div class="window-wrapper">
+          <div class="window-content p-1" id="contents">${content}</div>
+          </div>
+          </div>`
+  );
+  $("#windows").append(mywindow);
 
-    // closing
-    $("#close", mywindow).click(function (event) {
-      interact(`#window_${id}`).unset();
-      $(this).parents(".window").remove();
+  // closing
+  $("#close", mywindow).click(function (event) {
+    interact(`#window_${id}`).unset();
+    $(this).parents(".window").remove();
+  });
+
+  ni = interact("#window_" + id)
+    // .origin('self')
+    .resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      margin: 5,
+      origin: self,
+      listeners: {
+        move(event) {
+          console.log(event);
+
+          var target = event.target;
+          var x = parseFloat(target.getAttribute("data-x")) || 0;
+          var y = parseFloat(target.getAttribute("data-y")) || 0;
+
+          // update the element's style
+          target.style.width = event.rect.width + "px";
+          target.style.height = event.rect.height + "px";
+
+          if (!target.classList.contains("window-front")) {
+            $(".window-front").removeClass("window-front");
+            target.classList.add("window-front");
+          }
+
+          // translate when resizing from top or left edges
+          x += event.deltaRect.left;
+          y += event.deltaRect.top;
+
+          // Ensure window does not slip too far up or left
+          x = Math.max(0, x);
+          y = Math.max(0, y);
+
+          target.style.transform = "translate(" + x + "px," + y + "px)";
+
+          target.setAttribute("data-x", x);
+          target.setAttribute("data-y", y);
+        },
+      },
+      modifiers: [
+        // keep the edges inside the parent
+        interact.modifiers.restrictEdges({
+          outer: "parent",
+        }),
+
+        // min and max size
+        interact.modifiers.restrictSize({
+          min: { width: 200, height: 150 },
+          max: { width: maxwidth, height: maxheight },
+        }),
+      ],
+
+      inertia: true,
+    })
+    .draggable({
+      onmove: window.dragMoveListener,
+      modifiers: [
+        interact.modifiers.restrictRect({
+          restriction: "parent",
+          endOnly: false,
+        }),
+      ],
+      allowFrom: ".window-header",
     });
 
-    interact("#window_" + id)
-      // .origin('self')
-      .resizable({
-        edges: { left: true, right: true, bottom: true, top: true },
-        margin: 5,
-        origin: self,
-        listeners: {
-          move(event) {
-            var target = event.target;
-            var x = parseFloat(target.getAttribute("data-x")) || 0;
-            var y = parseFloat(target.getAttribute("data-y")) || 0;
+  // ni.fire({
+  //   type: "resizemove",
+  //   target: $("#window_" + id).get(0),
+  // });
 
-            // update the element's style
-            target.style.width = event.rect.width + "px";
-            target.style.height = event.rect.height + "px";
-
-            if (!target.classList.contains("window-front")) {
-              $(".window-front").removeClass("window-front");
-              target.classList.add("window-front");
-            }
-
-            // translate when resizing from top or left edges
-            x += event.deltaRect.left;
-            y += event.deltaRect.top;
-
-            // Ensure window does not slip too far up or left
-            x = Math.max(0, x);
-            y = Math.max(0, y);
-
-            target.style.transform = "translate(" + x + "px," + y + "px)";
-
-            target.setAttribute("data-x", x);
-            target.setAttribute("data-y", y);
-          },
-        },
-        modifiers: [
-          // keep the edges inside the parent
-          interact.modifiers.restrictEdges({
-            outer: "parent",
-          }),
-
-          // min and max size
-          interact.modifiers.restrictSize({
-            min: { width: 200, height: 150 },
-            max: { width: maxwidth, height: maxheight },
-          }),
-        ],
-
-        inertia: true,
-      })
-      .draggable({
-        onmove: window.dragMoveListener,
-        modifiers: [
-          interact.modifiers.restrictRect({
-            restriction: "parent",
-            endOnly: false,
-          }),
-        ],
-        allowFrom: ".window-header",
-      });
-
-    if (height > 0) {
-      mywindow.height(height);
-    }
-    if (width > 0) {
-      mywindow.width(width);
-    }
-
-    if (mywindow.height() > maxheight) {
-      mywindow.height(maxheight);
-    }
-    if (mywindow.width() > maxwidth) {
-      mywindow.width(maxwidth);
-    }
-  } else {
-    $("#title", mywindow).html(title);
-    $("#contents", mywindow).html(content);
-    mywindow.addClass("window-front");
+  if (height > 0) {
+    mywindow.height(height);
   }
+  if (width > 0) {
+    mywindow.width(width);
+  }
+
+  if (mywindow.height() > maxheight) {
+    mywindow.height(maxheight);
+  }
+  if (mywindow.width() > maxwidth) {
+    mywindow.width(maxwidth);
+  }
+
+  mywindow.addClass("window-front");
 
   // Bring to front on mouse down
   mywindow.mousedown(function () {
@@ -441,14 +449,15 @@ function handleProgressData(progress) {
 // start update cycle
 connectProgress();
 
-function toast(contents) {
+function toast(contents, toastclass) {
   Toastify({
     text: contents,
     duration: 10000,
     // destination: "https://github.com/apvarun/toastify-js",
     newWindow: true,
     close: true,
-    gravity: "top", // `top` or `bottom`
+    className: toastclass,
+    gravity: "bottom", // `top` or `bottom`
     position: "left", // `left`, `center` or `right`
     stopOnFocus: true, // Prevents dismissing of toast on hover
     style: {

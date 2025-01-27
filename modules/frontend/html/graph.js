@@ -284,7 +284,7 @@ var cytostyle = [
     selector: "node",
     style: {
       label: function (ele) {
-        return nodelabel(ele);
+        return renderlabel(ele.data("label"));
       },
       color: function (ele) {
         return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
@@ -609,16 +609,16 @@ function getGraphlayout(choice) {
     return layout
 }
 
-function nodelabel(ele) {
+function renderlabel(label) {
     switch ($("#nodelabels").val()) {
         case "normal":
-            return ele.data("label");
+            return label;
         case "off":
             return "";
         case "randomize":
-            return anonymizer.anonymize(ele.data("label"));
+            return anonymizer.anonymize(label);
         case "checksum":
-            return hashFnv32a(ele.data("label"), true, undefined);
+            return hashFnv32a(label, true, undefined);
     }
     return "label error";
 }
@@ -655,9 +655,6 @@ function hashFnv32a(str, asString, seed) {
     return hval >>> 0;
 }
 
-function renderedge(ele) {
-    return rendernode(ele.source()) + rendermethods(ele) + rendernode(ele.target());
-}
 
 function rendermethods(ele) {
     var prob = edgeprobability(ele);
@@ -676,7 +673,7 @@ function rendermethods(ele) {
 
 icons = new Map(
     [
-        ["User", "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>"],
+        ["Person", "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>"],
         ["Group", "<img src='icons/people-fill.svg' class='rounded-circle' width='24' height='24'>"],
         ["Computer", "<img src='icons/computer-fill.svg' class='rounded-circle' width='24' height='24'>"],
         ["Machine", "<img src='icons/tv-fill.svg' class='rounded-circle' width='24' height='24'>"],
@@ -695,23 +692,24 @@ icons = new Map(
     ]
 );
 
-function rendericon(ele) {
-    return icons.get(ele.data("type"));
+function rendericon(type) {
+    return icons.get(type);
 }
 
 function rendernode(ele) {
-    var s = '<div>';
+    s = rendericon(ele.attributes['type'][0]);
 
-    s += rendericon(ele);
-
-    s += nodelabel(ele);
-    if (ele.data("engine.downLevelLogonName")) {
-        s += ' (' + ele.data("engine.downLevelLogonName") + ')';
-    } else if (ele.data("engine.SAMAccountName")) {
-        s += ' (' + ele.data("engine.SAMAccountName") + ')';
+    label = ele.label;
+    if (!label) {
+      label = ele.attributes['displayName'][0];
     }
-    s += '</div>';
-    if (ele.data("distinguishedName")) s += '<div>' + ele.data("distinguishedName") + '</div>';
+    s += renderlabel(ele.label);
+    if (ele.attributes["downLevelLogonName"]) {
+      s += " (" + ele.attributes["downLevelLogonName"][0] + ")";
+    } else if (ele.attributes["sAMAccountName"]) {
+      s += " (" + ele.attributes["sAMAccountName"][0] + ")";
+    }
+    if (ele.attributes["distinguishedName"]) s += "<br>" + ele.attributes["distinguishedName"][0];
     return s
 }
 
@@ -967,9 +965,7 @@ function initgraph(data) {
                 url: "api/details/id/" + (evt.target.id().substring(1)), // n123 format -> 123
                 dataType: "json",
                 success: function (data) {
-                    details = rendernode(evt.target)
-                    details += renderdetails(data)
-                    new_window("details", "Node details", details);
+                    new_window("details", rendernode(data), renderdetails(data));
                 },
                 error: function (xhr, status, error) {
                     new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
@@ -979,7 +975,32 @@ function initgraph(data) {
 
         cy.on('click', 'edge', function (evt) {
             // console.log('clicked edge ' + this.id());
-            new_window("details", "Edge details", renderedge(this));
+            $.when(
+              $.get({
+                url: "api/details/id/" + evt.target.source().id().substring(1),
+                dataType: "json",
+              }),
+              $.get({
+                url: "api/details/id/" + evt.target.target().id().substring(1),
+                dataType: "json",
+              })
+            ).then(function (source, target) {
+              if (source[1] != "success") {
+                  toast("Error loading source node", "Details: "+source[1]);
+                  return;
+              }
+              if (target[1] != "success") {
+                  toast("Error loading target node", "Details: "+target[1]);
+                  return;
+              }
+              new_window(
+                "edge_"+evt.target.source().id()+"_to_"+evt.target.target().id(),
+                "Edge from "+source[0].label + " to "+target[0].label,
+                rendernode(source[0]) + "<br>" + 
+                rendermethods(evt.target) + "<br>" + 
+                rendernode(target[0])
+              );
+            });
         });
 
         cy.on('mouseover', 'edge', function (event) {
@@ -1154,8 +1175,10 @@ function applyNodeStyles(cy) {
 function findroute(source) {
     var target = cy.$("node.target")
     if (target.length == 0) {
+        toast("No target node found", "error")
         return
     }
+
 
     cy.elements().unselect() // unselect everything
 
@@ -1172,28 +1195,40 @@ function findroute(source) {
         directed: true
     })
     if (dfs.path) {
-        dfs.path.select();
-        console.log(dfs.distance);
-        pathprobability = 1.0
-        dfs.path.forEach(function (ele) {
-            if (ele.isEdge()) {
-                pathprobability = pathprobability * (edgeprobability(ele) / 100);
-            }
-        })
-        pathprobability = pathprobability * 100 // Back to percentages
+      dfs.path.select();
+      console.log(dfs.distance);
+      pathprobability = 1.0;
+      dfs.path.forEach(function (ele) {
+        if (ele.isEdge()) {
+          pathprobability = pathprobability * (edgeprobability(ele) / 100);
+        }
+      });
+      pathprobability = pathprobability * 100; // Back to percentages
 
-        // Show path information
-        routecontents = ""
-        dfs.path.forEach(function (ele) {
-            if (ele.isNode()) {
-                routecontents += rendernode(ele);
-            } else if (ele.isEdge()) {
-                routecontents += rendermethods(ele);
-            }
-        })
-        new_window("route_" + source.id() + "_" + target.id(),
-            `Route from ` + nodelabel(source) + ` to ` + nodelabel(target) + ` - ` + pathprobability.toFixed(2) + `% probability`,
-            routecontents)
+      // empty array
+      gets = [];
+      edges = [];
+
+      // Show path information
+      routecontents = "";
+      dfs.path.forEach(function (ele) {
+        if (ele.isNode()) {
+          routecontents += rendernode(ele);
+        } else if (ele.isEdge()) {
+          routecontents += rendermethods(ele);
+        }
+      });
+      new_window(
+        "route_" + source.id() + "_" + target.id(),
+        `Route from ` +
+          renderlabel(source.label) +
+          ` to ` +
+          renderlabel(target.label) +
+          ` - ` +
+          pathprobability.toFixed(2) +
+          `% probability`,
+        routecontents
+      );
     } else {
         toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.");
     }
