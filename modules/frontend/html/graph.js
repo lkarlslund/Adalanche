@@ -1230,6 +1230,6 @@ function findroute(source) {
         routecontents
       );
     } else {
-        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.");
+        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.", "warning");
     }
 }

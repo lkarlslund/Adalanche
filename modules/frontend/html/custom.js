@@ -314,7 +314,7 @@ function aqlanalyze(e) {
       }
     },
     error: function (xhr, status, error) {
-      toast("Problem loading graph:\n\n" + xhr.responseText);
+      toast("Problem loading graph", xhr.responseText, "error");
       $("#status").empty().hide();
     },
   });
@@ -449,19 +449,41 @@ function handleProgressData(progress) {
 // start update cycle
 connectProgress();
 
-function toast(contents, toastclass) {
+function toast(title, contents, toastclass) {
+  if (!toastclass) {
+    toastclass = "info";
+  }
+  toastbody = contents;
+  if (title) {
+    toastbody = "<span class='toast-title'>" + title + "</span><br>" + contents;
+  }
+  // switch (toastclass) {
+  //   case "info":
+  //     icon = "<i class='fas fa-info-circle'></i>";
+  //     break;
+  //   case "warning":
+  //     toastclass = "toastify-warning";
+  //     break;
+  //   case "error":
+  //     toastclass = "toastify-error";
+  //     break;
+  //     case "success":
+
+  // }
   Toastify({
-    text: contents,
+    text: toastbody,
     duration: 10000,
+    // avatar: icon,
     // destination: "https://github.com/apvarun/toastify-js",
     newWindow: true,
     close: true,
-    className: toastclass,
+    className: "toast "+toastclass,
+    escapeMarkup: false,
     gravity: "bottom", // `top` or `bottom`
     position: "left", // `left`, `center` or `right`
     stopOnFocus: true, // Prevents dismissing of toast on hover
     style: {
-      background: "orange"
+      // background: "orange",
       // background: "linear-gradient(to right, #00b09b, #96c93d)",
     },
     // onClick: function () {}, // Callback after click
@@ -513,10 +535,10 @@ function updateQueries() {
           type: "DELETE",
           url: "api/backend/queries/" + queryname,
           error: function (xhr, status, error) {
-            toast("Error deleting query: " + error);
+            toast("Error deleting query", error, "error");
           },
           success: function (data) {
-            toast("Query deleted successfully");
+            toast("Query deleted successfully", "", "success");
             updateQueries();
           },
         });
@@ -620,10 +642,10 @@ $(function () {
         dataType: "json",
         data: encodeaqlquery(),
         error: function (xhr, status, error) {
-          toast("Error saving query: " + error);
+          toast("Error saving query", error, "error");
         },
         success: function (data) {
-          toast("Query saved successfully");
+          toast("Query saved successfully", "", "success");
           updateQueries(); // refresh the list
         },
         complete: function () {
