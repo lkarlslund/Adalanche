@@ -1372,7 +1372,7 @@ func init() {
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
-						machine.Tag("role-domaincontroller")
+						machine.Tag("role_domaincontroller")
 						machine.Tag("hvt")
 
 						domainContext := object.OneAttr(engine.DomainContext)
@@ -1410,7 +1410,7 @@ func init() {
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
 					} else {
-						machine.Tag("role-readonly-domaincontroller")
+						machine.Tag("role_readonly_domaincontroller")
 						machine.Tag("hvt")
 					}
 
@@ -1877,7 +1877,7 @@ func init() {
 							engine.Type, ObjectTypeMachine.ValueString(),
 							activedirectory.DNSHostName, cadns,
 						); found {
-							ca.Tag("role-certificate-authority")
+							ca.Tag("role_certificate_authority")
 							ca.Tag("hvt")
 						} else {
 							ui.Warn().Msgf("Couldn't locate dnsHostName %v acting as enrollmentservice", cadns)
