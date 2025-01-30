@@ -1002,6 +1002,12 @@ func (o *Object) EdgeTo(target *Object, edge Edge) {
 	o.EdgeToEx(target, edge, false)
 }
 
+// Register that this object can pwn another object using the given method
+func (o *Object) GetEdge(target *Object) (EdgeBitmap, bool) {
+	edge, ok := o.Edges(Out).Load(Connection{target: target})
+	return edge.edges, ok
+}
+
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
 func (o *Object) EdgeToEx(target *Object, edge Edge, force bool) {
 	if o == target {
