@@ -195,11 +195,12 @@ func AddUIEndpoints(ws *WebService) {
 }
 
 type APINodeDetails struct {
-	Attributes        map[string][]string `json:"attributes"`
+	ID                engine.ObjectID     `json:"id"`
 	Label             string              `json:"label"`
-	CanPwn            map[string][]string `json:"can_pwn"`
-	PwnableBy         map[string][]string `json:"pwnable_by"`
 	DistinguishedName string              `json:"distinguishedname"`
+	Attributes        map[string][]string `json:"attributes"`
+	// CanPwn            map[string][]string `json:"can_pwn"`
+	// PwnableBy         map[string][]string `json:"pwnable_by"`
 }
 
 type APIEdgeDetails struct {
@@ -208,52 +209,75 @@ type APIEdgeDetails struct {
 	Edges map[string]engine.Probability `json:"edges"`
 }
 
-func apiNodeDetails(o *engine.Object) APINodeDetails {
+func apiNodeDetails(o *engine.Object, pretty bool) APINodeDetails {
 	od := APINodeDetails{
-		DistinguishedName: o.DN(),
+		ID:                o.ID(),
 		Label:             o.Label(),
-		Attributes:        make(map[string][]string),
+		DistinguishedName: o.DN(),
+		Attributes:        o.ValueMap(),
 	}
-	o.AttrIterator(func(attr engine.Attribute, values engine.AttributeValues) bool {
-		slice := values.StringSlice()
-		for i := range slice {
-			if !util.IsASCII(slice[i]) {
-				slice[i] = util.Hexify(slice[i])
+	if pretty {
+		for k, slice := range od.Attributes {
+			for i := range slice {
+				if !util.IsPrintableString(slice[i]) {
+					slice[i] = util.Hexify(slice[i])
+				}
+				if len(slice[i]) > 256 {
+					slice[i] = slice[i][:256] + " ..."
+				}
 			}
-			if len(slice[i]) > 256 {
-				slice[i] = slice[i][:256] + " ..."
-			}
+			sort.StringSlice(slice).Sort()
+			od.Attributes[k] = slice
 		}
-		sort.StringSlice(slice).Sort()
-		od.Attributes[attr.String()] = slice
-		return true
-	})
+	}
 	return od
 }
 
-func apiEdgeDetails(from, to *engine.Object) APIEdgeDetails {
+func apiEdgeDetails(from, to *engine.Object) (APIEdgeDetails, bool) {
+	eb, found := from.GetEdge(to)
+	if !found {
+		return APIEdgeDetails{}, false
+	}
+
 	ed := APIEdgeDetails{
-		From:  apiNodeDetails(from),
-		To:    apiNodeDetails(to),
+		From:  apiNodeDetails(from, false),
+		To:    apiNodeDetails(to, false),
 		Edges: make(map[string]engine.Probability),
 	}
 
-	from.Edges(engine.Out).Range(func(maybeTo *engine.Object, eb engine.EdgeBitmap) bool {
-		if maybeTo != to {
-			return true
-		}
-
-		eb.Range(func(e engine.Edge) bool {
-			ed.Edges[e.String()] = e.Probability(from, to, &eb)
-			return true
-		})
-		return false
+	eb.Range(func(e engine.Edge) bool {
+		ed.Edges[e.String()] = e.Probability(from, to, &eb)
+		return true
 	})
-	return ed
+	return ed, true
 }
 
 func AddDataEndpoints(ws *WebService) {
 	api := ws.API
+
+	// Used for highlighting function
+	api.GET("/search/get-ids", func(c *gin.Context) {
+		querytext := c.Query("query")
+		filter, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
+		if err != nil {
+			if !strings.HasPrefix(querytext, "(") {
+				querytext = "(*=" + querytext + ")"
+				filter, err = query.ParseLDAPQueryStrict(querytext, ws.Objs)
+			}
+		}
+		if err != nil {
+			c.AbortWithError(500, err)
+			return
+		}
+		objects := ws.Objs.Filter(filter.Evaluate)
+		results := make([]string, 0, objects.Len())
+		objects.Iterate(func(o *engine.Object) bool {
+			results = append(results, fmt.Sprintf("n%v", o.ID()))
+			return true
+		})
+		c.JSON(200, results)
+	})
+
 	// Returns JSON describing an object located by distinguishedName, sid or guid
 	api.GET("details/:locateby/:id", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Object
@@ -292,13 +316,13 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 
-		c.JSON(200, apiNodeDetails(o))
+		c.JSON(200, apiNodeDetails(o, true))
 	})
 	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Object
 		var found bool
 
-		ids := strings.Split(c.Param("id"), ",")
+		ids := strings.Split(c.Param("ids"), ",")
 		nodes := make([]*engine.Object, len(ids))
 
 		switch strings.ToLower(c.Param("locateby")) {
@@ -358,7 +382,21 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 
-		c.JSON(200, apiNodeDetails(o))
+		var lastnode *engine.Object
+		result := make([]APIEdgeDetails, 0, len(nodes)-1)
+		for _, o := range nodes {
+			if lastnode != nil {
+				ed, found := apiEdgeDetails(lastnode, o)
+				if !found {
+					c.String(404, "Edge between %v and %v not found", lastnode.ID(), o.ID())
+					return
+				}
+				result = append(result, ed)
+			}
+			lastnode = o
+		}
+
+		c.JSON(200, result)
 	})
 
 	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {

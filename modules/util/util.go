@@ -87,9 +87,9 @@ func FiletimeToTime(filetime uint64) time.Time {
 	return t
 }
 
-func IsASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] > unicode.MaxASCII {
+func IsPrintableString(s string) bool {
+	for _, c := range s {
+		if !unicode.IsPrint(c) {
 			return false
 		}
 	}
