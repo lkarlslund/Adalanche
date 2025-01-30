@@ -21,17 +21,19 @@
   </head>
   <body>
     <div class="d-flex">
+      <div>
         <nav class="sidebar d-flex flex-column flex-shrink-0 position-fixed no-print">
           {{ .TOC }}
         </nav>
         <main class="main-content">
-          <button class="toggle-btn float-end" onclick="toggleSidebar()">
-              <i class="bi-arrow-left-right"></i>
-          </button>
           <div id="docs" class="container-fluid">
+            <button class="sidebar-toggle toggle-btn" onclick="toggleSidebar()">
+              <i class="bi-arrow-left-right"></i>
+            </button>
             {{ .Contents }}
           </div>
         </main>
+      </div>
     </div>
     <script>
       function toggleSidebar() {

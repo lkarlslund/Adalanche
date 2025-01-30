@@ -656,60 +656,110 @@ function hashFnv32a(str, asString, seed) {
 }
 
 
-function rendermethods(ele) {
-    var prob = edgeprobability(ele);
+function renderedges(methodmap) {
+  maxprob = -1;
+
+    edgeoutput = Object.entries(methodmap)
+      .sort()
+      .map(function ([name, prob]) {
+        if (prob > maxprob) {
+          maxprob = prob;
+        }
+        return '<span class="badge badge-secondary">' + name + " (" + prob + "%)</span>";
+      })
+      .join("");
+
     var s = '<span class="badge badge-';
-    if (prob < 33) {
+    if (maxprob < 33) {
         s += 'danger';
-    } else if (prob < 67) {
+    } else if (maxprob < 67) {
         s += 'secondary';
     } else {
         s += 'success';
     }
-    s += '">' + prob + '%</span>'
-    s += ele.data("methods").sort().map(function (el) { return '<span class="badge badge-secondary">' + el + '</span>' }).join('');
+    s += '">Edge ' + maxprob + '%</span>' + edgeoutput;
+
     return s
 }
 
-icons = new Map(
-    [
-        ["Person", "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Group", "<img src='icons/people-fill.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Computer", "<img src='icons/computer-fill.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Machine", "<img src='icons/tv-fill.svg' class='rounded-circle' width='24' height='24'>"],
-        ["ManagedServiceAccount", "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["GroupManagedServiceAccount", "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["ForeignSecurityPrincipal", "<img src='icons/badge_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Service", "<img src='icons/service.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Directory", "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["File", "<img src='icons/article_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Executable", "<img src='icons/binary-code.svg' class='rounded-circle' width='24' height='24'>"],
-        ["GroupPolicyContainer", "<img src='icons/gpo.svg' class='rounded-circle' width='24' height='24'>"],
-        ["OrganizationalUnit", "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["Container", "<img src='icons/folder_black_24dp.svg' class='rounded-circle' width='24' height='24'>"],
-        ["CertificateTemplate", "<img src='icons/certificate.svg' class='rounded-circle' width='24' height='24'>"],
-        ["DNSNode", "<img src='icons/dns.svg' class='rounded-circle' width='24' height='24'>"],
-    ]
-);
+icons = new Map([
+  [
+    "Person",
+    "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Group",
+    "<img src='icons/people-fill.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Computer",
+    "<img src='icons/computer-fill.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Machine",
+    "<img src='icons/tv-fill.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "ManagedServiceAccount",
+    "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "GroupManagedServiceAccount",
+    "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "ForeignSecurityPrincipal",
+    "<img src='icons/badge_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Service",
+    "<img src='icons/service.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Directory",
+    "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "File",
+    "<img src='icons/article_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Executable",
+    "<img src='icons/binary-code.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "GroupPolicyContainer",
+    "<img src='icons/gpo.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "OrganizationalUnit",
+    "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "Container",
+    "<img src='icons/folder_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "CertificateTemplate",
+    "<img src='icons/certificate.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+  [
+    "DNSNode",
+    "<img src='icons/dns.svg' class='rounded-circle' width='24' height='24'>",
+  ],
+]);
 
 function rendericon(type) {
-    return icons.get(type);
+    result = icons.get(type);
+    if (!result) {
+      result="<img src='icons/unknown.svg' class='rounded-circle' width='24' height='24'>";
+    }
+    return result;
 }
 
 function rendernode(ele) {
     s = rendericon(ele.attributes['type'][0]);
-
-    label = ele.label;
-    if (!label) {
-      label = ele.attributes['displayName'][0];
-    }
     s += renderlabel(ele.label);
-    if (ele.attributes["downLevelLogonName"]) {
-      s += " (" + ele.attributes["downLevelLogonName"][0] + ")";
-    } else if (ele.attributes["sAMAccountName"]) {
-      s += " (" + ele.attributes["sAMAccountName"][0] + ")";
-    }
-    if (ele.attributes["distinguishedName"]) s += "<br>" + ele.attributes["distinguishedName"][0];
     return s
 }
 
@@ -803,7 +853,7 @@ function initgraph(data) {
             },
             {
                 id: 'source',
-                content: 'Route to target',
+                content: 'Plot route to target',
                 tooltipText: 'Find shortest route to target selected previously',
                 selector: 'node',
                 onClickFunction: function (event) {
@@ -975,33 +1025,23 @@ function initgraph(data) {
 
         cy.on('click', 'edge', function (evt) {
             // console.log('clicked edge ' + this.id());
-            $.when(
               $.get({
-                url: "api/details/id/" + evt.target.source().id().substring(1),
-                dataType: "json",
-              }),
-              $.get({
-                url: "api/details/id/" + evt.target.target().id().substring(1),
-                dataType: "json",
-              })
-            ).then(function (source, target) {
-              if (source[1] != "success") {
-                  toast("Error loading source node", "Details: "+source[1]);
-                  return;
-              }
-              if (target[1] != "success") {
-                  toast("Error loading target node", "Details: "+target[1]);
-                  return;
-              }
-              new_window(
-                "edge_"+evt.target.source().id()+"_to_"+evt.target.target().id(),
-                "Edge from "+source[0].label + " to "+target[0].label,
-                rendernode(source[0]) + "<br>" + 
-                rendermethods(evt.target) + "<br>" + 
-                rendernode(target[0])
-              );
+                url: "api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1),
+                success: function (data) {
+                  new_window(
+                    "edge_"+evt.target.source().id()+"_to_"+evt.target.target().id(),
+                    "Edge from "+renderlabel(data[0].from.label) + " to "+renderlabel(data[0].to.label),
+                    rendernode(data[0].from) + "<br>" + 
+                    renderedges(data[0].edges) + "<br>" + 
+                    rendernode(data[0].to)
+                  );
+                },
+                error: function (xhr, status, error) {
+                    toast("Error loading edge details" + xhr.responseText);
+                    new_window("details", "Edge details", "<div>Couldn't load details:" + xhr.responseText + "</div>");
+                }
             });
-        });
+        })
 
         cy.on('mouseover', 'edge', function (event) {
             if ($("#showedgelabels").prop("checked")) {
@@ -1009,49 +1049,21 @@ function initgraph(data) {
                     content: this.data("methods").sort().join('\n'),
                 });
             }
-            // var edge = this;
-            // var ref = edge.popperRef();
-            // // Since tippy constructor requires DOM element/elements, create a placeholder
-            // var dummyDomEle = document.createElement('div');
-            // var tip = tippy(dummyDomEle, {
-            //     getReferenceClientRect: ref.getBoundingClientRect,
-            //     trigger: 'manual', // mandatory
-            //     content: function () { 
-            //         return edge.data("methods").sort().map(function (el) { return '<div class="text-center">' + el + '</div>' }).join('');
-            //     },
-            //     allowHTML: true,
-            //     arrow: true,
-            //     placement: 'bottom',
-            //     hideOnClick: false,
-            //     sticky: "reference",
-            // });
-            // tip.show();
-            // this.tippy = tip;
         });
 
         cy.on('mouseout', 'edge', function (event) {
             this.css({
                 content: ''
             });
-            // tip = this.tippy
-            // if (tip) {
-            //     tip.hide();
-            //     tip.destroy();
-            // }
         });
 
-        // cy.on('zoom', function () {
-        //     zoom = cy.zoom();
-        //     console.log(zoom);
+        // cy.on('click', function (evt) {
+        //     var evtTarget = evt.target;
+        //     if (evtTarget === cy) {
+        //         $("#details").hide();
+        //         $("#route").hide();
+        //     }
         // });
-
-        cy.on('click', function (evt) {
-            var evtTarget = evt.target;
-            if (evtTarget === cy) {
-                $("#details").hide();
-                $("#route").hide();
-            }
-        });
     });
 
     // Distribute all objects to predictable locations
@@ -1206,30 +1218,53 @@ function findroute(source) {
       pathprobability = pathprobability * 100; // Back to percentages
 
       // empty array
-      gets = [];
+      nodes = [];
       edges = [];
-
+      
       // Show path information
       routecontents = "";
       dfs.path.forEach(function (ele) {
         if (ele.isNode()) {
-          routecontents += rendernode(ele);
-        } else if (ele.isEdge()) {
-          routecontents += rendermethods(ele);
+          if (routecontents.length > 0) {
+            routecontents += ",";
+          }
+          routecontents += ele.id().substring(1);
         }
       });
-      new_window(
-        "route_" + source.id() + "_" + target.id(),
-        `Route from ` +
-          renderlabel(source.label) +
-          ` to ` +
-          renderlabel(target.label) +
-          ` - ` +
-          pathprobability.toFixed(2) +
-          `% probability`,
-        routecontents
+
+      output = "";
+      $.get(
+        "/api/edges/id/"+routecontents,
+        function (data) {
+          output += "";
+          for (var i = 0; i < data.length; i++) {
+            // render node
+            output += rendericon(data[i].from.attributes["type"]) + renderlabel(data[i].from.label) + "<br>";
+
+            // render edge
+            output += renderedges(data[i].edges) + "<br>";
+
+            if (i == data.length-1) {
+              output += rendericon(data[i].to.attributes["type"]) + renderlabel(data[i].to.label);
+            }
+          }
+
+          new_window(
+            "route_" + source.id() + "_" + target.id(),
+            `Route from ` +
+              renderlabel(data[0].from.label) +
+              ` to ` +
+              renderlabel(data[data.length-1].to.label) +
+              ` - ` +
+              pathprobability.toFixed(2) +
+              `% probability`,
+            output
+          );
+        },
+        "json"
       );
+
     } else {
-        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets.", "warning");
+        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets. You might also have chosen the source and target in the wrong direction?", "warning");
     }
 }

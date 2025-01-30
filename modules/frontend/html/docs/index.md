@@ -28,15 +28,21 @@ Download either the latest [release](https://github.com/lkarlslund/Adalanche/rel
 
 Releases are considered stable and are for the less adventurous.
 
-## Build it yourself
+## Build the Open Source version
 
-If you prefer full control, you can roll your own on any supported platform (Windows, MacOS, Linux):
+If you prefer full control, you can roll your own on any supported platform (Windows, MacOS, Linux, FreeBSD etc.):
 
-- Prerequisites: Go 1.23, PowerShell 7, git
-- <code>git clone https://github.com/lkarlslund/Adalanche Adalanche</code>
-- <code>cd Adalanche</code>
-- <code>./build.ps1</code>
+Prerequisites:
+- [Go 1.23 or later](https://go.dev/doc/install)
+- [PowerShell 7](https://github.com/PowerShell/powershell/releases)
+- [Git](https://git-scm.com/downloads) or direct download of the source code.
 
+Clone the repository and run the build script:
+```
+git clone https://github.com/lkarlslund/Adalanche Adalanche
+cd Adalanche
+./build.ps1
+```
 Resulting binaries are available in the 'binaries' subfolder, and you will get the same result as the official releases, with the added benefit of being able to customize the build process if you want to. 
 
 ## Purchase the commercial version
@@ -204,17 +210,17 @@ Preferably run the collector with elevated rights in order to be able to collect
 
 An easy way to do this is to:
 
-### 1. Create fileshare for the binary
+1. Create fileshare for the binary
 
 Either create a dedicated fileshare for the binary, or place it on SYSVOL. Both strategies work, but ensure that only admins can change the binary. If you're using your own fileshare, make sure to use hardened UNC paths, otherwise this can become a weak point that attackers can abuse.
 
-### 2. Create a fileshare for the resulting data files
+2. Create a fileshare for the resulting data files
 
 Either create a dedicated fileshare for the data files, or place it on SYSVOL. Since these data files can contain sensitive data, ensure that "Domain Computers" or other similar group can write/append data, but not necessarily read any data.
 
 If you use a subfolder of SYSVOL, be cautious of the space needed and the fact that SYSVOL is replicated among all domain controllers, and can burden WAN links etc.
 
-### 3. Orchestrating with a GPO
+3. Orchestrating with a GPO
 
 Now that you have a place to run the binary from, and a place it can output data to, it's time to orchestrate it. Create a GPO with these settings:
 
@@ -266,36 +272,27 @@ To ease the learning experience, there are a number of pre-defined queries built
 
 <img src="images/analysis-options.png" width="50%">
 
-If your query returns more than 2500 objects (default), Adalanche will limit the output and give you the results that approximately fit within the limit. This limitation is because it has the potential to crash your browser, and is not an Adalanche restriction - feel free to adjust as needed.
+##### Node Limit
+If your query returns more than 200 objects (default), Adalanche will limit the output and give you the results that approximately fit within the limit. This limitation is because it has the potential to crash your browser, and is not an Adalanche restriction - feel free to adjust as needed.
 
-The "Prune island nodes" option removes nodes that have no edges from the results.
+##### Analysis Depth
+Analysis depth allows you do override the maximum AQL search length. Setting this to 0 will only result in the first query node filter to be run - so don't prune islands here, otherwise you'll get nothing. Setting it to 1 results on only neighbouring edges to be returned. Quite useful if you get too much data back, blank is no restrictions.
 
-Analysis depth allows you do limit how many edges from the target selection is returned. Setting this to 0 will only result in the query targets (don't prune islands here, otherwise you'll get nothing), setting it to 1 results on only neighbouring edges to be returned. Quite useful if you get too much data back, blank is no restrictions.
+##### Max Outgoing Edges (not working at the moment)
+Limitimits how many outgoing edges are allowed from one object. This can help you limit the number of results.
 
-Max outgoing edges limits how many outgoing edges are allowed from an object, and can help limit results for groups and objects that have many assignments. Adalanche tries it best to limit this in a logical way.
+##### Minimum (Edge) Probability
+Restricts the graph to edges with a probability of at least this value. This can help you filter out less likely connections. This limit can be set on either a single node or the overall connection probability.
 
-Each edge has a probability of success, and you can limit the graph by choosing the minimum probability per edge or overall/accumulated probability of current edge.
+##### Prune Island Nodex
+This option removes nodes that have no edges connecting them to other nodes from the results.
 
-#### Edges
+#### AQL Search pop-out
+When you press the "AQL Search" tab on the bottom portion of the page, and you get the search interface:
 
-Press the "Edges" tab to allow you to do edge based filtering. 
+<img src="images/aql-query.png" width="50%">
 
-<img src="images/analysis-methods.png" width="50%">
-
-FML is not the usual abbreviation, but represents First, Middle and Last. Disabling the "Middle" selector, will also prevent "Last" in the results, unless it's picked up as the "First" due to the way the search is done.
-
-#### Nodes
-
-<img src="images/object-types.png" width="50%">
-
-This works the same way as the "Edges" limiter above.
-
-#### LDAP query pop-out
-When you press the "LDAP Query" tab on the bottom portion of the page, and you get the search interface:
-
-<img src="images/ldap-query.png" width="50%">
-
-You enter a query for things you want to search for, with the "start query" setting your targets. Optionally you can also add a secondary query the following nodes must match. If you put a filter in the "end query" then nodes not matching this will be removed from the outer objects (end of graph).
+See the dedicated section on [AQL syntax](#aql-syntax) for more information on how to use this. There's an option to use pre-defined queries, save the current query and run the query.
 
 ### Operational theory
 
@@ -305,8 +302,40 @@ If you collect GPOs I recommend using a Domain Admin account, as GPOs are often 
 
 The analysis phase is done on all collected data files, so you do not have to be connected to the systems when doing analysis. This way you can explore different scenarios, and ask questions not easily answered otherwise.
 
+### Tagged nodes
+In order to more quickly find certain nodes, Adalanche tags them with labels. Here's a list of some common tags:
+
+| Tag | Description |
+| --- | ----------- |
+| hvt | High Value Target |
+| role_domaincontroller | Domain Controller machines |
+| role_readonly_domaincontroller | Read-Only Domain Controller machines |
+| role_certificate_authority | Certificate Authority machines |
+| laps | Machine is detected as having LAPS deployed |
+| kerberoast | Account is kerberostable |
+| asreproast | Account is ASREProastable |
+| windows | Machine is running Windows |
+| linux | Machine is running Linux |
+| unconstrained | Account has unconstrained delegation set |
+| constrained | Account has constrained delegation set |
+| computer_account | Account for a domain joined computer |
+| domaincontroller_account | Account for a domain controller |
+| account_disabled | The account is disabled |
+| account_enabled | The account is enabled |
+| account_locked | The account is locked out |
+| account_expired | The account has an expiration date that has expired |
+| account_active | The account is enabled and not expired |
+| account_inactive | The account is either disabled or expired |
+| password_cant_change | Account is not allowed to have its password changed |
+| password_never_expires | Password os not required to rotate password as set per password policy |
+| password_not_required | Account is not required to have a password |
+
+You can search for nodes with these tags using the 'tag' attribute.
+
 ### Analysis / Visualization
 The tool works like an interactive map in your browser, and defaults to a ldap search query that shows you how to become "Domain Admin" or "Enterprise Admin" (i.e. member of said group or takeover of an account which is either a direct or indirect member of these groups).
+
+
 
 ### LDAP queries
 The tool has its own LDAP query parser, and makes it easy to search for other objects to take over, by using a familiar search language.
@@ -332,11 +361,13 @@ The tool has its own LDAP query parser, and makes it easy to search for other ob
 - custom extensible match: timediff - allows you to search for accounts not in use or password changes relative to other attributes - e.g. lastLogonTimestamp:timediff(pwdLastSet):>6M finds all objects where the lastLogonTimestamp is 6 months or more recent than pwdLastSet
 - custom extensible match: caseExactMatch - switches text searches (exact, glob) to case sensitive mode
 
-## Detectors and what they mean
+## Edges
+
+Adalanche detects various relationsships between nodes, represented as edges. These relationships are based on various attributes and permissions within Active Directory.
 
 This list is not exhaustive.
 
-| Detector | Explanation |
+| Edge | Explanation |
 | -------- | ----------- |
 | ACLContainsDeny | This flag simply indicates that the ACL contains a deny entry, possibly making other detections false positives. You can check effective permissions directly on the AD with the Security tab |
 | AddMember | The entity can change members to the group via the Member attribute |
@@ -371,6 +402,7 @@ This list is not exhaustive.
 | LocalSessionLastMonth | The entity was seen having a session at least once within the last month |
 | LocalSessionLastWeek | The entity was seen having a session at least once within the last week |
 | LocalSMSAdmins | The entity has the right to use SCCM Configuration Manager against the object. This is detected via the collector module. It does not mean that everyone are SCCM admins, but some are |
+| MachineAccount |  |
 | MachineScript | Same as above, just as either a startup or shutdown script. Detected via GPOs |
 | MemberOfGroup | The entity is a member of this group |
 | Owns | The entity owns the object, and can do anything it wishes to it |

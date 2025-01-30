@@ -666,7 +666,7 @@ $(function () {
       new_window(
         "highlight",
         "Highlight nodes",
-        '<textarea id="highlighttext" class="mb-2" placeholder="(name=*admin*)"></textarea><div id="highlightqueryerror"></div><button id="searchandhighlight" class="btn btn-primary float-end">Highlight</button>'
+        '<textarea id="highlighttext" class="w-100 mb-2" placeholder="(name=*admin*)"></textarea><div id="highlightqueryerror"></div><button id="searchandhighlight" class="btn btn-primary float-end">Highlight</button>'
       )
     ) {
       var highlightchangetimer;
@@ -682,12 +682,16 @@ $(function () {
             },
             success: function (data) {
               console.log(data);
-              $("#searchandhighlight").attr("disabled", false);
+              // $("#searchandhighlight").attr("disabled", false);
               $("#highlightqueryerror").hide();
             },
             error: function (xhr, status, error) {
-              $("#searchandhighlight").attr("disabled", true);
-              $("#highlightqueryerror").html(xhr.responseText).show();
+              // $("#searchandhighlight").attr("disabled", true);
+              $("#highlightqueryerror")
+                .html(xhr.responseText +
+                    ", will use (*=" +
+                    $("#highlighttext").val()
+                   + ") as query").show();
             },
           });
         }, 200);
@@ -697,13 +701,14 @@ $(function () {
         if (cy) {
           $.ajax({
             type: "GET",
-            url: "/search/get-ids?query=" + $("#highlighttext").val(),
+            url: "/api/search/get-ids?query=" + $("#highlighttext").val(),
             contentType: "charset=utf-8",
             data: {
               query: $("#highlighttext").val(),
             },
             dataType: "json",
             success: function (data) {
+
               cy.$("*").unselect();
               for (var id of data) {
                 cy.$("#" + id).select();

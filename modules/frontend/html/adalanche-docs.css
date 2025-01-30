@@ -54,8 +54,9 @@ th {
   background-color: var(--bs-primary);
 }
 
-code {
+pre, :not(pre) > code {
   padding: 0.4em;
+  background-color: var(--bs-code-bg);
   border: 1px solid;
 }
 
@@ -72,11 +73,39 @@ td, th {
     left: 100%;
     transform: translate(-100%, 0%);
     height: 100vh;
+    overflow-y: auto;
     /* background: linear-gradient(135deg, #1a1c2e 0%, #16181f 100%); */
     transition: all 0.3s ease;
     border: white solid 1px;
     /* dont print ever */
     @media print { display: none; } /* hide sidebar when printing */
+}
+nav ul {
+  list-style-type: none;
+  /* padding-left: 0; */
+  /* dont underline links */
+
+}
+nav ul ul {
+  font-size: small;
+  font-style: italic;
+  color: var(--bs-secondary)
+}
+nav a {
+  text-decoration: none;
+}
+nav a:target {
+  color: var(--bs-primary);
+  background-color: var(--bs-yellow-foreground);
+}
+
+.sidebar-toggle {
+  /* // position fixed top right inside the div containing it */
+  position: sticky;
+  /* display: inlie-block; display: display: display: ;;; */
+  float: right; /* Float to the right */
+  top: 0;
+  right: 0; /* Adjust this value to position the button as needed */
 }
 
 .sidebar.collapsed {
@@ -85,7 +114,7 @@ td, th {
 .main-content {
     margin-right: var(--sidebar-width);
     min-height: 100vh;
-    padding: 0.3em;
+    /* padding: 0.3em; */
     transition: all 0.3s ease;
 }
 .collapsed~.main-content {
