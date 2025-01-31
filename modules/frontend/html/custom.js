@@ -73,7 +73,7 @@ function new_window(
   // Create the new
   mywindow = $(
     `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
-          <div id='header' class='window-header mb-1 bg-primary text-dark p-1'>
+          <div id='header' class='window-header bg-primary text-dark p-1'>
           <span id="title" class="col">${title}</span><span id="close" class="border float-top float-end cursor-pointer">X</span>
           </div>
           <div class="window-wrapper">
@@ -395,35 +395,40 @@ function handleProgressData(progress) {
       keepProgressbars.add(progressbar.ID);
 
       // find progressbar
-      pb = $("#" + progressbar.ID);
+      pb = $("#progressbar_" + progressbar.ID);
       if (pb.length == 0 && !progressbar.Done) {
         $("#progressbars").append(
-          `<div class="progress-group"><span class="progress-group-label">` +
-            progressbar.Title +
-            `</span><div class="progress"><div id="` +
+          `<div id="progressbar_` +
             progressbar.ID +
-            `" class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div></div><span class="progress-group-label"></span></div>`
+            `" class="progress-group">
+            <div class="progress-group-label">` +
+            progressbar.Title +
+            `
+              <div id="pct" class="progress-group-label float-end">` +
+            progressbar.Percent.toFixed(2) +
+            `%</div>
+            </div>
+            <div class="progress">
+              <div class="progress-bar rounded-0" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>`
         );
-        pb = $("#" + progressbar.ID);
+        pb = $("#progressbar_" + progressbar.ID);
       }
 
       // Update progressbar
-      pb.attr("aria-valuenow", progressbar.Percent.toFixed(0));
-      pb.css("width", progressbar.Percent.toFixed(0) + "%");
-      pb.parent()
-        .next()
-        .html(progressbar.Percent.toFixed(2) + "%");
+      progbar = pb.find(".progress-bar")
+      progbar.attr("aria-valuenow", progressbar.Percent.toFixed(0));
+      progbar.css("width", progressbar.Percent.toFixed(0) + "%");
+      pb.find("#pct").html(progressbar.Percent.toFixed(2) + "%");
     }
     // remove old progressbars
-    $("#progressbars .progress-bar").each(function (index) {
+    $("#progressbars .progress-group").each(function (index) {
       id = $(this).attr("id");
-      if (!keepProgressbars.has(id)) {
-        $(this)
-          .parent()
-          .parent()
-          .slideUp("slow", function () {
-            $(this).remove();
-          });
+      if (!keepProgressbars.has(id.substring(12))) {
+        $(this).slideUp("slow", function () {
+          $(this).remove();
+        });
       }
     });
 
@@ -551,6 +556,23 @@ function updateQueries() {
 
 // When we´re ready ...
 $(function () {
+  // save and restore collapsible UI
+  $(".collapse, .collapse-panel").on("shown.bs.collapse", function () {
+    localStorage.setItem("coll_" + this.id, true);
+  });
+
+  $(".collapse, .collapse-panel").on("hidden.bs.collapse", function () {
+    localStorage.removeItem("coll_" + this.id);
+  });
+
+  $(".collapse, .collapse-panel").each(function () {
+    if (localStorage.getItem("coll_" + this.id) === "true") {
+      $(this).collapse("show");
+    } else {
+      $(this).collapse("hide");
+    }
+  });
+
   // Initial GUI setup
   $("#infopop").on("click", function () {
     $("#infowrap").animate({ width: "toggle" }, 400);

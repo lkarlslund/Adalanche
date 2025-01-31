@@ -3,29 +3,19 @@
   --sk-size: 50px;
   --sk-color: white;
   /* Halfmoon / BootStrap */
-  --bs-primary-hue: var(--bs-yellow-hue);
-    --bs-primary-saturation: var(--bs-yellow-saturation);
-    --bs-primary-100-hsl: var(--bs-yellow-100-hsl);
-    --bs-primary-200-hsl: var(--bs-yellow-200-hsl);
-    --bs-primary-300-hsl: var(--bs-yellow-300-hsl);
-    --bs-primary-400-hsl: var(--bs-yellow-400-hsl);
-    --bs-primary-500-hsl: var(--bs-yellow-500-hsl);
-    --bs-primary-600-hsl: var(--bs-yellow-600-hsl);
-    --bs-primary-700-hsl: var(--bs-yellow-700-hsl);
-    --bs-primary-800-hsl: var(--bs-yellow-800-hsl);
-    --bs-primary-900-hsl: var(--bs-yellow-900-hsl);
-    --bs-primary-100: var(--bs-yellow-100);
-    --bs-primary-200: var(--bs-yellow-200);
-    --bs-primary-300: var(--bs-yellow-300);
-    --bs-primary-400: var(--bs-yellow-400);
-    --bs-primary-500: var(--bs-yellow-500);
-    --bs-primary-600: var(--bs-yellow-600);
-    --bs-primary-700: var(--bs-yellow-700);
-    --bs-primary-800: var(--bs-yellow-800);
-    --bs-primary-900: var(--bs-yellow-900);
-    --bs-primary-hsl: var(--bs-yellow-hsl);
-    --bs-primary: var(--bs-yellow);
-    --bs-primary-foreground-hsl: var(--bs-yellow-foreground-hsl);
+  /* --bs-primary: var(--bs-warning); */
+  --bs-primary: var(--bs-warning);
+  --bs-primary-rgb: var(--bs-warning-rgb);
+
+  --bs-link-color-rgb: var(--bs-primary-rgb);
+
+  --bs-btn-bg: var(--bs-warning); /* Button background color */
+  --bs-btn-border-color: var(--bs-warning); /* Button border color */
+  --bs-btn-text-color: black; /* Button text color */
+
+  /* --bs-btn-primary */
+    /* --bs-primary-saturation: var(--bs-yellow-saturation); */
+    /* --bs-primary-foreground-hsl: var(--bs-yellow-foreground-hsl);
     --bs-primary-foreground: var(--bs-yellow-foreground);
     --bs-primary-text-emphasis-hsl: var(--bs-yellow-text-emphasis-hsl);
     --bs-primary-text-emphasis: var(--bs-yellow-text-emphasis);
@@ -36,9 +26,9 @@
     --bs-primary-checkbox-svg: var(--bs-yellow-checkbox-svg);
     --bs-primary-dash-svg: var(--bs-yellow-dash-svg);
     --bs-primary-radio-svg: var(--bs-yellow-radio-svg);
-    --bs-primary-switch-svg: var(--bs-yellow-switch-svg);
+    --bs-primary-switch-svg: var(--bs-yellow-switch-svg); */
 
-  --bs-secondary-hue: var(--bs-orange-hue);
+  /* --bs-secondary-hue: var(--bs-orange-hue);
     --bs-secondary-saturation: var(--bs-orange-saturation);
     --bs-secondary-100-hsl: var(--bs-orange-100-hsl);
     --bs-secondary-200-hsl: var(--bs-orange-200-hsl);
@@ -71,7 +61,7 @@
     --bs-secondary-checkbox-svg: var(--bs-orange-checkbox-svg);
     --bs-secondary-dash-svg: var(--bs-orange-dash-svg);
     --bs-secondary-radio-svg: var(--bs-orange-radio-svg);
-    --bs-secondary-switch-svg: var(--bs-orange-switch-svg);
+    --bs-secondary-switch-svg: var(--bs-orange-switch-svg); */
 
   --bs-body-font-family: Oswald;
 
@@ -84,6 +74,50 @@
   src: url(/external/Oswald-VariableFont_wght.ttf);
 }
 
+select:focus,
+textarea:focus,
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="datetime"]:focus,
+input[type="datetime-local"]:focus,
+input[type="date"]:focus,
+input[type="month"]:focus,
+input[type="time"]:focus,
+input[type="week"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="color"]:focus,
+.uneditable-input:focus {   
+  border-color: var(--bs-primary-rgb);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(126, 239, 104, 0.6);
+  outline: 0 none;
+}
+
+.form-check-input:checked {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.btn {
+  --bs-btn-color: black;
+  --bs-btn-bg: var(--bs-primary);
+  --bs-btn-hover-color: black;
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--bs-primary);
+  --bs-btn-bg: none;
+  --bs-btn-hover-color: black;
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+}
 
 #ui body {
   overflow: hidden;
@@ -166,7 +200,7 @@
 
 .window-content {
     color: var(--bs-body-color);
-  background: var(--bs-card-cap-bg);
+  background: var(--bs-body-bg);
 }
 
 .window-wrapper {
@@ -194,6 +228,10 @@
 
 #progressbars {
   width: 600px;
+}
+
+.progress-bar {
+  background-color: var(--bs-primary);
 }
 
 #status {

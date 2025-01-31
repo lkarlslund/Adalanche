@@ -24,7 +24,7 @@ body {
   text-align: center;
   font-size: 48px;
   font-weight: bold;
-  color: var(--bs-primary);
+  color: var(--bs-primary-rgb);
 }  
 
 h1, h2, h3, h4, h5, h6 {
@@ -32,7 +32,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-  color:  var(--bs-yellow-foreground);
+  color:  var(--bs-dark);
   background-color: var(--bs-primary);
   page-break-before: always;
   padding: 0.2em;
@@ -43,6 +43,10 @@ h2 {
   text-decoration: underline;
 }
 
+code {
+  color: lightgrey;
+}
+
 table {
   border: 1px solid;
   padding: 0.1em;
@@ -50,7 +54,7 @@ table {
 }
 
 th {
-  color:  var(--bs-yellow-foreground);
+  color:  var(--bs-dark);
   background-color: var(--bs-primary);
 }
 
@@ -89,7 +93,7 @@ nav ul {
 nav ul ul {
   font-size: small;
   font-style: italic;
-  color: var(--bs-secondary)
+  color: var(--bs-primary-rgb)
 }
 nav a {
   text-decoration: none;
