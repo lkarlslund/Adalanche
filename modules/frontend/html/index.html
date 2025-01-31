@@ -396,7 +396,7 @@
                       name="hideoptionsonanalysis"
                       autocomplete="off"
                       preference="ui.hide.options.on.analysis"
-                      defaultpref="true"
+                      defaultpref="false"
                     />
                     <label class="form-check-label" for="hideoptionsonanalysis"
                       >Hide options on analysis</label
@@ -410,7 +410,7 @@
                       name="hidequeryonanalysis"
                       autocomplete="off"
                       preference="ui.hide.query.on.analysis"
-                      defaultpref="true"
+                      defaultpref="false"
                     />
                     <label class="form-check-label" for="hidequeryonanalysis"
                       >Hide query panel on analysis</label
@@ -429,6 +429,20 @@
                     />
                     <label class="form-check-label" for="runqueryonstartup"
                       >Run query on startup</label
+                    >
+                  </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      id="opendetailsinsamewindow"
+                      type="checkbox"
+                      name="opendetailsinsamewindow"
+                      autocomplete="off"
+                      preference="ui.open.details.in.same.window"
+                      defaultpref="true"
+                    />
+                    <label class="form-check-label" for="runqueryonstartup"
+                      >Open details in same window</label
                     >
                   </div>
                 </div>
@@ -467,6 +481,15 @@
                 <div class="toolbutton" id="export-words" data-bs-toggle="tooltip" data-bs-title="Exports wordlist from nodes to use with hashcat" onclick="window.open('/api/export-words?split=true', '_blank');">
                   <div class="bi-body-text"></div>Words
                 </div>
+                <!-- <div class="toolbutton" id="node-info" data-bs-toggle="tooltip" data-bs-title="Show information on known node types">
+                  <div class="bi-body-text"></div>Node Info
+                </div>
+                <div class="toolbutton" id="edge-info" data-bs-toggle="tooltip" data-bs-title="Show information on known edge types">
+                  <div class="bi-body-text"></div>Edge Info
+                </div>
+                <div class="toolbutton" id="data-statistics" data-bs-toggle="tooltip" data-bs-title="Show statistics on the current dataset">
+                  <div class="bi-body-text"></div>Statistics
+                </div> -->
             </details>
           </div>
         </div>

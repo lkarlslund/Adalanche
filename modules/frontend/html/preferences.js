@@ -26,6 +26,9 @@ function updatecontrol(ele) {
     // );
     if (val != null) {
         if (ele.attr("type") == "checkbox") {
+            if (val === "false") {
+                val = false;
+            }
             ele.prop("checked", val)
         } else if (ele.attr("type") == "radio") {
             $('[type=radio][name="'+ele.attr("name")+'"]').each(function (index, radioitem) {

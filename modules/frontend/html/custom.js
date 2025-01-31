@@ -1,16 +1,3 @@
-function makePopper(ele) {
-  var ref = ele.popperRef(); // used only for positioning
-  ele.tippy = tippy(ref, {
-    // tippy options:
-    content: () => {
-      let content = document.createElement("div");
-      content.innerHTML = ele.id();
-      return content;
-    },
-    trigger: "manual", // probably want manual mode
-  });
-}
-
 window.onpopstate = function (event) {
   $("body").html(event.state);
 };
@@ -59,11 +46,19 @@ function new_window(
   var mywindow = $(`#windows #window_${id}`);
   var itsnew = true;
 
+  // Remove the old
+  if (mywindow.length != 0) {
+    interact(`#window_${id}`).unset();
+    mywindow.remove();
+  }
+
   var maxheight = $(window).height() * 0.8;
   var maxwidth = $(window).width() * 0.6;
 
-  xpos = 0;
-  ypos = 0;
+  offset = $(".window").length + 1; // count windows
+
+  xpos = offset * 24;
+  ypos = offset * 16;
 
   switch (alignment) {
     case "topleft":
@@ -74,12 +69,6 @@ function new_window(
       ypos = window.innerHeight / 2;
       break;
   }
-
-  // Remove the old
-  if (mywindow.length != 0) {
-    interact(`#window_${id}`).unset();
-    mywindow.remove();
-  };
 
   // Create the new
   mywindow = $(
@@ -387,7 +376,12 @@ function connectProgress() {
 function handleProgressData(progress) {
   $("#offlineblur").hide();
 
-  status = progress.status;
+  if (progress.status == "Ready") {
+    if (!data_loaded) {
+      data_loaded = true;
+      autorun_query();
+    }
+  }
 
   progressbars = progress.progressbars;
   if (progressbars.length > 0) {
@@ -472,12 +466,12 @@ function toast(title, contents, toastclass) {
   // }
   Toastify({
     text: toastbody,
-    duration: 10000,
+    duration: 1000000,
     // avatar: icon,
     // destination: "https://github.com/apvarun/toastify-js",
     newWindow: true,
     close: true,
-    className: "toast "+toastclass,
+    className: toastclass,
     escapeMarkup: false,
     gravity: "bottom", // `top` or `bottom`
     position: "left", // `left`, `center` or `right`
@@ -486,12 +480,11 @@ function toast(title, contents, toastclass) {
       // background: "orange",
       // background: "linear-gradient(to right, #00b09b, #96c93d)",
     },
-    // onClick: function () {}, // Callback after click
+    onClick: function () {}, // Callback after click
   }).showToast();
 }
 
-var firstQueryLoad = true;
-
+var initial_query_set = false;
 var queries;
 function updateQueries() {
   $.ajax({
@@ -546,10 +539,11 @@ function updateQueries() {
       });
 
 
-      if (firstQueryLoad) {
+      if (!initial_query_set) {
         console.log("Setting default query ...");
         set_query(queries[$("#defaultquery").attr("querynum")].query);
-        firstQueryLoad = false;
+        initial_query_set = true;
+        autorun_query();
       }
     },
   });
@@ -613,7 +607,11 @@ $(function () {
             success: function (data) {
               // details = rendernode(data)
               var details = renderdetails(data);
-              new_window("details_" + d.node.id, "Item details", details);
+              windowname = "details_" + d.node.id
+              if (getpref("ui.open.details.in.same.window")) {
+                windowname="node_details"
+              }
+              new_window(windowname, "Item details", details);
             },
             // error: function (xhr, status, error) {
             //     newwindow("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
@@ -622,6 +620,39 @@ $(function () {
         }
       });
   });
+
+  $("#node-info").on("click", function () {
+    /* get json data and show window on success */
+    $.ajax({
+      type: "GET",
+      url: "backend/nodes",
+      dataType: "json",
+      success: function (data) {
+        var details = renderdetails(data);
+        new_window("node_info", "Known Nodes", details);
+      },
+      error: function (xhr, status, error) {
+        toast("API Error", "Couldn't load details:" + xhr.responseText, "error");
+      },
+    });
+  });
+
+  $("#edge-info").on("click", function () {
+    /* get json data and show window on success */
+    $.ajax({
+      type: "GET",
+      url: "backend/edges",
+      dataType: "json",
+      success: function (data) {
+        var details = renderdetails(data);
+        new_window("edge_info", "Known Edges", details);
+      },
+      error: function (xhr, status, error) {
+        toast("API Error", "Couldn't load details:" + xhr.responseText, "error");
+      },
+    });
+  });
+
 
   $("#savequerybutton").on("click", function () {
     // open new windows with the save dialog
@@ -756,32 +787,7 @@ $(function () {
         data.adalanche.program +
         "</h2><b>" +
         data.adalanche.shortversion +
-        "</b><p><p>";
-
-      if (data.adalanche.status == "Ready") {
-        statustext +=
-          data.statistics.Total +
-          " objects connected by " +
-          data.statistics.PwnConnections +
-          " links</p><p>";
-      } else {
-        statustext += "Backend status: " + data.adalanche.status;
-      }
-
-      first = true;
-      for (datatype in data.statistics) {
-        if (datatype == "PwnConnections" || datatype == "Total") {
-          continue;
-        }
-        if (!first) {
-          statustext += ", ";
-        }
-        count = data.statistics[datatype];
-        statustext += count + " " + datatype;
-        first = false;
-      }
-
-      statustext += "</p></div>";
+        "</b></div>";
 
       $("#status").html(statustext).show().delay(15000).fadeOut(2000);
       $("#programinfo").html(
@@ -815,152 +821,26 @@ $(function () {
     }
   });
 
-  $.ajax({
-    type: "GET",
-    url: "/api/backend/filteroptions",
-    dataType: "json",
-    success: function (data) {
-      buttons = `<table class="w-100">`;
-      data.edges.sort((a, b) => (a.name > b.name ? 1 : -1));
-      for (i in data.edges) {
-        method = data.edges[i];
-
-        buttons += '<tr class="pb-1">';
-
-        buttons +=
-          `<td class="overflow-hidden font-size-12 w-100" lookup="` +
-          method.name +
-          `">` +
-          method.name;
-        `</td>`;
-
-        buttons += '<td class="checkbox-button no-wrap">';
-        buttons +=
-          `<input type="checkbox" data-column="first" data-default=` +
-          method.defaultenabled_f +
-          ` ` +
-          (method.defaultenabled_f ? "checked" : "") +
-          ` id="` +
-          method.lookup +
-          `_f" name="` +
-          method.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          method.lookup +
-          `_f" class ="btn btn-sm mb-0">F</label>`;
-        buttons +=
-          ` <input type="checkbox" data-column="middle" data-default=` +
-          method.defaultenabled_m +
-          ` ` +
-          (method.defaultenabled_m ? "checked" : "") +
-          ` id="` +
-          method.lookup +
-          `_m" name="` +
-          method.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          method.lookup +
-          `_m" class ="btn btn-sm mb-0">M</label>`;
-        buttons +=
-          ` <input type="checkbox" data-column="end" data-default=` +
-          method.defaultenabled_l +
-          ` ` +
-          (method.defaultenabled_l ? "checked" : "") +
-          ` id="` +
-          method.lookup +
-          `_l" name="` +
-          method.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          method.lookup +
-          `_l" class ="btn btn-sm mb-0">L</label>`;
-        buttons += "</td>";
-
-        buttons += "</tr>";
-      }
-      buttons += "</table>";
-      $("#edgefilter").html(buttons);
-
-      data.objecttypes.sort((a, b) => (a.name > b.name ? 1 : -1));
-      buttons = `<table class="w-100">`;
-      for (i in data.objecttypes) {
-        objecttype = data.objecttypes[i];
-
-        buttons += '<tr class="pb-1">';
-
-        buttons +=
-          `<td class="overflow-hidden font-size-12 w-100" lookup="` +
-          objecttype.name +
-          `">` +
-          objecttype.name;
-        `</td>`;
-        buttons += '<td class="checkbox-button no-wrap">';
-
-        buttons +=
-          `<input type="checkbox" data-column="first" data-default=` +
-          objecttype.defaultenabled_f +
-          ` ` +
-          (objecttype.defaultenabled_f ? "checked" : "") +
-          ` id="` +
-          objecttype.lookup +
-          `_f" name="` +
-          objecttype.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          objecttype.lookup +
-          `_f" class ="btn btn-sm mb-0">F</label>`;
-        buttons +=
-          ` <input type="checkbox" data-column="middle" data-default=` +
-          objecttype.defaultenabled_m +
-          ` ` +
-          (objecttype.defaultenabled_m ? "checked" : "") +
-          ` id="` +
-          objecttype.lookup +
-          `_m" name="` +
-          objecttype.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          objecttype.lookup +
-          `_m" class ="btn btn-sm mb-0">M</label>`;
-        buttons +=
-          ` <input type="checkbox" data-column="last" data-default=` +
-          objecttype.defaultenabled_l +
-          ` ` +
-          (objecttype.defaultenabled_l ? "checked" : "") +
-          ` id="` +
-          objecttype.lookup +
-          `_l" name="` +
-          objecttype.lookup +
-          `" autocomplete="off">`;
-        buttons +=
-          `<label for="` +
-          objecttype.lookup +
-          `_l" class ="btn btn-sm mb-0">L</label>`;
-
-        buttons += "</td>";
-
-        buttons += "</tr>";
-      }
-      buttons += "</table>";
-      $("#objecttypefilter").html(buttons);
-    },
-  });
-
   updateQueries();
 
+
   $(document).on("preferences.loaded", function (evt) {
-    console.log("autorun query?");
-    if (getpref("ui.run.query.on.startup")) {
-      aqlanalyze();
-    }
+    settings_loaded = true;
+    autorun_query();
   });
 
   prefsinit();
 
+
   // End of on document loaded function
 });
+
+settings_loaded = false;
+data_loaded = false;
+initial_query_has_run = false;
+function autorun_query() {
+  if (initial_query_set && settings_loaded && data_loaded && getpref("ui.run.query.on.startup") && !initial_query_has_run) {
+    initial_query_has_run = true;
+    aqlanalyze();
+  }
+}

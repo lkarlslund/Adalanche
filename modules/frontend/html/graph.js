@@ -912,27 +912,27 @@ function initgraph(data) {
                         success: function (data) {
                             if (data.attributes["distinguishedName"]) {
                                 set_query(
-                                  "(distinguishedname=" +
+                                  "start:(distinguishedname=" +
                                     data.attributes["distinguishedName"] +
-                                    ")-[]{1,3}->()"
+                                    ")-[]{1,3}->end:()"
                                 );
                             } else if (data.attributes["objectSid"]) {
                                 set_query(
-                                  "(objectSid=" +
+                                  "start:(objectSid=" +
                                     data.attributes["objectSid"] +
-                                    ")-[]{1,3}->()"
+                                    ")-[]{1,3}->end:()"
                                 );
                             } else if (data.attributes["objectGuid"]) {
                                 set_query(
-                                  "(objectGuid=" +
+                                  "start:(objectGuid=" +
                                     data.attributes["objectGuid"] +
-                                    ")-[]{1,3}->()"
+                                    ")-[]{1,3}->end:()"
                                 );
                             } else {
                                 set_query(
-                                  "(_id=" +
+                                  "start:(_id=" +
                                     evt.target.id().substring(1) +
-                                    ")-[]{1,3}->()"
+                                    ")-[]{1,3}->end:()"
                                 );
                             }
 
@@ -1010,12 +1010,17 @@ function initgraph(data) {
               return;
             }
 
+            id = evt.target.id().substring(1);
             $.ajax({
                 type: "GET",
-                url: "api/details/id/" + (evt.target.id().substring(1)), // n123 format -> 123
+                url: "api/details/id/" + id, // n123 format -> 123
                 dataType: "json",
                 success: function (data) {
-                    new_window("details", rendernode(data), renderdetails(data));
+                    windowname = "details_" + id;
+                    if (getpref("ui.open.details.in.same.window")) {
+                      windowname = "node_details";
+                    }
+                    new_window(windowname, rendernode(data), renderdetails(data));
                 },
                 error: function (xhr, status, error) {
                     new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
@@ -1028,8 +1033,12 @@ function initgraph(data) {
               $.get({
                 url: "api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1),
                 success: function (data) {
+                  windowname = "edge_" + evt.target.source().id() + "_to_" + evt.target.target().id();
+                  if (getpref("ui.open.details.in.same.window")) {
+                    windowname = "edge_details";
+                  }
                   new_window(
-                    "edge_"+evt.target.source().id()+"_to_"+evt.target.target().id(),
+                    windowname,
                     "Edge from "+renderlabel(data[0].from.label) + " to "+renderlabel(data[0].to.label),
                     rendernode(data[0].from) + "<br>" + 
                     renderedges(data[0].edges) + "<br>" + 
