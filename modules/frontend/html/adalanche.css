@@ -2,71 +2,18 @@
   /* SpinKit */
   --sk-size: 50px;
   --sk-color: white;
-  /* Halfmoon / BootStrap */
-  /* --bs-primary: var(--bs-warning); */
+
+  /* BootStrap */
   --bs-primary: var(--bs-warning);
   --bs-primary-rgb: var(--bs-warning-rgb);
-
   --bs-link-color-rgb: var(--bs-primary-rgb);
-
   --bs-btn-bg: var(--bs-warning); /* Button background color */
   --bs-btn-border-color: var(--bs-warning); /* Button border color */
   --bs-btn-text-color: black; /* Button text color */
-
-  /* --bs-btn-primary */
-    /* --bs-primary-saturation: var(--bs-yellow-saturation); */
-    /* --bs-primary-foreground-hsl: var(--bs-yellow-foreground-hsl);
-    --bs-primary-foreground: var(--bs-yellow-foreground);
-    --bs-primary-text-emphasis-hsl: var(--bs-yellow-text-emphasis-hsl);
-    --bs-primary-text-emphasis: var(--bs-yellow-text-emphasis);
-    --bs-primary-hover-bg: var(--bs-yellow-hover-bg);
-    --bs-primary-active-bg: var(--bs-yellow-active-bg);
-    --bs-primary-bg-subtle: var(--bs-yellow-bg-subtle);
-    --bs-primary-border-subtle: var(--bs-yellow-border-subtle);
-    --bs-primary-checkbox-svg: var(--bs-yellow-checkbox-svg);
-    --bs-primary-dash-svg: var(--bs-yellow-dash-svg);
-    --bs-primary-radio-svg: var(--bs-yellow-radio-svg);
-    --bs-primary-switch-svg: var(--bs-yellow-switch-svg); */
-
-  /* --bs-secondary-hue: var(--bs-orange-hue);
-    --bs-secondary-saturation: var(--bs-orange-saturation);
-    --bs-secondary-100-hsl: var(--bs-orange-100-hsl);
-    --bs-secondary-200-hsl: var(--bs-orange-200-hsl);
-    --bs-secondary-300-hsl: var(--bs-orange-300-hsl);
-    --bs-secondary-400-hsl: var(--bs-orange-400-hsl);
-    --bs-secondary-500-hsl: var(--bs-orange-500-hsl);
-    --bs-secondary-600-hsl: var(--bs-orange-600-hsl);
-    --bs-secondary-700-hsl: var(--bs-orange-700-hsl);
-    --bs-secondary-800-hsl: var(--bs-orange-800-hsl);
-    --bs-secondary-900-hsl: var(--bs-orange-900-hsl);
-    --bs-secondary-100: var(--bs-orange-100);
-    --bs-secondary-200: var(--bs-orange-200);
-    --bs-secondary-300: var(--bs-orange-300);
-    --bs-secondary-400: var(--bs-orange-400);
-    --bs-secondary-500: var(--bs-orange-500);
-    --bs-secondary-600: var(--bs-orange-600);
-    --bs-secondary-700: var(--bs-orange-700);
-    --bs-secondary-800: var(--bs-orange-800);
-    --bs-secondary-900: var(--bs-orange-900);
-    --bs-secondary-hsl: var(--bs-orange-hsl);
-    --bs-secondary: var(--bs-orange);
-    --bs-secondary-foreground-hsl: var(--bs-orange-foreground-hsl);
-    --bs-secondary-foreground: var(--bs-orange-foreground);
-    --bs-secondary-text-emphasis-hsl: var(--bs-orange-text-emphasis-hsl);
-    --bs-secondary-text-emphasis: var(--bs-orange-text-emphasis);
-    --bs-secondary-hover-bg: var(--bs-orange-hover-bg);
-    --bs-secondary-active-bg: var(--bs-orange-active-bg);
-    --bs-secondary-bg-subtle: var(--bs-orange-bg-subtle);
-    --bs-secondary-border-subtle: var(--bs-orange-border-subtle);
-    --bs-secondary-checkbox-svg: var(--bs-orange-checkbox-svg);
-    --bs-secondary-dash-svg: var(--bs-orange-dash-svg);
-    --bs-secondary-radio-svg: var(--bs-orange-radio-svg);
-    --bs-secondary-switch-svg: var(--bs-orange-switch-svg); */
-
   --bs-body-font-family: Oswald;
-
-  --sidebar-width: 280px;
-  --sidebar-width-collapsed: 0px;
+  /* --sidebar-width: 280px;
+  --sidebar-width-collapsed: 0px; */
+  --bs-focus-ring-color: var(--bs-primary-rgb);
 }
 
 @font-face {
@@ -74,25 +21,11 @@
   src: url(/external/Oswald-VariableFont_wght.ttf);
 }
 
-select:focus,
-textarea:focus,
-input[type="text"]:focus,
-input[type="password"]:focus,
-input[type="datetime"]:focus,
-input[type="datetime-local"]:focus,
-input[type="date"]:focus,
-input[type="month"]:focus,
-input[type="time"]:focus,
-input[type="week"]:focus,
-input[type="number"]:focus,
-input[type="email"]:focus,
-input[type="url"]:focus,
-input[type="search"]:focus,
-input[type="tel"]:focus,
-input[type="color"]:focus,
+.form-control:focus,
+.form-check-input:focus,
 .uneditable-input:focus {   
   border-color: var(--bs-primary-rgb);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(126, 239, 104, 0.6);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(var(--bs-primary-rgb), 0.8);
   outline: 0 none;
 }
 
