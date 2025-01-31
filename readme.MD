@@ -1,6 +1,6 @@
 # <img class="only-light" src="modules/frontend/html/icons/adalanche-logo-black.svg#gh-light-mode-only" height="28px"><img class="only-dark" src="modules/frontend/html/icons/adalanche-logo.svg#gh-dark-mode-only" height="28px"> Adalanche Open Source
 
-*Active Directory ACL Visualizer and Explorer*
+*Attack Graph Visualizer and Explorer*
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/lkarlslund/Adalanche)](https://github.com/lkarlslund/Adalanche/releases/latest) ![GitHub all releases](https://img.shields.io/github/downloads/lkarlslund/Adalanche/total) ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/lkarlslund/Adalanche/prerelease.yml?branch=master)
 
@@ -13,25 +13,33 @@ Active Directory security is notoriously difficult. Small organizations generall
 
 In large organizations you have a huge number of people with different needs, and they are delegated access to varying degrees of power in the AD. At some point in time, someone makes a mistake, and that can cost you dearly.
 
-Adalanche visualizes delegation issues, kerberoastable accounts, AD CS issues and more.
+Adalanche visualizes delegation issues, kerberoastable accounts, AD CS issues and much, much more.
 
-# Features
+## Features
 
-Collection: Native collection from Active Directory, Windows machines, VMware vSphere*
-Analysis: In-depth analysis of ownership, ACLs and other node , including users, groups, computers, and more.
-Visualization: allows you to explore nodes and edges via web based graph UI
-Integrates data from:
-  - On-Premises Active Directory
-  - Windows Computers (domain joined)
+Analysis offers in-depth analysis of ownership, ACLs and other node relationships.
+The visualization allows you to explore nodes and edges via web based graph UI, in order to find misconfigurations that attackers would use against you if they were to attack your infrastructure.
+
+Adalanche Query Language (AQL) offers comprehensive search abilities in the graph. AQL is a GQL-like language that allows for complex queries.
+
+Adalanche can collect data from: 
+  - Active Directory
+  - Windows machines
   - VMware vSphere*
-  - CyberArk*
-  - Password hashes / cracked passwords*
-  - Tiering models*
-  - Custom nodes and edges*
-Reporting: in development*
 
-* = paid version
+Adalanche integrates data from:
+  - Active Directory
+  - Windows machines (domain joined, or standalone)
+  - VMware vSphere(*)
+  - CyberArk(*)
+  - Password hashes / cracked passwords(*)
+  - Tiering models(*)
+  - Custom nodes and edges(*)
+
+Reporting feature is in development(*)
+
+(*) = paid version, see [NetSection](https://www.netsection.com) website
 
 ## Tell me more
 
-Since the [documentation](modules/frontend/html/docs/index.md) has gotten comprehensive, it's moved to it's own place. You can look through it here on GitHub, and it's also available from within the Adalanche UI when you get started.
+For more details, you can view the [documentation](modules/frontend/html/docs/index.md) here on Github, or from within the Adalanche UI.

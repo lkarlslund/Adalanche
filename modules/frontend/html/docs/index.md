@@ -336,36 +336,11 @@ You can search for nodes with these tags using the 'tag' attribute.
 The tool works like an interactive map in your browser, and defaults to a ldap search query that shows you how to become "Domain Admin" or "Enterprise Admin" (i.e. member of said group or takeover of an account which is either a direct or indirect member of these groups).
 
 
-
-### LDAP queries
-The tool has its own LDAP query parser, and makes it easy to search for other objects to take over, by using a familiar search language.
-
-**The queries support:**
-- case insensitive matching for all attribute names
-- checking whether an attribute exists using asterisk syntax (member=*)
-- case insensitive matching for string values using equality (=)
-- integer comparison using <, <=, > and >= operators
-- glob search using equality if search value includes ? or *
-- case sensitive regexp search using equality if search value is enclosed in forward slashes: (name=/^Sir.*Mix.*lot$/ (can be made case insensitive with /(?i)pattern/ flags, see https://github.com/google/re2/wiki/Syntax)
-- extensible match: 1.2.840.113556.1.4.803 (you can also use :and:) [LDAP_MATCHING_RULE_BIT_AND](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_BIT_AND) 
-- extensible match: 1.2.840.113556.1.4.804 (you can also use :or:) [LDAP_MATCHING_RULE_BIT_OR](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_BIT_OR) 
-- extensible match: 1.2.840.113556.1.4.1941 (you can also use :dnchain:) [LDAP_MATCHING_RULE_IN_CHAIN](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_IN_CHAIN) 
-- custom extensible match: count - returns number of attribute values (member:count:>20 gives groups with more members than 20)
-- custom extensible match: length - matches on length of attribute values (name:length:>20 gives you objects with long names)
-- custom extensible match: since - parses the attribute as a timestamp and your value as a duration - pwdLastSet:since:<-6Y5M4D3h2m1s (pawLastSet is less than the time 6 years, 5 months, 4 days, 3 hours, 2 minutes and 1 second ago - or just pass an integer that represents seconds directly)
-- synthetic attribute: _limit (_limit=10) returns true on the first 10 hits, false on the rest giving you a max output of 10 items
-- synthetic attribute: _random100 (_random100<10) allows you to return a random percentage of results (&(type=Person)(_random100<1)) gives you 1% of users
-- synthetic attribute: out - allows you to select objects based on what they can pwn *directly* (&(type=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
-- synthetic attribute: in - allows you to select objects based on how they can be pwned *directly* (&(type=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
-- glob matching on the attribute name - searching for (*name=something) is possible - also just * to search all attributes
-- custom extensible match: timediff - allows you to search for accounts not in use or password changes relative to other attributes - e.g. lastLogonTimestamp:timediff(pwdLastSet):>6M finds all objects where the lastLogonTimestamp is 6 months or more recent than pwdLastSet
-- custom extensible match: caseExactMatch - switches text searches (exact, glob) to case sensitive mode
-
 ## Edges
 
 Adalanche detects various relationsships between nodes, represented as edges. These relationships are based on various attributes and permissions within Active Directory.
 
-This list is not exhaustive.
+This list is not exhaustive, see complete list from within the UI.
 
 | Edge | Explanation |
 | -------- | ----------- |
@@ -462,6 +437,31 @@ name:(ldapfilter) ORDER BY attribute SKIP n LIMIT m
 The name allows you to tag a group of nodes with a name, which currently is just used for highlighting the nodes in the UI, using the names "start" and "end". Later on this will become more useful for the queries themselves.
 
 You might get too many results from a query - limit the selection of starting nodes with LIMIT 10 to just get the first 10 nodes (see LDAP queries below)
+
+### LDAP filters
+The tool has its own LDAP query parser, and makes it easy to search for other objects to take over, by using a familiar search language.
+
+**The LDAP filters support these extensions:**
+- case insensitive matching for all attribute names
+- checking whether an attribute exists using asterisk syntax (member=*)
+- case insensitive matching for string values using equality (=)
+- integer comparison using <, <=, > and >= operators
+- glob search using equality if search value includes ? or *
+- case sensitive regexp search using equality if search value is enclosed in forward slashes: (name=/^Sir.*Mix.*lot$/ (can be made case insensitive with /(?i)pattern/ flags, see https://github.com/google/re2/wiki/Syntax)
+- extensible match: 1.2.840.113556.1.4.803 (you can also use :and:) [LDAP_MATCHING_RULE_BIT_AND](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_BIT_AND) 
+- extensible match: 1.2.840.113556.1.4.804 (you can also use :or:) [LDAP_MATCHING_RULE_BIT_OR](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_BIT_OR) 
+- extensible match: 1.2.840.113556.1.4.1941 (you can also use :dnchain:) [LDAP_MATCHING_RULE_IN_CHAIN](https://ldapwiki.com/wiki/LDAP_MATCHING_RULE_IN_CHAIN) 
+- custom extensible match: count - returns number of attribute values (member:count:>20 gives groups with more members than 20)
+- custom extensible match: length - matches on length of attribute values (name:length:>20 gives you objects with long names)
+- custom extensible match: since - parses the attribute as a timestamp and your value as a duration - pwdLastSet:since:<-6Y5M4D3h2m1s (pawLastSet is less than the time 6 years, 5 months, 4 days, 3 hours, 2 minutes and 1 second ago - or just pass an integer that represents seconds directly)
+- synthetic attribute: _limit (_limit=10) returns true on the first 10 hits, false on the rest giving you a max output of 10 items
+- synthetic attribute: _random100 (_random100<10) allows you to return a random percentage of results (&(type=Person)(_random100<1)) gives you 1% of users
+- synthetic attribute: out - allows you to select objects based on what they can pwn *directly* (&(type=Group)(_canpwn=ResetPassword)) gives you all groups that are assigned the reset password right
+- synthetic attribute: in - allows you to select objects based on how they can be pwned *directly* (&(type=Person)(_pwnable=ResetPassword)) gives you all users that can have their password reset
+- glob matching on the attribute name - searching for (*name=something) is possible - also just * to search all attributes
+- custom extensible match: timediff - allows you to search for accounts not in use or password changes relative to other attributes - e.g. lastLogonTimestamp:timediff(pwdLastSet):>6M finds all objects where the lastLogonTimestamp is 6 months or more recent than pwdLastSet
+- custom extensible match: caseExactMatch - switches text searches (exact, glob) to case sensitive mode
+
 
 ## Edge filters
 
