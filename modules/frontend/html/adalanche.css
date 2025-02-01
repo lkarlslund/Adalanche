@@ -30,8 +30,13 @@
 }
 
 .form-check-input:checked {
+  /* color: var(--bs-dark); */
   background-color: var(--bs-primary);
   border-color: var(--bs-primary);
+}
+
+input[type="number"] { 
+    text-align: right; 
 }
 
 .btn {
@@ -41,6 +46,13 @@
   --bs-btn-hover-bg: var(--bs-primary);
   --bs-btn-hover-border-color: var(--bs-primary);
   --bs-btn-border-color: var(--bs-primary);
+}
+
+/* drop down and up pressed */
+.btn.show {
+  color: var(--bs-btn-active-color);
+  background-color: var(--bs-btn-active-bg);
+  border-color: var(--bs-btn-active-border-color);
 }
 
 .btn-outline-primary {
