@@ -956,28 +956,28 @@ function initgraph(data) {
                         dataType: "json",
                         success: function (data) {
                             if (data.attributes["distinguishedName"]) {
-                                $("#query_start").val(
-                                  "(distinguishedname=" +
+                                set_query(
+                                  "start:(distinguishedname=" +
                                     data.attributes["distinguishedName"] +
-                                    ")<-[]{1,3}-()"
+                                    ")<-[]{1,3}-end:()"
                                 );
                             } else if (data.attributes["objectSid"]) {
-                                $("#query_start").val(
-                                  "(objectSid=" +
+                                set_query(
+                                  "start:(objectSid=" +
                                     data.attributes["objectSid"] +
-                                    ")<-[]{1,3}-()"
+                                    ")<-[]{1,3}-end:()"
                                 );
                             } else if (data.attributes["objectGuid"]) {
-                                $("#query_start").val(
-                                  "(objectGuid=" +
+                                set_query(
+                                  "start:(objectGuid=" +
                                     data.attributes["objectGuid"] +
-                                    ")<-[]{1,3}-()"
+                                    ")<-[]{1,3}-end:()"
                                 );
                             } else {
-                                $("#query_start").val(
-                                  "(_id=" +
+                                set_query(
+                                  "start:(_id=" +
                                     evt.target.id().substring(1) +
-                                    ")<-[]{1,3}-()"
+                                    ")<-[]{1,3}-end:()"
                                 );
                             }
 
