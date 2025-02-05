@@ -52,6 +52,10 @@ func (pg *Graph[NodeType, EdgeType]) HasNode(find NodeType) (found bool) {
 	return
 }
 
+func (pg *Graph[NodeType, EdgeType]) NoAutoClean() {
+	pg.cleanupEdgesNeeded = false
+}
+
 func (pg *Graph[NodeType, EdgeType]) DeleteNode(find NodeType) error {
 	delete(pg.nodes, find)
 	pg.cleanupEdgesNeeded = true

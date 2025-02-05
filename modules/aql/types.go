@@ -341,6 +341,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				if !hadNextNode {
 					workingGraph.DeleteNode(nextObject)
 				}
+				workingGraph.NoAutoClean()
 			}
 			return true
 		})
