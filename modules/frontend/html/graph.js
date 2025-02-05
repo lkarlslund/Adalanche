@@ -655,6 +655,13 @@ function hashFnv32a(str, asString, seed) {
     return hval >>> 0;
 }
 
+function probabilityToRGB(value) {
+  value = Math.max(0, Math.min(100, value)); // Clamp between 0-100
+  let r = value < 50 ? 255 : Math.round(255 - (value - 50) * 5.1);
+  let g = value > 50 ? 255 : Math.round(value * 5.1);
+  return `rgb(${r},${g},0)`;
+}
+
 
 function renderedges(methodmap) {
   maxprob = -1;
@@ -665,19 +672,12 @@ function renderedges(methodmap) {
         if (prob > maxprob) {
           maxprob = prob;
         }
-        return '<span class="badge badge-secondary">' + name + " (" + prob + "%)</span>";
+        return '<span class="badge text-dark" style="background-color: '+probabilityToRGB(prob)+'">' + name + " (" + prob + "%)</span>";
       })
       .join("");
 
-    var s = '<span class="badge badge-';
-    if (maxprob < 33) {
-        s += 'danger';
-    } else if (maxprob < 67) {
-        s += 'secondary';
-    } else {
-        s += 'success';
-    }
-    s += '">Edge ' + maxprob + '%</span>' + edgeoutput;
+    var s = '<span class="badge text-dark" style="background-color: '+probabilityToRGB(maxprob)+
+    '">Edge ' + maxprob + '%</span>' + edgeoutput;
 
     return s
 }
