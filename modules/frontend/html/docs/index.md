@@ -424,11 +424,30 @@ Searches for nodes are defined more or less using LDAP query syntax, so the same
 
 ## AQL Syntax
 
-(nodefilter)-[edgefilter]{n,m}->(nodefilter)
+NOTE: Since [] is used as a literal in the queries themselves, parts of the query that are optional are enclosed in % below. If something is allowed repeatedly it's enclosed in %%.
 
-## Node filters
+aql = query %%UNION query%%
 
-A node filter tells the query engine how to find targets that are either a starting, middle or ending node. You can use basic LDAP syntax queryes, with these additional extensions:
+query = %searchtype% %label:%(nodefilter)-[edgefilter]%{n,m}%->%label:%(nodefilter)%%-[edgefilter]->%label:%(nodefilter)%%
+
+## Graph search types (searchtype)
+
+Graph traversal is done in a shortest path first order.
+
+| Keyword | Description |
+|---------|-------------|
+| WALK | All traversals allowed, including loops etc. Not recommended. |
+| TRAIL | Edges that are already part of the graph results are not allowed again |
+| ACYCLIC | Nodes that are already part of the graph results are not allowed again. This is default search type if not specified. |
+| SIMPLE | Neither edges nor nodes that are already part of the graph results are allowed more than once |
+
+## Labels
+
+You can label a group of nodes in the graph using the label: syntax in front of a node filter. Adalanche highlights nodes that have been tagged with "start" (red) and "end" (blue) in the UI, but you can use whatever you want.
+
+## Node filters (nodefilter)
+
+A node filter tells the query engine how to find nodes that are part of the graph. You can use basic LDAP syntax queryes, with these additional extensions:
 
 <code>
 name:(ldapfilter) ORDER BY attribute SKIP n LIMIT m
