@@ -74,7 +74,7 @@ function new_window(
   mywindow = $(
     `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
           <div id='header' class='window-header bg-primary text-dark p-1'>
-          <span id="title" class="col">${title}</span><span id="close" class="border float-top float-end cursor-pointer">X</span>
+          <span id="title" class="col">${title}</span><span id="close" class="float-top float-end cursor-pointer bi-x-square"></span>
           </div>
           <div class="window-wrapper">
           <div class="window-content p-1" id="contents">${content}</div>
@@ -243,9 +243,6 @@ function aqlanalyze(e) {
         // Remove all windows
         $("#windows div").remove();
 
-        // Hide status
-        $("#status").hide();
-
         var info = "";
         if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
           info +=
@@ -297,7 +294,9 @@ function aqlanalyze(e) {
           $("#querybox").slideToggle("fast");
         }
 
-        initgraph(data.elements);
+        new Promise(resolve=>{
+          initgraph(data.elements);
+        });
 
         history.pushState($("body").html(), "adalanche");
       }
