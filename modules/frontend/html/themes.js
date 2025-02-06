@@ -13,6 +13,7 @@ const translateAutoTheme = (theme) => {
 const setTheme = (theme) => {
     document.documentElement.setAttribute("data-bs-theme", theme);
     if (cy) {
+        cy.style(cytostyle);
         applyEdgeStyles(cy);
         applyNodeStyles(cy);
     }
@@ -22,15 +23,16 @@ var lasttheme = ""; // Store the last theme for comparison
 
 // jquery ready
 $(document).ready(function () {
-    $("input[name='theme']").on("change", function () {
-        var selectedTheme = $("input[name='theme']:checked").val();
-        // console.log("theme is "+ selectedTheme+", was "+lasttheme);
+    $("input[name='theme']").on("prefupdate", function () {
+    // $("input[preference='theme']").on("prefupdate", function () {
+        var selectedTheme = getpref("theme", "auto"); // Update the preference value in case it changed elsewhere
+        console.log("new theme is "+ selectedTheme+", was "+lasttheme);
         if (selectedTheme != lasttheme) {
+            // console.log("Theme changed, triggering UI refresh");
+            lasttheme = selectedTheme; // Update the last theme after setting it
             // console.log("theme changed to "+ selectedTheme);
             setTheme(translateAutoTheme(selectedTheme));
         }
-
-        lasttheme = selectedTheme; // Update the last theme after setting it
     });
 });
 

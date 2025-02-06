@@ -815,7 +815,6 @@ function initgraph(data) {
     cy = window.cy = cytoscape({
       container: document.getElementById("cy"),
       wheelSensitivity: 0.2,
-      style: cytostyle,
 
       renderer: {
         name: "canvas", // still uses the canvas renderer
@@ -823,6 +822,8 @@ function initgraph(data) {
         showFps: false,
       },
     });
+
+    cy.style(cytostyle);
 
     cy.ready(function () {
         busystatus("Rendering graph");

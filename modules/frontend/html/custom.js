@@ -822,7 +822,7 @@ $(function () {
     },
   });
 
-  $("#graphlayout").change(function () {
+  $("#graphlayout").on("prefupdate", function () {
     layout = $(this).val();
     if (cy) {
       // render graph with new layout if there is one
@@ -830,20 +830,19 @@ $(function () {
     }
   });
 
-  $("#nodesizes").change(function () {
+  $("#nodesizes").on("prefupdate", function () {
     if (cy) {
       applyNodeStyles(cy);
     }
   });
 
-  $("#nodelabels").change(function () {
+  $("#nodelabels").on("prefupdate", function () {
     if (cy) {
       cy.style().update();
     }
   });
 
   updateQueries();
-
 
   $(document).on("preferences.loaded", function (evt) {
     settings_loaded = true;

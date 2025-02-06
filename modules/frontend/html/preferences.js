@@ -18,12 +18,7 @@ function loadprefs() {
 function updatecontrol(ele) {
     defaultval = $('input[name="'+ele.attr("name")+'"][defaultpref]').attr("defaultpref");
     val = getpref(ele.attr("preference"), defaultval);
-    // console.log(
-    //   "Loaded settings for " +
-    //     ele.attr("preference") +
-    //     " with default value " +
-    //     defaultval + " value " + val
-    // );
+    triggerevent = true;
     if (val != null) {
         if (ele.attr("type") == "checkbox") {
             if (val === "false") {
@@ -32,27 +27,31 @@ function updatecontrol(ele) {
             ele.prop("checked", val)
         } else if (ele.attr("type") == "radio") {
             $('[type=radio][name="'+ele.attr("name")+'"]').each(function (index, radioitem) {
-                // console.log(radioitem);
                 $(this).prop("checked", $(this).attr("value") == val);
+                if ($(this).attr("value") == val) {
+                    ele.trigger("prefupdate");
+                }
             });
         } else {
             ele.val(val)
+            ele.trigger("prefupdate");
         }
         console.log("Triggering change event for element with preference "+ele.attr("preference")+" with value "+val);
-        ele.trigger("change");
     }
 }
 
-function onchangepreference(ele) {
+function onUIPreferenceChange(ele) {
     if (ele.attr("type") == "checkbox") {
         setpref(ele.attr("preference"), ele.prop("checked"))
+        ele.trigger("prefupdate");
     } else if (ele.attr("type") == "radio") {
         $('input[name="'+ele.attr("name")+'"]:checked').each(function( index, checkedele ) {
-            // console.log("Updating radio to "+$(this).val());
             setpref(ele.attr("preference"), $(this).val());
+            $(this).trigger("prefupdate");
         });
     } else {
         setpref(ele.attr("preference"), ele.val())
+        ele.trigger("prefupdate");
     }
 }
 
@@ -99,6 +98,6 @@ function prefsinit() {
 
     // Dynamically save preferences
     $('[preference]').change(function () {
-        onchangepreference($(this));
+        onUIPreferenceChange($(this));
     });
 };
