@@ -92,7 +92,7 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 			Data: map[string]any{
 				"id":    fmt.Sprintf("n%v", object.ID()),
 				"label": object.Label(),
-				"type":  object.Type().String(),
+				"type":  object.OneAttrString(engine.Type),
 			},
 		}
 
