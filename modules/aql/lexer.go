@@ -186,7 +186,7 @@ func getLexer() (*lexmachine.Lexer, error) {
 		func(scan *lexmachine.Scanner, match *machines.Match) (result any, err error) {
 			x, _ := tokenid(Integer)(scan, match)
 			t := x.(Token)
-			t.Native, err = strconv.ParseInt(t.Value, 16, 64)
+			t.Native, err = strconv.ParseInt(t.Value[2:], 16, 64)
 			return t, err
 		})
 

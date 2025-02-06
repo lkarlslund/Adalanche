@@ -420,11 +420,6 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		}
 	}
 
-	value, err := parseRelaxedValue(ts, ao)
-	if err != nil {
-		return nil, err
-	}
-
 	// Decide what to do
 	switch modifier {
 	case "":
@@ -432,23 +427,35 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 	case "caseExactMatch":
 		casesensitive = true
 	case "count":
-		i, err := strconv.ParseInt(value.String(), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not convert value to integer for modifier comparison: %v", err)
+		if !ts.Token().Is(Integer) {
+			return nil, fmt.Errorf("Modifier count requires an integer, we got %v", ts.Token())
 		}
-		result = genwrapper(query.CountModifier{comparator, int(i)})
+
+		i := ts.Token().Native.(int64)
+		ts.Next()
+
+		result = genwrapper(query.CountModifier{Comparator: comparator, Value: int(i)})
 	case "len", "length":
-		i, err := strconv.ParseInt(value.String(), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not convert value to integer for modifier comparison: %v", err)
+		if !ts.Token().Is(Integer) {
+			return nil, fmt.Errorf("Modifier length requires an integer, we got %v", ts.Token())
 		}
-		result = genwrapper(query.LengthModifier{comparator, int(i)})
+
+		i := ts.Token().Native.(int64)
+		ts.Next()
+
+		result = genwrapper(query.LengthModifier{Comparator: comparator, Value: int(i)})
 	case "since":
 		// try to parse it as an duration
+		value, err := parseRelaxedValue(ts, ao)
+		if err != nil {
+			return nil, err
+		}
+
 		duration, err := timespan.ParseTimespan(value.String())
 		if err != nil {
 			return nil, errors.New("Could not parse value as a duration (5h2m)")
 		}
+
 		result = genwrapper(query.SinceModifier{
 			Comparator: comparator,
 			TimeSpan:   duration})
@@ -457,6 +464,13 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, errors.New("timediff modifier requires two attributes")
 		}
+
+		// try to parse it as an duration
+		value, err := parseRelaxedValue(ts, ao)
+		if err != nil {
+			return nil, err
+		}
+
 		// try to parse it as an duration
 		duration, err := timespan.ParseTimespan(value.String())
 		if err != nil {
@@ -471,27 +485,44 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		if comparator != query.CompareEquals {
 			return nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
-		i, err := strconv.ParseInt(value.String(), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not convert value to integer for modifier comparison: %v", err)
+
+		if !ts.Token().Is(Integer) {
+			return nil, fmt.Errorf("Modifier 'and' requires an integer, we got %v", ts.Token())
 		}
+
+		i := ts.Token().Native.(int64)
+		ts.Next()
+
 		result = genwrapper(query.BinaryAndModifier{i})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != query.CompareEquals {
 			return nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
-		i, err := strconv.ParseInt(value.String(), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not convert value to integer for modifier comparison: %v", err)
+		if !ts.Token().Is(Integer) {
+			return nil, fmt.Errorf("Modifier 'or' requires an integer, we got %v", ts.Token())
 		}
+
+		i := ts.Token().Native.(int64)
+		ts.Next()
+
 		result = genwrapper(query.BinaryOrModifier{i})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
+		value, err := parseRelaxedValue(ts, ao)
+		if err != nil {
+			return nil, err
+		}
+
 		result = genwrapper(query.RecursiveDNmatcher{
 			DN: value.String(),
 			AO: ao})
 	default:
 		return nil, errors.New("Unknown modifier " + modifier)
+	}
+
+	value, err := parseRelaxedValue(ts, ao)
+	if err != nil {
+		return nil, err
 	}
 
 	if result == nil {
