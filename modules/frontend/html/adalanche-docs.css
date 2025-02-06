@@ -81,14 +81,17 @@ td, th {
     /* background: linear-gradient(135deg, #1a1c2e 0%, #16181f 100%); */
     transition: all 0.3s ease;
     border: white solid 1px;
+    padding: 0.2em;
     /* dont print ever */
     @media print { display: none; } /* hide sidebar when printing */
 }
-nav ul {
-  list-style-type: none;
-  /* padding-left: 0; */
+nav > ul {
+  padding-left: 0;
   /* dont underline links */
 
+}
+nav ul {
+  list-style-type: none;
 }
 nav ul ul {
   font-size: small;
