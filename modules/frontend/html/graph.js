@@ -318,7 +318,7 @@ var cytostyle = [
     },
   },
   {
-    selector: 'node[type="User"]',
+    selector: 'node[type="Person"]',
     style: {
       "background-image": "icons/person-fill.svg",
       "background-color": "green",
@@ -331,21 +331,21 @@ var cytostyle = [
     },
   },
   {
-    selector: 'node[type="ManagedServiceAccount"]',
+    selector: 'node[type="ms-DS-Managed-Service-Account"]',
     style: {
       "background-image": "icons/manage_accounts_black_24dp.svg",
       "background-color": "lightgreen",
     },
   },
   {
-    selector: 'node[type="GroupManagedServiceAccount"]',
+    selector: 'node[type="ms-DS-Group-Managed-ServiceAccount"]',
     style: {
       "background-image": "icons/manage_accounts_black_24dp.svg",
       "background-color": "lightgreen",
     },
   },
   {
-    selector: 'node[type="ForeignSecurityPrincipal"]',
+    selector: 'node[type="Foreign-Security-Principal"]',
     style: {
       "background-image": "icons/badge_black_24dp.svg",
       "background-color": "lightgreen",
@@ -392,7 +392,7 @@ var cytostyle = [
   },
 
   {
-    selector: 'node[type="GroupPolicyContainer"]',
+    selector: 'node[type="Group-Policy-Container"]',
     style: {
       shape: "rectangle",
       "background-image": "icons/gpo.svg",
@@ -400,7 +400,7 @@ var cytostyle = [
     },
   },
   {
-    selector: 'node[type="OrganizationalUnit"]',
+    selector: 'node[type="Organizational-Unit"]',
     style: {
       shape: "rectangle",
       "background-image": "icons/source_black_24dp.svg",
@@ -416,7 +416,7 @@ var cytostyle = [
     },
   },
   {
-    selector: 'node[type="CertificateTemplate"]',
+    selector: 'node[type="PKI-Certificate-Template"]',
     style: {
       shape: "rectangle",
       "background-image": "icons/certificate.svg",
@@ -424,7 +424,7 @@ var cytostyle = [
     },
   },
   {
-    selector: 'node[type="DNSNode"]',
+    selector: 'node[type="DNS-Node"]',
     style: {
       shape: "rectangle",
       "background-image": "icons/dns.svg",
@@ -685,81 +685,81 @@ function renderedges(methodmap) {
 icons = new Map([
   [
     "Person",
-    "<img src='icons/person-fill.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/person-fill.svg' width='24' height='24'>",
   ],
   [
     "Group",
-    "<img src='icons/people-fill.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/people-fill.svg' width='24' height='24'>",
   ],
   [
     "Computer",
-    "<img src='icons/computer-fill.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/computer-fill.svg' width='24' height='24'>",
   ],
   [
     "Machine",
-    "<img src='icons/tv-fill.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/tv-fill.svg' width='24' height='24'>",
   ],
   [
-    "ManagedServiceAccount",
-    "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "ms-DS-Managed-Service-Account",
+    "<img src='icons/manage_accounts_black_24dp.svg' width='24' height='24'>",
   ],
   [
-    "GroupManagedServiceAccount",
-    "<img src='icons/manage_accounts_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "ms-DS-Group-Managed-Service-Account",
+    "<img src='icons/manage_accounts_black_24dp.svg' width='24' height='24'>",
   ],
   [
-    "ForeignSecurityPrincipal",
-    "<img src='icons/badge_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "Foreign-Security-Principal",
+    "<img src='icons/badge_black_24dp.svg' width='24' height='24'>",
   ],
   [
     "Service",
-    "<img src='icons/service.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/service.svg' width='24' height='24'>",
   ],
   [
     "Directory",
-    "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/source_black_24dp.svg' width='24' height='24'>",
   ],
   [
     "File",
-    "<img src='icons/article_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/article_black_24dp.svg' width='24' height='24'>",
   ],
   [
     "Executable",
-    "<img src='icons/binary-code.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/binary-code.svg' width='24' height='24'>",
   ],
   [
-    "GroupPolicyContainer",
-    "<img src='icons/gpo.svg' class='rounded-circle' width='24' height='24'>",
+    "Group-Policy-Container",
+    "<img src='icons/gpo.svg' width='24' height='24'>",
   ],
   [
-    "OrganizationalUnit",
-    "<img src='icons/source_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "Organizational-Unit",
+    "<img src='icons/source_black_24dp.svg' width='24' height='24'>",
   ],
   [
     "Container",
-    "<img src='icons/folder_black_24dp.svg' class='rounded-circle' width='24' height='24'>",
+    "<img src='icons/folder_black_24dp.svg' width='24' height='24'>",
   ],
   [
-    "CertificateTemplate",
-    "<img src='icons/certificate.svg' class='rounded-circle' width='24' height='24'>",
+    "MS-PKI-Certificate-Template",
+    "<img src='icons/certificate.svg' width='24' height='24'>",
   ],
   [
-    "DNSNode",
-    "<img src='icons/dns.svg' class='rounded-circle' width='24' height='24'>",
+    "DNS-Node",
+    "<img src='icons/dns.svg' width='24' height='24'>",
   ],
 ]);
 
 function rendericon(type) {
     result = icons.get(type);
     if (!result) {
-      result="<img src='icons/unknown.svg' class='rounded-circle' width='24' height='24'>";
+      result="<img src='icons/unknown.svg' width='24' height='24'>";
     }
     return result;
 }
 
 function rendernode(ele) {
     s = rendericon(ele.attributes['type'][0]);
-    s += renderlabel(ele.label);
+    s += " " + renderlabel(ele.label);
     return s
 }
 
