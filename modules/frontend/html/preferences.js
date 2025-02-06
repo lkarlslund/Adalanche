@@ -5,6 +5,18 @@ function loadprefs() {
         url: "/api/preferences",
         dataType: "json",
         success: function (data) {
+            // convert all values with text "true" to boolean true, "false" to boolean false, and integers and floats to their respective types
+            for (let key in data) {
+                let value = data[key];
+                if (value === "true") {
+                    data[key] = true;
+                } else if (value === "false") {
+                    data[key] = false;
+                } else if (!isNaN(value)) {
+                    data[key] = Number(value);
+                }
+            }
+
             prefs = data;
             // Apply all preferences
             $("[preference]").each(function () {
@@ -56,12 +68,13 @@ function onUIPreferenceChange(ele) {
 }
 
 function getpref(key, defvalue) {
-    if (prefs == undefined) {
-        return defvalue;
-    };
     var value = prefs[key];
     if (value != null) {
-        return value
+        return value;
+    }
+    uidefvalue = $("[preference='" + key + "'][defaultpref]").data("defaultpref");
+    if (uidefvalue !== undefined) {
+        return uidefvalue;
     }
     return defvalue;
 }
