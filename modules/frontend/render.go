@@ -1,13 +1,14 @@
 package frontend
 
 type typeinfo struct {
-	Name string
-	Icon string
+	Name            string `json:"name"`
+	Icon            string `json:"icon"`
+	BackgroundColor string `json:"background-color"`
 }
 
 var typeInfos = map[string]typeinfo{
-	"User": {
-		Name: "User",
+	"Person": {
+		Name: "Person",
 		Icon: "icons/person-fill.svg",
 	},
 	"Group": {
@@ -22,15 +23,15 @@ var typeInfos = map[string]typeinfo{
 		Name: "Machine",
 		Icon: "icons/tv-fill.svg",
 	},
-	"ManagedServiceAccount": {
+	"ms-DS-Managed-Service-Account": {
 		Name: "Managed Service Account",
 		Icon: "icons/manage_accounts_black_24dp.svg",
 	},
-	"GroupManagedServiceAccount": {
+	"ms-DS-Group-Managed-Service-Account": {
 		Name: "Group Managed Service Account",
 		Icon: "icons/manage_accounts_black_24dp.svg",
 	},
-	"ForeignSecurityPrincipal": {
+	"Foreign-Security-Principal": {
 		Name: "Foreign Security Principal",
 		Icon: "icons/badge_black_24dp.svg",
 	},
@@ -50,11 +51,11 @@ var typeInfos = map[string]typeinfo{
 		Name: "Executable",
 		Icon: "icons/binary-code-binary-svgrepo-com.svg",
 	},
-	"GroupPolicyContainer": {
+	"Group-Policy-Container": {
 		Name: "Group Policy Container",
 		Icon: "icons/gpo.svg",
 	},
-	"OrganizationalUnit": {
+	"Organizational-Unit": {
 		Name: "Organizational Unit",
 		Icon: "icons/source_black_24dp.svg",
 	},
@@ -62,11 +63,11 @@ var typeInfos = map[string]typeinfo{
 		Name: "Container",
 		Icon: "icons/folder_black_24dp.svg",
 	},
-	"CertificateTemplate": {
+	"MS-PKI-Certificate-Template": {
 		Name: "Certificate Template",
 		Icon: "icons/certificate.svg",
 	},
-	"DNSNode": {
+	"DNS-Node": {
 		Name: "DNS Node",
 		Icon: "icons/source_black_24dp.svg",
 	},
