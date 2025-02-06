@@ -27,7 +27,7 @@ var (
 		},
 		{
 			Name:     "What can accounts with no Kerberos preauth requirement reach? (ASREPROAST)",
-			Query:    "ACYCLIC start:(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(tag=account_active))-[]{1,10}->end:()",
+			Query:    "ACYCLIC start:(&(samAccountType=805306368)(userAccountControl:and:=4194304)(tag=account_active))-[]{1,10}->end:()",
 			Category: "Active Directory",
 		},
 		{
@@ -72,17 +72,17 @@ var (
 		},
 		{
 			Name:     "What can users not required to have a password reach?",
-			Query:    "ACYCLIC start:(&(dataLoader=Active Directory)(type=Person)(userAccountControl:1.2.840.113556.1.4.803:=32))-[]{1,10}->end:()",
+			Query:    "ACYCLIC start:(&(dataLoader=Active Directory)(type=Person)(userAccountControl:and:=32))-[]{1,10}->end:()",
 			Category: "Active Directory",
 		},
 		{
 			Name:     "What can users that can't change password reach?",
-			Query:    "ACYCLIC start:(&(type=Person)(userAccountControl:1.2.840.113556.1.4.803:=64))-[]{1,10}->end:()",
+			Query:    "ACYCLIC start:(&(type=Person)(userAccountControl:and:=64))-[]{1,10}->end:()",
 			Category: "Active Directory",
 		},
 		{
 			Name:     "What can users with never expiring passwords reach?",
-			Query:    "ACYCLIC start:(&(type=Person)(userAccountControl:1.2.840.113556.1.4.803:=65536))-[]{1,10}->end:()",
+			Query:    "ACYCLIC start:(&(type=Person)(userAccountControl:and:=65536))-[]{1,10}->end:()",
 			Category: "Active Directory",
 		},
 		{
@@ -103,12 +103,12 @@ var (
 		},
 		{
 			Name:     "What can kerberoastable user accounts reach? (all encryption types)",
-			Query:    "ACYCLIC start:(&(type=Person)(servicePrincipalName=*)(tag=account_active))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(type=Person)(servicePrincipalName=*)(tag=account_active))-[]{1,10}->end:(|(type=Person)(type=Group))",
 			Category: "Roasting",
 		},
 		{
 			Name:     "What can kerberoastable user accounts reach? (RC4 encryption)",
-			Query:    "ACYCLIC start:(&(type=Person)(servicePrincipalName=*)(|(msDS-SupportedEncryptionTypes:and:=0x4)(!msDS-SupportedEncryptionTypes=*))(tag=account_active))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(type=Person)(servicePrincipalName=*)(|(msDS-SupportedEncryptionTypes:and:=0x4)(!msDS-SupportedEncryptionTypes=*))(tag=account_active))-[]{1,10}->end:(|(type=Person)(type=Group))",
 			Category: "Roasting",
 		},
 		{
@@ -119,7 +119,7 @@ var (
 		},
 		{
 			Name:        "Domain Controllers",
-			Query:       "ACYCLIC start:(&(type=Machine)(out=MachineAccount,(&(type=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:       "ACYCLIC start:(&(type=Machine)(out=MachineAccount,(&(type=Computer)(userAccountControl:and:=8192))))<-[]{1,10}-end:(|(type=Person)(type=Group))",
 			Description: "Domain Controllers are critical servers in Active Directory environments. They authenticate users and services within the domain. Compromising these machines allows attackers to take over the entire AD.",
 			Category:    "Active Directory",
 		},
@@ -131,12 +131,12 @@ var (
 		},
 		{
 			Name:     "Computers with unconstrained delegation (non DCs)?",
-			Query:    "ACYCLIC start:(&(type=Computer)(userAccountControl:1.2.840.113556.1.4.803:=524288)(!userAccountControl:1.2.840.113556.1.4.803:=8192))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(type=Computer)(userAccountControl:and:=524288)(!userAccountControl:and:=8192))<-[]{1,10}-end:(|(type=Person)(type=Group))",
 			Category: "Active Directory",
 		},
 		{
 			Name:     "Computers with constrained delegation (non DCs)",
-			Query:    "ACYCLIC start:(&(objectCategory=computer)(msds-allowedtodelegateto=*)(!userAccountControl:1.2.840.113556.1.4.803:=8192))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(objectCategory=computer)(msds-allowedtodelegateto=*)(!userAccountControl:and:=8192))<-[]{1,10}-end:(|(type=Person)(type=Group))",
 			Category: "Active Directory",
 		},
 		{
@@ -146,7 +146,7 @@ var (
 		},
 		{
 			Name:     "100 random machines",
-			Query:    "ACYCLIC start:(&(type=Machine)(out=MachineAccount,(userAccountControl:1.2.840.113556.1.4.803:=4096))) LIMIT 100",
+			Query:    "ACYCLIC start:(&(type=Machine)(out=MachineAccount,(userAccountControl:and:=4096))) LIMIT 100",
 			Category: "Examples",
 		},
 	}
