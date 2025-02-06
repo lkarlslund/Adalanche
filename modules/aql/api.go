@@ -138,14 +138,22 @@ func init() {
 		queries.GET("", func(c *gin.Context) {
 			// Create a string to query map and put all the predefined queries in that
 			queryMap := make(map[string]QueryDefinition)
+			var defaultQueryName string
 			for _, q := range PredefinedQueries {
 				queryMap[q.Name] = q
+				if q.Default {
+					defaultQueryName = q.Name
+				}
 			}
 
 			// Merge the list of predefined queries and the user queries
 			uq, _ := userQueries.List()
 			for _, q := range uq {
 				q.UserDefined = true
+				// If user overrides default query, inherit this to their own
+				if q.Name == defaultQueryName {
+					q.Default = true
+				}
 				queryMap[q.Name] = q
 			}
 			querySlice := slices.Collect(maps.Values(queryMap))
