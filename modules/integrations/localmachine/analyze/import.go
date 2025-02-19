@@ -341,14 +341,14 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				memberobject.EdgeTo(groupobject, activedirectory.EdgeMemberOfGroup)
 				switch {
 				case group.Name == "SMS Admins":
-					memberobject.EdgeTo(machine, EdgeLocalSMSAdmins)
+					groupobject.EdgeTo(machine, EdgeLocalSMSAdmins)
 				case groupsid == windowssecurity.AdministratorsSID:
-					memberobject.EdgeTo(machine, EdgeLocalAdminRights)
+					groupobject.EdgeTo(machine, EdgeLocalAdminRights)
 				case groupsid == windowssecurity.DCOMUsersSID:
-					memberobject.EdgeTo(machine, EdgeLocalDCOMRights)
+					groupobject.EdgeTo(machine, EdgeLocalDCOMRights)
 				case groupsid == windowssecurity.RemoteDesktopUsersSID:
 					if !rdprightshandled {
-						memberobject.EdgeTo(machine, EdgeLocalRDPRights)
+						groupobject.EdgeTo(machine, EdgeLocalRDPRights)
 					}
 				}
 				if local && !existing {
