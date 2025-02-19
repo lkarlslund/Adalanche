@@ -80,7 +80,7 @@ func (ld *ADLoader) Init() error {
 	ld.objectstoconvert = make(chan convertqueueitem, 8192)
 
 	// AD Objects
-	for i := 0; i < runtime.NumCPU()/4; i++ {
+	for i := 0; i < (runtime.NumCPU()+3)/4; i++ {
 		ld.done.Add(1)
 		go func() {
 			// chunk := make(engine.ObjectSlice, 0, 64)
