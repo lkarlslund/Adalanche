@@ -12,10 +12,15 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Set up Go
+    - name: Set up Go latest
       uses: actions/setup-go@v5
       with:
         go-version: '1.23'
+
+    - name: Set up Go 1.20.4
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.20.4'
 
     - name: Download cyclonedx-gomod
       uses: CycloneDX/gh-gomod-generate-sbom@v2
@@ -26,11 +31,11 @@ jobs:
       run: ./build.ps1
       shell: pwsh
 
-    - uses: "marvinpinto/action-automatic-releases@latest"
+    - name: Release
+      uses: softprops/action-gh-release@v2
       with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "devbuild"
+        name: "devbuild"
         prerelease: true
-        title: "Development Build"
+        generate_release_notes: true
         files: |
           binaries/*
