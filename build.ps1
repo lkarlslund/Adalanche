@@ -20,10 +20,14 @@ function BuildVariants {
         $namearch = "x64"
       }
 
+      Write-Output "Building $prefix for $currentos-$namearch..."
+
       & $BUILDER build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$namearch-$VERSION$suffix @compileflags $path
+
       if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
       {
-        cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json -main $path .
+        # Write-Output "Generating $prefix SBOM for $currentos-$namearch..."
+        # cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json -main $path .
       }
     }
   }
@@ -48,10 +52,9 @@ BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "coll
 BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("windows") -suffix ".exe"
 BuildVariants -ldflags "$LDFLAGS -s" -prefix adalanche -path ./adalanche -arch @("amd64", "arm64") -os @("darwin", "freebsd", "openbsd", "linux")
 
-$COLLECTORGO = "~/go/bin/go1.20.14"
-if (Get-Command "go1.20.14" -ErrorAction SilentlyContinue) {
-  $BUILDER = $COLLECTORGO
+if (Get-Command "go-win7" -ErrorAction SilentlyContinue) {
+  $BUILDER = "go-win7"
+  & $BUILDER clean -cache
   BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "32bit,collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
   BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-tags", "collector") -prefix adalanche-collector-win7 -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
 }
-
