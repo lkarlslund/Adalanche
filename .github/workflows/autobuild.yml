@@ -1,4 +1,4 @@
-name: Build and publish pre-release
+name: Build and publish (pre)release
 
 on:
   push:
@@ -47,11 +47,20 @@ jobs:
       run: ./build.ps1
       shell: pwsh
 
+    - name: Pre-release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/') != true
+      with:
+        tag_name: "devbuild"
+        prerelease: true
+        generate_release_notes: true
+        files: |
+          binaries/*
+
     - name: Release
       uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: "devbuild"
-        prerelease: true
         generate_release_notes: true
         files: |
           binaries/*
