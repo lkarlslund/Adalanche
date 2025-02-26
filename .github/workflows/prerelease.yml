@@ -37,13 +37,6 @@ jobs:
         which go-win7
         ls -l `which go`
         ls -l `which go-win7`
-        echo Regular
-        go version
-        go env
-        echo Win7
-        go-win7 version
-        go-win7 env
-        exit 1
 
     - name: Download cyclonedx-gomod
       uses: CycloneDX/gh-gomod-generate-sbom@v2
