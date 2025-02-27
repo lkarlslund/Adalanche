@@ -47,19 +47,19 @@ jobs:
       run: ./build.ps1
       shell: pwsh
 
+    - name: Remove latest devbuild
+      run: gh release delete "devbuild" --cleanup-tag
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create tag "devbuild" for current commit
       uses: rickstaa/action-create-tag@v1
       if: startsWith(github.ref, 'refs/tags/') != true
       id: "tag_create"
       with:
         tag: "devbuild"
-        tag_exists_error: false
+        force_push_tag: true
         message: "Latest development build"
-
-    - name: Remove latest devbuild
-      uses: liudonghua123/delete-release-action@v1
-      with:
-        release_name: "devbuild"
 
     - name: Pre-release
       uses: softprops/action-gh-release@v2
