@@ -61,13 +61,20 @@ jobs:
         force_push_tag: true
         message: "Latest development build"
 
+    - name: Generate release changelog
+      uses: janheinrichmerker/action-github-changelog-generator@v2.3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }} 
+        output: ${{ github.workspace }}-CHANGELOG.txt
+
     - name: Pre-release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/') != true
       with:
         tag_name: "devbuild"
         prerelease: true
-        generate_release_notes: true
+        body_path: ${{ github.workspace }}-CHANGELOG.txt
+        # generate_release_notes: true
         files: |
           binaries/*
 
