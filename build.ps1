@@ -26,8 +26,11 @@ function BuildVariants {
 
       if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
       {
+        $sbom = "binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json"
+        if (!(Test-Path $sbom)) {
         Write-Output "Generating $prefix SBOM for $currentos-$namearch..."
-        cyclonedx-gomod app -json -licenses -output binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json -main $path .
+        cyclonedx-gomod app -json -licenses -output $sbom -main $path .
+        }
       }
     }
   }
