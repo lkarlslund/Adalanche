@@ -48,10 +48,13 @@ jobs:
       shell: pwsh
 
     - name: Create tag "devbuild" for current commit
-      uses: hole19/git-tag-action@master
+      uses: rickstaa/action-create-tag@v1
       if: startsWith(github.ref, 'refs/tags/') != true
-      env:
-        TAG: "devbuild"
+      id: "tag_create"
+      with:
+        tag: "devbuild"
+        tag_exists_error: false
+        message: "Latest development build"
 
     - name: Remove latest devbuild
       uses: liudonghua123/delete-release-action@v1
