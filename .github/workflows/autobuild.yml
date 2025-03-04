@@ -48,6 +48,7 @@ jobs:
       shell: pwsh
 
     - name: Remove latest devbuild
+      continue-on-error: true
       run: gh release delete "devbuild" --cleanup-tag
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
