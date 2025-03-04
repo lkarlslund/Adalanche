@@ -65,7 +65,7 @@ jobs:
       uses: janheinrichmerker/action-github-changelog-generator@v2.3
       with:
         token: ${{ secrets.GITHUB_TOKEN }} 
-        output: ${{ github.workspace }}-CHANGELOG.txt
+        output: CHANGELOG.txt
 
     - name: Pre-release
       uses: softprops/action-gh-release@v2
@@ -73,7 +73,7 @@ jobs:
       with:
         tag_name: "devbuild"
         prerelease: true
-        body_path: ${{ github.workspace }}-CHANGELOG.txt
+        body_path: CHANGELOG.txt
         # generate_release_notes: true
         files: |
           binaries/*
