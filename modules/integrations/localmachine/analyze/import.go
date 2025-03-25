@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"internal/sync"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
+
+var unhandledPrivileges sync.HashTrieMap[string, struct{}]
 
 // Returns the computer object
 func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.Object, error) {
@@ -230,6 +233,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			ui.Trace().Msgf("SeEnableDelegationPrivilege hit")
 			continue
 		default:
+			_, loaded := unhandledPrivileges.LoadOrStore(pi, struct{}{})
+			if !loaded {
+				ui.Warn().Msgf("Unhandled privilege encountered; %v", pi)
+			}
 			continue
 		}
 		for _, sidstring := range pi.AssignedSIDs {
