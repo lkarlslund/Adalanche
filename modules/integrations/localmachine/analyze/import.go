@@ -2,10 +2,10 @@ package analyze
 
 import (
 	"fmt"
-	"internal/sync"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -15,7 +15,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-var unhandledPrivileges sync.HashTrieMap[string, struct{}]
+var unhandledPrivileges sync.Map
 
 // Returns the computer object
 func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.Object, error) {
