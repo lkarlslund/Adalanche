@@ -13,7 +13,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-//go:generate go run github.com/dmarkham/enumer -trimprefix=Level -type=LogLevel -output loglevel_enums.go
+//go:generate go tool github.com/dmarkham/enumer -trimprefix=Level -type=LogLevel -output loglevel_enums.go
 
 func init() {
 	zlog.Logger = zlog.Output(zerolog.ConsoleWriter{

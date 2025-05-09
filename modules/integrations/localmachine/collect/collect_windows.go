@@ -2,8 +2,10 @@ package collect
 
 import (
 	"bytes"
+	"maps"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -263,137 +265,15 @@ func Collect() (localmachine.Info, error) {
 
 	// Who has logged on and when https://nasbench.medium.com/finding-forensic-goodness-in-obscure-windows-event-logs-60e978ea45a3
 	// Event 811 and 812 :-)
-	monthmap := make(map[string]uint64)
-	weekmap := make(map[string]uint64)
-	daymap := make(map[string]uint64)
-
-	elog, err := winevent.NewStream(winevent.EventStreamParams{
-		Channel:  "Microsoft-Windows-Winlogon/Operational",
-		EventIDs: "811,812",
-		BuffSize: 2048000,
-	}, 0)
-
-	if err == nil {
-		for {
-			events, _, _, err := elog.Read()
-			if err != nil {
-				// fmt.Println(err)
-				break
-			}
-			for _, event := range events {
-				// fmt.Println(string(event.Buff))
-				doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
-				if err == nil {
-					i := xmlquery.FindOne(doc, "//Event//System//EventID")
-					if i.InnerText() == "811" {
-						// Login
-						user := xmlquery.FindOne(doc, "//Event//System//Security//@UserID")
-						timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
-
-						us := user.InnerText()
-						t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
-						if t.After(amonthago) {
-							monthmap[us] = monthmap[us] + 1
-						}
-						if t.After(aweekago) {
-							weekmap[us] = weekmap[us] + 1
-						}
-						if t.After(adayago) {
-							daymap[us] = daymap[us] + 1
-						}
-						// fmt.Printf("%v logged in %v", user.InnerText(), timestamp.InnerText())
-					}
-				}
-			}
-		}
+	type LogonTypeUser struct {
+		LogonType uint32
+		User      string
 	}
 
-	// // Security Logs
-	// slog, err := winevent.NewStream(winevent.EventStreamParams{
-	// 	Channel:  "Security",
-	// 	EventIDs: "4624",
-	// 	BuffSize: 2048000,
-	// }, 0)
-
-	// if err == nil {
-	// 	for {
-	// 		events, _, _, err := slog.Read()
-	// 		if err != nil {
-	// 			// fmt.Println(err)
-	// 			break
-	// 		}
-	// 		for _, event := range events {
-	// 			// fmt.Println(string(event.Buff))
-	// 			doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
-	// 			if err == nil {
-	// 				i := xmlquery.FindOne(doc, "/Event/System/EventID")
-	// 				if i.InnerText() == "4624" {
-	// 					// Version
-	// 					subjectusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectUserSid']`)
-	// 					subjectusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectUserName']`)
-	// 					subjectdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='SubjectDomainName']`)
-	// 					targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`)
-	// 					targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`)
-	// 					targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`)
-
-	// 					if subjectdomainname != nil && subjectusername != nil && subjectusersid != nil &&
-	// 						targetdomainname != nil && targetusername != nil && targetusersid != nil {
-	// 						ui.Info().Msgf("%v %v %v -> %v %v %v",
-	// 							subjectdomainname.InnerText(),
-	// 							subjectusername.InnerText(),
-	// 							subjectusersid.InnerText(),
-	// 							targetdomainname.InnerText(),
-	// 							targetusername.InnerText(),
-	// 							targetusersid.InnerText(),
-	// 						)
-	// 					}
-
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	var logininfo localmachine.LoginPopularity
-	for usersid, count := range monthmap {
-		var name, domain string
-		sid, err := syscall.StringToSid(usersid)
-		if err == nil {
-			name, domain, _, err = sid.LookupAccount("")
-		}
-		logininfo.Month = append(logininfo.Month, localmachine.LoginCount{
-			Name:  domain + "\\" + name,
-			SID:   usersid,
-			Count: count,
-		})
-	}
-	for usersid, count := range weekmap {
-		var name, domain string
-		sid, err := syscall.StringToSid(usersid)
-		if err == nil {
-			name, domain, _, err = sid.LookupAccount("")
-		}
-		logininfo.Week = append(logininfo.Week, localmachine.LoginCount{
-			Name:  domain + "\\" + name,
-			SID:   usersid,
-			Count: count,
-		})
-	}
-	for usersid, count := range daymap {
-		var name, domain string
-		sid, err := syscall.StringToSid(usersid)
-		if err == nil {
-			name, domain, _, err = sid.LookupAccount("")
-		}
-		logininfo.Day = append(logininfo.Day, localmachine.LoginCount{
-			Name:  domain + "\\" + name,
-			SID:   usersid,
-			Count: count,
-		})
-	}
+	loginmap := make(map[LogonTypeUser]localmachine.LoginInfo)
 
 	/*
-		slog, err := winevent.NewStream(winevent.EventStreamParams{
+		elog, err := winevent.NewStream(winevent.EventStreamParams{
 			Channel:  "Microsoft-Windows-Winlogon/Operational",
 			EventIDs: "811,812",
 			BuffSize: 2048000,
@@ -414,10 +294,13 @@ func Collect() (localmachine.Info, error) {
 						if i.InnerText() == "811" {
 							// Login
 							user := xmlquery.FindOne(doc, "//Event//System//Security//@UserID")
+							// LoginType
+
 							timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
 
 							us := user.InnerText()
 							t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
+
 							if t.After(amonthago) {
 								monthmap[us] = monthmap[us] + 1
 							}
@@ -435,9 +318,73 @@ func Collect() (localmachine.Info, error) {
 		}
 	*/
 
+	// // Security Logs
+	slog, err := winevent.NewStream(winevent.EventStreamParams{
+		Channel:  "Security",
+		EventIDs: "4624",
+		BuffSize: 2048000,
+	}, 0)
+
+	if err == nil {
+		for {
+			events, _, _, err := slog.Read()
+			if err != nil {
+				// fmt.Println(err)
+				break
+			}
+
+			for _, event := range events {
+				// fmt.Println(string(event.Buff))
+				doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
+				if err == nil {
+					i := xmlquery.FindOne(doc, "/Event/System/EventID")
+					if i.InnerText() == "4624" {
+						timestamp := xmlquery.FindOne(doc, "/Event/System/TimeCreated/@SystemTime")
+						t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
+
+						logontype := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LogonType']`)
+						targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`)
+						targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`)
+						targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`)
+
+						logontypeint, _ := strconv.ParseInt(logontype.Data, 10, 32)
+
+						lookup := LogonTypeUser{
+							LogonType: uint32(logontypeint),
+							User:      targetdomainname.Data + "/" + targetusername.Data,
+						}
+						entry, found := loginmap[lookup]
+						if !found {
+							entry = localmachine.LoginInfo{
+								User:      targetusername.Data,
+								Domain:    targetdomainname.Data,
+								SID:       targetusersid.Data,
+								FirstSeen: t,
+								LastSeen:  t,
+								Count:     1,
+							}
+						} else {
+							if entry.SID == "" {
+								entry.SID = targetusersid.Data
+							}
+							if t.Before(entry.FirstSeen) {
+								entry.FirstSeen = t
+							}
+							if t.After(entry.LastSeen) {
+								entry.LastSeen = t
+							}
+							entry.Count++
+						}
+						loginmap[lookup] = entry
+					}
+				}
+			}
+		}
+	}
+
 	// MACHINE AVAILABILITY
 	var timeonmonth, timeonweek, timeonday time.Duration
-	elog, err = winevent.NewStream(winevent.EventStreamParams{
+	elog, err := winevent.NewStream(winevent.EventStreamParams{
 		Channel: "System",
 		Providers: []string{
 			"Eventlog",
@@ -767,14 +714,14 @@ func Collect() (localmachine.Info, error) {
 		},
 		// OperatingSystem: osinfo,
 		// Memory:          meminfo,
-		Availability:    availabilityinfo,
-		LoginPopularity: logininfo,
-		Users:           usersinfo,
-		Groups:          groupsinfo,
-		RegistryData:    registrydata,
-		Shares:          sharesinfo,
-		Services:        servicesinfo,
-		Software:        softwareinfo,
+		Availability: availabilityinfo,
+		LoginInfos:   slices.Collect(maps.Values(loginmap)),
+		Users:        usersinfo,
+		Groups:       groupsinfo,
+		RegistryData: registrydata,
+		Shares:       sharesinfo,
+		Services:     servicesinfo,
+		Software:     softwareinfo,
 		Tasks: func() []localmachine.RegisteredTask {
 			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
 			for i, task := range scheduledtasksinfo {

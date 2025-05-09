@@ -15,7 +15,7 @@ var Tokens []string         // All of the tokens (including literals and keyword
 var TokenIds map[string]int // A map from the token names to their int ids
 var Lexer *lexmachine.Lexer // The lexer object. Use this to construct a Scanner
 
-//go:generate enumer -type=TokenID -output tokenid_enums.go
+//go:generate go tool github.com/dmarkham/enumer -type=TokenID -output tokenid_enums.go
 
 const (
 	Invalid TokenID = iota

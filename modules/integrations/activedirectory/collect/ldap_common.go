@@ -1,17 +1,18 @@
 package collect
 
 import (
-	"github.com/Showmax/go-fqdn"
-	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
-	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/pkg/errors"
 	"net"
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/Showmax/go-fqdn"
+	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/pkg/errors"
 )
 
-//go:generate go run github.com/dmarkham/enumer -type=TLSmode,AuthMode,LDAPScope,LDAPError,LDAPOption -json -output ldap_enums.go
+//go:generate go tool github.com/dmarkham/enumer -type=TLSmode,AuthMode,LDAPScope,LDAPError,LDAPOption -json -output ldap_enums.go
 type AuthMode byte
 
 const (

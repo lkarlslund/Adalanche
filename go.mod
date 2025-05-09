@@ -2,6 +2,12 @@ module github.com/lkarlslund/adalanche
 
 go 1.24
 
+tool (
+  github.com/tinylib/msgp
+  github.com/dmarkham/enumer
+  github.com/mailru/easyjson
+)
+
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20230201052002-6c5833b989be

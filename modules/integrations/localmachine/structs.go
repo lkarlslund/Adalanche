@@ -1,16 +1,17 @@
 package localmachine
 
-//go:generate msgp -file structs.go
+//go:generate go tool github.com/tinylib/msgp -file structs.go
 import (
-	"github.com/lkarlslund/adalanche/modules/basedata"
 	"time"
+
+	"github.com/lkarlslund/adalanche/modules/basedata"
 )
 
 type Info struct {
 	basedata.Common
-	RegistryData    RegistryData    `json:",omitempty"`
-	Machine         Machine         `json:",omitempty"`
-	LoginPopularity LoginPopularity `json:",omitempty"`
+	RegistryData RegistryData `json:",omitempty"`
+	Machine      Machine      `json:",omitempty"`
+	LoginInfos   []LoginInfo  `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
 	Network    NetworkInformation `json:",omitempty"`
 	Users      Users              `json:",omitempty"`
@@ -56,15 +57,15 @@ type Availability struct {
 	Week  uint64 `json:",omitempty"`
 	Month uint64 `json:",omitempty"`
 }
-type LoginPopularity struct {
-	Day   []LoginCount
-	Week  []LoginCount
-	Month []LoginCount
-}
-type LoginCount struct {
-	Name  string `json:",omitempty"`
-	SID   string `json:",omitempty"`
-	Count uint64 `json:",omitempty"`
+
+type LoginInfo struct {
+	User       string    `json:",omitempty"`
+	Domain     string    `json:",omitempty"`
+	SID        string    `json:",omitempty"`
+	Count      uint64    `json:",omitempty"`
+	LoginTypes []uint32  `json:",omitempty`
+	FirstSeen  time.Time `json:",omitempty`
+	LastSeen   time.Time `json:",omitempty`
 }
 type Shares []Share
 type Share struct {

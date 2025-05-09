@@ -1,11 +1,12 @@
 package basedata
 
 import (
-	"github.com/lkarlslund/adalanche/modules/version"
 	"time"
+
+	"github.com/lkarlslund/adalanche/modules/version"
 )
 
-//go:generate msgp
+//go:generate go tool github.com/tinylib/msgp
 type Common struct {
 	Collected time.Time `json:,omitempty`
 	Collector string    `json:,omitempty`

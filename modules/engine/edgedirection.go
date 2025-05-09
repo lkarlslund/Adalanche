@@ -2,7 +2,7 @@ package engine
 
 // go install github.com/dmarkham/enumer
 
-//go:generate enumer -type=EdgeDirection -output edgedirection_enums.go -json
+//go:generate go tool github.com/dmarkham/enumer -type=EdgeDirection -output edgedirection_enums.go -json
 
 type EdgeDirection int
 

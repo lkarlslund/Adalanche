@@ -15,7 +15,7 @@ import (
 	ldap "github.com/lkarlslund/ldap/v3"
 )
 
-//go:generate msgp
+//go:generate go tool github.com/tinylib/msgp
 
 type RawObject struct {
 	Attributes        map[string][]string

@@ -6,7 +6,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-//go:generate go run github.com/dmarkham/enumer -type=ProcessPriority -output enums.go
+//go:generate go tool github.com/dmarkham/enumer -type=ProcessPriority -output enums.go
 
 type ProgressCallbackFunc func(progress int, totalprogress int)
 

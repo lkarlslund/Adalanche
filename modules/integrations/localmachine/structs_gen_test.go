@@ -461,8 +461,8 @@ func BenchmarkDecodeInfo(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalLoginCount(t *testing.T) {
-	v := LoginCount{}
+func TestMarshalUnmarshalLoginInfo(t *testing.T) {
+	v := LoginInfo{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -484,8 +484,8 @@ func TestMarshalUnmarshalLoginCount(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgLoginCount(b *testing.B) {
-	v := LoginCount{}
+func BenchmarkMarshalMsgLoginInfo(b *testing.B) {
+	v := LoginInfo{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -493,8 +493,8 @@ func BenchmarkMarshalMsgLoginCount(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgLoginCount(b *testing.B) {
-	v := LoginCount{}
+func BenchmarkAppendMsgLoginInfo(b *testing.B) {
+	v := LoginInfo{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -505,8 +505,8 @@ func BenchmarkAppendMsgLoginCount(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalLoginCount(b *testing.B) {
-	v := LoginCount{}
+func BenchmarkUnmarshalLoginInfo(b *testing.B) {
+	v := LoginInfo{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -519,17 +519,17 @@ func BenchmarkUnmarshalLoginCount(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeLoginCount(t *testing.T) {
-	v := LoginCount{}
+func TestEncodeDecodeLoginInfo(t *testing.T) {
+	v := LoginInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeLoginCount Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodeLoginInfo Msgsize() is inaccurate")
 	}
 
-	vn := LoginCount{}
+	vn := LoginInfo{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -543,8 +543,8 @@ func TestEncodeDecodeLoginCount(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeLoginCount(b *testing.B) {
-	v := LoginCount{}
+func BenchmarkEncodeLoginInfo(b *testing.B) {
+	v := LoginInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -557,121 +557,8 @@ func BenchmarkEncodeLoginCount(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeLoginCount(b *testing.B) {
-	v := LoginCount{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	rd := msgp.NewEndlessReader(buf.Bytes(), b)
-	dc := msgp.NewReader(rd)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := v.DecodeMsg(dc)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func TestMarshalUnmarshalLoginPopularity(t *testing.T) {
-	v := LoginPopularity{}
-	bts, err := v.MarshalMsg(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	left, err := v.UnmarshalMsg(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
-	}
-
-	left, err = msgp.Skip(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
-	}
-}
-
-func BenchmarkMarshalMsgLoginPopularity(b *testing.B) {
-	v := LoginPopularity{}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.MarshalMsg(nil)
-	}
-}
-
-func BenchmarkAppendMsgLoginPopularity(b *testing.B) {
-	v := LoginPopularity{}
-	bts := make([]byte, 0, v.Msgsize())
-	bts, _ = v.MarshalMsg(bts[0:0])
-	b.SetBytes(int64(len(bts)))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		bts, _ = v.MarshalMsg(bts[0:0])
-	}
-}
-
-func BenchmarkUnmarshalLoginPopularity(b *testing.B) {
-	v := LoginPopularity{}
-	bts, _ := v.MarshalMsg(nil)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := v.UnmarshalMsg(bts)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func TestEncodeDecodeLoginPopularity(t *testing.T) {
-	v := LoginPopularity{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-
-	m := v.Msgsize()
-	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeLoginPopularity Msgsize() is inaccurate")
-	}
-
-	vn := LoginPopularity{}
-	err := msgp.Decode(&buf, &vn)
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf.Reset()
-	msgp.Encode(&buf, &v)
-	err = msgp.NewReader(&buf).Skip()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func BenchmarkEncodeLoginPopularity(b *testing.B) {
-	v := LoginPopularity{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	en := msgp.NewWriter(msgp.Nowhere)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.EncodeMsg(en)
-	}
-	en.Flush()
-}
-
-func BenchmarkDecodeLoginPopularity(b *testing.B) {
-	v := LoginPopularity{}
+func BenchmarkDecodeLoginInfo(b *testing.B) {
+	v := LoginInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

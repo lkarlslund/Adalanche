@@ -603,21 +603,34 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Machine")
 				return
 			}
-		case "LoginPopularity":
-			err = z.LoginPopularity.DecodeMsg(dc)
+		case "LoginInfos":
+			var zb0003 uint32
+			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "LoginPopularity")
+				err = msgp.WrapError(err, "LoginInfos")
 				return
 			}
+			if cap(z.LoginInfos) >= int(zb0003) {
+				z.LoginInfos = (z.LoginInfos)[:zb0003]
+			} else {
+				z.LoginInfos = make([]LoginInfo, zb0003)
+			}
+			for za0003 := range z.LoginInfos {
+				err = z.LoginInfos[za0003].DecodeMsg(dc)
+				if err != nil {
+					err = msgp.WrapError(err, "LoginInfos", za0003)
+					return
+				}
+			}
 		case "Network":
-			var zb0003 uint32
-			zb0003, err = dc.ReadMapHeader()
+			var zb0004 uint32
+			zb0004, err = dc.ReadMapHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Network")
 				return
 			}
-			for zb0003 > 0 {
-				zb0003--
+			for zb0004 > 0 {
+				zb0004--
 				field, err = dc.ReadMapKeyPtr()
 				if err != nil {
 					err = msgp.WrapError(err, "Network")
@@ -631,21 +644,21 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 						return
 					}
 				case "NetworkInterfaces":
-					var zb0004 uint32
-					zb0004, err = dc.ReadArrayHeader()
+					var zb0005 uint32
+					zb0005, err = dc.ReadArrayHeader()
 					if err != nil {
 						err = msgp.WrapError(err, "Network", "NetworkInterfaces")
 						return
 					}
-					if cap(z.Network.NetworkInterfaces) >= int(zb0004) {
-						z.Network.NetworkInterfaces = (z.Network.NetworkInterfaces)[:zb0004]
+					if cap(z.Network.NetworkInterfaces) >= int(zb0005) {
+						z.Network.NetworkInterfaces = (z.Network.NetworkInterfaces)[:zb0005]
 					} else {
-						z.Network.NetworkInterfaces = make([]NetworkInterfaceInfo, zb0004)
+						z.Network.NetworkInterfaces = make([]NetworkInterfaceInfo, zb0005)
 					}
-					for za0003 := range z.Network.NetworkInterfaces {
-						err = z.Network.NetworkInterfaces[za0003].DecodeMsg(dc)
+					for za0004 := range z.Network.NetworkInterfaces {
+						err = z.Network.NetworkInterfaces[za0004].DecodeMsg(dc)
 						if err != nil {
-							err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0003)
+							err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0004)
 							return
 						}
 					}
@@ -658,134 +671,189 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 			}
 		case "Users":
-			var zb0005 uint32
-			zb0005, err = dc.ReadArrayHeader()
+			var zb0006 uint32
+			zb0006, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Users")
 				return
 			}
-			if cap(z.Users) >= int(zb0005) {
-				z.Users = (z.Users)[:zb0005]
+			if cap(z.Users) >= int(zb0006) {
+				z.Users = (z.Users)[:zb0006]
 			} else {
-				z.Users = make(Users, zb0005)
+				z.Users = make(Users, zb0006)
 			}
-			for za0004 := range z.Users {
-				err = z.Users[za0004].DecodeMsg(dc)
+			for za0005 := range z.Users {
+				err = z.Users[za0005].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Users", za0004)
+					err = msgp.WrapError(err, "Users", za0005)
 					return
 				}
 			}
 		case "Groups":
-			var zb0006 uint32
-			zb0006, err = dc.ReadArrayHeader()
+			var zb0007 uint32
+			zb0007, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Groups")
 				return
 			}
-			if cap(z.Groups) >= int(zb0006) {
-				z.Groups = (z.Groups)[:zb0006]
+			if cap(z.Groups) >= int(zb0007) {
+				z.Groups = (z.Groups)[:zb0007]
 			} else {
-				z.Groups = make(Groups, zb0006)
+				z.Groups = make(Groups, zb0007)
 			}
-			for za0005 := range z.Groups {
-				err = z.Groups[za0005].DecodeMsg(dc)
+			for za0006 := range z.Groups {
+				err = z.Groups[za0006].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Groups", za0005)
+					err = msgp.WrapError(err, "Groups", za0006)
 					return
 				}
 			}
 		case "Shares":
-			var zb0007 uint32
-			zb0007, err = dc.ReadArrayHeader()
+			var zb0008 uint32
+			zb0008, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Shares")
 				return
 			}
-			if cap(z.Shares) >= int(zb0007) {
-				z.Shares = (z.Shares)[:zb0007]
+			if cap(z.Shares) >= int(zb0008) {
+				z.Shares = (z.Shares)[:zb0008]
 			} else {
-				z.Shares = make(Shares, zb0007)
+				z.Shares = make(Shares, zb0008)
 			}
-			for za0006 := range z.Shares {
-				err = z.Shares[za0006].DecodeMsg(dc)
+			for za0007 := range z.Shares {
+				err = z.Shares[za0007].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Shares", za0006)
+					err = msgp.WrapError(err, "Shares", za0007)
 					return
 				}
 			}
 		case "Services":
-			var zb0008 uint32
-			zb0008, err = dc.ReadArrayHeader()
+			var zb0009 uint32
+			zb0009, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Services")
 				return
 			}
-			if cap(z.Services) >= int(zb0008) {
-				z.Services = (z.Services)[:zb0008]
+			if cap(z.Services) >= int(zb0009) {
+				z.Services = (z.Services)[:zb0009]
 			} else {
-				z.Services = make(Services, zb0008)
+				z.Services = make(Services, zb0009)
 			}
-			for za0007 := range z.Services {
-				err = z.Services[za0007].DecodeMsg(dc)
+			for za0008 := range z.Services {
+				err = z.Services[za0008].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Services", za0007)
+					err = msgp.WrapError(err, "Services", za0008)
 					return
 				}
 			}
 		case "Software":
-			var zb0009 uint32
-			zb0009, err = dc.ReadArrayHeader()
+			var zb0010 uint32
+			zb0010, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Software")
 				return
 			}
-			if cap(z.Software) >= int(zb0009) {
-				z.Software = (z.Software)[:zb0009]
+			if cap(z.Software) >= int(zb0010) {
+				z.Software = (z.Software)[:zb0010]
 			} else {
-				z.Software = make([]Software, zb0009)
+				z.Software = make([]Software, zb0010)
 			}
-			for za0008 := range z.Software {
-				err = z.Software[za0008].DecodeMsg(dc)
+			for za0009 := range z.Software {
+				err = z.Software[za0009].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Software", za0008)
+					err = msgp.WrapError(err, "Software", za0009)
 					return
 				}
 			}
 		case "Tasks":
-			var zb0010 uint32
-			zb0010, err = dc.ReadArrayHeader()
+			var zb0011 uint32
+			zb0011, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Tasks")
 				return
 			}
-			if cap(z.Tasks) >= int(zb0010) {
-				z.Tasks = (z.Tasks)[:zb0010]
+			if cap(z.Tasks) >= int(zb0011) {
+				z.Tasks = (z.Tasks)[:zb0011]
 			} else {
-				z.Tasks = make([]RegisteredTask, zb0010)
+				z.Tasks = make([]RegisteredTask, zb0011)
 			}
-			for za0009 := range z.Tasks {
-				err = z.Tasks[za0009].DecodeMsg(dc)
+			for za0010 := range z.Tasks {
+				err = z.Tasks[za0010].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "Tasks", za0009)
+					err = msgp.WrapError(err, "Tasks", za0010)
 					return
 				}
 			}
 		case "Privileges":
-			err = z.Privileges.DecodeMsg(dc)
+			var zb0012 uint32
+			zb0012, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Privileges")
 				return
 			}
+			if cap(z.Privileges) >= int(zb0012) {
+				z.Privileges = (z.Privileges)[:zb0012]
+			} else {
+				z.Privileges = make(Privileges, zb0012)
+			}
+			for za0011 := range z.Privileges {
+				var zb0013 uint32
+				zb0013, err = dc.ReadMapHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Privileges", za0011)
+					return
+				}
+				for zb0013 > 0 {
+					zb0013--
+					field, err = dc.ReadMapKeyPtr()
+					if err != nil {
+						err = msgp.WrapError(err, "Privileges", za0011)
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "Name":
+						z.Privileges[za0011].Name, err = dc.ReadString()
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011, "Name")
+							return
+						}
+					case "AssignedSIDs":
+						var zb0014 uint32
+						zb0014, err = dc.ReadArrayHeader()
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs")
+							return
+						}
+						if cap(z.Privileges[za0011].AssignedSIDs) >= int(zb0014) {
+							z.Privileges[za0011].AssignedSIDs = (z.Privileges[za0011].AssignedSIDs)[:zb0014]
+						} else {
+							z.Privileges[za0011].AssignedSIDs = make([]string, zb0014)
+						}
+						for za0012 := range z.Privileges[za0011].AssignedSIDs {
+							z.Privileges[za0011].AssignedSIDs[za0012], err = dc.ReadString()
+							if err != nil {
+								err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs", za0012)
+								return
+							}
+						}
+					default:
+						err = dc.Skip()
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011)
+							return
+						}
+					}
+				}
+			}
 		case "Availability":
-			var zb0011 uint32
-			zb0011, err = dc.ReadMapHeader()
+			var zb0015 uint32
+			zb0015, err = dc.ReadMapHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Availability")
 				return
 			}
-			for zb0011 > 0 {
-				zb0011--
+			for zb0015 > 0 {
+				zb0015--
 				field, err = dc.ReadMapKeyPtr()
 				if err != nil {
 					err = msgp.WrapError(err, "Availability")
@@ -880,15 +948,22 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Machine")
 		return
 	}
-	// write "LoginPopularity"
-	err = en.Append(0xaf, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x50, 0x6f, 0x70, 0x75, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79)
+	// write "LoginInfos"
+	err = en.Append(0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x49, 0x6e, 0x66, 0x6f, 0x73)
 	if err != nil {
 		return
 	}
-	err = z.LoginPopularity.EncodeMsg(en)
+	err = en.WriteArrayHeader(uint32(len(z.LoginInfos)))
 	if err != nil {
-		err = msgp.WrapError(err, "LoginPopularity")
+		err = msgp.WrapError(err, "LoginInfos")
 		return
+	}
+	for za0003 := range z.LoginInfos {
+		err = z.LoginInfos[za0003].EncodeMsg(en)
+		if err != nil {
+			err = msgp.WrapError(err, "LoginInfos", za0003)
+			return
+		}
 	}
 	// write "Network"
 	err = en.Append(0xa7, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b)
@@ -916,10 +991,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Network", "NetworkInterfaces")
 		return
 	}
-	for za0003 := range z.Network.NetworkInterfaces {
-		err = z.Network.NetworkInterfaces[za0003].EncodeMsg(en)
+	for za0004 := range z.Network.NetworkInterfaces {
+		err = z.Network.NetworkInterfaces[za0004].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0003)
+			err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0004)
 			return
 		}
 	}
@@ -933,10 +1008,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Users")
 		return
 	}
-	for za0004 := range z.Users {
-		err = z.Users[za0004].EncodeMsg(en)
+	for za0005 := range z.Users {
+		err = z.Users[za0005].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Users", za0004)
+			err = msgp.WrapError(err, "Users", za0005)
 			return
 		}
 	}
@@ -950,10 +1025,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Groups")
 		return
 	}
-	for za0005 := range z.Groups {
-		err = z.Groups[za0005].EncodeMsg(en)
+	for za0006 := range z.Groups {
+		err = z.Groups[za0006].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Groups", za0005)
+			err = msgp.WrapError(err, "Groups", za0006)
 			return
 		}
 	}
@@ -967,10 +1042,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Shares")
 		return
 	}
-	for za0006 := range z.Shares {
-		err = z.Shares[za0006].EncodeMsg(en)
+	for za0007 := range z.Shares {
+		err = z.Shares[za0007].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Shares", za0006)
+			err = msgp.WrapError(err, "Shares", za0007)
 			return
 		}
 	}
@@ -984,10 +1059,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Services")
 		return
 	}
-	for za0007 := range z.Services {
-		err = z.Services[za0007].EncodeMsg(en)
+	for za0008 := range z.Services {
+		err = z.Services[za0008].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Services", za0007)
+			err = msgp.WrapError(err, "Services", za0008)
 			return
 		}
 	}
@@ -1001,10 +1076,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Software")
 		return
 	}
-	for za0008 := range z.Software {
-		err = z.Software[za0008].EncodeMsg(en)
+	for za0009 := range z.Software {
+		err = z.Software[za0009].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Software", za0008)
+			err = msgp.WrapError(err, "Software", za0009)
 			return
 		}
 	}
@@ -1018,10 +1093,10 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Tasks")
 		return
 	}
-	for za0009 := range z.Tasks {
-		err = z.Tasks[za0009].EncodeMsg(en)
+	for za0010 := range z.Tasks {
+		err = z.Tasks[za0010].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "Tasks", za0009)
+			err = msgp.WrapError(err, "Tasks", za0010)
 			return
 		}
 	}
@@ -1030,10 +1105,40 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = z.Privileges.EncodeMsg(en)
+	err = en.WriteArrayHeader(uint32(len(z.Privileges)))
 	if err != nil {
 		err = msgp.WrapError(err, "Privileges")
 		return
+	}
+	for za0011 := range z.Privileges {
+		// map header, size 2
+		// write "Name"
+		err = en.Append(0x82, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.Privileges[za0011].Name)
+		if err != nil {
+			err = msgp.WrapError(err, "Privileges", za0011, "Name")
+			return
+		}
+		// write "AssignedSIDs"
+		err = en.Append(0xac, 0x41, 0x73, 0x73, 0x69, 0x67, 0x6e, 0x65, 0x64, 0x53, 0x49, 0x44, 0x73)
+		if err != nil {
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(z.Privileges[za0011].AssignedSIDs)))
+		if err != nil {
+			err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs")
+			return
+		}
+		for za0012 := range z.Privileges[za0011].AssignedSIDs {
+			err = en.WriteString(z.Privileges[za0011].AssignedSIDs[za0012])
+			if err != nil {
+				err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs", za0012)
+				return
+			}
+		}
 	}
 	// write "Availability"
 	err = en.Append(0xac, 0x41, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79)
@@ -1113,12 +1218,15 @@ func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 		err = msgp.WrapError(err, "Machine")
 		return
 	}
-	// string "LoginPopularity"
-	o = append(o, 0xaf, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x50, 0x6f, 0x70, 0x75, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79)
-	o, err = z.LoginPopularity.MarshalMsg(o)
-	if err != nil {
-		err = msgp.WrapError(err, "LoginPopularity")
-		return
+	// string "LoginInfos"
+	o = append(o, 0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x49, 0x6e, 0x66, 0x6f, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.LoginInfos)))
+	for za0003 := range z.LoginInfos {
+		o, err = z.LoginInfos[za0003].MarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, "LoginInfos", za0003)
+			return
+		}
 	}
 	// string "Network"
 	o = append(o, 0xa7, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b)
@@ -1129,79 +1237,87 @@ func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "NetworkInterfaces"
 	o = append(o, 0xb1, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x66, 0x61, 0x63, 0x65, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Network.NetworkInterfaces)))
-	for za0003 := range z.Network.NetworkInterfaces {
-		o, err = z.Network.NetworkInterfaces[za0003].MarshalMsg(o)
+	for za0004 := range z.Network.NetworkInterfaces {
+		o, err = z.Network.NetworkInterfaces[za0004].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0003)
+			err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0004)
 			return
 		}
 	}
 	// string "Users"
 	o = append(o, 0xa5, 0x55, 0x73, 0x65, 0x72, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Users)))
-	for za0004 := range z.Users {
-		o, err = z.Users[za0004].MarshalMsg(o)
+	for za0005 := range z.Users {
+		o, err = z.Users[za0005].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Users", za0004)
+			err = msgp.WrapError(err, "Users", za0005)
 			return
 		}
 	}
 	// string "Groups"
 	o = append(o, 0xa6, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Groups)))
-	for za0005 := range z.Groups {
-		o, err = z.Groups[za0005].MarshalMsg(o)
+	for za0006 := range z.Groups {
+		o, err = z.Groups[za0006].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Groups", za0005)
+			err = msgp.WrapError(err, "Groups", za0006)
 			return
 		}
 	}
 	// string "Shares"
 	o = append(o, 0xa6, 0x53, 0x68, 0x61, 0x72, 0x65, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Shares)))
-	for za0006 := range z.Shares {
-		o, err = z.Shares[za0006].MarshalMsg(o)
+	for za0007 := range z.Shares {
+		o, err = z.Shares[za0007].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Shares", za0006)
+			err = msgp.WrapError(err, "Shares", za0007)
 			return
 		}
 	}
 	// string "Services"
 	o = append(o, 0xa8, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Services)))
-	for za0007 := range z.Services {
-		o, err = z.Services[za0007].MarshalMsg(o)
+	for za0008 := range z.Services {
+		o, err = z.Services[za0008].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Services", za0007)
+			err = msgp.WrapError(err, "Services", za0008)
 			return
 		}
 	}
 	// string "Software"
 	o = append(o, 0xa8, 0x53, 0x6f, 0x66, 0x74, 0x77, 0x61, 0x72, 0x65)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Software)))
-	for za0008 := range z.Software {
-		o, err = z.Software[za0008].MarshalMsg(o)
+	for za0009 := range z.Software {
+		o, err = z.Software[za0009].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Software", za0008)
+			err = msgp.WrapError(err, "Software", za0009)
 			return
 		}
 	}
 	// string "Tasks"
 	o = append(o, 0xa5, 0x54, 0x61, 0x73, 0x6b, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Tasks)))
-	for za0009 := range z.Tasks {
-		o, err = z.Tasks[za0009].MarshalMsg(o)
+	for za0010 := range z.Tasks {
+		o, err = z.Tasks[za0010].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "Tasks", za0009)
+			err = msgp.WrapError(err, "Tasks", za0010)
 			return
 		}
 	}
 	// string "Privileges"
 	o = append(o, 0xaa, 0x50, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x73)
-	o, err = z.Privileges.MarshalMsg(o)
-	if err != nil {
-		err = msgp.WrapError(err, "Privileges")
-		return
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Privileges)))
+	for za0011 := range z.Privileges {
+		// map header, size 2
+		// string "Name"
+		o = append(o, 0x82, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+		o = msgp.AppendString(o, z.Privileges[za0011].Name)
+		// string "AssignedSIDs"
+		o = append(o, 0xac, 0x41, 0x73, 0x73, 0x69, 0x67, 0x6e, 0x65, 0x64, 0x53, 0x49, 0x44, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Privileges[za0011].AssignedSIDs)))
+		for za0012 := range z.Privileges[za0011].AssignedSIDs {
+			o = msgp.AppendString(o, z.Privileges[za0011].AssignedSIDs[za0012])
+		}
 	}
 	// string "Availability"
 	o = append(o, 0xac, 0x41, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79)
@@ -1281,21 +1397,34 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Machine")
 				return
 			}
-		case "LoginPopularity":
-			bts, err = z.LoginPopularity.UnmarshalMsg(bts)
+		case "LoginInfos":
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "LoginPopularity")
+				err = msgp.WrapError(err, "LoginInfos")
 				return
 			}
+			if cap(z.LoginInfos) >= int(zb0003) {
+				z.LoginInfos = (z.LoginInfos)[:zb0003]
+			} else {
+				z.LoginInfos = make([]LoginInfo, zb0003)
+			}
+			for za0003 := range z.LoginInfos {
+				bts, err = z.LoginInfos[za0003].UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "LoginInfos", za0003)
+					return
+				}
+			}
 		case "Network":
-			var zb0003 uint32
-			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Network")
 				return
 			}
-			for zb0003 > 0 {
-				zb0003--
+			for zb0004 > 0 {
+				zb0004--
 				field, bts, err = msgp.ReadMapKeyZC(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Network")
@@ -1309,21 +1438,21 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 						return
 					}
 				case "NetworkInterfaces":
-					var zb0004 uint32
-					zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+					var zb0005 uint32
+					zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "Network", "NetworkInterfaces")
 						return
 					}
-					if cap(z.Network.NetworkInterfaces) >= int(zb0004) {
-						z.Network.NetworkInterfaces = (z.Network.NetworkInterfaces)[:zb0004]
+					if cap(z.Network.NetworkInterfaces) >= int(zb0005) {
+						z.Network.NetworkInterfaces = (z.Network.NetworkInterfaces)[:zb0005]
 					} else {
-						z.Network.NetworkInterfaces = make([]NetworkInterfaceInfo, zb0004)
+						z.Network.NetworkInterfaces = make([]NetworkInterfaceInfo, zb0005)
 					}
-					for za0003 := range z.Network.NetworkInterfaces {
-						bts, err = z.Network.NetworkInterfaces[za0003].UnmarshalMsg(bts)
+					for za0004 := range z.Network.NetworkInterfaces {
+						bts, err = z.Network.NetworkInterfaces[za0004].UnmarshalMsg(bts)
 						if err != nil {
-							err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0003)
+							err = msgp.WrapError(err, "Network", "NetworkInterfaces", za0004)
 							return
 						}
 					}
@@ -1336,134 +1465,189 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 			}
 		case "Users":
-			var zb0005 uint32
-			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0006 uint32
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Users")
 				return
 			}
-			if cap(z.Users) >= int(zb0005) {
-				z.Users = (z.Users)[:zb0005]
+			if cap(z.Users) >= int(zb0006) {
+				z.Users = (z.Users)[:zb0006]
 			} else {
-				z.Users = make(Users, zb0005)
+				z.Users = make(Users, zb0006)
 			}
-			for za0004 := range z.Users {
-				bts, err = z.Users[za0004].UnmarshalMsg(bts)
+			for za0005 := range z.Users {
+				bts, err = z.Users[za0005].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Users", za0004)
+					err = msgp.WrapError(err, "Users", za0005)
 					return
 				}
 			}
 		case "Groups":
-			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0007 uint32
+			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Groups")
 				return
 			}
-			if cap(z.Groups) >= int(zb0006) {
-				z.Groups = (z.Groups)[:zb0006]
+			if cap(z.Groups) >= int(zb0007) {
+				z.Groups = (z.Groups)[:zb0007]
 			} else {
-				z.Groups = make(Groups, zb0006)
+				z.Groups = make(Groups, zb0007)
 			}
-			for za0005 := range z.Groups {
-				bts, err = z.Groups[za0005].UnmarshalMsg(bts)
+			for za0006 := range z.Groups {
+				bts, err = z.Groups[za0006].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Groups", za0005)
+					err = msgp.WrapError(err, "Groups", za0006)
 					return
 				}
 			}
 		case "Shares":
-			var zb0007 uint32
-			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0008 uint32
+			zb0008, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Shares")
 				return
 			}
-			if cap(z.Shares) >= int(zb0007) {
-				z.Shares = (z.Shares)[:zb0007]
+			if cap(z.Shares) >= int(zb0008) {
+				z.Shares = (z.Shares)[:zb0008]
 			} else {
-				z.Shares = make(Shares, zb0007)
+				z.Shares = make(Shares, zb0008)
 			}
-			for za0006 := range z.Shares {
-				bts, err = z.Shares[za0006].UnmarshalMsg(bts)
+			for za0007 := range z.Shares {
+				bts, err = z.Shares[za0007].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Shares", za0006)
+					err = msgp.WrapError(err, "Shares", za0007)
 					return
 				}
 			}
 		case "Services":
-			var zb0008 uint32
-			zb0008, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0009 uint32
+			zb0009, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Services")
 				return
 			}
-			if cap(z.Services) >= int(zb0008) {
-				z.Services = (z.Services)[:zb0008]
+			if cap(z.Services) >= int(zb0009) {
+				z.Services = (z.Services)[:zb0009]
 			} else {
-				z.Services = make(Services, zb0008)
+				z.Services = make(Services, zb0009)
 			}
-			for za0007 := range z.Services {
-				bts, err = z.Services[za0007].UnmarshalMsg(bts)
+			for za0008 := range z.Services {
+				bts, err = z.Services[za0008].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Services", za0007)
+					err = msgp.WrapError(err, "Services", za0008)
 					return
 				}
 			}
 		case "Software":
-			var zb0009 uint32
-			zb0009, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0010 uint32
+			zb0010, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Software")
 				return
 			}
-			if cap(z.Software) >= int(zb0009) {
-				z.Software = (z.Software)[:zb0009]
+			if cap(z.Software) >= int(zb0010) {
+				z.Software = (z.Software)[:zb0010]
 			} else {
-				z.Software = make([]Software, zb0009)
+				z.Software = make([]Software, zb0010)
 			}
-			for za0008 := range z.Software {
-				bts, err = z.Software[za0008].UnmarshalMsg(bts)
+			for za0009 := range z.Software {
+				bts, err = z.Software[za0009].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Software", za0008)
+					err = msgp.WrapError(err, "Software", za0009)
 					return
 				}
 			}
 		case "Tasks":
-			var zb0010 uint32
-			zb0010, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0011 uint32
+			zb0011, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tasks")
 				return
 			}
-			if cap(z.Tasks) >= int(zb0010) {
-				z.Tasks = (z.Tasks)[:zb0010]
+			if cap(z.Tasks) >= int(zb0011) {
+				z.Tasks = (z.Tasks)[:zb0011]
 			} else {
-				z.Tasks = make([]RegisteredTask, zb0010)
+				z.Tasks = make([]RegisteredTask, zb0011)
 			}
-			for za0009 := range z.Tasks {
-				bts, err = z.Tasks[za0009].UnmarshalMsg(bts)
+			for za0010 := range z.Tasks {
+				bts, err = z.Tasks[za0010].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Tasks", za0009)
+					err = msgp.WrapError(err, "Tasks", za0010)
 					return
 				}
 			}
 		case "Privileges":
-			bts, err = z.Privileges.UnmarshalMsg(bts)
+			var zb0012 uint32
+			zb0012, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Privileges")
 				return
 			}
+			if cap(z.Privileges) >= int(zb0012) {
+				z.Privileges = (z.Privileges)[:zb0012]
+			} else {
+				z.Privileges = make(Privileges, zb0012)
+			}
+			for za0011 := range z.Privileges {
+				var zb0013 uint32
+				zb0013, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Privileges", za0011)
+					return
+				}
+				for zb0013 > 0 {
+					zb0013--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Privileges", za0011)
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "Name":
+						z.Privileges[za0011].Name, bts, err = msgp.ReadStringBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011, "Name")
+							return
+						}
+					case "AssignedSIDs":
+						var zb0014 uint32
+						zb0014, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs")
+							return
+						}
+						if cap(z.Privileges[za0011].AssignedSIDs) >= int(zb0014) {
+							z.Privileges[za0011].AssignedSIDs = (z.Privileges[za0011].AssignedSIDs)[:zb0014]
+						} else {
+							z.Privileges[za0011].AssignedSIDs = make([]string, zb0014)
+						}
+						for za0012 := range z.Privileges[za0011].AssignedSIDs {
+							z.Privileges[za0011].AssignedSIDs[za0012], bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "Privileges", za0011, "AssignedSIDs", za0012)
+								return
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "Privileges", za0011)
+							return
+						}
+					}
+				}
+			}
 		case "Availability":
-			var zb0011 uint32
-			zb0011, bts, err = msgp.ReadMapHeaderBytes(bts)
+			var zb0015 uint32
+			zb0015, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Availability")
 				return
 			}
-			for zb0011 > 0 {
-				zb0011--
+			for zb0015 > 0 {
+				zb0015--
 				field, bts, err = msgp.ReadMapKeyZC(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Availability")
@@ -1523,40 +1707,51 @@ func (z *Info) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.GuessSize(za0002)
 		}
 	}
-	s += 8 + z.Machine.Msgsize() + 16 + z.LoginPopularity.Msgsize() + 8 + 1 + 21 + msgp.StringPrefixSize + len(z.Network.InternetConnectivity) + 18 + msgp.ArrayHeaderSize
-	for za0003 := range z.Network.NetworkInterfaces {
-		s += z.Network.NetworkInterfaces[za0003].Msgsize()
+	s += 8 + z.Machine.Msgsize() + 11 + msgp.ArrayHeaderSize
+	for za0003 := range z.LoginInfos {
+		s += z.LoginInfos[za0003].Msgsize()
+	}
+	s += 8 + 1 + 21 + msgp.StringPrefixSize + len(z.Network.InternetConnectivity) + 18 + msgp.ArrayHeaderSize
+	for za0004 := range z.Network.NetworkInterfaces {
+		s += z.Network.NetworkInterfaces[za0004].Msgsize()
 	}
 	s += 6 + msgp.ArrayHeaderSize
-	for za0004 := range z.Users {
-		s += z.Users[za0004].Msgsize()
+	for za0005 := range z.Users {
+		s += z.Users[za0005].Msgsize()
 	}
 	s += 7 + msgp.ArrayHeaderSize
-	for za0005 := range z.Groups {
-		s += z.Groups[za0005].Msgsize()
+	for za0006 := range z.Groups {
+		s += z.Groups[za0006].Msgsize()
 	}
 	s += 7 + msgp.ArrayHeaderSize
-	for za0006 := range z.Shares {
-		s += z.Shares[za0006].Msgsize()
+	for za0007 := range z.Shares {
+		s += z.Shares[za0007].Msgsize()
 	}
 	s += 9 + msgp.ArrayHeaderSize
-	for za0007 := range z.Services {
-		s += z.Services[za0007].Msgsize()
+	for za0008 := range z.Services {
+		s += z.Services[za0008].Msgsize()
 	}
 	s += 9 + msgp.ArrayHeaderSize
-	for za0008 := range z.Software {
-		s += z.Software[za0008].Msgsize()
+	for za0009 := range z.Software {
+		s += z.Software[za0009].Msgsize()
 	}
 	s += 6 + msgp.ArrayHeaderSize
-	for za0009 := range z.Tasks {
-		s += z.Tasks[za0009].Msgsize()
+	for za0010 := range z.Tasks {
+		s += z.Tasks[za0010].Msgsize()
 	}
-	s += 11 + z.Privileges.Msgsize() + 13 + 1 + 4 + msgp.Uint64Size + 5 + msgp.Uint64Size + 6 + msgp.Uint64Size + 23 + msgp.BoolSize
+	s += 11 + msgp.ArrayHeaderSize
+	for za0011 := range z.Privileges {
+		s += 1 + 5 + msgp.StringPrefixSize + len(z.Privileges[za0011].Name) + 13 + msgp.ArrayHeaderSize
+		for za0012 := range z.Privileges[za0011].AssignedSIDs {
+			s += msgp.StringPrefixSize + len(z.Privileges[za0011].AssignedSIDs[za0012])
+		}
+	}
+	s += 13 + 1 + 4 + msgp.Uint64Size + 5 + msgp.Uint64Size + 6 + msgp.Uint64Size + 23 + msgp.BoolSize
 	return
 }
 
 // DecodeMsg implements msgp.Decodable
-func (z *LoginCount) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *LoginInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
 	var zb0001 uint32
@@ -1573,10 +1768,16 @@ func (z *LoginCount) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "Name":
-			z.Name, err = dc.ReadString()
+		case "User":
+			z.User, err = dc.ReadString()
 			if err != nil {
-				err = msgp.WrapError(err, "Name")
+				err = msgp.WrapError(err, "User")
+				return
+			}
+		case "Domain":
+			z.Domain, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Domain")
 				return
 			}
 		case "SID":
@@ -1591,6 +1792,37 @@ func (z *LoginCount) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Count")
 				return
 			}
+		case "LoginTypes":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "LoginTypes")
+				return
+			}
+			if cap(z.LoginTypes) >= int(zb0002) {
+				z.LoginTypes = (z.LoginTypes)[:zb0002]
+			} else {
+				z.LoginTypes = make([]uint32, zb0002)
+			}
+			for za0001 := range z.LoginTypes {
+				z.LoginTypes[za0001], err = dc.ReadUint32()
+				if err != nil {
+					err = msgp.WrapError(err, "LoginTypes", za0001)
+					return
+				}
+			}
+		case "FirstSeen":
+			z.FirstSeen, err = dc.ReadTime()
+			if err != nil {
+				err = msgp.WrapError(err, "FirstSeen")
+				return
+			}
+		case "LastSeen":
+			z.LastSeen, err = dc.ReadTime()
+			if err != nil {
+				err = msgp.WrapError(err, "LastSeen")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1603,16 +1835,26 @@ func (z *LoginCount) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z LoginCount) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 3
-	// write "Name"
-	err = en.Append(0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+func (z *LoginInfo) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 7
+	// write "User"
+	err = en.Append(0x87, 0xa4, 0x55, 0x73, 0x65, 0x72)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.Name)
+	err = en.WriteString(z.User)
 	if err != nil {
-		err = msgp.WrapError(err, "Name")
+		err = msgp.WrapError(err, "User")
+		return
+	}
+	// write "Domain"
+	err = en.Append(0xa6, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Domain)
+	if err != nil {
+		err = msgp.WrapError(err, "Domain")
 		return
 	}
 	// write "SID"
@@ -1635,27 +1877,79 @@ func (z LoginCount) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Count")
 		return
 	}
+	// write "LoginTypes"
+	err = en.Append(0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.LoginTypes)))
+	if err != nil {
+		err = msgp.WrapError(err, "LoginTypes")
+		return
+	}
+	for za0001 := range z.LoginTypes {
+		err = en.WriteUint32(z.LoginTypes[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "LoginTypes", za0001)
+			return
+		}
+	}
+	// write "FirstSeen"
+	err = en.Append(0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteTime(z.FirstSeen)
+	if err != nil {
+		err = msgp.WrapError(err, "FirstSeen")
+		return
+	}
+	// write "LastSeen"
+	err = en.Append(0xa8, 0x4c, 0x61, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteTime(z.LastSeen)
+	if err != nil {
+		err = msgp.WrapError(err, "LastSeen")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z LoginCount) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *LoginInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 3
-	// string "Name"
-	o = append(o, 0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.Name)
+	// map header, size 7
+	// string "User"
+	o = append(o, 0x87, 0xa4, 0x55, 0x73, 0x65, 0x72)
+	o = msgp.AppendString(o, z.User)
+	// string "Domain"
+	o = append(o, 0xa6, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e)
+	o = msgp.AppendString(o, z.Domain)
 	// string "SID"
 	o = append(o, 0xa3, 0x53, 0x49, 0x44)
 	o = msgp.AppendString(o, z.SID)
 	// string "Count"
 	o = append(o, 0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
 	o = msgp.AppendUint64(o, z.Count)
+	// string "LoginTypes"
+	o = append(o, 0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.LoginTypes)))
+	for za0001 := range z.LoginTypes {
+		o = msgp.AppendUint32(o, z.LoginTypes[za0001])
+	}
+	// string "FirstSeen"
+	o = append(o, 0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
+	o = msgp.AppendTime(o, z.FirstSeen)
+	// string "LastSeen"
+	o = append(o, 0xa8, 0x4c, 0x61, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
+	o = msgp.AppendTime(o, z.LastSeen)
 	return
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *LoginCount) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *LoginInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var field []byte
 	_ = field
 	var zb0001 uint32
@@ -1672,10 +1966,16 @@ func (z *LoginCount) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "Name":
-			z.Name, bts, err = msgp.ReadStringBytes(bts)
+		case "User":
+			z.User, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Name")
+				err = msgp.WrapError(err, "User")
+				return
+			}
+		case "Domain":
+			z.Domain, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Domain")
 				return
 			}
 		case "SID":
@@ -1690,581 +1990,36 @@ func (z *LoginCount) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Count")
 				return
 			}
-		default:
-			bts, err = msgp.Skip(bts)
-			if err != nil {
-				err = msgp.WrapError(err)
-				return
-			}
-		}
-	}
-	o = bts
-	return
-}
-
-// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z LoginCount) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.Name) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size
-	return
-}
-
-// DecodeMsg implements msgp.Decodable
-func (z *LoginPopularity) DecodeMsg(dc *msgp.Reader) (err error) {
-	var field []byte
-	_ = field
-	var zb0001 uint32
-	zb0001, err = dc.ReadMapHeader()
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	for zb0001 > 0 {
-		zb0001--
-		field, err = dc.ReadMapKeyPtr()
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		switch msgp.UnsafeString(field) {
-		case "Day":
-			var zb0002 uint32
-			zb0002, err = dc.ReadArrayHeader()
-			if err != nil {
-				err = msgp.WrapError(err, "Day")
-				return
-			}
-			if cap(z.Day) >= int(zb0002) {
-				z.Day = (z.Day)[:zb0002]
-			} else {
-				z.Day = make([]LoginCount, zb0002)
-			}
-			for za0001 := range z.Day {
-				var zb0003 uint32
-				zb0003, err = dc.ReadMapHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "Day", za0001)
-					return
-				}
-				for zb0003 > 0 {
-					zb0003--
-					field, err = dc.ReadMapKeyPtr()
-					if err != nil {
-						err = msgp.WrapError(err, "Day", za0001)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Day[za0001].Name, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "Name")
-							return
-						}
-					case "SID":
-						z.Day[za0001].SID, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "SID")
-							return
-						}
-					case "Count":
-						z.Day[za0001].Count, err = dc.ReadUint64()
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "Count")
-							return
-						}
-					default:
-						err = dc.Skip()
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001)
-							return
-						}
-					}
-				}
-			}
-		case "Week":
-			var zb0004 uint32
-			zb0004, err = dc.ReadArrayHeader()
-			if err != nil {
-				err = msgp.WrapError(err, "Week")
-				return
-			}
-			if cap(z.Week) >= int(zb0004) {
-				z.Week = (z.Week)[:zb0004]
-			} else {
-				z.Week = make([]LoginCount, zb0004)
-			}
-			for za0002 := range z.Week {
-				var zb0005 uint32
-				zb0005, err = dc.ReadMapHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "Week", za0002)
-					return
-				}
-				for zb0005 > 0 {
-					zb0005--
-					field, err = dc.ReadMapKeyPtr()
-					if err != nil {
-						err = msgp.WrapError(err, "Week", za0002)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Week[za0002].Name, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "Name")
-							return
-						}
-					case "SID":
-						z.Week[za0002].SID, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "SID")
-							return
-						}
-					case "Count":
-						z.Week[za0002].Count, err = dc.ReadUint64()
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "Count")
-							return
-						}
-					default:
-						err = dc.Skip()
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002)
-							return
-						}
-					}
-				}
-			}
-		case "Month":
-			var zb0006 uint32
-			zb0006, err = dc.ReadArrayHeader()
-			if err != nil {
-				err = msgp.WrapError(err, "Month")
-				return
-			}
-			if cap(z.Month) >= int(zb0006) {
-				z.Month = (z.Month)[:zb0006]
-			} else {
-				z.Month = make([]LoginCount, zb0006)
-			}
-			for za0003 := range z.Month {
-				var zb0007 uint32
-				zb0007, err = dc.ReadMapHeader()
-				if err != nil {
-					err = msgp.WrapError(err, "Month", za0003)
-					return
-				}
-				for zb0007 > 0 {
-					zb0007--
-					field, err = dc.ReadMapKeyPtr()
-					if err != nil {
-						err = msgp.WrapError(err, "Month", za0003)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Month[za0003].Name, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "Name")
-							return
-						}
-					case "SID":
-						z.Month[za0003].SID, err = dc.ReadString()
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "SID")
-							return
-						}
-					case "Count":
-						z.Month[za0003].Count, err = dc.ReadUint64()
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "Count")
-							return
-						}
-					default:
-						err = dc.Skip()
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003)
-							return
-						}
-					}
-				}
-			}
-		default:
-			err = dc.Skip()
-			if err != nil {
-				err = msgp.WrapError(err)
-				return
-			}
-		}
-	}
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z *LoginPopularity) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 3
-	// write "Day"
-	err = en.Append(0x83, 0xa3, 0x44, 0x61, 0x79)
-	if err != nil {
-		return
-	}
-	err = en.WriteArrayHeader(uint32(len(z.Day)))
-	if err != nil {
-		err = msgp.WrapError(err, "Day")
-		return
-	}
-	for za0001 := range z.Day {
-		// map header, size 3
-		// write "Name"
-		err = en.Append(0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Day[za0001].Name)
-		if err != nil {
-			err = msgp.WrapError(err, "Day", za0001, "Name")
-			return
-		}
-		// write "SID"
-		err = en.Append(0xa3, 0x53, 0x49, 0x44)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Day[za0001].SID)
-		if err != nil {
-			err = msgp.WrapError(err, "Day", za0001, "SID")
-			return
-		}
-		// write "Count"
-		err = en.Append(0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		if err != nil {
-			return
-		}
-		err = en.WriteUint64(z.Day[za0001].Count)
-		if err != nil {
-			err = msgp.WrapError(err, "Day", za0001, "Count")
-			return
-		}
-	}
-	// write "Week"
-	err = en.Append(0xa4, 0x57, 0x65, 0x65, 0x6b)
-	if err != nil {
-		return
-	}
-	err = en.WriteArrayHeader(uint32(len(z.Week)))
-	if err != nil {
-		err = msgp.WrapError(err, "Week")
-		return
-	}
-	for za0002 := range z.Week {
-		// map header, size 3
-		// write "Name"
-		err = en.Append(0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Week[za0002].Name)
-		if err != nil {
-			err = msgp.WrapError(err, "Week", za0002, "Name")
-			return
-		}
-		// write "SID"
-		err = en.Append(0xa3, 0x53, 0x49, 0x44)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Week[za0002].SID)
-		if err != nil {
-			err = msgp.WrapError(err, "Week", za0002, "SID")
-			return
-		}
-		// write "Count"
-		err = en.Append(0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		if err != nil {
-			return
-		}
-		err = en.WriteUint64(z.Week[za0002].Count)
-		if err != nil {
-			err = msgp.WrapError(err, "Week", za0002, "Count")
-			return
-		}
-	}
-	// write "Month"
-	err = en.Append(0xa5, 0x4d, 0x6f, 0x6e, 0x74, 0x68)
-	if err != nil {
-		return
-	}
-	err = en.WriteArrayHeader(uint32(len(z.Month)))
-	if err != nil {
-		err = msgp.WrapError(err, "Month")
-		return
-	}
-	for za0003 := range z.Month {
-		// map header, size 3
-		// write "Name"
-		err = en.Append(0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Month[za0003].Name)
-		if err != nil {
-			err = msgp.WrapError(err, "Month", za0003, "Name")
-			return
-		}
-		// write "SID"
-		err = en.Append(0xa3, 0x53, 0x49, 0x44)
-		if err != nil {
-			return
-		}
-		err = en.WriteString(z.Month[za0003].SID)
-		if err != nil {
-			err = msgp.WrapError(err, "Month", za0003, "SID")
-			return
-		}
-		// write "Count"
-		err = en.Append(0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		if err != nil {
-			return
-		}
-		err = en.WriteUint64(z.Month[za0003].Count)
-		if err != nil {
-			err = msgp.WrapError(err, "Month", za0003, "Count")
-			return
-		}
-	}
-	return
-}
-
-// MarshalMsg implements msgp.Marshaler
-func (z *LoginPopularity) MarshalMsg(b []byte) (o []byte, err error) {
-	o = msgp.Require(b, z.Msgsize())
-	// map header, size 3
-	// string "Day"
-	o = append(o, 0x83, 0xa3, 0x44, 0x61, 0x79)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Day)))
-	for za0001 := range z.Day {
-		// map header, size 3
-		// string "Name"
-		o = append(o, 0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		o = msgp.AppendString(o, z.Day[za0001].Name)
-		// string "SID"
-		o = append(o, 0xa3, 0x53, 0x49, 0x44)
-		o = msgp.AppendString(o, z.Day[za0001].SID)
-		// string "Count"
-		o = append(o, 0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		o = msgp.AppendUint64(o, z.Day[za0001].Count)
-	}
-	// string "Week"
-	o = append(o, 0xa4, 0x57, 0x65, 0x65, 0x6b)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Week)))
-	for za0002 := range z.Week {
-		// map header, size 3
-		// string "Name"
-		o = append(o, 0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		o = msgp.AppendString(o, z.Week[za0002].Name)
-		// string "SID"
-		o = append(o, 0xa3, 0x53, 0x49, 0x44)
-		o = msgp.AppendString(o, z.Week[za0002].SID)
-		// string "Count"
-		o = append(o, 0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		o = msgp.AppendUint64(o, z.Week[za0002].Count)
-	}
-	// string "Month"
-	o = append(o, 0xa5, 0x4d, 0x6f, 0x6e, 0x74, 0x68)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Month)))
-	for za0003 := range z.Month {
-		// map header, size 3
-		// string "Name"
-		o = append(o, 0x83, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
-		o = msgp.AppendString(o, z.Month[za0003].Name)
-		// string "SID"
-		o = append(o, 0xa3, 0x53, 0x49, 0x44)
-		o = msgp.AppendString(o, z.Month[za0003].SID)
-		// string "Count"
-		o = append(o, 0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
-		o = msgp.AppendUint64(o, z.Month[za0003].Count)
-	}
-	return
-}
-
-// UnmarshalMsg implements msgp.Unmarshaler
-func (z *LoginPopularity) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	var field []byte
-	_ = field
-	var zb0001 uint32
-	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	for zb0001 > 0 {
-		zb0001--
-		field, bts, err = msgp.ReadMapKeyZC(bts)
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		switch msgp.UnsafeString(field) {
-		case "Day":
+		case "LoginTypes":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Day")
+				err = msgp.WrapError(err, "LoginTypes")
 				return
 			}
-			if cap(z.Day) >= int(zb0002) {
-				z.Day = (z.Day)[:zb0002]
+			if cap(z.LoginTypes) >= int(zb0002) {
+				z.LoginTypes = (z.LoginTypes)[:zb0002]
 			} else {
-				z.Day = make([]LoginCount, zb0002)
+				z.LoginTypes = make([]uint32, zb0002)
 			}
-			for za0001 := range z.Day {
-				var zb0003 uint32
-				zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+			for za0001 := range z.LoginTypes {
+				z.LoginTypes[za0001], bts, err = msgp.ReadUint32Bytes(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "Day", za0001)
+					err = msgp.WrapError(err, "LoginTypes", za0001)
 					return
 				}
-				for zb0003 > 0 {
-					zb0003--
-					field, bts, err = msgp.ReadMapKeyZC(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Day", za0001)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Day[za0001].Name, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "Name")
-							return
-						}
-					case "SID":
-						z.Day[za0001].SID, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "SID")
-							return
-						}
-					case "Count":
-						z.Day[za0001].Count, bts, err = msgp.ReadUint64Bytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001, "Count")
-							return
-						}
-					default:
-						bts, err = msgp.Skip(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Day", za0001)
-							return
-						}
-					}
-				}
 			}
-		case "Week":
-			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		case "FirstSeen":
+			z.FirstSeen, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Week")
+				err = msgp.WrapError(err, "FirstSeen")
 				return
 			}
-			if cap(z.Week) >= int(zb0004) {
-				z.Week = (z.Week)[:zb0004]
-			} else {
-				z.Week = make([]LoginCount, zb0004)
-			}
-			for za0002 := range z.Week {
-				var zb0005 uint32
-				zb0005, bts, err = msgp.ReadMapHeaderBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Week", za0002)
-					return
-				}
-				for zb0005 > 0 {
-					zb0005--
-					field, bts, err = msgp.ReadMapKeyZC(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Week", za0002)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Week[za0002].Name, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "Name")
-							return
-						}
-					case "SID":
-						z.Week[za0002].SID, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "SID")
-							return
-						}
-					case "Count":
-						z.Week[za0002].Count, bts, err = msgp.ReadUint64Bytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002, "Count")
-							return
-						}
-					default:
-						bts, err = msgp.Skip(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Week", za0002)
-							return
-						}
-					}
-				}
-			}
-		case "Month":
-			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		case "LastSeen":
+			z.LastSeen, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Month")
+				err = msgp.WrapError(err, "LastSeen")
 				return
-			}
-			if cap(z.Month) >= int(zb0006) {
-				z.Month = (z.Month)[:zb0006]
-			} else {
-				z.Month = make([]LoginCount, zb0006)
-			}
-			for za0003 := range z.Month {
-				var zb0007 uint32
-				zb0007, bts, err = msgp.ReadMapHeaderBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Month", za0003)
-					return
-				}
-				for zb0007 > 0 {
-					zb0007--
-					field, bts, err = msgp.ReadMapKeyZC(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Month", za0003)
-						return
-					}
-					switch msgp.UnsafeString(field) {
-					case "Name":
-						z.Month[za0003].Name, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "Name")
-							return
-						}
-					case "SID":
-						z.Month[za0003].SID, bts, err = msgp.ReadStringBytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "SID")
-							return
-						}
-					case "Count":
-						z.Month[za0003].Count, bts, err = msgp.ReadUint64Bytes(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003, "Count")
-							return
-						}
-					default:
-						bts, err = msgp.Skip(bts)
-						if err != nil {
-							err = msgp.WrapError(err, "Month", za0003)
-							return
-						}
-					}
-				}
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -2279,19 +2034,8 @@ func (z *LoginPopularity) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *LoginPopularity) Msgsize() (s int) {
-	s = 1 + 4 + msgp.ArrayHeaderSize
-	for za0001 := range z.Day {
-		s += 1 + 5 + msgp.StringPrefixSize + len(z.Day[za0001].Name) + 4 + msgp.StringPrefixSize + len(z.Day[za0001].SID) + 6 + msgp.Uint64Size
-	}
-	s += 5 + msgp.ArrayHeaderSize
-	for za0002 := range z.Week {
-		s += 1 + 5 + msgp.StringPrefixSize + len(z.Week[za0002].Name) + 4 + msgp.StringPrefixSize + len(z.Week[za0002].SID) + 6 + msgp.Uint64Size
-	}
-	s += 6 + msgp.ArrayHeaderSize
-	for za0003 := range z.Month {
-		s += 1 + 5 + msgp.StringPrefixSize + len(z.Month[za0003].Name) + 4 + msgp.StringPrefixSize + len(z.Month[za0003].SID) + 6 + msgp.Uint64Size
-	}
+func (z *LoginInfo) Msgsize() (s int) {
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.User) + 7 + msgp.StringPrefixSize + len(z.Domain) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size + 11 + msgp.ArrayHeaderSize + (len(z.LoginTypes) * (msgp.Uint32Size)) + 10 + msgp.TimeSize + 9 + msgp.TimeSize
 	return
 }
 

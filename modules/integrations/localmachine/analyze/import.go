@@ -365,8 +365,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			}
 		}
 	}
+
 	// USERS THAT HAVE SESSIONS ON THE MACHINE ONCE IN WHILE
-	for _, login := range cinfo.LoginPopularity.Day {
+	for _, login := range cinfo.LoginInfos {
 		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
 			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
@@ -386,59 +387,23 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 		}
-		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(login.Name))
+		if !strings.Contains(login.Domain, ".") {
+			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(login.Domain+"\\"+login.User))
+		} else {
+			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
+			user.Set(engine.UserPrincipalName, engine.NewAttributeValueString(login.User+"@"+login.Domain))
 		}
-		machine.EdgeTo(user, EdgeLocalSessionLastDay)
+		loginSince := login.LastSeen.Sub(cinfo.Collected).Hours() / 24
+		switch {
+		case loginSince <= 1:
+			machine.EdgeTo(user, EdgeLocalSessionLastDay)
+		case loginSince <= 7:
+			machine.EdgeTo(user, EdgeLocalSessionLastWeek)
+		case loginSince <= 31:
+			machine.EdgeTo(user, EdgeLocalSessionLastMonth)
+		}
 	}
-	for _, login := range cinfo.LoginPopularity.Week {
-		usersid, err := windowssecurity.ParseStringSID(login.SID)
-		if err != nil {
-			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
-			continue
-		}
-		if usersid.Component(2) != 21 {
-			continue // Not a domain SID, skip it
-		}
-		// Potential translation
-		// usersid = MapSID(originalsid, localsid, usersid)
-		user := ao.AddNew(
-			activedirectory.ObjectSid, engine.NewAttributeValueSID(usersid),
-		)
-		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
-			user.SetFlex(
-				engine.DataSource, uniquesource,
-			)
-		}
-		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(login.Name))
-		}
-		machine.EdgeTo(user, EdgeLocalSessionLastWeek)
-	}
-	for _, login := range cinfo.LoginPopularity.Month {
-		usersid, err := windowssecurity.ParseStringSID(login.SID)
-		if err != nil {
-			ui.Warn().Msgf("Can't convert local user SID %v: %v", login.SID, err)
-			continue
-		}
-		if usersid.Component(2) != 21 {
-			continue // Not a domain SID, skip it
-		}
-		// Potential translation
-		// usersid = MapSID(originalsid, localsid, usersid)
-		user := ao.AddNew(
-			activedirectory.ObjectSid, engine.NewAttributeValueSID(usersid),
-		)
-		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
-			user.SetFlex(
-				engine.DataSource, uniquesource,
-			)
-		}
-		if !strings.HasSuffix(login.Name, "\\") {
-			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(login.Name))
-		}
-		machine.EdgeTo(user, EdgeLocalSessionLastMonth)
-	}
+
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN
 	if cinfo.Machine.DefaultUsername != "" &&
 		cinfo.Machine.DefaultDomain != "" &&

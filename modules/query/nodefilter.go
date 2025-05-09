@@ -110,7 +110,7 @@ type FilterAttribute interface {
 //	}
 type ComparatorType byte
 
-//go:generate enumer --type=ComparatorType
+//go:generate go tool github.com/dmarkham/enumer --type=ComparatorType
 const (
 	CompareInvalid ComparatorType = iota
 	CompareEquals

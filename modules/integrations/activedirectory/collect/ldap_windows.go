@@ -28,7 +28,7 @@ func GetSSPIClient() (ldap.GSSAPIClient, error) {
 	return gssapi.NewSSPIClient()
 }
 
-//go:generate go run github.com/dmarkham/enumer -type=LDAPAuth -json -output ldap_native_enums_windows.go
+//go:generate go tool github.com/dmarkham/enumer -type=LDAPAuth -json -output ldap_native_enums_windows.go
 
 type LDAPAuth uint
 
