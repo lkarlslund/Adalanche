@@ -266,11 +266,12 @@ func Collect() (localmachine.Info, error) {
 	// Who has logged on and when https://nasbench.medium.com/finding-forensic-goodness-in-obscure-windows-event-logs-60e978ea45a3
 	// Event 811 and 812 :-)
 	type LogonTypeUser struct {
-		LogonType uint32
-		User      string
+		User                      string
+		LogonType                 uint32
+		AuthenticationPackageName string
 	}
 
-	loginmap := make(map[LogonTypeUser]localmachine.LoginInfo)
+	loginmap := make(map[LogonTypeUser]localmachine.LogonInfo)
 
 	/*
 		elog, err := winevent.NewStream(winevent.EventStreamParams{
@@ -325,47 +326,55 @@ func Collect() (localmachine.Info, error) {
 		BuffSize: 2048000,
 	}, 0)
 
-	if err == nil {
+	if err != nil {
+		ui.Error().Msgf("Problem opening security event log: %v", err)
+	} else {
 		for {
 			events, _, _, err := slog.Read()
 			if err != nil {
-				// fmt.Println(err)
+				ui.Error().Msgf("Problem getting more events: %v", err)
 				break
 			}
 
 			for _, event := range events {
 				// fmt.Println(string(event.Buff))
-				doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
-				if err == nil {
+
+				doc, err := xmlquery.Parse(bytes.NewReader(bytes.Trim(event.Buff, "\x00")))
+				if err != nil {
+					ui.Error().Msgf("Problem parsing XML of %v: %v", string(event.Buff), err)
+				} else {
 					i := xmlquery.FindOne(doc, "/Event/System/EventID")
 					if i.InnerText() == "4624" {
 						timestamp := xmlquery.FindOne(doc, "/Event/System/TimeCreated/@SystemTime")
 						t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
 
-						logontype := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LogonType']`)
-						targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`)
-						targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`)
-						targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`)
-
-						logontypeint, _ := strconv.ParseInt(logontype.Data, 10, 32)
+						logontype := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LogonType']`).InnerText()
+						targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`).InnerText()
+						targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`).InnerText()
+						targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`).InnerText()
+						authenticationpackagename := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='AuthenticationPackageName']`).InnerText()
+						logontypeint, _ := strconv.ParseInt(logontype, 10, 32)
 
 						lookup := LogonTypeUser{
-							LogonType: uint32(logontypeint),
-							User:      targetdomainname.Data + "/" + targetusername.Data,
+							LogonType:                 uint32(logontypeint),
+							User:                      targetdomainname + "/" + targetusername,
+							AuthenticationPackageName: authenticationpackagename,
 						}
 						entry, found := loginmap[lookup]
 						if !found {
-							entry = localmachine.LoginInfo{
-								User:      targetusername.Data,
-								Domain:    targetdomainname.Data,
-								SID:       targetusersid.Data,
-								FirstSeen: t,
-								LastSeen:  t,
-								Count:     1,
+							entry = localmachine.LogonInfo{
+								User:                      targetusername,
+								Domain:                    targetdomainname,
+								SID:                       targetusersid,
+								LogonType:                 uint32(logontypeint),
+								AuthenticationPackageName: authenticationpackagename,
+								FirstSeen:                 t,
+								LastSeen:                  t,
+								Count:                     1,
 							}
 						} else {
 							if entry.SID == "" {
-								entry.SID = targetusersid.Data
+								entry.SID = targetusersid
 							}
 							if t.Before(entry.FirstSeen) {
 								entry.FirstSeen = t
@@ -375,7 +384,10 @@ func Collect() (localmachine.Info, error) {
 							}
 							entry.Count++
 						}
+						ui.Debug().Msgf("Updating login map %v to %v", lookup, entry)
 						loginmap[lookup] = entry
+					} else {
+						ui.Info().Msgf("Skipping event %v", string(event.Buff))
 					}
 				}
 			}

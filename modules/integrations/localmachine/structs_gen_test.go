@@ -461,8 +461,8 @@ func BenchmarkDecodeInfo(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalLoginInfo(t *testing.T) {
-	v := LoginInfo{}
+func TestMarshalUnmarshalLogonInfo(t *testing.T) {
+	v := LogonInfo{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -484,8 +484,8 @@ func TestMarshalUnmarshalLoginInfo(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgLoginInfo(b *testing.B) {
-	v := LoginInfo{}
+func BenchmarkMarshalMsgLogonInfo(b *testing.B) {
+	v := LogonInfo{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -493,8 +493,8 @@ func BenchmarkMarshalMsgLoginInfo(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgLoginInfo(b *testing.B) {
-	v := LoginInfo{}
+func BenchmarkAppendMsgLogonInfo(b *testing.B) {
+	v := LogonInfo{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -505,8 +505,8 @@ func BenchmarkAppendMsgLoginInfo(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalLoginInfo(b *testing.B) {
-	v := LoginInfo{}
+func BenchmarkUnmarshalLogonInfo(b *testing.B) {
+	v := LogonInfo{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -519,17 +519,17 @@ func BenchmarkUnmarshalLoginInfo(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeLoginInfo(t *testing.T) {
-	v := LoginInfo{}
+func TestEncodeDecodeLogonInfo(t *testing.T) {
+	v := LogonInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Log("WARNING: TestEncodeDecodeLoginInfo Msgsize() is inaccurate")
+		t.Log("WARNING: TestEncodeDecodeLogonInfo Msgsize() is inaccurate")
 	}
 
-	vn := LoginInfo{}
+	vn := LogonInfo{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -543,8 +543,8 @@ func TestEncodeDecodeLoginInfo(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeLoginInfo(b *testing.B) {
-	v := LoginInfo{}
+func BenchmarkEncodeLogonInfo(b *testing.B) {
+	v := LogonInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -557,8 +557,8 @@ func BenchmarkEncodeLoginInfo(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeLoginInfo(b *testing.B) {
-	v := LoginInfo{}
+func BenchmarkDecodeLogonInfo(b *testing.B) {
+	v := LogonInfo{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

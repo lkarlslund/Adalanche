@@ -613,7 +613,7 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 			if cap(z.LoginInfos) >= int(zb0003) {
 				z.LoginInfos = (z.LoginInfos)[:zb0003]
 			} else {
-				z.LoginInfos = make([]LoginInfo, zb0003)
+				z.LoginInfos = make([]LogonInfo, zb0003)
 			}
 			for za0003 := range z.LoginInfos {
 				err = z.LoginInfos[za0003].DecodeMsg(dc)
@@ -1407,7 +1407,7 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if cap(z.LoginInfos) >= int(zb0003) {
 				z.LoginInfos = (z.LoginInfos)[:zb0003]
 			} else {
-				z.LoginInfos = make([]LoginInfo, zb0003)
+				z.LoginInfos = make([]LogonInfo, zb0003)
 			}
 			for za0003 := range z.LoginInfos {
 				bts, err = z.LoginInfos[za0003].UnmarshalMsg(bts)
@@ -1751,7 +1751,7 @@ func (z *Info) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
-func (z *LoginInfo) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *LogonInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
 	var zb0001 uint32
@@ -1792,24 +1792,17 @@ func (z *LoginInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Count")
 				return
 			}
-		case "LoginTypes":
-			var zb0002 uint32
-			zb0002, err = dc.ReadArrayHeader()
+		case "LogonType":
+			z.LogonType, err = dc.ReadUint32()
 			if err != nil {
-				err = msgp.WrapError(err, "LoginTypes")
+				err = msgp.WrapError(err, "LogonType")
 				return
 			}
-			if cap(z.LoginTypes) >= int(zb0002) {
-				z.LoginTypes = (z.LoginTypes)[:zb0002]
-			} else {
-				z.LoginTypes = make([]uint32, zb0002)
-			}
-			for za0001 := range z.LoginTypes {
-				z.LoginTypes[za0001], err = dc.ReadUint32()
-				if err != nil {
-					err = msgp.WrapError(err, "LoginTypes", za0001)
-					return
-				}
+		case "AuthenticationPackageName":
+			z.AuthenticationPackageName, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "AuthenticationPackageName")
+				return
 			}
 		case "FirstSeen":
 			z.FirstSeen, err = dc.ReadTime()
@@ -1835,10 +1828,10 @@ func (z *LoginInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *LoginInfo) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 7
+func (z *LogonInfo) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 8
 	// write "User"
-	err = en.Append(0x87, 0xa4, 0x55, 0x73, 0x65, 0x72)
+	err = en.Append(0x88, 0xa4, 0x55, 0x73, 0x65, 0x72)
 	if err != nil {
 		return
 	}
@@ -1877,22 +1870,25 @@ func (z *LoginInfo) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Count")
 		return
 	}
-	// write "LoginTypes"
-	err = en.Append(0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73)
+	// write "LogonType"
+	err = en.Append(0xa9, 0x4c, 0x6f, 0x67, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.LoginTypes)))
+	err = en.WriteUint32(z.LogonType)
 	if err != nil {
-		err = msgp.WrapError(err, "LoginTypes")
+		err = msgp.WrapError(err, "LogonType")
 		return
 	}
-	for za0001 := range z.LoginTypes {
-		err = en.WriteUint32(z.LoginTypes[za0001])
-		if err != nil {
-			err = msgp.WrapError(err, "LoginTypes", za0001)
-			return
-		}
+	// write "AuthenticationPackageName"
+	err = en.Append(0xb9, 0x41, 0x75, 0x74, 0x68, 0x65, 0x6e, 0x74, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65, 0x4e, 0x61, 0x6d, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.AuthenticationPackageName)
+	if err != nil {
+		err = msgp.WrapError(err, "AuthenticationPackageName")
+		return
 	}
 	// write "FirstSeen"
 	err = en.Append(0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
@@ -1918,11 +1914,11 @@ func (z *LoginInfo) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *LoginInfo) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *LogonInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 7
+	// map header, size 8
 	// string "User"
-	o = append(o, 0x87, 0xa4, 0x55, 0x73, 0x65, 0x72)
+	o = append(o, 0x88, 0xa4, 0x55, 0x73, 0x65, 0x72)
 	o = msgp.AppendString(o, z.User)
 	// string "Domain"
 	o = append(o, 0xa6, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e)
@@ -1933,12 +1929,12 @@ func (z *LoginInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Count"
 	o = append(o, 0xa5, 0x43, 0x6f, 0x75, 0x6e, 0x74)
 	o = msgp.AppendUint64(o, z.Count)
-	// string "LoginTypes"
-	o = append(o, 0xaa, 0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.LoginTypes)))
-	for za0001 := range z.LoginTypes {
-		o = msgp.AppendUint32(o, z.LoginTypes[za0001])
-	}
+	// string "LogonType"
+	o = append(o, 0xa9, 0x4c, 0x6f, 0x67, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65)
+	o = msgp.AppendUint32(o, z.LogonType)
+	// string "AuthenticationPackageName"
+	o = append(o, 0xb9, 0x41, 0x75, 0x74, 0x68, 0x65, 0x6e, 0x74, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65, 0x4e, 0x61, 0x6d, 0x65)
+	o = msgp.AppendString(o, z.AuthenticationPackageName)
 	// string "FirstSeen"
 	o = append(o, 0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
 	o = msgp.AppendTime(o, z.FirstSeen)
@@ -1949,7 +1945,7 @@ func (z *LoginInfo) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *LoginInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *LogonInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var field []byte
 	_ = field
 	var zb0001 uint32
@@ -1990,24 +1986,17 @@ func (z *LoginInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Count")
 				return
 			}
-		case "LoginTypes":
-			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		case "LogonType":
+			z.LogonType, bts, err = msgp.ReadUint32Bytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "LoginTypes")
+				err = msgp.WrapError(err, "LogonType")
 				return
 			}
-			if cap(z.LoginTypes) >= int(zb0002) {
-				z.LoginTypes = (z.LoginTypes)[:zb0002]
-			} else {
-				z.LoginTypes = make([]uint32, zb0002)
-			}
-			for za0001 := range z.LoginTypes {
-				z.LoginTypes[za0001], bts, err = msgp.ReadUint32Bytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "LoginTypes", za0001)
-					return
-				}
+		case "AuthenticationPackageName":
+			z.AuthenticationPackageName, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "AuthenticationPackageName")
+				return
 			}
 		case "FirstSeen":
 			z.FirstSeen, bts, err = msgp.ReadTimeBytes(bts)
@@ -2034,8 +2023,8 @@ func (z *LoginInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *LoginInfo) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.User) + 7 + msgp.StringPrefixSize + len(z.Domain) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size + 11 + msgp.ArrayHeaderSize + (len(z.LoginTypes) * (msgp.Uint32Size)) + 10 + msgp.TimeSize + 9 + msgp.TimeSize
+func (z *LogonInfo) Msgsize() (s int) {
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.User) + 7 + msgp.StringPrefixSize + len(z.Domain) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size + 10 + msgp.Uint32Size + 26 + msgp.StringPrefixSize + len(z.AuthenticationPackageName) + 10 + msgp.TimeSize + 9 + msgp.TimeSize
 	return
 }
 

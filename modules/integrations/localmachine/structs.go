@@ -11,7 +11,7 @@ type Info struct {
 	basedata.Common
 	RegistryData RegistryData `json:",omitempty"`
 	Machine      Machine      `json:",omitempty"`
-	LoginInfos   []LoginInfo  `json:",omitempty"`
+	LoginInfos   []LogonInfo  `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
 	Network    NetworkInformation `json:",omitempty"`
 	Users      Users              `json:",omitempty"`
@@ -58,14 +58,15 @@ type Availability struct {
 	Month uint64 `json:",omitempty"`
 }
 
-type LoginInfo struct {
-	User       string    `json:",omitempty"`
-	Domain     string    `json:",omitempty"`
-	SID        string    `json:",omitempty"`
-	Count      uint64    `json:",omitempty"`
-	LoginTypes []uint32  `json:",omitempty`
-	FirstSeen  time.Time `json:",omitempty`
-	LastSeen   time.Time `json:",omitempty`
+type LogonInfo struct {
+	User                      string    `json:",omitempty"`
+	Domain                    string    `json:",omitempty"`
+	SID                       string    `json:",omitempty"`
+	Count                     uint64    `json:",omitempty"`
+	LogonType                 uint32    `json:",omitempty`
+	AuthenticationPackageName string    `json:",omitempty`
+	FirstSeen                 time.Time `json:",omitempty`
+	LastSeen                  time.Time `json:",omitempty`
 }
 type Shares []Share
 type Share struct {
