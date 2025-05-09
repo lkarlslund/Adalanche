@@ -10,7 +10,14 @@ function BuildVariants {
   )
 
   foreach ($currentarch in $arch) {
+    if (![string]::IsNullOrWhiteSpace($env:ONLYARCH) -and $env:ONLYARCH -ne $currentarch) {
+        continue
+    }
     foreach ($currentos in $os) {
+      if (![string]::IsNullOrWhiteSpace($env:ONLYOS) -and $env:ONLYOS -ne $currentos) {
+        continue
+      }
+
       $env:GOARCH = $currentarch
       $env:GOOS = $currentos
       
