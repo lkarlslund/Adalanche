@@ -404,6 +404,15 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		// 	machine.EdgeTo(user, EdgeLocalSessionLastMonth)
 		// }
 		machine.EdgeTo(user, EdgeSession)
+
+		for _, ipaddress := range login.IpAddress {
+			IpMachine := := ao.AddNew(
+				activedirectory.IpAddress, engine.NewAttributeValueSID(ipaddress),
+				engine.Type, "Machine",
+			)
+			IpMachine.EdgeTo(user, EdgeSession)
+		}
+
 	}
 
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN
