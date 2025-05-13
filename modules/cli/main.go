@@ -134,6 +134,8 @@ func init() {
 			} else {
 				ui.SetLogFile(*logfile, ll)
 			}
+		} else {
+			ui.SetLogFile("", ui.LevelInfo) // Tell logger to stop buffering early output
 		}
 
 		ui.Info().Msg(version.VersionString())

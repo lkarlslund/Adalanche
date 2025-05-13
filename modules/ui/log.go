@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,11 +54,24 @@ func GetLoglevel() LogLevel {
 }
 
 var logfile *os.File
+var logfileinit bool // Should we stop buffering output?
+var logfilebuffer *bytes.Buffer
 var logfilelevel LogLevel = LevelInfo
 
 func SetLogFile(path string, i LogLevel) error {
+	outputMutex.Lock()
+	defer outputMutex.Unlock()
+
+	logfileinit = true
+
 	if logfile != nil {
 		logfile.Close()
+		logfile = nil
+	}
+
+	if path == "" {
+		logfilebuffer = nil
+		return nil
 	}
 
 	// Ensure path exists
@@ -69,6 +84,12 @@ func SetLogFile(path string, i LogLevel) error {
 	}
 
 	logfilelevel = i
+
+	if logfilebuffer != nil && logfilebuffer.Available() > 0 {
+		io.Copy(logfile, logfilebuffer)
+		logfilebuffer = nil
+	}
+
 	return nil
 }
 
@@ -89,8 +110,17 @@ func (t Logger) Msgf(format string, args ...any) {
 		timetext = time.Now().Format("15:04:05.000")
 	}
 
-	if logfile != nil && logfilelevel <= t.ll {
-		fmt.Fprintf(logfile, timetext+" "+t.ll.String()+" "+format+"\n", args...)
+	if logfileinit {
+		if logfile != nil && logfilelevel <= t.ll {
+			fmt.Fprintf(logfile, timetext+" "+t.ll.String()+" "+format+"\n", args...)
+		}
+	} else {
+		if logLevel <= t.ll { // use console output loglevel
+			if logfilebuffer == nil {
+				logfilebuffer = bytes.NewBuffer()
+			}
+			logfilebuffer.WriteString(fmt.Sprintf(timetext+" "+t.ll.String()+" "+format+"\n", args...))
+		}
 	}
 	if logLevel <= t.ll {
 		if clearneeded {
