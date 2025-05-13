@@ -1804,6 +1804,25 @@ func (z *LogonInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "AuthenticationPackageName")
 				return
 			}
+		case "IpAddress":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "IpAddress")
+				return
+			}
+			if cap(z.IpAddress) >= int(zb0002) {
+				z.IpAddress = (z.IpAddress)[:zb0002]
+			} else {
+				z.IpAddress = make([]string, zb0002)
+			}
+			for za0001 := range z.IpAddress {
+				z.IpAddress[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "IpAddress", za0001)
+					return
+				}
+			}
 		case "FirstSeen":
 			z.FirstSeen, err = dc.ReadTime()
 			if err != nil {
@@ -1829,9 +1848,9 @@ func (z *LogonInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *LogonInfo) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 8
+	// map header, size 9
 	// write "User"
-	err = en.Append(0x88, 0xa4, 0x55, 0x73, 0x65, 0x72)
+	err = en.Append(0x89, 0xa4, 0x55, 0x73, 0x65, 0x72)
 	if err != nil {
 		return
 	}
@@ -1890,6 +1909,23 @@ func (z *LogonInfo) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "AuthenticationPackageName")
 		return
 	}
+	// write "IpAddress"
+	err = en.Append(0xa9, 0x49, 0x70, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.IpAddress)))
+	if err != nil {
+		err = msgp.WrapError(err, "IpAddress")
+		return
+	}
+	for za0001 := range z.IpAddress {
+		err = en.WriteString(z.IpAddress[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "IpAddress", za0001)
+			return
+		}
+	}
 	// write "FirstSeen"
 	err = en.Append(0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
 	if err != nil {
@@ -1916,9 +1952,9 @@ func (z *LogonInfo) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *LogonInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 8
+	// map header, size 9
 	// string "User"
-	o = append(o, 0x88, 0xa4, 0x55, 0x73, 0x65, 0x72)
+	o = append(o, 0x89, 0xa4, 0x55, 0x73, 0x65, 0x72)
 	o = msgp.AppendString(o, z.User)
 	// string "Domain"
 	o = append(o, 0xa6, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e)
@@ -1935,6 +1971,12 @@ func (z *LogonInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "AuthenticationPackageName"
 	o = append(o, 0xb9, 0x41, 0x75, 0x74, 0x68, 0x65, 0x6e, 0x74, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65, 0x4e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.AuthenticationPackageName)
+	// string "IpAddress"
+	o = append(o, 0xa9, 0x49, 0x70, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.IpAddress)))
+	for za0001 := range z.IpAddress {
+		o = msgp.AppendString(o, z.IpAddress[za0001])
+	}
 	// string "FirstSeen"
 	o = append(o, 0xa9, 0x46, 0x69, 0x72, 0x73, 0x74, 0x53, 0x65, 0x65, 0x6e)
 	o = msgp.AppendTime(o, z.FirstSeen)
@@ -1998,6 +2040,25 @@ func (z *LogonInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AuthenticationPackageName")
 				return
 			}
+		case "IpAddress":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IpAddress")
+				return
+			}
+			if cap(z.IpAddress) >= int(zb0002) {
+				z.IpAddress = (z.IpAddress)[:zb0002]
+			} else {
+				z.IpAddress = make([]string, zb0002)
+			}
+			for za0001 := range z.IpAddress {
+				z.IpAddress[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "IpAddress", za0001)
+					return
+				}
+			}
 		case "FirstSeen":
 			z.FirstSeen, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
@@ -2024,7 +2085,11 @@ func (z *LogonInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *LogonInfo) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.User) + 7 + msgp.StringPrefixSize + len(z.Domain) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size + 10 + msgp.Uint32Size + 26 + msgp.StringPrefixSize + len(z.AuthenticationPackageName) + 10 + msgp.TimeSize + 9 + msgp.TimeSize
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.User) + 7 + msgp.StringPrefixSize + len(z.Domain) + 4 + msgp.StringPrefixSize + len(z.SID) + 6 + msgp.Uint64Size + 10 + msgp.Uint32Size + 26 + msgp.StringPrefixSize + len(z.AuthenticationPackageName) + 10 + msgp.ArrayHeaderSize
+	for za0001 := range z.IpAddress {
+		s += msgp.StringPrefixSize + len(z.IpAddress[za0001])
+	}
+	s += 10 + msgp.TimeSize + 9 + msgp.TimeSize
 	return
 }
 

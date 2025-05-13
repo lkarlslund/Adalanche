@@ -393,15 +393,17 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
 			user.Set(engine.UserPrincipalName, engine.NewAttributeValueString(login.User+"@"+login.Domain))
 		}
-		loginSince := login.LastSeen.Sub(cinfo.Collected).Hours() / 24
-		switch {
-		case loginSince <= 1:
-			machine.EdgeTo(user, EdgeLocalSessionLastDay)
-		case loginSince <= 7:
-			machine.EdgeTo(user, EdgeLocalSessionLastWeek)
-		case loginSince <= 31:
-			machine.EdgeTo(user, EdgeLocalSessionLastMonth)
-		}
+
+		// loginSince := login.LastSeen.Sub(cinfo.Collected).Hours() / 24
+		// switch {
+		// case loginSince <= 1:
+		// 	machine.EdgeTo(user, EdgeLocalSessionLastDay)
+		// case loginSince <= 7:
+		// 	machine.EdgeTo(user, EdgeLocalSessionLastWeek)
+		// case loginSince <= 31:
+		// 	machine.EdgeTo(user, EdgeLocalSessionLastMonth)
+		// }
+		machine.EdgeTo(user, EdgeSession)
 	}
 
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN

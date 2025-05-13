@@ -119,6 +119,9 @@ func Collect() (localmachine.Info, error) {
 		}
 	}
 
+	// We use this in order to not collect 4612 events from DCs
+	// isdomaincontroller := strings.EqualFold(cinfo.Machine.ProductType, "LANMANNT")
+
 	// AUTOLOGON - FREE CREDENTIALS
 	winlogon_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`,
@@ -353,7 +356,16 @@ func Collect() (localmachine.Info, error) {
 						targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`).InnerText()
 						targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`).InnerText()
 						authenticationpackagename := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='AuthenticationPackageName']`).InnerText()
+						lmpackagename := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LmPackageName']`).InnerText()
 						logontypeint, _ := strconv.ParseInt(logontype, 10, 32)
+						ipaddress := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='IpAddress']`).InnerText()
+						if ipaddress == "244.230.0.0" { // Avoid Windows 7 RDP 8.0 bug - https://learn.microsoft.com/en-us/troubleshoot/windows-client/remote/invalid-client-ip-address-port-number-event-4624
+							ipaddress = ""
+						}
+
+						if len(lmpackagename) > 1 {
+							authenticationpackagename = lmpackagename
+						}
 
 						lookup := LogonTypeUser{
 							LogonType:                 uint32(logontypeint),
@@ -372,6 +384,9 @@ func Collect() (localmachine.Info, error) {
 								LastSeen:                  t,
 								Count:                     1,
 							}
+							if len(ipaddress) > 1 {
+								entry.IpAddress = []string{ipaddress}
+							}
 						} else {
 							if entry.SID == "" {
 								entry.SID = targetusersid
@@ -381,6 +396,9 @@ func Collect() (localmachine.Info, error) {
 							}
 							if t.After(entry.LastSeen) {
 								entry.LastSeen = t
+							}
+							if len(ipaddress) > 1 && !slices.Contains(entry.IpAddress, ipaddress) {
+								entry.IpAddress = append(entry.IpAddress, ipaddress)
 							}
 							entry.Count++
 						}

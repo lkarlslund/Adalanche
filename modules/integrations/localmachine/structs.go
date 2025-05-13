@@ -65,6 +65,7 @@ type LogonInfo struct {
 	Count                     uint64    `json:",omitempty"`
 	LogonType                 uint32    `json:",omitempty`
 	AuthenticationPackageName string    `json:",omitempty`
+	IpAddress                 []string  `json:",omitempty`
 	FirstSeen                 time.Time `json:",omitempty`
 	LastSeen                  time.Time `json:",omitempty`
 }
