@@ -117,7 +117,7 @@ func (t Logger) Msgf(format string, args ...any) {
 	} else {
 		if logLevel <= t.ll { // use console output loglevel
 			if logfilebuffer == nil {
-				logfilebuffer = bytes.NewBuffer()
+				logfilebuffer = bytes.NewBuffer(nil)
 			}
 			logfilebuffer.WriteString(fmt.Sprintf(timetext+" "+t.ll.String()+" "+format+"\n", args...))
 		}
