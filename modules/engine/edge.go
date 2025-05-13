@@ -14,6 +14,7 @@ var (
 )
 
 type ProbabilityCalculatorFunction func(source, target *Object, edge *EdgeBitmap) Probability
+type DetailFunction func(source, target *Object, edge *EdgeBitmap) string
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
@@ -22,6 +23,11 @@ func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunctio
 
 func (pm Edge) Describe(description string) Edge {
 	edgeInfos[pm].Description = description
+	return pm
+}
+
+func (pm Edge) RegisterDetailFunction(doDetails DetailFunction) Edge {
+	edgeInfos[pm].detailer = doDetails
 	return pm
 }
 
@@ -248,6 +254,7 @@ var edgeInfos []*edgeInfo
 type edgeInfo struct {
 	Tags                         map[string]struct{}
 	probability                  ProbabilityCalculatorFunction
+	detailer                     DetailFunction
 	Name                         string
 	Description                  string
 	Multi                        bool // If true, this attribute can have multiple values

@@ -104,4 +104,7 @@ var (
 	PKIOverlapPeriod         = engine.NewAttribute("pKIOverlapPeriod").Tag("AD")
 	MsDSBehaviourVersion     = engine.NewAttribute("msDS-Behavior-Version").Type(engine.AttributeTypeInt)
 	DNSHostName              = engine.NewAttribute("dnsHostName").Tag("AD")
+
+	MetaPasswordAge  = engine.NewAttribute("passwordAge").SetDescription("Password age in hours")
+	MetaLastLoginAge = engine.NewAttribute("lastLoginAge").SetDescription("Time elapsed since last login in hours")
 )

@@ -17,6 +17,8 @@ import (
 
 var unhandledPrivileges sync.Map
 
+var PrimaryUser = engine.NewAttribute("primaryUser").SetDescription("Derived primary user from local 4624 interactive events")
+
 // Returns the computer object
 func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.Object, error) {
 	var machine *engine.Object
@@ -367,6 +369,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 	}
 
 	// USERS THAT HAVE SESSIONS ON THE MACHINE ONCE IN WHILE
+	topInteractiveUsers := map[string]int{}
 	for _, login := range cinfo.LoginInfos {
 		usersid, err := windowssecurity.ParseStringSID(login.SID)
 		if err != nil {
@@ -387,11 +390,20 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				engine.DataSource, uniquesource,
 			)
 		}
+		var username string
 		if !strings.Contains(login.Domain, ".") {
-			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(login.Domain+"\\"+login.User))
+			username = login.Domain + "\\" + login.User
+			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(username))
 		} else {
 			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
-			user.Set(engine.UserPrincipalName, engine.NewAttributeValueString(login.User+"@"+login.Domain))
+			username = login.User + "@" + login.Domain
+			user.Set(engine.UserPrincipalName, engine.NewAttributeValueString(username))
+		}
+
+		if login.LogonType == 2 || login.LogonType == 11 {
+			logins := topInteractiveUsers[username]
+			logins++
+			topInteractiveUsers[username] = logins
 		}
 
 		// loginSince := login.LastSeen.Sub(cinfo.Collected).Hours() / 24
@@ -406,13 +418,25 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		machine.EdgeTo(user, EdgeSession)
 
 		for _, ipaddress := range login.IpAddress {
-			IpMachine := := ao.AddNew(
-				activedirectory.IpAddress, engine.NewAttributeValueSID(ipaddress),
+			IpMachine := ao.AddNew(
+				engine.IPAddress, engine.NewAttributeValueString(ipaddress),
 				engine.Type, "Machine",
 			)
 			IpMachine.EdgeTo(user, EdgeSession)
 		}
-
+	}
+	if len(topInteractiveUsers) > 0 {
+		var primaryuser string
+		var maxcount int
+		for user, count := range topInteractiveUsers {
+			if count > maxcount {
+				maxcount = count
+				primaryuser = user
+			}
+		}
+		if primaryuser != "" {
+			machine.Set(PrimaryUser, engine.NewAttributeValueString(primaryuser))
+		}
 	}
 
 	// AUTOLOGIN CREDENTIALS - ONLY IF DOMAIN JOINED AND IT'S TO THIS DOMAIN

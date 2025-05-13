@@ -83,9 +83,6 @@ var (
 	PublishedBy            = engine.NewAttribute("publishedBy")
 	PublishedByDnsHostName = engine.NewAttribute("publishedByDnsHostName")
 
-	MetaPasswordAge  = engine.NewAttribute("passwordAge")
-	MetaLastLoginAge = engine.NewAttribute("lastLoginAge")
-
 	msLAPSEncryptedPasswordAttributesGUID, _ = uuid.FromString("{f3531ec6-6330-4f8e-8d39-7a671fbac605}")
 
 	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(activedirectory.FixedProbability(-1)).Describe("Indicates this is the domain joined computer account belonging to the machine")
@@ -1290,10 +1287,10 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.Set(MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.Set(activedirectory.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.Set(MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.Set(activedirectory.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
 				object.Tag("linux")

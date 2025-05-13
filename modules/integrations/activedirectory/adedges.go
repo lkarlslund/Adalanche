@@ -1,6 +1,8 @@
 package activedirectory
 
-import "github.com/lkarlslund/adalanche/modules/engine"
+import (
+	"github.com/lkarlslund/adalanche/modules/engine"
+)
 
 func OnlyIfTargetAccountEnabled(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 	if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
@@ -26,18 +28,34 @@ var (
 	EdgeWriteExtendedAll = engine.NewEdge("WriteExtendedAll").Tag("Informative").RegisterProbabilityCalculator(FixedProbability(0))
 	EdgeTakeOwnership    = engine.NewEdge("TakeOwnership").Tag("Pivot")
 	EdgeWriteDACL        = engine.NewEdge("WriteDACL").Tag("Pivot")
-	EdgeWriteSPN         = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+
+	// Kerberoasting
+	calculateKerberoast = func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_active") {
+			// Get password age
+			pwdage := target.OneAttr(MetaPasswordAge)
+			if age, ok := pwdage.(engine.AttributeValueInt); ok {
+				// Just set passwords ate 20% success, up to 80% for 10 year old passwords
+				tenyears := 24 * 365 * 10
+				if int(age) > tenyears {
+					return 80
+				}
+				risk := (80 * int(age)) / tenyears
+				if risk < 20 {
+					return 20
+				}
+				return engine.Probability(risk)
+			}
 			return 50
 		}
 		return 0
-	}).Tag("Pivot")
-	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
-		if target.HasTag("account_active") {
-			return 50
-		}
-		return 0
-	}).Tag("Pivot")
+	}
+
+	EdgeWriteSPN          = engine.NewEdge("WriteSPN").RegisterProbabilityCalculator(calculateKerberoast).Tag("Pivot")
+	EdgeWriteValidatedSPN = engine.NewEdge("WriteValidatedSPN").RegisterProbabilityCalculator(calculateKerberoast).Tag("Pivot")
+	EdgeHasSPN            = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(calculateKerberoast).Tag("Pivot")
+	EdgeDontReqPreauth    = engine.NewEdge("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(calculateKerberoast).Tag("Pivot")
+
 	EdgeWriteAllowedToAct        = engine.NewEdge("WriteAllowedToAct").Tag("Pivot")
 	EdgeWriteAllowedToDelegateTo = engine.NewEdge("WriteAllowedToDelegTo").Tag("Pivot")
 	EdgeAddMember                = engine.NewEdge("AddMember").Tag("Pivot")
@@ -71,31 +89,18 @@ var (
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword").Tag("Pivot").Tag("Granted")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup").Tag("Granted")
 	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false).Tag("Granted")
-	EdgeHasSPN                               = engine.NewEdge("HasSPN").Describe("Kerberoastable by requesting Kerberos service ticket against SPN and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
-		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
-			return 50
-		}
-		// Account is disabled
-		return 0
-	}).Tag("Pivot")
-	EdgeDontReqPreauth = engine.NewEdge("DontReqPreauth").Describe("Kerberoastable by AS-REP by requesting a TGT and then bruteforcing the ticket").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
-		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
-			return 50
-		}
-		return 0
-	}).Tag("Pivot")
-	EdgeOverwritesACL              = engine.NewEdge("OverwritesACL")
-	EdgeAffectedByGPO              = engine.NewEdge("AffectedByGPO").Tag("Granted").Tag("Pivot")
-	PartOfGPO                      = engine.NewEdge("PartOfGPO").Tag("Granted").Tag("Pivot")
-	EdgeLocalAdminRights           = engine.NewEdge("AdminRights").Tag("Granted").Tag("Pivot")
-	EdgeLocalRDPRights             = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(FixedProbability(30)).Tag("Pivot")
-	EdgeLocalDCOMRights            = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(FixedProbability(30)).Tag("Pivot")
-	EdgeScheduledTaskOnUNCPath     = engine.NewEdge("SchedTaskOnUNCPath").Tag("Pivot")
-	EdgeMachineScript              = engine.NewEdge("MachineScript").Tag("Pivot")
-	EdgeWriteAltSecurityIdentities = engine.NewEdge("WriteAltSecIdent").Tag("Pivot").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled)
-	EdgeWriteProfilePath           = engine.NewEdge("WriteProfilePath").Tag("Pivot")
-	EdgeWriteScriptPath            = engine.NewEdge("WriteScriptPath").Tag("Pivot")
-	EdgeCertificateEnroll          = engine.NewEdge("CertificateEnroll").Tag("Granted")
-	EdgeCertificateAutoEnroll      = engine.NewEdge("CertificateAutoEnroll").Tag("Granted")
-	EdgeVoodooBit                  = engine.NewEdge("VoodooBit").SetDefault(false, false, false).Tag("Internal").Hidden()
+	EdgeOverwritesACL                        = engine.NewEdge("OverwritesACL")
+	EdgeAffectedByGPO                        = engine.NewEdge("AffectedByGPO").Tag("Granted").Tag("Pivot")
+	PartOfGPO                                = engine.NewEdge("PartOfGPO").Tag("Granted").Tag("Pivot")
+	EdgeLocalAdminRights                     = engine.NewEdge("AdminRights").Tag("Granted").Tag("Pivot")
+	EdgeLocalRDPRights                       = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(FixedProbability(30)).Tag("Pivot")
+	EdgeLocalDCOMRights                      = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(FixedProbability(30)).Tag("Pivot")
+	EdgeScheduledTaskOnUNCPath               = engine.NewEdge("SchedTaskOnUNCPath").Tag("Pivot")
+	EdgeMachineScript                        = engine.NewEdge("MachineScript").Tag("Pivot")
+	EdgeWriteAltSecurityIdentities           = engine.NewEdge("WriteAltSecIdent").Tag("Pivot").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled)
+	EdgeWriteProfilePath                     = engine.NewEdge("WriteProfilePath").Tag("Pivot")
+	EdgeWriteScriptPath                      = engine.NewEdge("WriteScriptPath").Tag("Pivot")
+	EdgeCertificateEnroll                    = engine.NewEdge("CertificateEnroll").Tag("Granted")
+	EdgeCertificateAutoEnroll                = engine.NewEdge("CertificateAutoEnroll").Tag("Granted")
+	EdgeVoodooBit                            = engine.NewEdge("VoodooBit").SetDefault(false, false, false).Tag("Internal").Hidden()
 )
