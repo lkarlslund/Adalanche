@@ -19,24 +19,24 @@ jobs:
         mkdir -p /opt/go /opt/go-win7
 
         echo Installing Go
-        curl -L https://go.dev/dl/go1.24.0.linux-amd64.tar.gz -o go.tar.gz
+        curl -L https://go.dev/dl/go1.24.3.linux-amd64.tar.gz -o go.tar.gz
         tar -xzf go.tar.gz -C /opt
         sudo ln -f -s /opt/go/bin/go /usr/bin/go
 
         echo Installing Go for Windows 7 compatibility
-        curl -L https://github.com/XTLS/go-win7/releases/download/patched-1.24.0/go-for-win7-linux-amd64.zip -o go-win7.zip
+        curl -L https://github.com/XTLS/go-win7/releases/download/patched-1.24.3/go-for-win7-linux-amd64.zip -o go-win7.zip
         unzip -qq go-win7.zip -d /opt/go-win7
         sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
 
-        echo Testing ...
-        ls -l /usr/bin/go*
-        ls -l /opt/go/
-        ls -l /opt/go/bin/
+        # echo Testing ...
+        # ls -l /usr/bin/go*
+        # ls -l /opt/go/
+        # ls -l /opt/go/bin/
 
-        which go
-        which go-win7
-        ls -l `which go`
-        ls -l `which go-win7`
+        # which go
+        # which go-win7
+        # ls -l `which go`
+        # ls -l `which go-win7`
 
     - name: Download cyclonedx-gomod
       uses: CycloneDX/gh-gomod-generate-sbom@v2
