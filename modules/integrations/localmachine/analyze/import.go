@@ -415,6 +415,24 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		// case loginSince <= 31:
 		// 	machine.EdgeTo(user, EdgeLocalSessionLastMonth)
 		// }
+
+		switch login.LogonType {
+		case 2, 11:
+			// Interactive or cached interactive
+			machine.EdgeTo(user, EdgeSessionLocal)
+		case 3:
+			machine.EdgeTo(user, EdgeSessionNetwork)
+			switch login.AuthenticationPackageName {
+			case "NTLM":
+				machine.EdgeTo(user, EdgeSessionNetworkNTLM)
+			case "NTLM V2":
+				machine.EdgeTo(user, EdgeSessionNetworkNTLMv2)
+			case "Kerberos":
+				machine.EdgeTo(user, EdgeSessionNetworkKerberos)
+			default:
+				ui.Debug().Msgf("Other: %v", login.AuthenticationPackageName)
+			}
+		}
 		machine.EdgeTo(user, EdgeSession)
 
 		for _, ipaddress := range login.IpAddress {
