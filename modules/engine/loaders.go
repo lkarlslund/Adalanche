@@ -167,6 +167,9 @@ func loadWithLoaders(loaders []Loader, path string, cb ProgressCallbackFunc) ([]
 		ui.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
 	}
 	ui.Info().Msgf("We produced a total of %v objects from %v", totalobjects, path)
+	if totalobjects == 0 {
+		globalerr = errors.New("No objects loaded")
+	}
 
 	return aos, globalerr
 }
