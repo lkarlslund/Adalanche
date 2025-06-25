@@ -108,9 +108,10 @@ func (a *WAD) Connect() error {
 			chosenserver = server
 			break
 		}
+		ui.Error().Msgf("Problem connecting to %v: %v - trying next server...", server, err)
 	}
 	if err != nil {
-		return fmt.Errorf("Problem connecting to all servers: %v", err)
+		return fmt.Errorf("Problem connecting to all servers, giving up")
 	}
 	ui.Info().Msgf("Connected to %v:%v", chosenserver, a.Port)
 
