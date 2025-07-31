@@ -89,7 +89,7 @@ require (
 	github.com/KimMachineGun/automemlimit v0.7.2
 	github.com/Velocidex/ordereddict v0.0.0-20230909174157-2aa49cc5d11d
 	github.com/akyoto/cache v1.0.6
-	github.com/bytedance/sonic v1.13.2
+	github.com/bytedance/sonic v1.14.0
 	github.com/elastic/go-windows v1.0.2
 	github.com/felixge/fgprof v0.9.5
 	github.com/felixge/fgtrace v0.2.0
@@ -117,7 +117,7 @@ require (
 	github.com/StackExchange/wmi v1.2.0 // indirect
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
 	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
-	github.com/bytedance/sonic/loader v0.2.4 // indirect
+	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dmarkham/enumer v1.5.11 // indirect

@@ -416,11 +416,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		// 	machine.EdgeTo(user, EdgeLocalSessionLastMonth)
 		// }
 
+		// Parse event id 4624
 		switch login.LogonType {
-		case 2, 11:
-			// Interactive or cached interactive
+		case 2, 11: // Interactive or cached interactive
 			machine.EdgeTo(user, EdgeSessionLocal)
-		case 3:
+		case 3: // Network
 			machine.EdgeTo(user, EdgeSessionNetwork)
 			switch login.AuthenticationPackageName {
 			case "NTLM":
@@ -429,9 +429,17 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				machine.EdgeTo(user, EdgeSessionNetworkNTLMv2)
 			case "Kerberos":
 				machine.EdgeTo(user, EdgeSessionNetworkKerberos)
+			case "Negotiate":
+				machine.EdgeTo(user, EdgeSessionNetworkNegotiate)
 			default:
 				ui.Debug().Msgf("Other: %v", login.AuthenticationPackageName)
 			}
+		case 4: // Batch (scheduled task)
+			machine.EdgeTo(user, EdgeSessionBatch)
+		case 5: // Service
+			machine.EdgeTo(user, EdgeSessionService)
+		case 10: // RDP
+			machine.EdgeTo(user, EdgeSessionRDP)
 		}
 		machine.EdgeTo(user, EdgeSession)
 

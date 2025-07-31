@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"encoding/binary"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,6 +87,9 @@ var (
 	msLAPSEncryptedPasswordAttributesGUID, _ = uuid.FromString("{f3531ec6-6330-4f8e-8d39-7a671fbac605}")
 
 	EdgeMachineAccount = engine.NewEdge("MachineAccount").RegisterProbabilityCalculator(activedirectory.FixedProbability(-1)).Describe("Indicates this is the domain joined computer account belonging to the machine")
+
+	// Fixme, double defined
+	EdgeSessionService = engine.NewEdge("SessionService").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as running a service on machine")
 )
 
 var warnedgpos = make(map[string]struct{})
@@ -257,6 +261,36 @@ func init() {
 			return true
 		})
 	}, "Machine configurations that are part of a GPO", engine.BeforeMergeHigh)
+
+	matchMSOLDescription := regexp.MustCompile("Account created by Microsoft Azure Active Directory Connect with installation identifier ([0-9a-f]+) running on computer ([^ ]+) configured to synchronize to tenant ([^ ]+)\\. ")
+
+	LoaderID.AddProcessor(func(ao *engine.Objects) {
+		ao.Iterate(func(o *engine.Object) bool {
+			if o.Type() != engine.ObjectTypeUser || !strings.HasPrefix(o.OneAttrString(engine.Name), "MSOL_") {
+				return true
+			}
+
+			// Try to regexp match
+			match := matchMSOLDescription.FindSubmatch([]byte(o.OneAttrString(engine.Description)))
+			if match == nil {
+				return true
+			}
+
+			// Extract the first match
+			machineName := string(match[2])
+
+			machine, found := ao.FindTwo(engine.Type, ObjectTypeMachine.ValueString(),
+				engine.Name, engine.NewAttributeValueString(machineName))
+
+			if !found {
+				ui.Warn().Msgf("%v detected as Azure Connect running on %v, but machine not found - not linking", o.OneAttrString(engine.Name), machineName)
+				return true
+			}
+
+			machine.EdgeTo(o, EdgeSessionService)
+			return true
+		})
+	}, "Link MSOL_* accounts to computers running it from description", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {

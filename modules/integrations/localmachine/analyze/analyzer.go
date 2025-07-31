@@ -22,10 +22,13 @@ var (
 	EdgeSession                 = engine.NewEdge("Session").RegisterProbabilityCalculator(activedirectory.FixedProbability(80)).Tag("Pivot").Describe("Account has some sort of session on this machine")
 	EdgeSessionLocal            = engine.NewEdge("SessionLocal").RegisterProbabilityCalculator(activedirectory.FixedProbability(55)).Tag("Pivot")
 	EdgeSessionRDP              = engine.NewEdge("SessionRDP").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot")
+	EdgeSessionService          = engine.NewEdge("SessionService").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as running a service on machine")
+	EdgeSessionBatch            = engine.NewEdge("SessionBatch").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as being used in a scheduled task on machine")
 	EdgeSessionNetwork          = engine.NewEdge("SessionNetwork").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as connecting to machine over the network")
 	EdgeSessionNetworkNTLM      = engine.NewEdge("SessionNetworkNTLM").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as connecting to machine over the network using NTLM")
 	EdgeSessionNetworkNTLMv2    = engine.NewEdge("SessionNetworkNTLMV2").RegisterProbabilityCalculator(activedirectory.FixedProbability(20)).Tag("Pivot").Describe("Account detected as connecting to machine over the network using NTLM V2")
 	EdgeSessionNetworkKerberos  = engine.NewEdge("SessionNetworkKerberos").RegisterProbabilityCalculator(activedirectory.FixedProbability(20)).Tag("Pivot").Describe("Account detected as connecting to machine over the network using Kerberos")
+	EdgeSessionNetworkNegotiate = engine.NewEdge("SessionNetworkNegotiate").RegisterProbabilityCalculator(activedirectory.FixedProbability(20)).Tag("Pivot").Describe("Account detected as connecting to machine over the network using Negotiate")
 	EdgeSessionNetworkPlaintext = engine.NewEdge("SessionNetworkPlaintext").RegisterProbabilityCalculator(activedirectory.FixedProbability(80)).Tag("Pivot").Describe("Account detected as connecting to machine over the network using plaintext credentials")
 
 	EdgeHasServiceAccountCredentials = engine.NewEdge("SvcAccntCreds").Tag("Pivot")
