@@ -50,18 +50,24 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 	result := AQLquery{
 		datasource: ao,
 		Mode:       Acyclic, // default to something sane
+		Shortest:   true,
 	}
+
+	if ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) && strings.ToUpper(ts.Token().Value) == "LONGEST" {
+		result.Shortest = false
+	}
+	ts.Next()
 
 	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "WALK":
-			result.Mode = Walk // Say goodbye to your CPU
+			result.Mode = Walk // No deduplication, allow cycles
 		case "TRAIL":
-			result.Mode = Trail
+			result.Mode = Trail // Allow cycles, but no edge may be visited twice
 		case "ACYCLIC":
-			result.Mode = Acyclic
+			result.Mode = Acyclic // Allow cycles, but no node may be visited twice
 		case "SIMPLE":
-			result.Mode = Simple
+			result.Mode = Simple // Allow cycles, but no node in working graph may be visited twice
 		// case "SHORTEST":
 		// 	result.Shortest = true
 		default:
@@ -238,26 +244,19 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		var result query.NodeFilter
 		switch operator.Type {
 		case BinaryAnd:
-			result = query.AndQuery{subqueries}
+			result = query.AndQuery{Subitems: subqueries}
 		case BinaryOr:
-			result = query.OrQuery{subqueries}
+			result = query.OrQuery{Subitems: subqueries}
 		default:
 			return nil, fmt.Errorf("Unknown LDAP operator, expected & or |, got %v", operator.Value)
 		}
 		if invert {
-			result = query.NotQuery{result}
+			result = query.NotQuery{Subitem: result}
 		}
 		return result, nil
 	}
 
 	var result query.NodeFilter
-
-	if result != nil {
-		if invert {
-			result = query.NotQuery{result}
-		}
-		return result, nil
-	}
 
 	// parse one Attribute = Value pair
 	var modifier string
@@ -405,7 +404,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 	switch len(attributes) {
 	case 0:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
-			return query.FilterAnyAttribute{aq}
+			return query.FilterAnyAttribute{Attribute: aq}
 		}
 	case 1:
 		genwrapper = func(aq query.FilterAttribute) query.NodeFilter {
@@ -493,7 +492,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		i := ts.Token().Native.(int64)
 		ts.Next()
 
-		result = genwrapper(query.BinaryAndModifier{i})
+		result = genwrapper(query.BinaryAndModifier{Value: i})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != query.CompareEquals {
 			return nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
@@ -505,7 +504,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 		i := ts.Token().Native.(int64)
 		ts.Next()
 
-		result = genwrapper(query.BinaryOrModifier{i})
+		result = genwrapper(query.BinaryOrModifier{Value: i})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
 		value, err := parseRelaxedValue(ts, ao)
@@ -538,7 +537,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 				if err != nil {
 					return nil, err
 				}
-				result = genwrapper(query.HasRegexpMatch{r})
+				result = genwrapper(query.HasRegexpMatch{RegExp: r})
 			} else if strings.ContainsAny(strval, "?*") {
 				// glob magic
 				pattern := strval
@@ -580,7 +579,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 	}
 
 	if invert {
-		result = query.NotQuery{result}
+		result = query.NotQuery{Subitem: result}
 	}
 
 	return result, nil

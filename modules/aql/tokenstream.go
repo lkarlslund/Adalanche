@@ -9,6 +9,7 @@ type TokenStream struct {
 	position int
 }
 
+// Parse the input string into a TokenStream
 func Parse(input string) (*TokenStream, error) {
 	t, err := getLexer()
 	if err != nil {
@@ -35,6 +36,8 @@ func Parse(input string) (*TokenStream, error) {
 	}
 	return &result, nil
 }
+
+// NextIfIs checks if the current token is of the given type, and if so, advances the stream
 func (ts *TokenStream) NextIfIs(id TokenID) bool {
 	result := ts.Token().Is(id)
 	if result {
@@ -42,6 +45,8 @@ func (ts *TokenStream) NextIfIs(id TokenID) bool {
 	}
 	return result
 }
+
+// Token returns the current token, or an Invalid token if at EOF
 func (ts *TokenStream) Token() Token {
 	if ts.position < len(ts.data) {
 		return ts.data[ts.position]
@@ -50,6 +55,8 @@ func (ts *TokenStream) Token() Token {
 		Type: Invalid,
 	}
 }
+
+// Peek the next token, skipping any whitespace
 func (ts *TokenStream) PeekNextToken() Token {
 	pos := ts.position + 1
 	for ts.data[pos].Is(Whitespace) {
@@ -63,6 +70,7 @@ func (ts *TokenStream) PeekNextToken() Token {
 	}
 }
 
+// Peek the next token, including whitespace
 func (ts *TokenStream) PeekNextRawToken() Token {
 	pos := ts.position + 1
 	if pos < len(ts.data) {
@@ -73,6 +81,7 @@ func (ts *TokenStream) PeekNextRawToken() Token {
 	}
 }
 
+// Move to the next token, skipping any whitespace
 func (ts *TokenStream) Prev() bool {
 	if ts.position > 0 {
 		ts.position--
@@ -83,6 +92,8 @@ func (ts *TokenStream) Prev() bool {
 	}
 	return false
 }
+
+// Move to the next token, skipping any whitespace
 func (ts *TokenStream) Next() bool {
 	ts.position++
 	for ts.Token().Is(Whitespace) {
@@ -90,6 +101,8 @@ func (ts *TokenStream) Next() bool {
 	}
 	return ts.position < len(ts.data)
 }
+
+// Snarf text until the next token of the given type is encountered.
 func (ts *TokenStream) SnarfTextUntil(id TokenID) string {
 	var result string
 	for !ts.EOF() && !ts.Token().Is(id) {
@@ -99,6 +112,8 @@ func (ts *TokenStream) SnarfTextUntil(id TokenID) string {
 	}
 	return result
 }
+
+// EOF returns true if we are at the end of the token stream
 func (ts *TokenStream) EOF() bool {
 	return !(ts.position < len(ts.data))
 }
