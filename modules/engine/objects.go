@@ -56,7 +56,7 @@ func (os *Objects) GetIndex(attribute Attribute) *Index {
 		os.indexlock.Lock()
 		// Someone might have beaten us to it?
 		if len(os.indexes) <= int(attribute) {
-			newindexes := make([]*Index, attribute+1, attribute+1)
+			newindexes := make([]*Index, attribute+1)
 			copy(newindexes, os.indexes)
 			os.indexes = newindexes
 		}

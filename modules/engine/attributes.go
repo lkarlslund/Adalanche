@@ -317,9 +317,7 @@ func Attributes() []Attribute {
 func AttributeInfos() []attributeinfo {
 	result := make([]attributeinfo, len(attributeinfos))
 	attributemutex.RLock()
-	for i := 0; i < len(attributeinfos); i++ {
-		result[i] = attributeinfos[i]
-	}
+	copy(result, attributeinfos)
 	attributemutex.RUnlock()
 	return result
 }
