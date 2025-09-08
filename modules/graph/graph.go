@@ -2,6 +2,7 @@ package graph
 
 import (
 	"errors"
+	"maps"
 
 	"github.com/gammazero/deque"
 )
@@ -37,6 +38,15 @@ func NewGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface
 		nodes: make(map[NodeType]map[string]any),
 		edges: make(map[NodePair[NodeType]]Edge[EdgeType]),
 	}
+}
+
+func (pg *Graph[NodeType, EdgeType]) Clone() *Graph[NodeType, EdgeType] {
+	newGraph := NewGraph[NodeType, EdgeType]()
+	if pg != nil {
+		newGraph.edges = maps.Clone(pg.edges)
+		newGraph.nodes = maps.Clone(pg.nodes)
+	}
+	return &newGraph
 }
 
 func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
