@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 
@@ -218,4 +219,32 @@ func ExePath() (string, error) {
 func PathExists(name string) bool {
 	_, err := os.Stat(name)
 	return err == nil // invalid path names on Windows returns strange errors, so just check for nil error
+}
+
+// CompareStringsCaseInsensitiveUnicodeFast compares two strings case-insensitively (Unicode-aware).
+// Returns 0 if equal, <0 if a < b, >0 if a > b.
+// This version avoids []rune allocations and is as fast as possible for Unicode.
+func CompareStringsCaseInsensitiveUnicodeFast(a, b string) int {
+	for len(a) > 0 && len(b) > 0 {
+		ra, sizeA := utf8.DecodeRuneInString(a)
+		rb, sizeB := utf8.DecodeRuneInString(b)
+		la := unicode.ToLower(ra)
+		lb := unicode.ToLower(rb)
+		if la != lb {
+			if la < lb {
+				return -1
+			}
+			return 1
+		}
+		a = a[sizeA:]
+		b = b[sizeB:]
+	}
+	switch {
+	case len(a) < len(b):
+		return -1
+	case len(a) > len(b):
+		return 1
+	default:
+		return 0
+	}
 }

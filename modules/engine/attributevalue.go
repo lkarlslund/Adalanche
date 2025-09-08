@@ -9,6 +9,7 @@ import (
 	"unique"
 
 	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -139,7 +140,7 @@ func (as AttributeValueString) Compare(c AttributeValue) int {
 			return 0
 		}
 	}
-	return strings.Compare(as.String(), c.String())
+	return util.CompareStringsCaseInsensitiveUnicodeFast(as.String(), c.String())
 }
 
 type AttributeValueBool bool
