@@ -32,7 +32,7 @@ require (
 	github.com/gomarkdown/markdown v0.0.0-20250810172220-2e2c11897d1a
 	github.com/google/certtostore v1.0.5
 	github.com/gorilla/websocket v1.5.3
-	github.com/gravwell/gravwell/v3 v3.8.71
+	github.com/gravwell/gravwell/v3 v3.8.52
 	github.com/icza/gox v0.2.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/json-iterator/go v1.1.12
@@ -43,7 +43,7 @@ require (
 	github.com/lkarlslund/stringsplus v0.0.0-20211104080454-45e60fe6edc0
 	github.com/lkarlslund/time-timespan v0.0.0-20210712111050-6e7c565fa001
 	github.com/mattn/go-colorable v0.1.14
-	github.com/pierrec/lz4/v4 v4.1.22
+	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync v1.5.2
 	github.com/rs/zerolog v1.34.0
@@ -55,7 +55,7 @@ require (
 	go.etcd.io/bbolt v1.4.3
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/sys v0.36.0
-	golang.org/x/term v0.34.0
+	golang.org/x/term v0.35.0
 	golang.org/x/text v0.29.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
