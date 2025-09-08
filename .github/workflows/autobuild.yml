@@ -8,11 +8,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code with all commits
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
     - name: Set up Go
       run: |
         sudo chmod 777 /opt
@@ -31,6 +26,11 @@ jobs:
       uses: CycloneDX/gh-gomod-generate-sbom@v2
       with:
         version: v1
+
+    - name: Checkout code with all commits
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Build
       run: ./build.ps1
