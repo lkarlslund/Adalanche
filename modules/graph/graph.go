@@ -40,13 +40,13 @@ func NewGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface
 	}
 }
 
-func (pg *Graph[NodeType, EdgeType]) Clone() *Graph[NodeType, EdgeType] {
+func (pg *Graph[NodeType, EdgeType]) Clone() Graph[NodeType, EdgeType] {
 	newGraph := NewGraph[NodeType, EdgeType]()
 	if pg != nil {
 		newGraph.edges = maps.Clone(pg.edges)
 		newGraph.nodes = maps.Clone(pg.nodes)
 	}
-	return &newGraph
+	return newGraph
 }
 
 func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
@@ -54,7 +54,9 @@ func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
 }
 
 func (pg *Graph[NodeType, EdgeType]) AddNode(newnode NodeType) {
-	pg.nodes[newnode] = nil
+	if !pg.HasNode(newnode) {
+		pg.nodes[newnode] = nil
+	}
 }
 
 func (pg *Graph[NodeType, EdgeType]) HasNode(find NodeType) (found bool) {

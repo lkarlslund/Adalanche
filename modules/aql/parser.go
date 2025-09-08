@@ -53,16 +53,10 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 		Shortest:   true,
 	}
 
-	if ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
+	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "LONGEST":
 			result.Shortest = false
-			ts.Next()
-		}
-	}
-
-	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
-		switch strings.ToUpper(ts.Token().Value) {
 		case "WALK":
 			result.Mode = Walk // No deduplication, allow cycles
 		case "TRAIL":

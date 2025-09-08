@@ -2,6 +2,7 @@ package aql
 
 import (
 	"errors"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -175,8 +176,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	nodeindex := 0
 	// Iterate over all starting nodes
 	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Object) bool {
-		searchResult := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
-		aqlq.resolveEdgesFrom(opts, &searchResult, nil, o, 0, 0, 0, 1)
+		searchResult := aqlq.resolveEdgesFrom(opts, o)
 		resultlock.Lock()
 		defer resultlock.Unlock()
 		if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
@@ -184,7 +184,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 			return true
 		}
 		return false
-	}, 0)
+	}, runtime.NumCPU())
 	return &result, nil
 }
 
@@ -196,53 +196,57 @@ var (
 
 func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
-	committedGraph *graph.Graph[*engine.Object, engine.EdgeBitmap],
-	workingGraph *graph.Graph[*engine.Object, engine.EdgeBitmap],
 	startObject *engine.Object,
-	startSearchIndex int,
-	_ int, // currentDepth, unused in BFS
-	_ int, // currentTotalDepth, unused in BFS
-	_ float64, // currentOverAllProbability, unused in BFS
-) {
+) graph.Graph[*engine.Object, engine.EdgeBitmap] {
+
+	committedGraph := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+
 	type searchState struct {
 		currentObject             *engine.Object
-		workingGraph              *graph.Graph[*engine.Object, engine.EdgeBitmap]
-		path                      []*engine.Object
-		currentSearchIndex        int
-		currentDepth              int
-		currentTotalDepth         int
+		workingGraph              graph.Graph[*engine.Object, engine.EdgeBitmap]
+		currentSearchIndex        int // index into Next and sourceCache patterns
+		currentDepth              int // depth in current edge searcher
+		currentTotalDepth         int // total depth in all edge searchers (for total depth limiting)
 		currentOverAllProbability float64
 	}
 
+	// Initialize the search queue with the starting object and search index
+	initialWorkingGraph := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+	initialWorkingGraph.AddNode(startObject)
+	initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
 	queue := []searchState{{
 		currentObject:             startObject,
-		currentSearchIndex:        startSearchIndex,
-		path:                      []*engine.Object{startObject},
-		workingGraph:              workingGraph,
+		currentSearchIndex:        0,
+		workingGraph:              initialWorkingGraph,
 		currentDepth:              0,
 		currentTotalDepth:         0,
 		currentOverAllProbability: 1,
 	}}
 
-	foundTargets := make(map[*engine.Object]bool)
-
 	for len(queue) > 0 {
-		var state searchState
+		// Check if we've reached the node limit
+		if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+			break
+		}
+
+		var currentState searchState
 		if aqlq.Shortest {
 			// Pop from front for BFS (standard, shortest results)
-			state = queue[0]
+			currentState = queue[0]
 			queue = queue[1:]
 		} else {
 			// Pop from end for DFS
-			state = queue[len(queue)-1]
+			currentState = queue[len(queue)-1]
 			queue = queue[:len(queue)-1]
 		}
+		nextDepth := currentState.currentDepth + 1
+		nextTotalDepth := currentState.currentTotalDepth + 1
 
-		es := aqlq.Next[state.currentSearchIndex]
-		targets := aqlq.sourceCache[state.currentSearchIndex+1]
+		thisEdgeSearcher := aqlq.Next[currentState.currentSearchIndex]
+		nextTargets := aqlq.sourceCache[currentState.currentSearchIndex+1]
 
 		var directions []engine.EdgeDirection
-		switch es.Direction {
+		switch thisEdgeSearcher.Direction {
 		case engine.In:
 			directions = directionsIn
 		case engine.Out:
@@ -252,50 +256,60 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		// Optionally skip this edge searcher if MinIterations == 0
-		if es.MinIterations == 0 && state.currentDepth == 0 {
-			if len(aqlq.Next) > state.currentSearchIndex+1 {
+		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
+			// We can skip this one!
+			if len(aqlq.Next) > currentState.currentSearchIndex+1 {
 				queue = append(queue, searchState{
-					currentObject:             state.currentObject,
-					currentSearchIndex:        state.currentSearchIndex + 1,
-					path:                      state.path,
-					workingGraph:              state.workingGraph,
+					currentObject:             currentState.currentObject,
+					currentSearchIndex:        currentState.currentSearchIndex + 1,
+					workingGraph:              currentState.workingGraph,
 					currentDepth:              0,
-					currentTotalDepth:         state.currentTotalDepth + 1,
-					currentOverAllProbability: state.currentOverAllProbability,
+					currentTotalDepth:         currentState.currentTotalDepth,
+					currentOverAllProbability: currentState.currentOverAllProbability,
 				})
-				continue
 			} else {
-				committedGraph.Merge(*state.workingGraph)
-				continue
+				// The last edge searcher is not required, so add this as a match
+				committedGraph.Merge(currentState.workingGraph)
+				committedGraph.SetNodeData(currentState.currentObject, "reference", aqlq.Sources[currentState.currentSearchIndex].Reference)
 			}
 		}
 
-		for _, direction := range directions {
-			nextDepth := state.currentDepth + 1
-			nextTotalDepth := state.currentTotalDepth + 1
+		// Reached max depth for this edge searcher, cannot continue
+		if nextDepth > thisEdgeSearcher.MaxIterations {
+			continue
+		}
 
-			state.currentObject.Edges(direction).Range(func(nextObject *engine.Object, eb engine.EdgeBitmap) bool {
+		for _, direction := range directions {
+			currentState.currentObject.Edges(direction).Range(func(nextObject *engine.Object, eb engine.EdgeBitmap) bool {
 				if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 					return false
 				}
+
+				// Next node is not a match
+				if nextTargets != nil && !nextTargets.Contains(nextObject) {
+					return true
+				}
+
+				// Check homomorphism requirements
 				switch aqlq.Mode {
 				case Trail:
-					if committedGraph.HasEdge(state.currentObject, nextObject) || (state.workingGraph != nil && state.workingGraph.HasEdge(state.currentObject, nextObject)) {
+					if committedGraph.HasEdge(currentState.currentObject, nextObject) || currentState.workingGraph.HasEdge(currentState.currentObject, nextObject) {
 						return true
 					}
 				case Acyclic:
-					if committedGraph.HasNode(nextObject) || (state.workingGraph != nil && state.workingGraph.HasNode(nextObject)) {
+					if committedGraph.HasNode(nextObject) || currentState.workingGraph.HasNode(nextObject) {
 						return true
 					}
 				case Simple:
-					if state.workingGraph != nil && state.workingGraph.HasNode(nextObject) {
+					if currentState.workingGraph.HasNode(nextObject) {
 						return true
 					}
 				}
 
-				matchedEdges := es.FilterEdges.Bitmap.Intersect(eb)
-				if es.FilterEdges.Comparator != query.CompareInvalid {
-					if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
+				// Check if the edge is a match
+				matchedEdges := thisEdgeSearcher.FilterEdges.Bitmap.Intersect(eb)
+				if thisEdgeSearcher.FilterEdges.Comparator != query.CompareInvalid {
+					if !query.Comparator[int64](thisEdgeSearcher.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.Count) {
 						return true
 					}
 				} else {
@@ -304,79 +318,67 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					}
 				}
 
-				if es.pathNodeRequirementCache != nil && !es.pathNodeRequirementCache.Contains(nextObject) {
+				if thisEdgeSearcher.pathNodeRequirementCache != nil && !thisEdgeSearcher.pathNodeRequirementCache.Contains(nextObject) {
 					return true
 				}
 
-				edgeProbability := matchedEdges.MaxProbability(state.currentObject, nextObject)
-				if es.ProbabilityComparator != query.CompareInvalid {
-					if !query.Comparator[engine.Probability](es.ProbabilityComparator).Compare(edgeProbability, es.ProbabilityValue) {
-						return true
-					}
+				edgeProbability := matchedEdges.MaxProbability(currentState.currentObject, nextObject)
+				if !query.Comparator[engine.Probability](thisEdgeSearcher.ProbabilityComparator).Compare(edgeProbability, thisEdgeSearcher.ProbabilityValue) {
+					return true
 				}
+
 				if edgeProbability < opts.MinEdgeProbability {
 					return true
 				}
 
-				nextOverAllProbability := state.currentOverAllProbability * float64(edgeProbability) / 100
-				if nextOverAllProbability*100 < float64(aqlq.OverAllProbability) {
+				nextOverAllProbability := currentState.currentOverAllProbability * float64(edgeProbability)
+				if nextOverAllProbability < float64(aqlq.OverAllProbability) {
 					return true
 				}
+				nextOverAllProbability = nextOverAllProbability / 100 // make it 0-1 float
 
 				addedge := matchedEdges
-				if es.FilterEdges.NoTrimEdges {
+				if thisEdgeSearcher.FilterEdges.NoTrimEdges {
 					addedge = eb
 				}
 
-				// Prepare a new working graph for this path, handles nil inteligently
-				newWorkingGraph := state.workingGraph.Clone()
-
-				hadCurrentNode := newWorkingGraph.HasNode(state.currentObject)
-				hadNextNode := newWorkingGraph.HasNode(nextObject)
+				// Valid next object
+				newWorkingGraph := currentState.workingGraph.Clone()
 				if direction == engine.Out {
-					newWorkingGraph.AddEdge(state.currentObject, nextObject, addedge)
+					newWorkingGraph.AddEdge(currentState.currentObject, nextObject, addedge)
 				} else {
-					newWorkingGraph.AddEdge(nextObject, state.currentObject, addedge)
-				}
-				if !hadCurrentNode && aqlq.Sources[state.currentSearchIndex].Reference != "" {
-					newWorkingGraph.SetNodeData(state.currentObject, "reference", aqlq.Sources[state.currentSearchIndex].Reference)
+					newWorkingGraph.AddEdge(nextObject, currentState.currentObject, addedge)
 				}
 
-				if nextDepth >= es.MinIterations && nextDepth <= es.MaxIterations {
-					if targets.Contains(nextObject) {
-						if state.currentSearchIndex == len(aqlq.Next)-1 {
-							if !foundTargets[nextObject] {
-								if !hadNextNode && aqlq.Sources[state.currentSearchIndex+1].Reference != "" {
-									newWorkingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[state.currentSearchIndex+1].Reference)
-								}
-								committedGraph.Merge(*newWorkingGraph)
-								foundTargets[nextObject] = true
-							}
-							// if !hadNextNode && aqlq.Sources[state.currentSearchIndex+1].Reference != "" {
-							// 	newWorkingGraph.SetNodeData(nextObject, "reference", aqlq.Sources[state.currentSearchIndex+1].Reference)
-							// }
-							// committedGraph.Merge(*newWorkingGraph)
-						} else {
-							// Not done yet, so let's enqueue the next search state
-							if opts.MaxDepth >= 0 && nextTotalDepth < opts.MaxDepth {
-								queue = append(queue, searchState{
-									currentObject:             nextObject,
-									currentSearchIndex:        state.currentSearchIndex + 1,
-									path:                      append(state.path, nextObject),
-									workingGraph:              newWorkingGraph,
-									currentDepth:              0,
-									currentTotalDepth:         nextTotalDepth,
-									currentOverAllProbability: nextOverAllProbability,
-								})
-							}
-						}
+				if nextDepth >= thisEdgeSearcher.MinIterations {
+					// queue next search index
+					if currentState.currentSearchIndex < len(aqlq.Next)-1 {
+						queue = append(queue, searchState{
+							currentObject:             nextObject,
+							currentSearchIndex:        currentState.currentSearchIndex + 1,
+							workingGraph:              newWorkingGraph,
+							currentDepth:              0,
+							currentTotalDepth:         nextTotalDepth,
+							currentOverAllProbability: nextOverAllProbability,
+						})
+					}
+
+					if currentState.currentSearchIndex == len(aqlq.Next)-1 {
+						// We've reached the end of the current search index, so let's merge the working graph into the committed graph - it's a complete match
+						committedGraph.Merge(newWorkingGraph)
+						committedGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentState.currentSearchIndex+1].Reference)
+					}
+
+					// check overall node limit
+					if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+						return false
 					}
 				}
-				if nextDepth < es.MaxIterations {
+
+				if nextDepth < thisEdgeSearcher.MaxIterations {
 					queue = append(queue, searchState{
 						currentObject:             nextObject,
-						currentSearchIndex:        state.currentSearchIndex,
-						path:                      append(state.path, nextObject),
+						currentSearchIndex:        currentState.currentSearchIndex,
 						workingGraph:              newWorkingGraph,
 						currentDepth:              nextDepth,
 						currentTotalDepth:         nextTotalDepth,
@@ -387,6 +389,8 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			})
 		}
 	}
+
+	return committedGraph
 }
 
 type SkipLimiter int
