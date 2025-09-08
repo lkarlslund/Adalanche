@@ -53,10 +53,13 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 		Shortest:   true,
 	}
 
-	if ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) && strings.ToUpper(ts.Token().Value) == "LONGEST" {
-		result.Shortest = false
+	if ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
+		switch strings.ToUpper(ts.Token().Value) {
+		case "LONGEST":
+			result.Shortest = false
+			ts.Next()
+		}
 	}
-	ts.Next()
 
 	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
@@ -68,8 +71,6 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 			result.Mode = Acyclic // Allow cycles, but no node may be visited twice
 		case "SIMPLE":
 			result.Mode = Simple // Allow cycles, but no node in working graph may be visited twice
-		// case "SHORTEST":
-		// 	result.Shortest = true
 		default:
 			return nil, fmt.Errorf("Unknown query mode: %v", ts.Token().Value)
 		}
