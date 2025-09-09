@@ -45,7 +45,6 @@ jobs:
     - name: Create tag "devbuild" for current commit
       uses: rickstaa/action-create-tag@v1
       if: startsWith(github.ref, 'refs/tags/') != true
-      id: "tag_create"
       with:
         tag: "devbuild"
         force_push_tag: true
@@ -56,6 +55,8 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }} 
         output: CHANGELOG.txt
+        issues: false
+        sinceTag: "latestrelease"
 
     - name: Pre-release
       uses: softprops/action-gh-release@v2
@@ -67,6 +68,20 @@ jobs:
         # generate_release_notes: true
         files: |
           binaries/*
+
+    - name: Remove latestrelease
+      continue-on-error: true
+      run: gh release delete "latestrelease" --cleanup-tag
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create tag "latestrelease" for current commit
+      uses: rickstaa/action-create-tag@v1
+      if: startsWith(github.ref, 'refs/tags/') != true
+      with:
+        tag: "latestrelease"
+        force_push_tag: true
+        message: "Latest release build"
 
     - name: Release
       uses: softprops/action-gh-release@v2
