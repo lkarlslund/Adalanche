@@ -30,15 +30,6 @@ function BuildVariants {
       Write-Output "Building $prefix for $currentos-$namearch..."
 
       & $BUILDER build -ldflags "$ldflags" -o binaries/$prefix-$currentos-$namearch-$VERSION$suffix @compileflags $path
-
-      if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue)
-      {
-        $sbom = "binaries/$prefix-$currentos-$namearch-$VERSION$suffix.bom.json"
-        if (!(Test-Path $sbom)) {
-        Write-Output "Generating $prefix SBOM for $currentos-$namearch..."
-        cyclonedx-gomod app -json -licenses -output $sbom -main $path .
-        }
-      }
     }
   }
 }
@@ -71,3 +62,11 @@ if (Get-Command "go-win7" -ErrorAction SilentlyContinue) {
 
 BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "32bit,collector") -prefix adalanche-collector -path ./adalanche -arch @("386") -os @("windows") -suffix ".exe"
 BuildVariants -ldflags "$LDFLAGS -s" -compileflags @("-trimpath", "-tags", "collector") -prefix adalanche-collector -path ./adalanche -arch @("amd64") -os @("windows") -suffix ".exe"
+
+if (Get-Command "cyclonedx-gomod" -ErrorAction SilentlyContinue) {
+  $sbom = "binaries/adalanche-sbom.json"
+  if (!(Test-Path $sbom)) {
+    Write-Output "Generating SBOM ..."
+    cyclonedx-gomod app -json -licenses -output $sbom -main $path ./adalanche
+  }
+}
