@@ -8,17 +8,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Set up Go 1.25.1
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.1' # The Go version to download (if necessary) and use.  
     - name: Set up Go
       run: |
         sudo chmod 777 /opt
-        mkdir -p /opt/go /opt/go-win7
-
-        echo Installing Go
-        curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz -o go.tar.gz
-        tar -xzf go.tar.gz -C /opt
-        sudo ln -f -s /opt/go/bin/go /usr/bin/go
+        
+        # echo Installing Go
+        # mkdir -p /opt/go
+        # curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz -o go.tar.gz
+        # tar -xzf go.tar.gz -C /opt
+        # sudo ln -f -s /opt/go/bin/go /usr/bin/go
 
         echo Installing Go for Windows 7 compatibility
+        mkdir -p /opt/go-win7
         curl -L https://github.com/XTLS/go-win7/releases/download/patched-1.25.1/go-for-win7-linux-amd64.zip -o go-win7.zip
         unzip -qq go-win7.zip -d /opt/go-win7
         sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
@@ -69,15 +74,9 @@ jobs:
         files: |
           binaries/*
 
-    - name: Remove latestrelease
-      continue-on-error: true
-      run: gh release delete "latestrelease" --cleanup-tag
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Create tag "latestrelease" for current commit
       uses: rickstaa/action-create-tag@v1
-      if: startsWith(github.ref, 'refs/tags/') != true
+      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag: "latestrelease"
         force_push_tag: true
