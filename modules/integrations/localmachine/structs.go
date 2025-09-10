@@ -97,6 +97,7 @@ type Service struct {
 	RequiredPrivileges   []string `json:",omitempty"`
 	Start                int      `json:",omitempty"`
 	Type                 int      `json:",omitempty"`
+	SecurityDescriptor   []byte   `json:",omitempty"`
 }
 type Software struct {
 	InstallDate     time.Time `json:"installDate"`

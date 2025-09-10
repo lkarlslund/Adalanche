@@ -647,6 +647,39 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				}
 			}
 		}
+
+		// Service Control Manager security descriptor
+		if len(service.SecurityDescriptor) > 0 {
+			sd := &engine.SecurityDescriptor{
+				Raw: string(service.SecurityDescriptor),
+			}
+			if err := sd.Parse(); err == nil {
+				for _, entry := range sd.DACL.Entries {
+					entrysid := entry.SID
+					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
+						var o *engine.Object
+						if entrysid == windowssecurity.SystemSID {
+							o = machine
+						} else {
+							o = ao.FindOrAddSID(entrysid)
+							if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
+								o.SetFlex(
+									engine.DataSource, uniquesource,
+								)
+							}
+						}
+						if entry.Mask&(engine.SERVICE_CHANGE_CONFIG|
+							engine.WRITE_DAC|
+							engine.WRITE_OWNER) != 0 || entry.Mask&engine.SERVICE_ALL_ACCESS != 0 {
+							o.EdgeTo(serviceobject, EdgeServiceModify)
+						}
+					}
+				}
+			}
+		} else {
+			ui.Warn().Msgf("Could not parse computer %v service %v SCM security descriptor: %v", cinfo.Machine.Name, service.Name, err)
+		}
+
 		// Change service executable contents
 		serviceimageobject := engine.NewObject(
 			activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
