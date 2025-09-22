@@ -324,6 +324,17 @@ func init() {
 	}, "Indicator for possible false positives, as the ACL contains DENY entries", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
+
+		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
+		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
+		var disableOwnerImplicitRights bool
+		if ds, found := ao.Find(engine.DistinguishedName, engine.NewAttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
+			excluded := ds.OneAttrString(activedirectory.DsHeuristics)
+			if len(excluded) >= 29 {
+				disableOwnerImplicitRights = string(excluded[28]) == "1"
+			}
+		}
+
 		ao.Iterate(func(o *engine.Object) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -337,9 +348,14 @@ func init() {
 					aclhasdeny = true
 				}
 			}
+			if disableOwnerImplicitRights && o.Type() == engine.ObjectTypeComputer {
+				return true // Skibidi it
+			}
+
 			if !sd.Owner.IsNull() && !aclhasdeny {
 				ao.FindOrAddAdjacentSID(sd.Owner, o).EdgeTo(o, activedirectory.EdgeOwns)
 			}
+
 			return true
 		})
 	}, "Indicator that someone owns an object", engine.BeforeMergeFinal)
