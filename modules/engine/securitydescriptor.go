@@ -69,7 +69,6 @@ const (
 	KEY_SET_VALUE          = 0x0002
 
 	// FILE PERMISSIONS
-
 	FILE_READ_DATA        = 0x00000001 // Grants the right to read data from the file.
 	FILE_LIST_DIRECTORY   = 0x00000001 // Grants the right to read data from the file. For a directory, this value grants the right to list the contents of the directory.
 	FILE_WRITE_DATA       = 0x00000002 // Grants the right to write data to the file.
@@ -88,6 +87,18 @@ const (
 	WRITE_DAC             = 0x00040000 // Grants the right to modify the DACL in the object security descriptor for the object.
 	WRITE_OWNER           = 0x00080000 // Grants the right to change the owner in the security descriptor for the object.
 	SYNCHRONIZE           = 0x00100000
+
+	// SERVICE PERMISSIONS
+	SERVICE_QUERY_CONFIG         = 0x0001
+	SERVICE_CHANGE_CONFIG        = 0x0002
+	SERVICE_QUERY_STATUS         = 0x0004
+	SERVICE_ENUMERATE_DEPENDENTS = 0x0008
+	SERVICE_START                = 0x0010
+	SERVICE_STOP                 = 0x0020
+	SERVICE_PAUSE_CONTINUE       = 0x0040
+	SERVICE_INTERROGATE          = 0x0080
+	SERVICE_USER_DEFINED_CONTROL = 0x0100
+	SERVICE_ALL_ACCESS           = 0xF01FF
 )
 
 func ParseSDDL(sddl string) (ACL, error) {

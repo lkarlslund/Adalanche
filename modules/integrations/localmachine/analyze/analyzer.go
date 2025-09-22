@@ -45,6 +45,8 @@ var (
 	EdgeRegistryModifyDACL           = engine.NewEdge("RegistryModifyDACL")
 	EdgeRegistryModifyOwner          = engine.NewEdge("RegistryModifyOwner")
 
+	EdgeServiceModify = engine.NewEdge("ServiceModify")
+
 	EdgeSeBackupPrivilege        = engine.NewEdge("SeBackupPrivilege")
 	EdgeSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")
 	EdgeSeTakeOwnershipPrivilege = engine.NewEdge("SeTakeOwnershipPrivilege")

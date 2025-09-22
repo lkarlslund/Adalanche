@@ -536,6 +536,7 @@ func Collect() (localmachine.Info, error) {
 				if err == nil {
 					stype, _, _ := service_key.GetIntegerValue("Type")
 					if stype >= 16 {
+						// get service details
 						displayname, _, _ := service_key.GetStringValue("DisplayName")
 						description, _, _ := service_key.GetStringValue("Description")
 						objectname, _, _ := service_key.GetStringValue("ObjectName")
@@ -544,8 +545,16 @@ func Collect() (localmachine.Info, error) {
 						requiredPrivileges, _, _ := service_key.GetStringsValue("RequiredPrivileges")
 						start, _, _ := service_key.GetIntegerValue("Start")
 
-						// Grab ImagePath key security
+						// Grab service key security
 						registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+
+						// get security descriptor under Security/Security
+						var sd []byte
+						service_key_security, err := registry.OpenKey(service_key, `Security`,
+							registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+						if err == nil {
+							sd, _, _ = service_key_security.GetBinaryValue("Security")
+						}
 
 						// let's see if we can grab a DACL
 						var imagepathowner string
@@ -622,6 +631,7 @@ func Collect() (localmachine.Info, error) {
 							Account:              objectname,
 							AccountSID:           objectnamesid,
 							RequiredPrivileges:   requiredPrivileges,
+							SecurityDescriptor:   sd,
 						})
 					}
 					service_key.Close()
