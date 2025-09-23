@@ -90,12 +90,23 @@ var (
 	PowerUsersSID, _         = ParseStringSID("S-1-5-32-547")
 	DCOMUsersSID, _          = ParseStringSID("S-1-5-32-562")
 
-	OwnerSID, _              = ParseStringSID("S-1-3-4")
-	CreatorOwnerSID, _       = ParseStringSID("S-1-3-0")
-	CreatorGroupSID, _       = ParseStringSID("S-1-3-1")
-	SelfSID, _               = ParseStringSID("S-1-5-10")
-	AuthenticatedUsersSID, _ = ParseStringSID("S-1-5-11")
-	EveryoneSID, _           = ParseStringSID("S-1-1-0")
+	OwnerSID, _                    = ParseStringSID("S-1-3-4")
+	CreatorOwnerSID, _             = ParseStringSID("S-1-3-0")
+	CreatorGroupSID, _             = ParseStringSID("S-1-3-1")
+	SelfSID, _                     = ParseStringSID("S-1-5-10")
+	AuthenticatedUsersSID, _       = ParseStringSID("S-1-5-11")
+	EveryoneSID, _                 = ParseStringSID("S-1-1-0")
+	EnterpriseDomainControllers, _ = ParseStringSID("S-1-5-9")
+
+	UsersSID, _            = ParseStringSID("S-1-5-32-545")
+	ServerOperatorsSID, _  = ParseStringSID("S-1-5-32-549")
+	PrintOperatorsSID, _   = ParseStringSID("S-1-5-32-550")
+	NetworkSID, _          = ParseStringSID("S-1-5-2")
+	LocalSID, _            = ParseStringSID("S-1-5-2-0")
+	PrinterOperatorsSID, _ = ParseStringSID("S-1-5-32-550")
+
+	LocalSystemSID, _  = ParseStringSID("S-1-5-18")
+	NetworkLogonSID, _ = ParseStringSID("S-1-5-2")
 
 	ServicesSID, _ = ParseStringSID("S-1-5-6")
 

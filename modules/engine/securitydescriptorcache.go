@@ -9,20 +9,21 @@ var (
 )
 
 // Parse and cache security descriptor
-func CacheOrParseSecurityDescriptor(rawsd string) (*SecurityDescriptor, error) {
+func CacheOrParseSecurityDescriptor(rawsd string) (SecurityDescriptor, error) {
 	if len(rawsd) == 0 {
-		return nil, ErrEmptySecurityDescriptorAttribute
+		return SecurityDescriptor{}, ErrEmptySecurityDescriptorAttribute
 	}
 
-	newsd := &SecurityDescriptor{
-		Raw: rawsd,
-	}
-
-	sd, found := securityDescriptorCache.LoadOrStore(rawsd, newsd)
+	sd, found := securityDescriptorCache.Load(rawsd)
 	if found {
-		return sd.(*SecurityDescriptor), nil
+		return sd.(SecurityDescriptor), nil
 	}
 
-	err := newsd.Parse()
+	newsd, err := ParseSecurityDescriptor([]byte(rawsd))
+	if err != nil {
+		return newsd, err
+	}
+
+	securityDescriptorCache.Store(rawsd, newsd)
 	return newsd, err
 }

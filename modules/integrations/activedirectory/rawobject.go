@@ -182,7 +182,7 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
 			sd, err := engine.CacheOrParseSecurityDescriptor(value)
 			if err == nil {
-				attributevalue = engine.AttributeValueSecurityDescriptor{sd}
+				attributevalue = engine.AttributeValueSecurityDescriptor{&sd}
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to security descriptor: %v", attribute.String(), []byte(value), err)
 			}

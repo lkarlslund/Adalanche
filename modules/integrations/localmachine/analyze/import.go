@@ -478,7 +478,38 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		)
 		machine.EdgeTo(user, EdgeHasAutoAdminLogonCredentials)
 	}
-	// SERVICES
+
+	// SERVICE CONTROL MANAGER
+	if len(cinfo.ServiceControlManagerSecurityDescriptor) > 0 {
+		// Parse the SCM security descriptor
+		if sd, err := engine.ParseSecurityDescriptor(cinfo.ServiceControlManagerSecurityDescriptor); err == nil {
+			for _, entry := range sd.DACL.Entries {
+				entrysid := entry.SID
+				if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
+					// if we have local admin it's already game over so don't map this
+					continue
+				}
+				// Create service permission check
+				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED &&
+					entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE == 0 &&
+					entry.Mask&engine.SC_MANAGER_CREATE_SERVICE != 0 {
+					o := ao.AddNew(
+						activedirectory.ObjectSid, engine.NewAttributeValueSID(entrysid),
+					)
+					if entrysid != windowssecurity.EveryoneSID && (entrysid.StripRID() == localsid || entrysid.Component(2) != 21) {
+						o.SetFlex(
+							engine.DataSource, uniquesource,
+						)
+					}
+					o.EdgeTo(machine, EdgeCreateService)
+				}
+			}
+		} else {
+			ui.Warn().Msgf("Can't parse Service Control Manager security descriptor on %v: %v", cinfo.Machine.Name, err)
+		}
+	}
+
+	// INDIVIDUAL SERVICES
 	servicescontainer := engine.NewObject(activedirectory.Name, "Services")
 	ao.Add(servicescontainer)
 	servicescontainer.ChildOf(machine)
@@ -584,6 +615,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if svcaccount != nil {
 			if serviceaccountSID.Component(2) == 21 || serviceaccountSID.Component(2) == 32 {
 				// Foreign to computer, so it gets a direct edge
+				machine.EdgeTo(svcaccount, EdgeSessionService)
 				machine.EdgeTo(svcaccount, EdgeHasServiceAccountCredentials)
 			}
 			if serviceaccountSID != windowssecurity.LocalServiceSID {
@@ -596,7 +628,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		so := ao.FindOrAddSID(windowssecurity.ServiceNameToServiceSID(service.Name))
 		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
 		so.SetFlex(
-			activedirectory.Name, engine.NewAttributeValueString("Service account for "+service.Name),
+			activedirectory.Name, engine.NewAttributeValueString(service.Name),
+			activedirectory.Description, engine.NewAttributeValueString("Service virtual account for "+service.Name),
+			engine.DownLevelLogonName, engine.NewAttributeValueString("NT SERVICE\\"+service.Name),
 		)
 		serviceobject.EdgeTo(so, analyze.EdgeAuthenticatesAs)
 		// Change service executable via registry
@@ -646,14 +680,13 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 					}
 				}
 			}
+		} else {
+			ui.Warn().Msgf("Could not parse computer %v service %v registry security descriptor: %v", cinfo.Machine.Name, service.Name, err)
 		}
 
-		// Service Control Manager security descriptor
+		// Service security descriptor
 		if len(service.SecurityDescriptor) > 0 {
-			sd := &engine.SecurityDescriptor{
-				Raw: string(service.SecurityDescriptor),
-			}
-			if err := sd.Parse(); err == nil {
+			if sd, err := engine.ParseSecurityDescriptor(service.SecurityDescriptor); err == nil {
 				for _, entry := range sd.DACL.Entries {
 					entrysid := entry.SID
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
@@ -675,9 +708,9 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						}
 					}
 				}
+			} else {
+				ui.Warn().Msgf("Could not parse computer %v service %v security descriptor: %v", cinfo.Machine.Name, service.Name, err)
 			}
-		} else {
-			ui.Warn().Msgf("Could not parse computer %v service %v SCM security descriptor: %v", cinfo.Machine.Name, service.Name, err)
 		}
 
 		// Change service executable contents

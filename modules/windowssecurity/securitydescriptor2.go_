@@ -1,0 +1,358 @@
+package windowssecurity
+
+import (
+	"encoding/binary"
+	"sort"
+	"strings"
+
+	"github.com/gofrs/uuid"
+	"github.com/lkarlslund/adalanche/modules/util"
+)
+
+// ----------------------------------------------------
+// Types
+// ----------------------------------------------------
+
+type SecurityDescriptorControlFlag uint16
+type Mask uint32
+type ACEType byte
+type Flags uint32
+type ACEFlags byte
+
+// ----------------------------------------------------
+// Constants
+// ----------------------------------------------------
+
+const (
+	CONTROLFLAG_SELF_RELATIVE SecurityDescriptorControlFlag = 0x8000
+
+	ACETYPE_ACCESS_ALLOWED        ACEType = 0x00
+	ACETYPE_ACCESS_DENIED         ACEType = 0x01
+	ACETYPE_ACCESS_ALLOWED_OBJECT ACEType = 0x05
+	ACETYPE_ACCESS_DENIED_OBJECT  ACEType = 0x06
+
+	ACEFLAG_OBJECT_INHERIT_ACE       ACEFlags = 0x01
+	ACEFLAG_INHERIT_ACE              ACEFlags = 0x02
+	ACEFLAG_NO_PROPAGATE_INHERIT_ACE ACEFlags = 0x04
+	ACEFLAG_INHERIT_ONLY_ACE         ACEFlags = 0x08
+	ACEFLAG_INHERITED_ACE            ACEFlags = 0x10
+	ACEFLAG_AUDIT_SUCCESS_ACCESS     ACEFlags = 0x40
+	ACEFLAG_AUDIT_FAILED_ACCESS      ACEFlags = 0x80
+
+	OBJECT_TYPE_PRESENT           Flags = 0x01
+	INHERITED_OBJECT_TYPE_PRESENT Flags = 0x02
+
+	// Generic rights
+	RIGHT_GENERIC_ALL     = 0x10000000
+	RIGHT_GENERIC_EXECUTE = 0x20000000
+	RIGHT_GENERIC_WRITE   = 0x40000000
+	RIGHT_GENERIC_READ    = 0x80000000
+
+	// Standard rights
+	DELETE       = 0x00010000
+	READ_CONTROL = 0x00020000
+	WRITE_DAC    = 0x00040000
+	WRITE_OWNER  = 0x00080000
+
+	// Service rights
+	SERVICE_QUERY_CONFIG         = 0x0001
+	SERVICE_CHANGE_CONFIG        = 0x0002
+	SERVICE_QUERY_STATUS         = 0x0004
+	SERVICE_ENUMERATE_DEPENDENTS = 0x0008
+	SERVICE_START                = 0x0010
+	SERVICE_STOP                 = 0x0020
+	SERVICE_PAUSE_CONTINUE       = 0x0040
+	SERVICE_INTERROGATE          = 0x0080
+	SERVICE_USER_DEFINED_CONTROL = 0x0100
+
+	// File rights (from SDDL docs)
+	FILE_ALL_ACCESS      = 0x1F01FF
+	FILE_GENERIC_READ    = 0x120089
+	FILE_GENERIC_WRITE   = 0x120116
+	FILE_GENERIC_EXECUTE = 0x1200A0
+
+	// Registry rights
+	KEY_ALL_ACCESS = 0xF003F
+	KEY_READ       = 0x20019
+	KEY_WRITE      = 0x20006
+	KEY_EXECUTE    = 0x20019
+)
+
+// ----------------------------------------------------
+// Structures
+// ----------------------------------------------------
+
+type ACE struct {
+	SID                 SID
+	Type                ACEType
+	Flags               Flags
+	ACEFlags            ACEFlags
+	Mask                Mask
+	ObjectType          uuid.UUID
+	InheritedObjectType uuid.UUID
+}
+
+type ACL struct {
+	Entries  []ACE
+	Revision byte
+}
+
+type SecurityDescriptor struct {
+	Raw     string
+	Owner   SID
+	Group   SID
+	SACL    ACL
+	DACL    ACL
+	Control SecurityDescriptorControlFlag
+}
+
+// ----------------------------------------------------
+// SID ↔ SDDL (abbreviations)
+// ----------------------------------------------------
+
+func sidToSDDL(sid SID) string {
+	lookup := map[string]string{
+		AdministratorsSID.String():      "BA",
+		UsersSID.String():               "BU",
+		GuestsSID.String():              "BG",
+		PowerUsersSID.String():          "PU",
+		BackupOperatorsSID.String():     "BO",
+		ServerOperatorsSID.String():     "SO",
+		AccountOperatorsSID.String():    "AO",
+		PrinterOperatorsSID.String():    "PO",
+		ReplicatorSID.String():          "RE",
+		AnonymousLogonSID.String():      "AN",
+		AuthenticatedUsersSID.String():  "AU",
+		EveryoneSID.String():            "WD",
+		LocalSystemSID.String():         "SY",
+		LocalServiceSID.String():        "LS",
+		NetworkServiceSID.String():      "NS",
+		InteractiveSID.String():         "IU",
+		NetworkLogonSID.String():        "NU",
+		ServiceLogonSID.String():        "SU",
+		TerminalServerUsersSID.String(): "RD",
+	}
+	if abbr, ok := lookup[sid.String()]; ok {
+		return abbr
+	}
+	return sid.String()
+}
+
+// ----------------------------------------------------
+// Mask ↔ SDDL
+// ----------------------------------------------------
+
+var maskToSDDLMap = map[Mask]string{
+	// Service
+	SERVICE_QUERY_CONFIG:         "CC",
+	SERVICE_CHANGE_CONFIG:        "DC",
+	SERVICE_QUERY_STATUS:         "LC",
+	SERVICE_ENUMERATE_DEPENDENTS: "SW",
+	SERVICE_START:                "RP",
+	SERVICE_STOP:                 "WP",
+	SERVICE_PAUSE_CONTINUE:       "DT",
+	SERVICE_INTERROGATE:          "LO",
+	SERVICE_USER_DEFINED_CONTROL: "CR",
+
+	// File
+	FILE_ALL_ACCESS:      "FA",
+	FILE_GENERIC_READ:    "FR",
+	FILE_GENERIC_WRITE:   "FW",
+	FILE_GENERIC_EXECUTE: "FX",
+
+	// Registry
+	KEY_ALL_ACCESS: "KA",
+	KEY_READ:       "KR",
+	KEY_WRITE:      "KW",
+	KEY_EXECUTE:    "KX",
+
+	// Standard
+	DELETE:       "SD",
+	READ_CONTROL: "RC",
+	WRITE_DAC:    "WD",
+	WRITE_OWNER:  "WO",
+
+	// Generic
+	RIGHT_GENERIC_ALL:     "GA",
+	RIGHT_GENERIC_EXECUTE: "GX",
+	RIGHT_GENERIC_WRITE:   "GW",
+	RIGHT_GENERIC_READ:    "GR",
+}
+
+var sddlToMaskMap = func() map[string]Mask {
+	m := make(map[string]Mask)
+	for k, v := range maskToSDDLMap {
+		m[v] = k
+	}
+	return m
+}()
+
+func maskToSDDL(mask Mask) string {
+	var parts []string
+	for bit, sddl := range maskToSDDLMap {
+		if mask&bit != 0 {
+			parts = append(parts, sddl)
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "")
+}
+
+func sddlToMask(sddlRights string) Mask {
+	var mask Mask
+	for i := 0; i < len(sddlRights); {
+		if i+2 <= len(sddlRights) {
+			token := sddlRights[i : i+2]
+			if m, ok := sddlToMaskMap[token]; ok {
+				mask |= m
+			}
+			i += 2
+		} else {
+			i++
+		}
+	}
+	return mask
+}
+
+// ----------------------------------------------------
+// ACE / ACL / SD Serialization
+// ----------------------------------------------------
+
+func (a ACE) ToSDDL() string {
+	var sb strings.Builder
+	switch a.Type {
+	case ACETYPE_ACCESS_ALLOWED, ACETYPE_ACCESS_ALLOWED_OBJECT:
+		sb.WriteString("(A;")
+	case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
+		sb.WriteString("(D;")
+	default:
+		sb.WriteString("(X;")
+	}
+	sb.WriteString(";")
+	sb.WriteString(maskToSDDL(a.Mask))
+	sb.WriteString(";")
+	if a.Flags&OBJECT_TYPE_PRESENT != 0 && !a.ObjectType.IsNil() {
+		if name, ok := guidFriendlyNames[a.ObjectType]; ok {
+			sb.WriteString(name)
+		} else {
+			sb.WriteString(strings.ToUpper(a.ObjectType.String()))
+		}
+	}
+	sb.WriteString(";")
+	if a.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 && !a.InheritedObjectType.IsNil() {
+		if name, ok := guidFriendlyNames[a.InheritedObjectType]; ok {
+			sb.WriteString(name)
+		} else {
+			sb.WriteString(strings.ToUpper(a.InheritedObjectType.String()))
+		}
+	}
+	sb.WriteString(";")
+	sb.WriteString(sidToSDDL(a.SID))
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (a ACE) ToBytes() ([]byte, error) {
+	sidb := a.SID.Bytes()
+	var extra []byte
+	if a.Type == ACETYPE_ACCESS_ALLOWED_OBJECT || a.Type == ACETYPE_ACCESS_DENIED_OBJECT {
+		flags := uint32(a.Flags)
+		extra = make([]byte, 4)
+		binary.LittleEndian.PutUint32(extra, flags)
+		if a.Flags&OBJECT_TYPE_PRESENT != 0 {
+			ot := util.SwapUUIDEndianess(a.ObjectType)
+			extra = append(extra, ot.Bytes()...)
+		}
+		if a.Flags&INHERITED_OBJECT_TYPE_PRESENT != 0 {
+			it := util.SwapUUIDEndianess(a.InheritedObjectType)
+			extra = append(extra, it.Bytes()...)
+		}
+	}
+	size := 8 + len(extra) + len(sidb)
+	buf := make([]byte, 8)
+	buf[0] = byte(a.Type)
+	buf[1] = byte(a.ACEFlags)
+	binary.LittleEndian.PutUint16(buf[2:], uint16(size))
+	binary.LittleEndian.PutUint32(buf[4:], uint32(a.Mask))
+	buf = append(buf, extra...)
+	buf = append(buf, sidb...)
+	return buf, nil
+}
+
+func (a ACL) ToBytes() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = a.Revision
+	aclsize := 8
+	entriesData := []byte{}
+	for _, ace := range a.Entries {
+		ab, err := ace.ToBytes()
+		if err != nil {
+			return nil, err
+		}
+		entriesData = append(entriesData, ab...)
+		aclsize += len(ab)
+	}
+	binary.LittleEndian.PutUint16(buf[2:], uint16(aclsize))
+	binary.LittleEndian.PutUint16(buf[4:], uint16(len(a.Entries)))
+	buf = append(buf, entriesData...)
+	return buf, nil
+}
+
+func (sd SecurityDescriptor) ToBytes() ([]byte, error) {
+	buf := make([]byte, 20)
+	buf[0] = 1
+	buf[1] = 0
+	binary.LittleEndian.PutUint16(buf[2:], uint16(sd.Control|CONTROLFLAG_SELF_RELATIVE))
+	cur := uint32(len(buf))
+	offOwner, offGroup, offSACL, offDACL := uint32(0), uint32(0), uint32(0), uint32(0)
+
+	if !sd.Owner.IsNull() {
+		offOwner = cur
+		sidb := sd.Owner.Bytes()
+		buf = append(buf, sidb...)
+		cur += uint32(len(sidb))
+	}
+	if !sd.Group.IsNull() {
+		offGroup = cur
+		sidb := sd.Group.Bytes()
+		buf = append(buf, sidb...)
+		cur += uint32(len(sidb))
+	}
+	if sd.Control&0x10 != 0 && len(sd.SACL.Entries) > 0 {
+		offSACL = cur
+		saclb, _ := sd.SACL.ToBytes()
+		buf = append(buf, saclb...)
+		cur += uint32(len(saclb))
+	}
+	if sd.Control&0x04 != 0 && len(sd.DACL.Entries) > 0 {
+		offDACL = cur
+		daclb, _ := sd.DACL.ToBytes()
+		buf = append(buf, daclb...)
+		cur += uint32(len(daclb))
+	}
+	binary.LittleEndian.PutUint32(buf[4:], offOwner)
+	binary.LittleEndian.PutUint32(buf[8:], offGroup)
+	binary.LittleEndian.PutUint32(buf[12:], offSACL)
+	binary.LittleEndian.PutUint32(buf[16:], offDACL)
+	return buf, nil
+}
+
+// ----------------------------------------------------
+// GUID Friendly Names
+// ----------------------------------------------------
+
+var guidFriendlyNames = map[uuid.UUID]string{
+	uuid.Must(uuid.FromString("00299570-246d-11d0-a768-00aa006e0529")): "User-Change-Password",
+	uuid.Must(uuid.FromString("0029956f-246d-11d0-a768-00aa006e0529")): "User-Force-Change-Password",
+	uuid.Must(uuid.FromString("ab721a53-1e2f-11d0-9819-00aa0040529b")): "Reset-Password",
+	uuid.Must(uuid.FromString("ab721a56-1e2f-11d0-9819-00aa0040529b")): "Send-As",
+	uuid.Must(uuid.FromString("ba33815a-4f93-4c76-87f3-57574bff8109")): "Write-Members",
+	uuid.Must(uuid.FromString("e45795b2-9455-11d1-aebd-0000f80367c1")): "Unexpire-Password",
+	uuid.Must(uuid.FromString("440820ad-65b4-11d1-a3da-0000f875ae0d")): "Read-Only-Replication-Secret",
+	uuid.Must(uuid.FromString("91e647de-d96f-4b70-9557-d63ff4f3ccd8")): "Clone-DC",
+	uuid.Must(uuid.FromString("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2")): "Replication-Get-Changes",
+	uuid.Must(uuid.FromString("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2")): "Replication-Get-Changes-All",
+	uuid.Must(uuid.FromString("89e95b76-444d-4c62-991a-0facbeda640c")): "Replication-Get-Changes-In-Filtered-Set",
+	uuid.Must(uuid.FromString("5805bc62-bdc9-4428-a5e2-856a0f4c185e")): "DS-Replication-Synchronize",
+	uuid.Must(uuid.FromString("be2bb760-7f46-11d2-b9ad-00c04f79f805")): "Reanimate-Tombstones",
+}

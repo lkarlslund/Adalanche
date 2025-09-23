@@ -45,6 +45,8 @@ var (
 	EdgeRegistryModifyDACL           = engine.NewEdge("RegistryModifyDACL")
 	EdgeRegistryModifyOwner          = engine.NewEdge("RegistryModifyOwner")
 
+	EdgeCreateService = engine.NewEdge("CreateService").Tag("Pivot")
+
 	EdgeServiceModify = engine.NewEdge("ServiceModify")
 
 	EdgeSeBackupPrivilege        = engine.NewEdge("SeBackupPrivilege")

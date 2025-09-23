@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -60,12 +61,6 @@ var (
 	ObjectGuidOU, _              = uuid.FromString("{bf967aa5-0de6-11d0-a285-00aa003049e2")
 	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
-	AdministratorsSID, _           = windowssecurity.ParseStringSID("S-1-5-32-544")
-	BackupOperatorsSID, _          = windowssecurity.ParseStringSID("S-1-5-32-551")
-	PrintOperatorsSID, _           = windowssecurity.ParseStringSID("S-1-5-32-550")
-	ServerOperatorsSID, _          = windowssecurity.ParseStringSID("S-1-5-32-549")
-	EnterpriseDomainControllers, _ = windowssecurity.ParseStringSID("S-1-5-9")
-
 	GPLinkCache = engine.NewAttribute("gpLinkCache")
 
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
@@ -74,9 +69,10 @@ var (
 
 	MemberOfIndirect = engine.NewAttribute("memberOfIndirect")
 
-	ObjectTypeMachine    = engine.NewObjectType("Machine", "Machine")
-	DomainJoinedSID      = engine.NewAttribute("domainJoinedSid").Merge()
-	DnsHostName          = engine.NewAttribute("dnsHostName")
+	ObjectTypeMachine = engine.NewObjectType("Machine", "Machine")
+	DomainJoinedSID   = engine.NewAttribute("domainJoinedSid").Merge()
+	DnsHostName       = engine.NewAttribute("dnsHostName")
+
 	EdgeAuthenticatesAs  = engine.NewEdge("AuthenticatesAs")
 	EdgeInheritsSecurity = engine.NewEdge("InheritsSecurity").SetDefault(true, true, false)
 
@@ -324,14 +320,19 @@ func init() {
 	}, "Indicator for possible false positives, as the ACL contains DENY entries", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
-
 		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 		var disableOwnerImplicitRights bool
-		if ds, found := ao.Find(engine.DistinguishedName, engine.NewAttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
-			excluded := ds.OneAttrString(activedirectory.DsHeuristics)
-			if len(excluded) >= 29 {
-				disableOwnerImplicitRights = string(excluded[28]) == "1"
+		domain, found := ao.FindTwo(
+			engine.ObjectClass, engine.NewAttributeValueString("domainDNS"),
+			engine.IsCriticalSystemObject, engine.AttributeValueBool(true))
+		domainContext := domain.OneAttrString(engine.DomainContext)
+		if found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.NewAttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainContext)); found {
+				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
+				if len(excluded) >= 29 {
+					disableOwnerImplicitRights = string(excluded[28]) == "1"
+				}
 			}
 		}
 
@@ -1368,7 +1369,7 @@ func init() {
 					object.Tag("domaincontroller_account")
 
 					// All DCs are members of Enterprise Domain Controllers
-					object.EdgeTo(ao.FindOrAddAdjacentSID(EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+					object.EdgeTo(ao.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
 
 					object.EdgeTo(DCsyncObject, activedirectory.EdgeCall)
 
@@ -1637,17 +1638,16 @@ func init() {
 			}
 
 			// Find the computer AD object if any
-			var computer *engine.Object
-			machine.Edges(engine.Out).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
-				if edge.IsSet(EdgeAuthenticatesAs) && target.Type() == engine.ObjectTypeComputer {
-					computer = target
-					return false //break
-				}
-				return true
-			})
+			DomainJoinedSID := machine.OneAttr(attrs.DomainJoinedSID)
+			if DomainJoinedSID == nil {
+				ui.Warn().Msgf("Machine %v has no DomainJoinedSID attribute", machine.OneAttrString(engine.Name))
+				return true // continue
+			}
 
-			if computer == nil {
-				ui.Warn().Msgf("Machine without computer account: %v", machine.Label())
+			computer, found := ao.Find(engine.ObjectSid, DomainJoinedSID)
+
+			if !found || computer == nil {
+				ui.Warn().Msgf("Machine %v has no computer account", machine.OneAttrString(engine.Name))
 				return true // continue
 			}
 

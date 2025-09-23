@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode/utf16"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
@@ -34,10 +35,17 @@ const (
 	CONTROLFLAG_SELF_RELATIVE       SecurityDescriptorControlFlag = 0x8000
 
 	// ACE.Type
-	ACETYPE_ACCESS_ALLOWED        ACEType = 0x00
-	ACETYPE_ACCESS_DENIED         ACEType = 0x01
-	ACETYPE_ACCESS_ALLOWED_OBJECT ACEType = 0x05
-	ACETYPE_ACCESS_DENIED_OBJECT  ACEType = 0x06
+	ACETYPE_ACCESS_ALLOWED          ACEType = 0x00
+	ACETYPE_ACCESS_DENIED           ACEType = 0x01
+	ACETYPE_ACCESS_ALLOWED_OBJECT   ACEType = 0x05
+	ACETYPE_ACCESS_DENIED_OBJECT    ACEType = 0x06
+	ACETYPE_ACCESS_ALLOWED_CALLBACK ACEType = 0x09
+
+	// ACETYPE_SYSTEM_AUDIT         ACEType = 0x02
+	// ACETYPE_SYSTEM_ALARM         ACEType = 0x03
+	// ACETYPE_SYSTEM_AUDIT_OBJECT  ACEType = 0x07
+	// ACETYPE_SYSTEM_ALARM_OBJECT  ACEType = 0x08
+	// ACETYPE_UNKNOWN              ACEType = 0xFF
 
 	// ACE.ACEFlags
 	ACEFLAG_OBJECT_INHERIT_ACE       ACEFlags = 0x01 // Noncontainer child objects inherit the ACE as an effective ACE. For child objects that are containers, the ACE is inherited as an inherit-only ACE unless the NO_PROPAGATE_INHERIT_ACE bit flag is also set
@@ -89,6 +97,14 @@ const (
 	SYNCHRONIZE           = 0x00100000
 
 	// SERVICE PERMISSIONS
+	SC_MANAGER_CONNECT            = 0x0001
+	SC_MANAGER_CREATE_SERVICE     = 0x0002
+	SC_MANAGER_ENUMERATE_SERVICE  = 0x0004
+	SC_MANAGER_LOCK               = 0x0008
+	SC_MANAGER_QUERY_LOCK_STATUS  = 0x0010
+	SC_MANAGER_MODIFY_BOOT_CONFIG = 0x0020
+	SC_MANAGER_ALL_ACCESS         = 0xF003F
+
 	SERVICE_QUERY_CONFIG         = 0x0001
 	SERVICE_CHANGE_CONFIG        = 0x0002
 	SERVICE_QUERY_STATUS         = 0x0004
@@ -202,23 +218,17 @@ func parseSDDLid(sddlid string) (windowssecurity.SID, error) {
 }
 */
 
-func parseSDDLACE(sddlace string) (ACE, error) {
-	var result ACE
-
-	return result, nil
-}
-
-func (sd *SecurityDescriptor) Parse() error {
-	data := []byte(sd.Raw)
+func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
+	var sd SecurityDescriptor
 
 	if len(data) < 20 {
-		return errors.New("not enough data")
+		return sd, errors.New("not enough data")
 	}
 	if data[0] != 1 {
-		return errors.New("unknown Revision")
+		return sd, errors.New("unknown Revision")
 	}
 	if data[1] != 0 {
-		return errors.New("unknown Sbz1")
+		return sd, errors.New("unknown Sbz1")
 	}
 	sd.Control = SecurityDescriptorControlFlag(binary.LittleEndian.Uint16(data[2:4]))
 	OffsetOwner := binary.LittleEndian.Uint32(data[4:8])
@@ -241,13 +251,13 @@ func (sd *SecurityDescriptor) Parse() error {
 	if OffsetOwner > 0 {
 		sd.Owner, _, err = windowssecurity.BytesToSID(data[OffsetOwner:])
 		if err != nil {
-			return err
+			return sd, err
 		}
 	}
 	if OffsetGroup > 0 {
 		sd.Group, _, err = windowssecurity.BytesToSID(data[OffsetGroup:])
 		if err != nil {
-			return err
+			return sd, err
 		}
 	}
 	if OffsetSACL > 0 {
@@ -273,11 +283,11 @@ func (sd *SecurityDescriptor) Parse() error {
 			}
 		}
 		if err != nil {
-			return err
+			return sd, err
 		}
 	}
 
-	return nil
+	return sd, nil
 }
 
 func ParseACL(data []byte) (ACL, error) {
@@ -366,6 +376,19 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 			}
 			ace.InheritedObjectType = util.SwapUUIDEndianess(ace.InheritedObjectType)
 			data = data[16:]
+		}
+	}
+
+	// if there are any remaining bytes, they are extra data
+
+	extrabytes := int(acesize) - (len(odata) - len(data))
+	if extrabytes > 0 && extrabytes >= len(data) {
+		// check if the AceType indicates there should be extra data
+		if ace.Type == ACETYPE_ACCESS_ALLOWED_CALLBACK {
+			ace.ExtraData, err = parseConditionalACE(data[:extrabytes])
+			if err != nil {
+				ui.Warn().Msgf("Failed to parse ACE extra data: %v", err)
+			}
 		}
 	}
 
@@ -794,6 +817,7 @@ type ACE struct {
 
 	ObjectType          uuid.UUID
 	InheritedObjectType uuid.UUID
+	ExtraData           string
 }
 
 type ACEType byte
@@ -816,6 +840,8 @@ func (a ACE) SortVal() byte {
 		result += 1
 	case ACETYPE_ACCESS_DENIED_OBJECT:
 		// result += 0
+	case ACETYPE_ACCESS_ALLOWED_CALLBACK:
+		result += 1
 	default:
 		ui.Warn().Msgf("Unknown ACE type %d", a.Type)
 	}
@@ -918,4 +944,353 @@ func (sd SecurityDescriptor) StringNoLookup() string {
 		result += "DACL:\n" + sd.SACL.StringNoLookup()
 	}
 	return result
+}
+
+// ParseConditionalACE parses a conditional ApplicationData blob (begins with "artx")
+// and returns a human-readable infix expression or error.
+func parseConditionalACE(blob []byte) (string, error) {
+	if len(blob) < 4 {
+		return "", errors.New("blob too short for signature")
+	}
+	if blob[0] != 0x61 || blob[1] != 0x72 || blob[2] != 0x74 || blob[3] != 0x78 {
+		return "", errors.New("missing ACE_CONDITION_SIGNATURE (‘artx’)")
+	}
+	pos := 4
+	stack := []exprNode{}
+
+	for pos < len(blob) {
+		// If remaining bytes are just padding zeros (DWORD aligned), stop
+		if isAllZero(blob[pos:]) {
+			break
+		}
+		tok := blob[pos]
+		pos++
+
+		// Attribute name tokens
+		if tok >= attrNameTokStart && tok <= attrNameTokEnd {
+			name, err := parseAttributeName(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, exprNode{text: name})
+			continue
+		}
+
+		switch tok {
+		case litInt64Tok:
+			node, err := parseLiteralInt64(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, node)
+		case litUnicodeStringTok:
+			node, err := parseLiteralUnicodeString(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, node)
+		case litOctetStringTok:
+			node, err := parseLiteralOctetString(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, node)
+		case litCompositeTok:
+			node, err := parseCompositeLiteral(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, node)
+		case litSIDTok:
+			node, err := parseLiteralSID(blob, &pos)
+			if err != nil {
+				return "", err
+			}
+			stack = append(stack, node)
+		default:
+			// operator or unknown token
+			name := opName(tok)
+			arity := opArity(tok)
+			if arity == 2 {
+				// binary operator
+				if len(stack) < 2 {
+					return "", fmt.Errorf("not enough operands for binary operator %s", name)
+				}
+				right := stack[len(stack)-1]
+				left := stack[len(stack)-2]
+				stack = stack[:len(stack)-2]
+				newnode := exprNode{text: fmt.Sprintf("(%s %s %s)", left.text, name, right.text)}
+				stack = append(stack, newnode)
+			} else if arity == 1 {
+				// unary operator
+				if len(stack) < 1 {
+					return "", fmt.Errorf("not enough operands for unary operator %s", name)
+				}
+				operand := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				newnode := exprNode{text: fmt.Sprintf("%s(%s)", name, operand.text)}
+				stack = append(stack, newnode)
+			} else {
+				// unknown operator: push as placeholder
+				stack = append(stack, exprNode{text: fmt.Sprintf("OP(0x%02X)", tok)})
+			}
+		}
+	}
+
+	if len(stack) != 1 {
+		parts := make([]string, len(stack))
+		for i, en := range stack {
+			parts[i] = en.text
+		}
+		return strings.Join(parts, ", "), fmt.Errorf("parse ended with %d items on stack", len(stack))
+	}
+	return stack[0].text, nil
+}
+
+// exprNode holds partial expression during parsing
+type exprNode struct {
+	text string
+}
+
+// Known token constants:
+
+const (
+	// Attribute name tokens
+	attrNameTokStart byte = 0xF8
+	attrNameTokEnd   byte = 0xFB
+
+	// Literal tokens
+	litInt64Tok         byte = 0x04
+	litUnicodeStringTok byte = 0x10
+	litOctetStringTok   byte = 0x18
+	litCompositeTok     byte = 0x50
+	litSIDTok           byte = 0x51
+
+	// Operator tokens (from MS-DTYP known list)
+	opEqualTok        byte = 0x80 // ==
+	opNotEqualTok     byte = 0x81 // !=
+	opGreaterTok      byte = 0x82 // >
+	opGreaterEqualTok byte = 0x83 // >=
+	opLessTok         byte = 0x84 // <
+	opLessEqualTok    byte = 0x85 // <=
+	opAnyOfTok        byte = 0x86 // Any_of
+	opContainsTok     byte = 0x87 // Contains
+	opMemberOfTok     byte = 0x88 // Member_of
+	opExistsTok       byte = 0x8A // Exists
+)
+
+// opName returns the textual name of an operator token (or placeholder if unknown)
+func opName(code byte) string {
+	switch code {
+	case opEqualTok:
+		return "=="
+	case opNotEqualTok:
+		return "!="
+	case opGreaterTok:
+		return ">"
+	case opGreaterEqualTok:
+		return ">="
+	case opLessTok:
+		return "<"
+	case opLessEqualTok:
+		return "<="
+	case opAnyOfTok:
+		return "Any_of"
+	case opContainsTok:
+		return "Contains"
+	case opMemberOfTok:
+		return "Member_of"
+	case opExistsTok:
+		return "Exists"
+	default:
+		return fmt.Sprintf("OP(0x%02X)", code)
+	}
+}
+
+// opArity returns how many operands the operator consumes
+func opArity(code byte) int {
+	switch code {
+	case opEqualTok, opNotEqualTok, opGreaterTok, opGreaterEqualTok,
+		opLessTok, opLessEqualTok, opAnyOfTok, opContainsTok, opMemberOfTok:
+		return 2
+	case opExistsTok:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// parseAttributeName reads a attribute name token (0xF8-0xFB)
+func parseAttributeName(blob []byte, pos *int) (string, error) {
+	// next 4 bytes: DWORD length in bytes of the name
+	if *pos+4 > len(blob) {
+		return "", errors.New("unexpected EOF reading attribute name length")
+	}
+	nameLen := int(binary.LittleEndian.Uint32(blob[*pos : *pos+4]))
+	*pos += 4
+	if nameLen%2 != 0 {
+		return "", errors.New("attribute name length not even (UTF-16LE encoding)")
+	}
+	if *pos+nameLen > len(blob) {
+		return "", errors.New("unexpected EOF reading attribute name bytes")
+	}
+	u16 := make([]uint16, nameLen/2)
+	for i := 0; i < len(u16); i++ {
+		u16[i] = binary.LittleEndian.Uint16(blob[*pos+2*i : *pos+2*i+2])
+	}
+	*pos += nameLen
+	s := string(utf16.Decode(u16))
+	return s, nil
+}
+
+// parseLiteralInt64 parses token 0x04: signed int64 literal
+func parseLiteralInt64(blob []byte, pos *int) (exprNode, error) {
+	if *pos+10 > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading int64 literal")
+	}
+	v := int64(binary.LittleEndian.Uint64(blob[*pos : *pos+8]))
+	*pos += 8
+	// then one byte sign, one byte base
+	sign := blob[*pos]
+	*pos++
+	_ = sign
+	base := blob[*pos]
+	*pos++
+	_ = base
+	// For now ignore sign & base in textual form
+	return exprNode{text: fmt.Sprintf("%d", v)}, nil
+}
+
+// parseLiteralUnicodeString parses token 0x10
+func parseLiteralUnicodeString(blob []byte, pos *int) (exprNode, error) {
+	if *pos+4 > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading unicode string length")
+	}
+	byteLen := int(binary.LittleEndian.Uint32(blob[*pos : *pos+4]))
+	*pos += 4
+	if byteLen%2 != 0 {
+		return exprNode{}, errors.New("unicode string byte length not even")
+	}
+	if *pos+byteLen > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading unicode string data")
+	}
+	u16 := make([]uint16, byteLen/2)
+	for i := 0; i < len(u16); i++ {
+		u16[i] = binary.LittleEndian.Uint16(blob[*pos+2*i : *pos+2*i+2])
+	}
+	*pos += byteLen
+	s := string(utf16.Decode(u16))
+	return exprNode{text: fmt.Sprintf("%q", s)}, nil
+}
+
+// parseLiteralOctetString parses token 0x18
+func parseLiteralOctetString(blob []byte, pos *int) (exprNode, error) {
+	if *pos+4 > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading octet string length")
+	}
+	l := int(binary.LittleEndian.Uint32(blob[*pos : *pos+4]))
+	*pos += 4
+	if *pos+l > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading octet string data")
+	}
+	data := blob[*pos : *pos+l]
+	*pos += l
+	// show hex
+	sb := strings.Builder{}
+	sb.WriteString("#")
+	for _, bb := range data {
+		sb.WriteString(fmt.Sprintf("%02X", bb))
+	}
+	return exprNode{text: sb.String()}, nil
+}
+
+// parseCompositeLiteral parses token 0x50: a set/composite of literals
+func parseCompositeLiteral(blob []byte, pos *int) (exprNode, error) {
+	if *pos+4 > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading composite length")
+	}
+	totalLen := int(binary.LittleEndian.Uint32(blob[*pos : *pos+4]))
+	*pos += 4
+	if *pos+totalLen > len(blob) {
+		return exprNode{}, errors.New("composite literal extends beyond blob")
+	}
+	sub := blob[*pos : *pos+totalLen]
+	*pos += totalLen
+	elems := []string{}
+	i := 0
+	for i < len(sub) {
+		c := sub[i]
+		i++
+		switch c {
+		case litUnicodeStringTok:
+			if i+4 > len(sub) {
+				return exprNode{}, errors.New("composite: truncated string length")
+			}
+			strLen := int(binary.LittleEndian.Uint32(sub[i : i+4]))
+			i += 4
+			if strLen%2 != 0 || i+strLen > len(sub) {
+				return exprNode{}, errors.New("composite: bad unicode string size")
+			}
+			u16 := make([]uint16, strLen/2)
+			for j := 0; j < len(u16); j++ {
+				u16[j] = binary.LittleEndian.Uint16(sub[i+2*j : i+2*j+2])
+			}
+			i += strLen
+			elems = append(elems, fmt.Sprintf("%q", string(utf16.Decode(u16))))
+		case litSIDTok:
+			if i+4 > len(sub) {
+				return exprNode{}, errors.New("composite: truncated sid length")
+			}
+			sidLen := int(binary.LittleEndian.Uint32(sub[i : i+4]))
+			i += 4
+			if i+sidLen > len(sub) {
+				return exprNode{}, errors.New("composite: truncated sid data")
+			}
+			sidStr, _, err := windowssecurity.BytesToSID(sub[i : i+sidLen])
+			if err != nil {
+				return exprNode{}, err
+			}
+			i += sidLen
+			elems = append(elems, fmt.Sprintf("SID(%s)", sidStr))
+		default:
+			// fallback: represent rest as hex
+			remain := sub[i-1:]
+			hexStr := fmt.Sprintf("0x")
+			for _, bb := range remain {
+				hexStr += fmt.Sprintf("%02X", bb)
+			}
+			elems = append(elems, hexStr)
+			i = len(sub)
+		}
+	}
+	return exprNode{text: "{" + strings.Join(elems, ",") + "}"}, nil
+}
+
+// parseLiteralSID token 0x51
+func parseLiteralSID(blob []byte, pos *int) (exprNode, error) {
+	if *pos+4 > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading sid length")
+	}
+	sidLen := int(binary.LittleEndian.Uint32(blob[*pos : *pos+4]))
+	*pos += 4
+	if *pos+sidLen > len(blob) {
+		return exprNode{}, errors.New("unexpected EOF reading sid bytes")
+	}
+	raw := blob[*pos : *pos+sidLen]
+	*pos += sidLen
+	sid, _, err := windowssecurity.BytesToSID(raw)
+	if err != nil {
+		return exprNode{}, err
+	}
+	return exprNode{text: fmt.Sprintf("SID(%s)", sid)}, nil
+}
+
+// isAllZero returns true if all bytes in slice are zero
+func isAllZero(b []byte) bool {
+	for _, x := range b {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
 }

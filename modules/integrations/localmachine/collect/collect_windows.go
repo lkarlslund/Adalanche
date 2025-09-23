@@ -520,9 +520,22 @@ func Collect() (localmachine.Info, error) {
 		Month: uint64(timeonmonth.Minutes()),
 	}
 
+	// SERVICE CONTROL MANAGER SECURITY DESCRIPTOR FROM REGISTRY
+	var scmsd []byte
+	securitykey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\ServiceGroupOrder\Security`, registry.QUERY_VALUE|registry.SET_VALUE|registry.WOW64_64KEY)
+	if err != nil {
+		ui.Warn().Msgf("Problem opening service security key for service control manager: %v, skipping\n", err)
+	} else {
+		defer securitykey.Close()
+		// Read the security descriptor
+		scmsd, _, err = securitykey.GetBinaryValue("Security")
+		if err != nil {
+			ui.Error().Msgf("Problem reading security descriptor for service control manager: %v, skipping\n", err)
+		}
+	}
+
 	// SERVICES
 	var servicesinfo localmachine.Services
-
 	services_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Services`,
 		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
@@ -754,14 +767,15 @@ func Collect() (localmachine.Info, error) {
 		},
 		// OperatingSystem: osinfo,
 		// Memory:          meminfo,
-		Availability: availabilityinfo,
-		LoginInfos:   slices.Collect(maps.Values(loginmap)),
-		Users:        usersinfo,
-		Groups:       groupsinfo,
-		RegistryData: registrydata,
-		Shares:       sharesinfo,
-		Services:     servicesinfo,
-		Software:     softwareinfo,
+		Availability:                            availabilityinfo,
+		LoginInfos:                              slices.Collect(maps.Values(loginmap)),
+		Users:                                   usersinfo,
+		Groups:                                  groupsinfo,
+		RegistryData:                            registrydata,
+		Shares:                                  sharesinfo,
+		Services:                                servicesinfo,
+		ServiceControlManagerSecurityDescriptor: scmsd,
+		Software:                                softwareinfo,
 		Tasks: func() []localmachine.RegisteredTask {
 			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
 			for i, task := range scheduledtasksinfo {

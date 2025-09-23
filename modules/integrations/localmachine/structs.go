@@ -13,14 +13,15 @@ type Info struct {
 	Machine      Machine      `json:",omitempty"`
 	LoginInfos   []LogonInfo  `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
-	Network    NetworkInformation `json:",omitempty"`
-	Users      Users              `json:",omitempty"`
-	Groups     Groups             `json:",omitempty"`
-	Shares     Shares             `json:",omitempty"`
-	Services   Services           `json:",omitempty"`
-	Software   []Software         `json:",omitempty"`
-	Tasks      []RegisteredTask   `json:",omitempty"`
-	Privileges Privileges         `json:",omitempty"`
+	Network                                 NetworkInformation `json:",omitempty"`
+	Users                                   Users              `json:",omitempty"`
+	Groups                                  Groups             `json:",omitempty"`
+	Shares                                  Shares             `json:",omitempty"`
+	Services                                Services           `json:",omitempty"`
+	ServiceControlManagerSecurityDescriptor []byte             `json:",omitempty"`
+	Software                                []Software         `json:",omitempty"`
+	Tasks                                   []RegisteredTask   `json:",omitempty"`
+	Privileges                              Privileges         `json:",omitempty"`
 	// OperatingSystem shared.OperatingSystem `json:",omitempty"`
 	// Memory          shared.Memory          `json:",omitempty"`
 	Availability           Availability `json:",omitempty"`
