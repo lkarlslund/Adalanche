@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/frontend"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -1877,36 +1878,40 @@ func init() {
 		})
 	}, "Permissions that lets someone modify userAccountControl", engine.BeforeMergeFinal)
 
+	indirectgroups := frontend.Command.Flags().Bool("indirectgroups", true, "Resolve and populate indirect group memberships (MemberOfIndirect attribute)")
+
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
-		edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
-		cacheMap := xsync.NewTypedMapOf[*engine.Object, []engine.AttributeValue](func(o *engine.Object) uint64 {
-			return uint64(uintptr(unsafe.Pointer(o)))
-		})
-
-		ao.IterateParallel(func(o *engine.Object) bool {
-			// Search from all groups towards incoming memberships
-			o.EdgeIteratorRecursive(engine.Out, edgematch, true, func(member, memberof *engine.Object, edge engine.EdgeBitmap, depth int) bool {
-				if memberOfIndirects, found := cacheMap.Load(memberof); found {
-					o.Add(MemberOfIndirect, memberOfIndirects...)
-					return false // don't go deeper
-				}
-				if depth > 1 && memberof.Type() == engine.ObjectTypeGroup {
-					member.EdgeTo(memberof, activedirectory.EdgeMemberOfGroupIndirect)
-
-					dn := memberof.Attr(engine.DistinguishedName)
-					if dn.First() != nil {
-						o.Add(MemberOfIndirect, dn.First())
-					}
-				}
-				return true // deeper!!
+		if *indirectgroups {
+			edgematch := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup).Set(activedirectory.EdgeForeignIdentity)
+			cacheMap := xsync.NewTypedMapOf[*engine.Object, []engine.AttributeValue](func(o *engine.Object) uint64 {
+				return uint64(uintptr(unsafe.Pointer(o)))
 			})
 
-			// Populate cache
-			memberOfIndirect, _ := o.Get(MemberOfIndirect)
-			cacheMap.Store(o, memberOfIndirect)
+			ao.IterateParallel(func(o *engine.Object) bool {
+				// Search from all groups towards incoming memberships
+				o.EdgeIteratorRecursive(engine.Out, edgematch, true, func(member, memberof *engine.Object, edge engine.EdgeBitmap, depth int) bool {
+					if memberOfIndirects, found := cacheMap.Load(memberof); found {
+						o.Add(MemberOfIndirect, memberOfIndirects...)
+						return false // don't go deeper
+					}
+					if depth > 1 && memberof.Type() == engine.ObjectTypeGroup {
+						member.EdgeTo(memberof, activedirectory.EdgeMemberOfGroupIndirect)
 
-			return true
-		}, 0)
+						dn := memberof.Attr(engine.DistinguishedName)
+						if dn.First() != nil {
+							o.Add(MemberOfIndirect, dn.First())
+						}
+					}
+					return true // deeper!!
+				})
+
+				// Populate cache
+				memberOfIndirect, _ := o.Get(MemberOfIndirect)
+				cacheMap.Store(o, memberOfIndirect)
+
+				return true
+			}, 0)
+		}
 	},
 		"MemberOfIndirect resolution",
 		engine.AfterMerge,
