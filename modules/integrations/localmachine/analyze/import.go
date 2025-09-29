@@ -701,9 +701,10 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 								)
 							}
 						}
-						if entry.Mask&(engine.SERVICE_CHANGE_CONFIG|
-							engine.WRITE_DAC|
-							engine.WRITE_OWNER) != 0 || entry.Mask&engine.SERVICE_ALL_ACCESS != 0 {
+						if entry.Mask&engine.SERVICE_CHANGE_CONFIG == engine.SERVICE_CHANGE_CONFIG ||
+							entry.Mask&engine.SERVICE_ALL_ACCESS == engine.SERVICE_ALL_ACCESS ||
+							entry.Mask&engine.WRITE_OWNER == engine.WRITE_OWNER ||
+							entry.Mask&engine.WRITE_DAC == engine.WRITE_DAC {
 							o.EdgeTo(serviceobject, EdgeServiceModify)
 						}
 					}
