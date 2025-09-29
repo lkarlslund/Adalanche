@@ -809,15 +809,16 @@ func (a *ACL) IsSortedCorrectly() bool {
 type ACE struct {
 	SID windowssecurity.SID
 
-	Type     ACEType
-	Flags    Flags
-	ACEFlags ACEFlags
+	ExtraData string
+	Flags     Flags
 
 	Mask Mask
 
 	ObjectType          uuid.UUID
 	InheritedObjectType uuid.UUID
-	ExtraData           string
+
+	Type     ACEType
+	ACEFlags ACEFlags
 }
 
 type ACEType byte
