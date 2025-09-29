@@ -27,12 +27,13 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 
 type Object struct {
 	edges   [2]EdgeConnectionsPlus
-	values  AttributesAndValues
 	sdcache *SecurityDescriptor
 	parent  *Object
 	sid     windowssecurity.SID
 
 	children ObjectSlice
+
+	values AttributesAndValues
 
 	status    atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone
 	id        ObjectID
