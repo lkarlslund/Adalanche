@@ -4,11 +4,13 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
-func OnlyIfTargetAccountEnabled(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
-	if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
-		return 100
+func OnlyIfTargetAccountEnabled(wrapped engine.ProbabilityCalculatorFunction) engine.ProbabilityCalculatorFunction {
+	return func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+		if target.Type() != engine.ObjectTypeUser || target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
+			return wrapped(source, target, edges)
+		}
+		return 0
 	}
-	return 0
 }
 
 func FixedProbability(probability int) engine.ProbabilityCalculatorFunction {
@@ -19,7 +21,7 @@ func FixedProbability(probability int) engine.ProbabilityCalculatorFunction {
 
 var (
 	EdgeACLContainsDeny  = engine.NewEdge("ACLContainsDeny").RegisterProbabilityCalculator(FixedProbability(0)).Tag("Informative")
-	EdgeResetPassword    = engine.NewEdge("ResetPassword").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled).Tag("Pivot")
+	EdgeResetPassword    = engine.NewEdge("ResetPassword").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled(FixedProbability(100))).Tag("Pivot")
 	EdgeReadPasswordId   = engine.NewEdge("ReadPasswordId").SetDefault(false, false, false).RegisterProbabilityCalculator(FixedProbability(5))
 	EdgeOwns             = engine.NewEdge("Owns").Tag("Pivot")
 	EdgeGenericAll       = engine.NewEdge("GenericAll").Tag("Informative")
@@ -97,7 +99,7 @@ var (
 	EdgeLocalDCOMRights                      = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(FixedProbability(30)).Tag("Pivot")
 	EdgeScheduledTaskOnUNCPath               = engine.NewEdge("SchedTaskOnUNCPath").Tag("Pivot")
 	EdgeMachineScript                        = engine.NewEdge("MachineScript").Tag("Pivot")
-	EdgeWriteAltSecurityIdentities           = engine.NewEdge("WriteAltSecIdent").Tag("Pivot").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled)
+	EdgeWriteAltSecurityIdentities           = engine.NewEdge("WriteAltSecIdent").Tag("Pivot").RegisterProbabilityCalculator(OnlyIfTargetAccountEnabled(FixedProbability(100)))
 	EdgeWriteProfilePath                     = engine.NewEdge("WriteProfilePath").Tag("Pivot")
 	EdgeWriteScriptPath                      = engine.NewEdge("WriteScriptPath").Tag("Pivot")
 	EdgeCertificateEnroll                    = engine.NewEdge("CertificateEnroll").Tag("Granted")
