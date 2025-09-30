@@ -156,8 +156,8 @@
           // Clean up
           layout.trigger("layoutready");
 
-          if (this.fit) {
-            cy.fit(this.padding);
+          if (this.options.fit) {
+            cy.fit(this.options.padding);
           }
 
           layout.trigger("layoutstop");
