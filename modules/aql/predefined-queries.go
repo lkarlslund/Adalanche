@@ -10,13 +10,13 @@ var (
 		},
 		{
 			Name:        "Reach Domain Admin, Administrators and Enterprise Admins",
-			Query:       "ACYCLIC start:(&(dataLoader=Active Directory)(type=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:       "ACYCLIC start:(&(dataLoader=Active Directory)(type=Group)(|(objectSid=S-1-5-32-544)(objectSid=S-1-5-21-*-512)(objectSid=S-1-5-21-*-519)))<-[()]{1,10}-end:(|(type=Person)(type=Group))",
 			Description: "Find all the paths to reach Domain Admins, Administrators and Enterprise Admins.",
 			Category:    "Active Directory",
 		},
 		{
 			Name:        "Run DCsync",
-			Query:       "ACYCLIC start:(&(name=DCsync)(type=Callable-Service-Point))<-[]{1,10}-end:(|(type=Person)(type=Group))",
+			Query:       "ACYCLIC start:(&(name=DCsync)(type=Callable-Service-Point))<-[()]{1,10}-end:(|(type=Person)(type=Group))",
 			Description: "Find all the paths to run DCsync, enabling the attacker to dump all the hashes from the domain.",
 			Category:    "Active Directory",
 		},

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"unsafe"
 )
 
 type StartLength struct {
@@ -12,9 +13,9 @@ type StartLength struct {
 }
 
 type AttributesAndValues struct {
-	mu         sync.Mutex
 	attributes map[Attribute]StartLength
 	values     AttributeValues
+	mu         sync.Mutex
 }
 
 func (avm *AttributesAndValues) init() {
@@ -31,25 +32,49 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 	// Create a new AttributesAndValues to store the merged result.
 	var merged AttributesAndValues
 	merged.init()
-	// Assume no collisions, so help by not reallocating the slice over and over
-	merged.values = make(AttributeValues, 0, len(avm.values)+len(avm2.values))
 
+	// pre-allocate backing array for values to avoid repeated reallocations
+	longestlen := len(avm.values)
+	if len(avm2.values) > longestlen {
+		longestlen = len(avm2.values)
+	}
+	merged.values = make(AttributeValues, 0, longestlen)
+
+	// Collect keys directly from both maps (avoids extra Iterate/map lookups).
 	attributes := make([]Attribute, 0, len(avm.attributes)+len(avm2.attributes))
-	avm.Iterate(func(attr Attribute, values AttributeValues) bool {
+	for attr := range avm.attributes {
 		attributes = append(attributes, attr)
-		return true
-	})
-	avm2.Iterate(func(attr Attribute, values AttributeValues) bool {
+	}
+	for attr := range avm2.attributes {
 		attributes = append(attributes, attr)
-		return true
-	})
-	slices.Sort(attributes)
-	attributes = slices.Compact(attributes)
+	}
 
+	// For each attribute, grab the slices directly and append merged values once.
+	slices.Sort(attributes)
+	var lastAttribute Attribute
 	for _, attr := range attributes {
-		avm1values, _ := avm.get(attr)
-		avm2values, _ := avm2.get(attr)
-		merged.set(attr, MergeValues(avm1values, avm2values))
+		if attr == lastAttribute {
+			// already processed this attribute (duplicate in combined list)
+			continue
+		}
+		lastAttribute = attr
+
+		var av1 AttributeValues
+		if sl, found := avm.attributes[attr]; found {
+			av1 = avm.values[sl.start : sl.start+sl.length]
+		}
+		var av2 AttributeValues
+		if sl, found := avm2.attributes[attr]; found {
+			av2 = avm2.values[sl.start : sl.start+sl.length]
+		}
+		mergedVals := MergeValues(av1, av2)
+		if len(mergedVals) == 0 {
+			// nothing to store for this attribute
+			continue
+		}
+		start := len(merged.values)
+		merged.values = append(merged.values, mergedVals...)
+		merged.attributes[attr] = StartLength{start, len(mergedVals)}
 	}
 
 	return &merged
@@ -69,7 +94,7 @@ func (avm *AttributesAndValues) get(a Attribute) (av AttributeValues, found bool
 	return avm.values[sl.start : sl.start+sl.length], true
 }
 
-func sliceOverlap[T any](s1, s2 []T) bool {
+func sliceOverlap(s1, s2 AttributeValues) bool {
 	cap1 := cap(s1)
 	cap2 := cap(s2)
 
@@ -78,8 +103,25 @@ func sliceOverlap[T any](s1, s2 []T) bool {
 		return false
 	}
 
-	// compare the address of the last element in each backing array.
-	return &s1[0:cap1][cap1-1] == &s2[0:cap2][cap2-1]
+	// Get pointer to the first element of each backing array safely by
+	// slicing to the full capacity so indexing is valid.
+	base1 := unsafe.Pointer(&s1[:cap1][0])
+	base2 := unsafe.Pointer(&s2[:cap2][0])
+
+	// size of each element (may be 0 for zero-sized types)
+	elemSize := unsafe.Sizeof(s1[:cap1][0])
+	if elemSize == 0 {
+		// For zero-sized elements, overlapping is meaningful only if they point to same backing address.
+		return base1 == base2
+	}
+
+	start1 := uintptr(base1)
+	end1 := start1 + uintptr(cap1)*elemSize - 1
+	start2 := uintptr(base2)
+	end2 := start2 + uintptr(cap2)*elemSize - 1
+
+	// ranges overlap if they are not disjoint
+	return !(end1 < start2 || end2 < start1)
 }
 
 func (avm *AttributesAndValues) Set(a Attribute, av AttributeValues) {

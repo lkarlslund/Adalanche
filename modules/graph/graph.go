@@ -209,7 +209,7 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 	}
 }
 
-// SCC returns the strongly connected components
+// SCC Kosaraju's Algorithm for finding strongly connected components (two DFS passes)
 func (pg Graph[NodeType, EdgeType]) SCC() [][]NodeType {
 	pg.autoCleanupEdges()
 
@@ -267,6 +267,65 @@ func (pg Graph[NodeType, EdgeType]) SCC() [][]NodeType {
 		}
 	}
 	return results
+}
+
+// SCC Tarjan Algorithm Implementation (one pass)
+func (g *Graph[NodeType, EdgeType]) SCCTarjan() [][]NodeType {
+	successors := g.SuccessorMap() // precompute adjacency lists
+
+	index := 0
+	stack := []NodeType{}
+	onStack := make(map[NodeType]bool)
+	indices := make(map[NodeType]int)
+	lowlink := make(map[NodeType]int)
+
+	var result [][]NodeType
+
+	var strongConnect func(v NodeType)
+	strongConnect = func(v NodeType) {
+		indices[v] = index
+		lowlink[v] = index
+		index++
+		stack = append(stack, v)
+		onStack[v] = true
+
+		// iterate successors
+		for _, w := range successors[v] {
+			if _, ok := indices[w]; !ok {
+				strongConnect(w)
+				if lowlink[w] < lowlink[v] {
+					lowlink[v] = lowlink[w]
+				}
+			} else if onStack[w] {
+				if indices[w] < lowlink[v] {
+					lowlink[v] = indices[w]
+				}
+			}
+		}
+
+		// SCC root
+		if lowlink[v] == indices[v] {
+			var scc []NodeType
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				onStack[w] = false
+				scc = append(scc, w)
+				if w == v {
+					break
+				}
+			}
+			result = append(result, scc)
+		}
+	}
+
+	for v := range g.nodes {
+		if _, ok := indices[v]; !ok {
+			strongConnect(v)
+		}
+	}
+
+	return result
 }
 
 type GraphNodePairEdge[NT comparable, ET any] struct {
@@ -365,6 +424,23 @@ func (pg Graph[NodeType, EdgeType]) PredecessorMap() map[NodeType][]NodeType {
 		predecessorMap[connection.Target] = append(predecessorMap[connection.Target], connection.Source)
 	}
 	return predecessorMap
+}
+
+// SuccessorMap returns the successor map
+func (pg Graph[NodeType, EdgeType]) SuccessorMap() map[NodeType][]NodeType {
+	pg.autoCleanupEdges()
+	successorMap := make(map[NodeType][]NodeType)
+
+	// Ensure every node is in the map
+	for id := range pg.nodes {
+		successorMap[id] = nil
+	}
+
+	// Add every connection
+	for connection := range pg.edges {
+		successorMap[connection.Source] = append(successorMap[connection.Source], connection.Target)
+	}
+	return successorMap
 }
 
 // TopologicalSort returns the topological sort
@@ -481,4 +557,73 @@ func (pg Graph[NodeType, EdgeType]) Order() int {
 func (pg Graph[NodeType, EdgeType]) Size() int {
 	pg.autoCleanupEdges()
 	return len(pg.edges)
+}
+
+type SCCDAG[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
+	Nodes     [][]NodeType         // Each SCC as a slice of nodes
+	Edges     map[int]map[int]bool // Edge from SCC i → SCC j
+	NodeToSCC map[NodeType]int     // Map each original node to its SCC index
+}
+
+func CollapseSCCs[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](sccs [][]NodeType, g Graph[NodeType, EdgeType]) SCCDAG[NodeType, EdgeType] {
+	nodeToSCC := make(map[NodeType]int)
+	for i, scc := range sccs {
+		for _, n := range scc {
+			nodeToSCC[n] = i
+		}
+	}
+
+	edges := make(map[int]map[int]bool)
+	for i := range sccs {
+		edges[i] = make(map[int]bool)
+	}
+
+	// Build SCC-DAG
+	for pair := range g.edges {
+		srcSCC := nodeToSCC[pair.Source]
+		tgtSCC := nodeToSCC[pair.Target]
+		if srcSCC != tgtSCC {
+			edges[srcSCC][tgtSCC] = true
+		}
+	}
+
+	return SCCDAG[NodeType, EdgeType]{
+		Nodes:     sccs,
+		Edges:     edges,
+		NodeToSCC: nodeToSCC,
+	}
+}
+
+func TopoSortDAG[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](dag SCCDAG[NodeType, EdgeType]) []int {
+	indegree := make(map[int]int)
+	for i := range dag.Nodes {
+		indegree[i] = 0
+	}
+	for _, targets := range dag.Edges {
+		for tgt := range targets {
+			indegree[tgt]++
+		}
+	}
+
+	var queue []int
+	for i, deg := range indegree {
+		if deg == 0 {
+			queue = append(queue, i)
+		}
+	}
+
+	var order []int
+	for len(queue) > 0 {
+		u := queue[0]
+		queue = queue[1:]
+		order = append(order, u)
+		for v := range dag.Edges[u] {
+			indegree[v]--
+			if indegree[v] == 0 {
+				queue = append(queue, v)
+			}
+		}
+	}
+
+	return order
 }
