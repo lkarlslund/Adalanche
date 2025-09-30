@@ -495,10 +495,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		if sd, err := engine.ParseSecurityDescriptor(cinfo.ServiceControlManagerSecurityDescriptor); err == nil {
 			for _, entry := range sd.DACL.Entries {
 				entrysid := entry.SID
-				if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
-					// if we have local admin it's already game over so don't map this
-					continue
-				}
 				// Create service permission check
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED &&
 					entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE == 0 &&
@@ -569,32 +565,24 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 				ui.Warn().Msgf("Service account SID (%v) parsing problem: %v", service.AccountSID, err)
 			}
 		}
+
 		// Some service don't have SID, just the name
 		if serviceaccountSID.IsBlank() {
-			if strings.EqualFold(service.Account, "LocalSystem") {
+			if strings.EqualFold(service.Account, "LocalSystem") || service.Account == "" {
 				serviceaccountSID = windowssecurity.SystemSID
 			}
 		}
+
 		var svcaccount *engine.Object
 		if !serviceaccountSID.IsBlank() {
-			svcaccount = ao.AddNew(
-				activedirectory.ObjectSid, engine.NewAttributeValueSID(serviceaccountSID),
-			)
-			if serviceaccountSID.StripRID() == localsid || serviceaccountSID.Component(2) != 21 {
+			svcaccount = ao.FindOrAddAdjacentSID(serviceaccountSID, machine)
+			nameparts := strings.Split(service.Account, "\\")
+			if len(nameparts) == 2 && strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
 				svcaccount.SetFlex(
-					engine.DataSource, uniquesource,
+					engine.DownLevelLogonName, service.Account,
 				)
-				nameparts := strings.Split(service.Account, "\\")
-				if len(nameparts) == 2 && strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
-					svcaccount.SetFlex(
-						engine.DownLevelLogonName, service.Account,
-					)
-				}
-				svcaccount.ChildOf(serviceobject)
 			}
-			if serviceaccountSID.Component(2) < 21 {
-				svcaccount.SetFlex(activedirectory.Type, "Group")
-			}
+			svcaccount.ChildOf(serviceobject)
 		}
 		if svcaccount == nil {
 			if service.Account != "" {
@@ -619,6 +607,8 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						engine.DownLevelLogonName, engine.NewAttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[0]),
 					)
 				}
+			} else {
+				ui.Warn().Msgf("Service %v on %v has no account information", service.Name, cinfo.Machine.Name)
 			}
 		}
 		// Did we somehow manage to find an account?
