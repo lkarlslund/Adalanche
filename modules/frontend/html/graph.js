@@ -1,6 +1,11 @@
 var cy
 var nodemenu
 
+var remoteLayout = {
+  name: "remote",
+  url: "/api/graph/layout",        // server endpoint (required)
+}
+
 // Configure
 var d3forcelayout = {
     name: "d3-force",
@@ -596,6 +601,13 @@ function getGraphlayout(choice) {
         case "cise":
             layouttemplate = ciselayout
             break
+        case "remote":
+            layouttemplate = remoteLayout
+            break
+        default:
+            // toast error
+            console.log("Unknown layout choice: " + choice);
+            break;
     }
 
     var layout = cy.layout(layouttemplate)
@@ -1074,6 +1086,7 @@ function initgraph(data) {
         //         $("#route").hide();
         //     }
         // });
+
     });
 
     // Distribute all objects to predictable locations
@@ -1278,3 +1291,4 @@ function findroute(source) {
         toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets. You might also have chosen the source and target in the wrong direction?", "warning");
     }
 }
+

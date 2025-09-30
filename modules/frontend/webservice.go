@@ -253,6 +253,7 @@ func (ws *WebService) Init(r gin.IRoutes) {
 	AddUIEndpoints(ws)
 	AddPreferencesEndpoints(ws)
 	AddDataEndpoints(ws)
+	AddGraphEndpoints(ws)
 }
 
 // Analyze analyzes paths for some purpose, though its implementation is missing in the provided code.
