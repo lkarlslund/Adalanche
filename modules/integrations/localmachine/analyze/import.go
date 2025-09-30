@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/amidaware/taskmaster"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
@@ -381,23 +382,20 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		}
 		// Potential translation
 		// usersid = MapSID(originalsid, localsid, usersid)
-		user := ao.AddNew(
-			activedirectory.ObjectSid, engine.NewAttributeValueSID(usersid),
-			engine.Type, "Person",
-		)
+		loggedin := ao.FindOrAddAdjacentSID(usersid, machine)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
-			user.SetFlex(
+			loggedin.SetFlex(
 				engine.DataSource, uniquesource,
 			)
 		}
 		var username string
 		if !strings.Contains(login.Domain, ".") {
 			username = login.Domain + "\\" + login.User
-			user.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(username))
+			loggedin.Set(engine.DownLevelLogonName, engine.NewAttributeValueString(username))
 		} else {
 			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
 			username = login.User + "@" + login.Domain
-			user.Set(engine.UserPrincipalName, engine.NewAttributeValueString(username))
+			loggedin.Set(engine.UserPrincipalName, engine.NewAttributeValueString(username))
 		}
 
 		if login.LogonType == 2 || login.LogonType == 11 {
@@ -419,36 +417,36 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 		// Parse event id 4624
 		switch login.LogonType {
 		case 2, 11: // Interactive or cached interactive
-			machine.EdgeTo(user, EdgeSessionLocal)
+			machine.EdgeTo(loggedin, EdgeSessionLocal)
 		case 3: // Network
-			machine.EdgeTo(user, EdgeSessionNetwork)
+			machine.EdgeTo(loggedin, EdgeSessionNetwork)
 			switch login.AuthenticationPackageName {
 			case "NTLM":
-				machine.EdgeTo(user, EdgeSessionNetworkNTLM)
+				machine.EdgeTo(loggedin, EdgeSessionNetworkNTLM)
 			case "NTLM V2":
-				machine.EdgeTo(user, EdgeSessionNetworkNTLMv2)
+				machine.EdgeTo(loggedin, EdgeSessionNetworkNTLMv2)
 			case "Kerberos":
-				machine.EdgeTo(user, EdgeSessionNetworkKerberos)
+				machine.EdgeTo(loggedin, EdgeSessionNetworkKerberos)
 			case "Negotiate":
-				machine.EdgeTo(user, EdgeSessionNetworkNegotiate)
+				machine.EdgeTo(loggedin, EdgeSessionNetworkNegotiate)
 			default:
 				ui.Debug().Msgf("Other: %v", login.AuthenticationPackageName)
 			}
 		case 4: // Batch (scheduled task)
-			machine.EdgeTo(user, EdgeSessionBatch)
+			machine.EdgeTo(loggedin, EdgeSessionBatch)
 		case 5: // Service
-			machine.EdgeTo(user, EdgeSessionService)
+			machine.EdgeTo(loggedin, EdgeSessionService)
 		case 10: // RDP
-			machine.EdgeTo(user, EdgeSessionRDP)
+			machine.EdgeTo(loggedin, EdgeSessionRDP)
 		}
-		machine.EdgeTo(user, EdgeSession)
+		machine.EdgeTo(loggedin, EdgeSession)
 
 		for _, ipaddress := range login.IpAddress {
 			IpMachine := ao.AddNew(
 				engine.IPAddress, engine.NewAttributeValueString(ipaddress),
 				engine.Type, "Machine",
 			)
-			IpMachine.EdgeTo(user, EdgeSession)
+			IpMachine.EdgeTo(loggedin, EdgeSession)
 		}
 	}
 	if len(topInteractiveUsers) > 0 {
@@ -474,7 +472,6 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			engine.NetbiosDomain, engine.NewAttributeValueString(cinfo.Machine.DefaultDomain),
 			activedirectory.SAMAccountName, cinfo.Machine.DefaultUsername,
 			engine.DownLevelLogonName, cinfo.Machine.DefaultDomain+"\\"+cinfo.Machine.DefaultUsername,
-			activedirectory.Type, "Person",
 		)
 		machine.EdgeTo(user, EdgeHasAutoAdminLogonCredentials)
 	}
@@ -764,6 +761,70 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			// ui.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
 		}
 	}
+
+	// SCHEDULED TASKS
+	if len(cinfo.Tasks) > 0 {
+		taskcontainer := engine.NewObject(activedirectory.Name, "Scheduled Tasks")
+		ao.Add(taskcontainer)
+		taskcontainer.ChildOf(machine)
+		for _, task := range cinfo.Tasks {
+			taskobject := ao.AddNew(
+				engine.IgnoreBlanks,
+				activedirectory.Name, task.Name,
+				activedirectory.Description, task.Definition.RegistrationInfo.Description,
+				// ScheduledTaskPath, task.Path,
+				// engine.Enabled, task.Enabled,
+				engine.Type, "ScheduledTask",
+			)
+			taskobject.ChildOf(taskcontainer)
+			machine.EdgeTo(taskobject, EdgeHosts)
+			switch taskmaster.TaskLogonType(task.Definition.Principal.LogonType) {
+			case taskmaster.TASK_LOGON_GROUP:
+				// When someone that is a member of the group is logged in
+				// task.Definition.Principal.GroupID == "Everyone"
+			case taskmaster.TASK_LOGON_SERVICE_ACCOUNT:
+				if task.Definition.Principal.UserID == "LOCAL SERVICE" {
+					// "LOCAL SERVICE"
+				}
+				if task.Definition.Principal.UserID == "SYSTEM" && task.Definition.Principal.RunLevel == 1 {
+					// Elevated as system
+					system := ao.FindOrAddAdjacentSID(windowssecurity.SystemSID, machine)
+					taskobject.EdgeTo(system, analyze.EdgeAuthenticatesAs)
+				}
+				if strings.HasPrefix(task.Definition.Principal.UserID, "\\") {
+					ui.Debug().Msgf("Odd service account in scheduled task %v: %v", task.Name, task.Definition.Principal.UserID)
+				}
+			}
+
+			// DACL that can change the task
+			if task.Definition.RegistrationInfo.SecurityDescriptor != "" {
+				if sd, err := engine.ParseSDDL(task.Definition.RegistrationInfo.SecurityDescriptor); err == nil {
+					for _, entry := range sd.Entries {
+						entrysid := entry.SID
+						if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
+							// if we have local admin it's already game over so don't map this
+							continue
+						}
+						if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
+							if entry.Mask&engine.WRITE_DAC == engine.WRITE_DAC {
+								ao.FindOrAddAdjacentSID(entry.SID, machine).EdgeTo(taskobject, activedirectory.EdgeWriteDACL)
+							}
+							if entry.Mask&engine.WRITE_OWNER != engine.WRITE_OWNER {
+								ao.FindOrAddAdjacentSID(entry.SID, machine).EdgeTo(taskobject, activedirectory.EdgeTakeOwnership)
+							}
+							if entry.Mask&engine.TASK_WRITE == engine.TASK_WRITE {
+								ao.FindOrAddAdjacentSID(entry.SID, machine).EdgeTo(taskobject, activedirectory.EdgeWriteAll)
+							}
+							if entry.Mask&engine.TASK_FULL_CONTROL == engine.TASK_FULL_CONTROL {
+								ao.FindOrAddAdjacentSID(entry.SID, machine).EdgeTo(taskobject, activedirectory.EdgeGenericAll)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// SOFTWARE INVENTORY AS ATTRIBUTES
 	installedsoftware := make([]string, len(cinfo.Software))
 	for i, software := range cinfo.Software {
