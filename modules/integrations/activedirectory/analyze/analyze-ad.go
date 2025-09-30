@@ -1901,7 +1901,7 @@ func init() {
 			return true
 		})
 
-		scc := groupToMemberGraph.SCC()
+		scc := groupToMemberGraph.SCCKosaraju()
 		dag := graph.CollapseSCCs(scc, groupToMemberGraph)
 
 		// Track reachability with distances (1 = direct member, >1 = indirect)

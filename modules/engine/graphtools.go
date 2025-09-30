@@ -27,7 +27,7 @@ func CalculateGraphValues(ao *Objects, matchEdges EdgeBitmap, requiredProbabilit
 
 	// Find cycles
 	ui.Info().Msg("Finding strongly connected nodes")
-	scc := g.SCC()
+	scc := g.SCCKosaraju()
 
 	ui.Info().Msg("Creating SCC collapsed graph")
 	dag := graph.CollapseSCCs(scc, g)
@@ -92,7 +92,7 @@ func CalculateGraphValuesSlice(ao *Objects, matchEdges EdgeBitmap, requiredProba
 
 	// Find cycles
 	ui.Info().Msg("Finding strongly connected nodes")
-	scc := g.SCC()
+	scc := g.SCCKosaraju()
 
 	ui.Info().Msg("Creating SCC collapsed graph")
 	dag := graph.CollapseSCCs(scc, g)

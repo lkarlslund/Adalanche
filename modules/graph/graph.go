@@ -209,8 +209,8 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 	}
 }
 
-// SCC Kosaraju's Algorithm for finding strongly connected components (two DFS passes)
-func (pg Graph[NodeType, EdgeType]) SCC() [][]NodeType {
+// SCCKosaraju Kosaraju's Algorithm for finding strongly connected components (two DFS passes)
+func (pg Graph[NodeType, EdgeType]) SCCKosaraju() [][]NodeType {
 	pg.autoCleanupEdges()
 
 	nodeToOffset := make(map[NodeType]int)
@@ -326,6 +326,112 @@ func (g *Graph[NodeType, EdgeType]) SCCTarjan() [][]NodeType {
 	}
 
 	return result
+}
+
+// SCC Gabow Algorithm Implementation (one pass)
+func (g *Graph[NodeType, EdgeType]) SCCGabow() [][]NodeType {
+	successors := g.SuccessorMap() // precompute adjacency lists
+	index := 0
+	stack := []NodeType{}
+	path := []NodeType{}
+	indices := make(map[NodeType]int)
+	onStack := make(map[NodeType]bool)
+	var result [][]NodeType
+	var strongConnect func(v NodeType)
+	strongConnect = func(v NodeType) {
+		indices[v] = index
+		index++
+		stack = append(stack, v)
+		path = append(path, v)
+		onStack[v] = true
+		for _, w := range successors[v] {
+			if _, ok := indices[w]; !ok {
+				strongConnect(w)
+			} else if onStack[w] {
+				for len(path) > 0 && indices[path[len(path)-1]] > indices[w] {
+					path = path[:len(path)-1]
+				}
+			}
+		}
+		if len(path) > 0 && path[len(path)-1] == v {
+			var scc []NodeType
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				onStack[w] = false
+				scc = append(scc, w)
+				if w == v {
+					break
+				}
+			}
+			result = append(result, scc)
+			path = path[:len(path)-1]
+		}
+	}
+	for v := range g.nodes {
+		if _, ok := indices[v]; !ok {
+			strongConnect(v)
+		}
+	}
+	return result
+}
+
+const INF = int(^uint(0) >> 1) // Maximum value for int, proper infinity representation
+
+// Floyd-Warshall All-Pairs Shortest Paths
+func (pg Graph[NodeType, EdgeType]) FloydWarshall() (map[NodeType]map[NodeType]int, error) {
+	pg.autoCleanupEdges()
+	dist := make(map[NodeType]map[NodeType]int)
+
+	// Initialize distances
+	for node := range pg.nodes {
+		dist[node] = make(map[NodeType]int)
+		for otherNode := range pg.nodes {
+			if node == otherNode {
+				dist[node][otherNode] = 0
+			} else {
+				dist[node][otherNode] = INF
+			}
+		}
+	}
+
+	// Set initial edge weights
+	for connection, _ := range pg.edges {
+		// Use edge.Flow as weight, minimum 1
+		weight := 1
+		if weight >= INF {
+			return nil, errors.New("edge weight too large")
+		}
+		dist[connection.Source][connection.Target] = weight
+	}
+
+	// Floyd-Warshall algorithm
+	for k := range pg.nodes {
+		for i := range pg.nodes {
+			for j := range pg.nodes {
+				// Check for INF to prevent overflow
+				if dist[i][k] != INF && dist[k][j] != INF {
+					newDist := dist[i][k] + dist[k][j]
+					// Check for overflow and negative cycles
+					if newDist < 0 {
+						return nil, errors.New("negative cycle detected")
+					}
+					if newDist < dist[i][j] {
+						dist[i][j] = newDist
+					}
+				}
+			}
+		}
+	}
+
+	// Verify no negative cycles (optional)
+	for node := range pg.nodes {
+		if dist[node][node] < 0 {
+			return nil, errors.New("negative cycle detected")
+		}
+	}
+
+	return dist, nil
 }
 
 type GraphNodePairEdge[NT comparable, ET any] struct {
