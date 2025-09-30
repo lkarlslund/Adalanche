@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/amidaware/taskmaster"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
@@ -19,6 +18,16 @@ import (
 var unhandledPrivileges sync.Map
 
 var PrimaryUser = engine.NewAttribute("primaryUser").SetDescription("Derived primary user from local 4624 interactive events")
+
+const (
+	TASK_LOGON_NONE                          int = iota // the logon method is not specified. Used for non-NT credentials
+	TASK_LOGON_PASSWORD                                 // use a password for logging on the user. The password must be supplied at registration time
+	TASK_LOGON_S4U                                      // the service will log the user on using Service For User (S4U), and the task will run in a non-interactive desktop. When an S4U logon is used, no password is stored by the system and there is no access to either the network or to encrypted files
+	TASK_LOGON_INTERACTIVE_TOKEN                        // user must already be logged on. The task will be run only in an existing interactive session
+	TASK_LOGON_GROUP                                    // group activation
+	TASK_LOGON_SERVICE_ACCOUNT                          // indicates that a Local System, Local Service, or Network Service account is being used as a security context to run the task
+	TASK_LOGON_INTERACTIVE_TOKEN_OR_PASSWORD            // first use the interactive token. If the user is not logged on (no interactive token is available), then the password is used. The password must be specified when a task is registered. This flag is not recommended for new tasks because it is less reliable than TASK_LOGON_PASSWORD
+)
 
 // Returns the computer object
 func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.Object, error) {
@@ -426,7 +435,7 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			machine.EdgeTo(loggedin, EdgeSessionNetwork)
 			switch login.AuthenticationPackageName {
 			case "NTLM", "NTLM V1":
-				machine.EdgeTo(user, EdgeSessionNetworkNTLM)
+				machine.EdgeTo(loggedin, EdgeSessionNetworkNTLM)
 			case "NTLM V2":
 				machine.EdgeTo(loggedin, EdgeSessionNetworkNTLMv2)
 			case "Kerberos":
@@ -761,11 +770,11 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 			)
 			taskobject.ChildOf(taskcontainer)
 			machine.EdgeTo(taskobject, EdgeHosts)
-			switch taskmaster.TaskLogonType(task.Definition.Principal.LogonType) {
-			case taskmaster.TASK_LOGON_GROUP:
+			switch task.Definition.Principal.LogonType {
+			case TASK_LOGON_GROUP:
 				// When someone that is a member of the group is logged in
 				// task.Definition.Principal.GroupID == "Everyone"
-			case taskmaster.TASK_LOGON_SERVICE_ACCOUNT:
+			case TASK_LOGON_SERVICE_ACCOUNT:
 				if task.Definition.Principal.UserID == "LOCAL SERVICE" {
 					// "LOCAL SERVICE"
 				}
