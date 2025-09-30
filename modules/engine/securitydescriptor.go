@@ -64,57 +64,6 @@ const (
 	RIGHT_MAXIMUM_ALLOWED = 0x02000000 /* Not stored in AD, just for requests */
 
 	RIGHT_ACCESS_SYSTEM_SECURITY = 0x01000000 /* Not stored in AD, just for requests */
-
-	// REGISTRY PERMISSIONS MASK
-	KEY_ALL_ACCESS         = 0xF003F
-	KEY_READ               = 0x20019
-	KEY_WRITE              = 0x20006
-	KEY_EXECUTE            = 0x20019
-	KEY_CREATE_SUB_KEYS    = 0x0004
-	KEY_ENUMERATE_SUB_KEYS = 0x0008
-	KEY_NOTIFY             = 0x0010
-	KEY_QUERY_VALUE        = 0x0001
-	KEY_SET_VALUE          = 0x0002
-
-	// FILE PERMISSIONS
-	FILE_READ_DATA        = 0x00000001 // Grants the right to read data from the file.
-	FILE_LIST_DIRECTORY   = 0x00000001 // Grants the right to read data from the file. For a directory, this value grants the right to list the contents of the directory.
-	FILE_WRITE_DATA       = 0x00000002 // Grants the right to write data to the file.
-	FILE_ADD_FILE         = 0x00000002 // Grants the right to write data to the file. For a directory, this value grants the right to create a file in the directory.
-	FILE_APPEND_DATA      = 0x00000004 // Grants the right to append data to the file. For a directory, this value grants the right to create a subdirectory.
-	FILE_ADD_SUBDIRECTORY = 0x00000004 // Grants the right to append data to the file. For a directory, this value grants the right to create a subdirectory.
-	FILE_READ_EA          = 0x00000008 // Grants the right to read extended attributes.
-	FILE_WRITE_EA         = 0x00000010 // Grants the right to write extended attributes.
-	FILE_EXECUTE          = 0x00000020 // Grants the right to execute a file.
-	FILE_TRAVERSE         = 0x00000020 // Grants the right to execute a file. For a directory, the directory can be traversed.
-	FILE_DELETE_CHILD     = 0x00000040 // Grants the right to delete a directory and all the files it contains (its children), even if the files are read-only.
-	FILE_READ_ATTRIBUTES  = 0x00000080 // Grants the right to read file attributes.
-	FILE_WRITE_ATTRIBUTES = 0x00000100 // Grants the right to change file attributes.
-	DELETE                = 0x00010000 // Grants the right to delete the object.
-	READ_CONTROL          = 0x00020000 // Grants the right to read the information in the security descriptor for the object, not including the information in the SACL.
-	WRITE_DAC             = 0x00040000 // Grants the right to modify the DACL in the object security descriptor for the object.
-	WRITE_OWNER           = 0x00080000 // Grants the right to change the owner in the security descriptor for the object.
-	SYNCHRONIZE           = 0x00100000
-
-	// SERVICE PERMISSIONS
-	SC_MANAGER_CONNECT            = 0x0001
-	SC_MANAGER_CREATE_SERVICE     = 0x0002
-	SC_MANAGER_ENUMERATE_SERVICE  = 0x0004
-	SC_MANAGER_LOCK               = 0x0008
-	SC_MANAGER_QUERY_LOCK_STATUS  = 0x0010
-	SC_MANAGER_MODIFY_BOOT_CONFIG = 0x0020
-	SC_MANAGER_ALL_ACCESS         = 0xF003F
-
-	SERVICE_QUERY_CONFIG         = 0x0001
-	SERVICE_CHANGE_CONFIG        = 0x0002
-	SERVICE_QUERY_STATUS         = 0x0004
-	SERVICE_ENUMERATE_DEPENDENTS = 0x0008
-	SERVICE_START                = 0x0010
-	SERVICE_STOP                 = 0x0020
-	SERVICE_PAUSE_CONTINUE       = 0x0040
-	SERVICE_INTERROGATE          = 0x0080
-	SERVICE_USER_DEFINED_CONTROL = 0x0100
-	SERVICE_ALL_ACCESS           = 0xF01FF
 )
 
 func ParseSDDL(sddl string) (ACL, error) {

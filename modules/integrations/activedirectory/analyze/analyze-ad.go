@@ -1641,14 +1641,22 @@ func init() {
 			// Find the computer AD object if any
 			DomainJoinedSID := machine.OneAttr(attrs.DomainJoinedSID)
 			if DomainJoinedSID == nil {
-				ui.Warn().Msgf("Machine %v has no DomainJoinedSID attribute", machine.OneAttrString(engine.Name))
+				ui.Warn().Msgf("Machine %v has no DomainJoinedSID attribute (dump %v)", machine.OneAttrString(engine.Name), machine.ValueMap())
 				return true // continue
 			}
 
 			computer, found := ao.Find(engine.ObjectSid, DomainJoinedSID)
 
 			if !found || computer == nil {
-				ui.Warn().Msgf("Machine %v has no computer account", machine.OneAttrString(engine.Name))
+				if computers, found := ao.FindMulti(engine.ObjectSid, DomainJoinedSID); found {
+					ui.Warn().Msgf("Machine %v with DomainJoinedSID %v has multiple computer accounts", machine.OneAttrString(engine.Name), DomainJoinedSID)
+					computers.Iterate(func(o *engine.Object) bool {
+						ui.Warn().Msgf("Computer - %v", o.ValueMap())
+						return true
+					})
+					return true // continue
+				}
+				ui.Warn().Msgf("Machine %v with DomainJoinedSID %v has no computer account", machine.OneAttrString(engine.Name), DomainJoinedSID)
 				return true // continue
 			}
 
