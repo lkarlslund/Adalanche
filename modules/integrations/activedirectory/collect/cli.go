@@ -546,7 +546,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 					gpodatafile := filepath.Join(datapath, gpoguid[0]+".gpodata.json")
 					f, err := os.Create(gpodatafile)
 					if err != nil {
-						ui.Error().Msgf("Problem writing GPO information to %v: %v")
+						ui.Error().Msgf("Problem writing GPO information to %v: %v", gpodatafile, err)
+						continue
 					}
 					defer f.Close()
 
