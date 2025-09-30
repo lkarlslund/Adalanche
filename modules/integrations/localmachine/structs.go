@@ -64,11 +64,11 @@ type LogonInfo struct {
 	Domain                    string    `json:",omitempty"`
 	SID                       string    `json:",omitempty"`
 	Count                     uint64    `json:",omitempty"`
-	LogonType                 uint32    `json:",omitempty`
-	AuthenticationPackageName string    `json:",omitempty`
-	IpAddress                 []string  `json:",omitempty`
-	FirstSeen                 time.Time `json:",omitempty`
-	LastSeen                  time.Time `json:",omitempty`
+	LogonType                 uint32    `json:",omitempty"`
+	AuthenticationPackageName string    `json:",omitempty"`
+	IpAddress                 []string  `json:",omitempty"`
+	FirstSeen                 time.Time `json:",omitempty"`
+	LastSeen                  time.Time `json:",omitempty"`
 }
 type Shares []Share
 type Share struct {
