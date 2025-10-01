@@ -135,13 +135,13 @@ func init() {
 			}
 
 			// Link to the machine object
-			machinesid := o.SID()
-			if machinesid.IsBlank() {
+			computerSid := o.SID()
+			if computerSid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
+			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(computerSid))
 			if !found {
-				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", machinesid)
+				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", computerSid)
 				return true
 			}
 			machine.Tag("laps")
@@ -257,7 +257,7 @@ func init() {
 		})
 	}, "Machine configurations that are part of a GPO", engine.BeforeMergeHigh)
 
-	matchMSOLDescription := regexp.MustCompile("Account created by Microsoft Azure Active Directory Connect with installation identifier ([0-9a-f]+) running on computer ([^ ]+) configured to synchronize to tenant ([^ ]+)\\. ")
+	matchMSOLDescription := regexp.MustCompile(`Account created by Microsoft Azure Active Directory Connect with installation identifier ([0-9a-f]+) running on computer ([^ ]+) configured to synchronize to tenant ([^ ]+)\. `)
 
 	LoaderID.AddProcessor(func(ao *engine.Objects) {
 		ao.Iterate(func(o *engine.Object) bool {

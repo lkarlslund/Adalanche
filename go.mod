@@ -45,7 +45,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14
 	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/pkg/errors v0.9.1
-	github.com/puzpuzpuz/xsync v1.5.2
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.10.1
@@ -60,7 +59,10 @@ require (
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
 
-require github.com/bytedance/gopkg v0.1.3 // indirect
+require (
+	github.com/bytedance/gopkg v0.1.3 // indirect
+	github.com/edwingeng/deque/v2 v2.1.1
+)
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect

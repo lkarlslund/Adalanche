@@ -18,8 +18,8 @@
       }),
       edgeMapper: (e) => ({
         id: e.id(),
-        source: e.source().id(),
-        target: e.target().id(),
+        from: e.source().id(),
+        to: e.target().id(),
         data: e.data(),
       }),
       extra: {},

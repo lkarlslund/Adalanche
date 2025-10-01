@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 
+	deque "github.com/edwingeng/deque/v2"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/query"
@@ -104,16 +105,18 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	initialWorkingGraph := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
 	initialWorkingGraph.AddNode(startObject)
 	initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
-	queue := []searchState{{
+
+	queue := deque.NewDeque[searchState]()
+	queue.PushBack(searchState{
 		currentObject:             startObject,
 		currentSearchIndex:        0,
 		workingGraph:              initialWorkingGraph,
 		currentDepth:              0,
 		currentTotalDepth:         0,
 		currentOverAllProbability: 1,
-	}}
+	})
 
-	for len(queue) > 0 {
+	for !queue.IsEmpty() {
 		// Check if we've reached the node limit
 		if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 			break
@@ -122,12 +125,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		var currentState searchState
 		if aqlq.Shortest {
 			// Pop from front for BFS (standard, shortest results)
-			currentState = queue[0]
-			queue = queue[1:]
+			currentState = queue.PopFront()
 		} else {
 			// Pop from end for DFS
-			currentState = queue[len(queue)-1]
-			queue = queue[:len(queue)-1]
+			currentState = queue.PopBack()
 		}
 		nextDepth := currentState.currentDepth + 1
 		nextTotalDepth := currentState.currentTotalDepth + 1
@@ -155,7 +156,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
 			// We can skip this one!
 			if len(aqlq.Next) > currentState.currentSearchIndex+1 {
-				queue = append(queue, searchState{
+				queue.PushBack(searchState{
 					currentObject:             currentState.currentObject,
 					currentSearchIndex:        currentState.currentSearchIndex + 1,
 					workingGraph:              currentState.workingGraph,
@@ -184,8 +185,14 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				// Check homomorphism requirements
 				switch aqlq.Mode {
 				case Trail:
-					if committedGraph.HasEdge(currentState.currentObject, nextObject) || currentState.workingGraph.HasEdge(currentState.currentObject, nextObject) {
-						return true
+					if direction == engine.Out {
+						if committedGraph.HasEdge(currentState.currentObject, nextObject) || currentState.workingGraph.HasEdge(currentState.currentObject, nextObject) {
+							return true
+						}
+					} else {
+						if committedGraph.HasEdge(nextObject, currentState.currentObject) || currentState.workingGraph.HasEdge(nextObject, currentState.currentObject) {
+							return true
+						}
 					}
 				case Acyclic:
 					if committedGraph.HasNode(nextObject) || currentState.workingGraph.HasNode(nextObject) {
@@ -214,10 +221,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 
 				var edgeProbability engine.Probability
-				if direction == engine.In {
-					edgeProbability = matchedEdges.MaxProbability(nextObject, currentState.currentObject)
-				} else {
+				if direction == engine.Out {
 					edgeProbability = matchedEdges.MaxProbability(currentState.currentObject, nextObject)
+				} else {
+					edgeProbability = matchedEdges.MaxProbability(nextObject, currentState.currentObject)
 				}
 
 				// Edge probability filtering
@@ -254,7 +261,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					if (nextTargets == nil || nextTargets.Contains(nextObject)) &&
 						currentState.currentSearchIndex < len(aqlq.Next)-1 {
 						// queue next search index
-						queue = append(queue, searchState{
+						queue.PushBack(searchState{
 							currentObject:             nextObject,
 							currentSearchIndex:        currentState.currentSearchIndex + 1,
 							workingGraph:              newWorkingGraph,
@@ -281,7 +288,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				if nextDepth < thisEdgeSearcher.MaxIterations &&
 					(nextEdgeTargets == nil ||
 						nextEdgeTargets.Contains(nextObject)) {
-					queue = append(queue, searchState{
+					queue.PushBack(searchState{
 						currentObject:             nextObject,
 						currentSearchIndex:        currentState.currentSearchIndex,
 						workingGraph:              newWorkingGraph,
