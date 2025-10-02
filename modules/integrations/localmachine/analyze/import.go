@@ -602,10 +602,17 @@ func ImportCollectorInfo(ao *engine.Objects, cinfo localmachine.Info) (*engine.O
 						)
 					}
 				} else if len(nameparts) == 1 {
-					// no \\ in name, just a user name!? this COULD be wrong, might be a DOMAIN account?
-					svcaccount, _ = ao.FindOrAdd(
-						engine.DownLevelLogonName, engine.NewAttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[0]),
-					)
+					// check if its a UPN
+					if strings.Contains(nameparts[0], "@") {
+						svcaccount, _ = ao.FindOrAdd(
+							engine.UserPrincipalName, engine.NewAttributeValueString(service.Account),
+						)
+					} else {
+						// no \\ in name, just a user name!? this COULD be wrong, might be a DOMAIN account?
+						svcaccount, _ = ao.FindOrAdd(
+							engine.DownLevelLogonName, engine.NewAttributeValueString(cinfo.Machine.Domain+"\\"+nameparts[0]),
+						)
+					}
 				}
 			} else {
 				ui.Warn().Msgf("Service %v on %v has no account information", service.Name, cinfo.Machine.Name)
