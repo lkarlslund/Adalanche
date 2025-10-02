@@ -25,13 +25,13 @@ var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
-var UncachedSID = windowssecurity.SID("uncached")
+var BlankSID = windowssecurity.SID("")
 
 type Object struct {
 	edges   [2]EdgeConnectionsPlus
 	sdcache *SecurityDescriptor
 	parent  *Object
-	sid     windowssecurity.SID
+	sid     atomic.Value // windowssecurity.SID
 
 	children ObjectSlice
 
@@ -918,7 +918,6 @@ func (o *Object) Meta() map[string]string {
 
 func (o *Object) init() {
 	o.id = ObjectID(atomic.AddUint32(&idcounter, 1))
-	o.sid = UncachedSID
 	o.values.init()
 	o.status.Store(1)
 }
@@ -982,25 +981,23 @@ var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor
 
 // Return the object's SID
 func (o *Object) SID() windowssecurity.SID {
-	o.lock()
-	defer o.unlock()
-
 	var sid windowssecurity.SID
-	if o.sid == UncachedSID {
+	cachedSid := o.sid.Load()
+	if cachedSid == nil {
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
 				if sid, ok = asid.First().Raw().(windowssecurity.SID); ok {
-					o.sid = sid
-				} else {
-					o.sid = ""
-					sid = ""
+					o.sid.Store(sid)
+					cachedSid = sid
 				}
 			}
 		}
-	} else {
-		sid = o.sid
+		if cachedSid == nil { // Still not found, so cache blank
+			o.sid.Store(BlankSID)
+			cachedSid = BlankSID
+		}
 	}
-	return sid
+	return cachedSid.(windowssecurity.SID)
 }
 
 // Look up edge

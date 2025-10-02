@@ -14,7 +14,7 @@ type Connection struct {
 }
 
 func (c Connection) Compare(c2 Connection) int {
-	return int(c.target.id) - int(c2.target.id) // using internal id, object might be invalidated
+	return int(c.target.id - c2.target.id) // using internal id, object might be invalidated
 }
 
 func (c Connection) LessThan(c2 Connection) bool {
