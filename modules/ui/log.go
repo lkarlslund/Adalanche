@@ -100,6 +100,10 @@ type Logger struct {
 }
 
 func (t Logger) Msgf(format string, args ...any) {
+	if logLevel > t.ll && (logfileinit && logfilelevel > t.ll) {
+		return
+	}
+
 	outputMutex.Lock()
 
 	var timetext string
