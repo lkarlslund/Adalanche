@@ -116,8 +116,8 @@ func (ot ObjectType) String() string {
 	return objecttypenums[ot].Name
 }
 
-func (ot ObjectType) ValueString() AttributeValueString {
-	return NewAttributeValueString(objecttypenums[ot].Lookup)
+func (ot ObjectType) ValueString() attributeValueString {
+	return AttributeValueString(objecttypenums[ot].Lookup)
 }
 
 func (ot ObjectType) Lookup() string {

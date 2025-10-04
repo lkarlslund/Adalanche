@@ -13,16 +13,16 @@ import (
 )
 
 type AQLquery struct {
-	datasource         *engine.Objects
+	datasource         *engine.IndexedGraph
 	Sources            []NodeQuery // count is n
-	sourceCache        []*engine.Objects
+	sourceCache        []*engine.IndexedGraph
 	Next               []EdgeSearcher // count is n-1
 	Mode               QueryMode
 	Shortest           bool
 	OverAllProbability engine.Probability
 }
 
-func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
+func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	if aqlq.Mode == Walk {
 		// Check we don't have endless filtering potential
 		for _, nf := range aqlq.Next {
@@ -35,10 +35,10 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	defer pb.Finish()
 
 	// Prepare all the potentialnodes by filtering them and saving them in potentialnodes[n]
-	aqlq.sourceCache = make([]*engine.Objects, len(aqlq.Sources))
+	aqlq.sourceCache = make([]*engine.IndexedGraph, len(aqlq.Sources))
 	for i, q := range aqlq.Sources {
 		aqlq.sourceCache[i] = q.Populate(aqlq.datasource)
-		ui.Debug().Msgf("Node cache %v has %v nodes", i, aqlq.sourceCache[i].Len())
+		ui.Debug().Msgf("Node cache %v has %v nodes", i, aqlq.sourceCache[i].Order())
 		pb.Add(1)
 	}
 	for i, q := range aqlq.Next {
@@ -50,10 +50,10 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	pb.Add(1)
 	pb.Finish()
 	// nodes := make([]*engine.Objects, len(aqlq.Sources))
-	result := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+	result := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 
 	if len(aqlq.Sources) == 1 {
-		aqlq.sourceCache[0].Iterate(func(o *engine.Object) bool {
+		aqlq.sourceCache[0].Iterate(func(o *engine.Node) bool {
 			result.AddNode(o)
 			if aqlq.Sources[0].Reference != "" {
 				result.SetNodeData(o, "reference", aqlq.Sources[0].Reference)
@@ -66,7 +66,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object,
 	var resultlock sync.Mutex
 	nodeindex := 0
 	// Iterate over all starting nodes
-	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Object) bool {
+	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Node) bool {
 		searchResult := aqlq.resolveEdgesFrom(opts, o)
 		resultlock.Lock()
 		defer resultlock.Unlock()
@@ -87,14 +87,14 @@ var (
 
 func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
-	startObject *engine.Object,
-) graph.Graph[*engine.Object, engine.EdgeBitmap] {
+	startObject *engine.Node,
+) graph.Graph[*engine.Node, engine.EdgeBitmap] {
 
-	committedGraph := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 
 	type searchState struct {
-		currentObject             *engine.Object
-		workingGraph              graph.Graph[*engine.Object, engine.EdgeBitmap]
+		currentObject             *engine.Node
+		workingGraph              graph.Graph[*engine.Node, engine.EdgeBitmap]
 		currentSearchIndex        int // index into Next and sourceCache patterns
 		currentDepth              int // depth in current edge searcher
 		currentTotalDepth         int // total depth in all edge searchers (for total depth limiting)
@@ -102,7 +102,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	}
 
 	// Initialize the search queue with the starting object and search index
-	initialWorkingGraph := graph.NewGraph[*engine.Object, engine.EdgeBitmap]()
+	initialWorkingGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	initialWorkingGraph.AddNode(startObject)
 	initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
 
@@ -177,7 +177,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		for _, direction := range directions {
-			currentState.currentObject.Edges(direction).Range(func(nextObject *engine.Object, eb engine.EdgeBitmap) bool {
+			aqlq.datasource.Edges(currentState.currentObject, direction).Iterate(func(nextObject *engine.Node, eb engine.EdgeBitmap) bool {
 				if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 					return false
 				}

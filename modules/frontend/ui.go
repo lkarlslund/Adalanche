@@ -61,7 +61,7 @@ func AddUIEndpoints(ws *WebService) {
 	backend.GET("validatequery", func(c *gin.Context) {
 		querytext := strings.Trim(c.Query("query"), " \n\r")
 		if querytext != "" {
-			_, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
+			_, err := query.ParseLDAPQueryStrict(querytext, ws.SuperGraph)
 			if err != nil {
 				c.String(500, err.Error())
 				return
@@ -84,8 +84,8 @@ func AddUIEndpoints(ws *WebService) {
 		result.Adalanche["commit"] = version.Commit
 		result.Adalanche["status"] = ws.status.String()
 		result.Statistics = make(map[string]int)
-		if ws.Objs != nil {
-			for objecttype, count := range ws.Objs.Statistics() {
+		if ws.SuperGraph != nil {
+			for objecttype, count := range ws.SuperGraph.Statistics() {
 				if objecttype == 0 {
 					continue // skip the dummy one
 				}
@@ -94,13 +94,8 @@ func AddUIEndpoints(ws *WebService) {
 				}
 				result.Statistics[engine.ObjectType(objecttype).String()] += count
 			}
-			var edgeCount int
-			ws.Objs.Iterate(func(object *engine.Object) bool {
-				edgeCount += object.Edges(engine.Out).Len()
-				return true
-			})
-			result.Statistics["Total"] = ws.Objs.Len()
-			result.Statistics["PwnConnections"] = edgeCount
+			result.Statistics["Nodes"] = ws.SuperGraph.Order()
+			result.Statistics["Edges"] = ws.SuperGraph.Size()
 		}
 		c.JSON(200, result)
 	})
@@ -209,7 +204,7 @@ type APIEdgeDetails struct {
 	Edges map[string]engine.Probability `json:"edges"`
 }
 
-func apiNodeDetails(o *engine.Object, pretty bool) APINodeDetails {
+func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 	od := APINodeDetails{
 		ID:                o.ID(),
 		Label:             o.Label(),
@@ -233,8 +228,8 @@ func apiNodeDetails(o *engine.Object, pretty bool) APINodeDetails {
 	return od
 }
 
-func apiEdgeDetails(from, to *engine.Object) (APIEdgeDetails, bool) {
-	eb, found := from.GetEdge(to)
+func apiEdgeDetails(g *engine.IndexedGraph, from, to *engine.Node) (APIEdgeDetails, bool) {
+	eb, found := g.GetEdge(from, to)
 	if !found {
 		return APIEdgeDetails{}, false
 	}
@@ -258,20 +253,20 @@ func AddDataEndpoints(ws *WebService) {
 	// Used for highlighting function
 	api.GET("/search/get-ids", func(c *gin.Context) {
 		querytext := c.Query("query")
-		filter, err := query.ParseLDAPQueryStrict(querytext, ws.Objs)
+		filter, err := query.ParseLDAPQueryStrict(querytext, ws.SuperGraph)
 		if err != nil {
 			if !strings.HasPrefix(querytext, "(") {
 				querytext = "(*=" + querytext + ")"
-				filter, err = query.ParseLDAPQueryStrict(querytext, ws.Objs)
+				filter, err = query.ParseLDAPQueryStrict(querytext, ws.SuperGraph)
 			}
 		}
 		if err != nil {
 			c.AbortWithError(500, err)
 			return
 		}
-		objects := ws.Objs.Filter(filter.Evaluate)
-		results := make([]string, 0, objects.Len())
-		objects.Iterate(func(o *engine.Object) bool {
+		objects := ws.SuperGraph.Filter(filter.Evaluate)
+		results := make([]string, 0, objects.Order())
+		objects.Iterate(func(o *engine.Node) bool {
 			results = append(results, fmt.Sprintf("n%v", o.ID()))
 			return true
 		})
@@ -280,60 +275,61 @@ func AddDataEndpoints(ws *WebService) {
 
 	// Returns JSON describing an object located by distinguishedName, sid or guid
 	api.GET("details/:locateby/:id", ws.RequireData(Ready), func(c *gin.Context) {
-		var o *engine.Object
+		var o *engine.Node
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
 		case "id":
-			id, err := strconv.Atoi(c.Param("id"))
+			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 			if err != nil {
-				c.String(500, err.Error())
+				c.String(500, "Error parsing ID")
 				return
 			}
-			o, found = ws.Objs.FindID(engine.ObjectID(id))
+			o, found = ws.SuperGraph.LookupNodeByID(engine.ObjectID(id))
+			// o, found = ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id))
 		case "dn", "distinguishedname":
-			o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(c.Param("id")))
+			o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
 		case "sid":
 			sid, err := windowssecurity.ParseStringSID(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
+			o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
 		case "guid":
 			u, err := uuid.FromString(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
+			o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
 		}
 		if !found {
 			c.AbortWithStatus(404)
 			return
 		}
 		if c.Query("format") == "objectdump" {
-			c.Writer.Write([]byte(o.StringACL(ws.Objs)))
+			c.Writer.Write([]byte(o.StringACL(ws.SuperGraph)))
 			return
 		}
 
 		c.JSON(200, apiNodeDetails(o, true))
 	})
 	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {
-		var o *engine.Object
+		var o *engine.Node
 		var found bool
 
 		ids := strings.Split(c.Param("ids"), ",")
-		nodes := make([]*engine.Object, len(ids))
+		nodes := make([]*engine.Node, len(ids))
 
 		switch strings.ToLower(c.Param("locateby")) {
 		case "id":
 			for i, id := range ids {
-				thisId, err := strconv.Atoi(id)
+				thisId, err := strconv.ParseInt(id, 10, 64)
 				if err != nil {
-					c.String(500, err.Error())
+					c.String(500, "Error parsing ID")
 					return
 				}
-				o, found = ws.Objs.FindID(engine.ObjectID(thisId))
+				o, found = ws.SuperGraph.LookupNodeByID(engine.ObjectID(thisId))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -342,7 +338,7 @@ func AddDataEndpoints(ws *WebService) {
 			}
 		case "dn", "distinguishedname":
 			for i, id := range ids {
-				o, found = ws.Objs.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(id))
+				o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.AttributeValueString(id))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -356,7 +352,7 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, err.Error())
 					return
 				}
-				o, found = ws.Objs.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
+				o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -370,7 +366,7 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, err.Error())
 					return
 				}
-				o, found = ws.Objs.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
+				o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -382,11 +378,11 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 
-		var lastnode *engine.Object
+		var lastnode *engine.Node
 		result := make([]APIEdgeDetails, 0, len(nodes)-1)
 		for _, o := range nodes {
 			if lastnode != nil {
-				ed, found := apiEdgeDetails(lastnode, o)
+				ed, found := apiEdgeDetails(ws.SuperGraph, lastnode, o)
 				if !found {
 					c.String(404, "Edge between %v and %v not found", lastnode.ID(), o.ID())
 					return
@@ -403,14 +399,16 @@ func AddDataEndpoints(ws *WebService) {
 		idstr := c.Query("id")
 		var children engine.ObjectSlice
 		if idstr == "#" {
-			children = ws.Objs.Root().Children()
+			children = ws.SuperGraph.Root().Children()
 		} else {
-			id, err := strconv.Atoi(idstr)
+			id, err := strconv.ParseInt(idstr, 10, 64)
 			if err != nil {
 				c.String(400, "Problem converting id %v: %v", idstr, err)
 				return
 			}
-			if parent, found := ws.Objs.FindID(engine.ObjectID(id)); found {
+
+			if parent, found := ws.SuperGraph.LookupNodeByID(engine.ObjectID(id)); found {
+				// if parent, found := ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id)); found {
 				children = parent.Children()
 			} else {
 				c.String(404, "object not found")
@@ -424,7 +422,7 @@ func AddDataEndpoints(ws *WebService) {
 			Children bool            `json:"children,omitempty"`
 		}
 		var results []treeData
-		children.Iterate(func(object *engine.Object) bool {
+		children.Iterate(func(object *engine.Node) bool {
 			results = append(results, treeData{
 				ID:       object.ID(),
 				Label:    object.Label(),
@@ -484,9 +482,9 @@ func AddDataEndpoints(ws *WebService) {
 			engine.LookupAttribute("title"),
 			engine.LookupAttribute("userPrincipalName"),
 		}
-		pb := ui.ProgressBar("Extracting words", int64(ws.Objs.Len()))
+		pb := ui.ProgressBar("Extracting words", int64(ws.SuperGraph.Order()))
 		wordmap := make(map[string]struct{})
-		ws.Objs.Iterate(func(object *engine.Object) bool {
+		ws.SuperGraph.Iterate(func(object *engine.Node) bool {
 			pb.Add(1)
 			for _, attr := range scrapeatttributes {
 				if attr != engine.NonExistingAttribute {

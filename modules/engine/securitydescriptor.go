@@ -280,7 +280,7 @@ func ParseACL(data []byte) (ACL, error) {
 	return acl, nil
 }
 
-func (a ACL) String(ao *Objects) string {
+func (a ACL) String(ao *IndexedGraph) string {
 	result := fmt.Sprintf("ACL revision %v:\n", a.Revision)
 	for _, ace := range a.Entries {
 		result += "ACE: " + ace.String(ao) + "\n"
@@ -351,7 +351,7 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 var ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 var ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("a05b8cc2-17bc-4802-a710-e7c15ab866a2")
 
-func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask, guid uuid.UUID, ao *Objects) bool {
+func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph) bool {
 	if a.Entries[index].Type == ACETYPE_ACCESS_DENIED || a.Entries[index].Type == ACETYPE_ACCESS_DENIED_OBJECT {
 		return false
 	}
@@ -412,7 +412,7 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Object, mask Mask
 var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
 
 // Is the ACE something that allows or denies this type of GUID?
-func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUID, ao *Objects) bool {
+func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID, ao *IndexedGraph) bool {
 	// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
 	// Don't to drugs while reading the above ^^^^^
 
@@ -484,7 +484,7 @@ func (a ACE) matchObjectClassAndGUID(o *Object, requestedAccess Mask, g uuid.UUI
 	return true
 }
 
-func (a ACE) String(ao *Objects) string {
+func (a ACE) String(ao *IndexedGraph) string {
 	var result string
 	switch a.Type {
 	case ACETYPE_ACCESS_ALLOWED:
@@ -798,7 +798,7 @@ func (a ACE) SortVal() byte {
 	return result
 }
 
-func (sd SecurityDescriptor) String(ao *Objects) string {
+func (sd SecurityDescriptor) String(ao *IndexedGraph) string {
 	var result string
 	var flags []string
 	if sd.Control&CONTROLFLAG_OWNER_DEFAULTED != 0 {

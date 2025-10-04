@@ -11,12 +11,12 @@ import (
 )
 
 type ObjectSlice struct {
-	objects []*Object
+	objects []*Node
 }
 
 func NewObjectSlice(prealloc int) ObjectSlice {
 	return ObjectSlice{
-		objects: make([]*Object, 0, prealloc),
+		objects: make([]*Node, 0, prealloc),
 	}
 }
 
@@ -24,31 +24,12 @@ func (os ObjectSlice) Len() int {
 	return len(os.objects)
 }
 
-func (os *ObjectSlice) Add(o *Object) {
+func (os *ObjectSlice) Add(o *Node) {
 	os.objects = append(os.objects, o)
 	// os.objects = append(os.objects, o.ID())
 }
 
-// func (os *ObjectSlice) AddID(id ObjectID) {
-// 	os.objects = append(os.objects, id)
-// }
-
-// func (os *ObjectSlice) RemoveID(id ObjectID) {
-// 	for i, curid := range os.objects {
-// 		if curid.id == id {
-// 			if len(os.objects) == 1 {
-// 				os.objects = nil
-// 			} else {
-// 				os.objects[i] = os.objects[len(os.objects)-1]
-// 				os.objects = os.objects[:len(os.objects)-1]
-// 			}
-// 			return
-// 		}
-// 	}
-// 	panic("Asked to remove item from ObjectSlice that isn't there")
-// }
-
-func (os *ObjectSlice) Remove(o *Object) {
+func (os *ObjectSlice) Remove(o *Node) {
 	for i, cur := range os.objects {
 		if cur == o {
 			if len(os.objects) == 1 {
@@ -63,30 +44,14 @@ func (os *ObjectSlice) Remove(o *Object) {
 	panic("Asked to remove item from ObjectSlice that isn't there")
 }
 
-// func (os ObjectSlice) Less(i, j int) bool {
-// 	for n := 0; n < uuid.Size; n++ {
-// 		if os.objects[i].Object().GUID()[n] < os.objects[j].Object().GUID()[n] {
-// 			return true
-// 		}
-// 		if os.objects[i].Object().GUID()[n] > os.objects[j].Object().GUID()[n] {
-// 			break
-// 		}
-// 	}
-// 	return false
-// }
-
-// func (os ObjectSlice) Swap(i, j int) {
-// 	os.objects[i], os.objects[j] = os.objects[j], os.objects[i]
-// }
-
-func (os ObjectSlice) First() *Object {
+func (os ObjectSlice) First() *Node {
 	if len(os.objects) == 0 {
 		return nil
 	}
 	return os.objects[0]
 }
 
-func (os ObjectSlice) Iterate(af func(o *Object) bool) {
+func (os ObjectSlice) Iterate(af func(o *Node) bool) {
 	if os.objects == nil {
 		return
 	}
@@ -96,17 +61,6 @@ func (os ObjectSlice) Iterate(af func(o *Object) bool) {
 		}
 	}
 }
-
-// func (os ObjectSlice) IterateID(af func(id ObjectID) bool) {
-// 	if os.objects == nil {
-// 		return
-// 	}
-// 	for _, o := range os.objects {
-// 		if !af(o.id) {
-// 			break
-// 		}
-// 	}
-// }
 
 func (os *ObjectSlice) Sort(attr Attribute, reverse bool) {
 	orderf := func(i, j int) bool {
@@ -197,7 +151,7 @@ func (os *ObjectSlice) Sort(attr Attribute, reverse bool) {
 	sort.Slice(os.objects, orderf)
 }
 
-func (os *ObjectSlice) SortFunc(lessthan func(o, o2 *Object) bool) {
+func (os *ObjectSlice) SortFunc(lessthan func(o, o2 *Node) bool) {
 	sort.Slice(os.objects, func(i int, j int) bool {
 		return lessthan(os.objects[i], os.objects[j])
 	})

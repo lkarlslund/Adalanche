@@ -8,6 +8,7 @@ import (
 	"time"
 	"unique"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -90,19 +91,19 @@ type AttributeValuePair struct {
 }
 
 type AttributeValueObject struct {
-	*Object
+	*Node
 }
 
 func (avo AttributeValueObject) String() string {
-	return (*Object)(avo.Object).Label() + " (object)"
+	return (*Node)(avo.Node).Label() + " (object)"
 }
 
 func (avo AttributeValueObject) Raw() any {
-	return (*Object)(avo.Object)
+	return (*Node)(avo.Node)
 }
 
 func (avo AttributeValueObject) IsZero() bool {
-	if avo.Object == nil {
+	if avo.Node == nil {
 		return true
 	}
 	return avo.values.Len() == 0
@@ -115,28 +116,34 @@ func (ab AttributeValueObject) Compare(c AttributeValue) int {
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueString unique.Handle[string]
+var uniqueStrings gsync.MapOf[string, string]
 
-func NewAttributeValueString(s string) AttributeValueString {
-	return AttributeValueString(unique.Make(s))
+type attributeValueString string
+
+func AttributeValueString(s string) attributeValueString {
+	unique, loaded := uniqueStrings.LoadOrStore(s, s)
+	if loaded {
+		return attributeValueString(unique)
+	}
+	return attributeValueString(s)
 }
 
-func (as AttributeValueString) String() string {
-	return unique.Handle[string](as).Value()
+func (as attributeValueString) String() string {
+	return string(as)
 }
 
-func (as AttributeValueString) Raw() any {
-	return unique.Handle[string](as).Value()
+func (as attributeValueString) Raw() any {
+	return string(as)
 }
 
-func (as AttributeValueString) IsZero() bool {
-	return len(unique.Handle[string](as).Value()) == 0
+func (as attributeValueString) IsZero() bool {
+	return len(as) == 0
 }
 
-func (as AttributeValueString) Compare(c AttributeValue) int {
-	if cs, ok := c.(AttributeValueString); ok {
-		// Fast path for same string, no need to compare contents again, as unique sorts this out for us
-		if unique.Handle[string](as) == unique.Handle[string](cs) {
+func (as attributeValueString) Compare(c AttributeValue) int {
+	if cs, ok := c.(attributeValueString); ok {
+		// Fast path for same string, no need to compare contents again
+		if as == cs {
 			return 0
 		}
 	}

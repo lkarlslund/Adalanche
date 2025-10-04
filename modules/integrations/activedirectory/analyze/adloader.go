@@ -27,7 +27,7 @@ var (
 
 	limitattributes = frontend.Command.Flags().Bool("limitattributes", false, "Limit attributes to import (saves memory, experimental)")
 
-	adsource = engine.NewAttributeValueString("Active Directory")
+	adsource = engine.AttributeValueString("Active Directory")
 	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
 
 	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
@@ -35,7 +35,7 @@ var (
 
 type convertqueueitem struct {
 	object *activedirectory.RawObject
-	ao     *engine.Objects
+	ao     *engine.IndexedGraph
 }
 
 type ADLoader struct {
@@ -45,7 +45,7 @@ type ADLoader struct {
 
 	objectstoconvert chan convertqueueitem
 
-	shardobjects gsync.MapOf[string, *engine.Objects]
+	shardobjects gsync.MapOf[string, *engine.IndexedGraph]
 
 	// Usernames that are enuerable using LDAP Nom nom or similar bruteforcers
 	usernamesfiles []string
@@ -134,7 +134,7 @@ func (ld *ADLoader) Init() error {
 	return nil
 }
 
-func (ld *ADLoader) getShard(path string) *engine.Objects {
+func (ld *ADLoader) getShard(path string) *engine.IndexedGraph {
 	shard := filepath.Dir(path)
 
 	new_ao := engine.NewLoaderObjects(ld)
@@ -194,19 +194,19 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	return engine.ErrUninterested
 }
 
-func (ld *ADLoader) Close() ([]*engine.Objects, error) {
+func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
 	close(ld.objectstoconvert)
 	ld.done.Wait()
 
-	var aos []*engine.Objects
-	ld.shardobjects.Range(func(path string, ao *engine.Objects) bool {
+	var aos []*engine.IndexedGraph
+	ld.shardobjects.Range(func(path string, ao *engine.IndexedGraph) bool {
 		_, netbiosname, _, _, err := FindDomain(ao)
 		if err != nil {
 			ui.Fatal().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
 		} else {
 			// Indicate from which domain we saw this if we have the data
-			nb := engine.NewAttributeValueString(netbiosname)
-			ao.Iterate(func(o *engine.Object) bool {
+			nb := engine.AttributeValueString(netbiosname)
+			ao.Iterate(func(o *engine.Node) bool {
 				o.SetFlex(engine.DataSource, nb)
 				return true
 			})
@@ -220,10 +220,10 @@ func (ld *ADLoader) Close() ([]*engine.Objects, error) {
 		// Add special object to find the files later
 		var v engine.AttributeValues
 		for _, uf := range ld.usernamesfiles {
-			v = append(v, engine.NewAttributeValueString(uf))
+			v = append(v, engine.AttributeValueString(uf))
 		}
 		aos[0].AddNew(
-			engine.Name, engine.NewAttributeValueString("$$USERNAMEFILES$$"),
+			engine.Name, engine.AttributeValueString("$$USERNAMEFILES$$"),
 			engine.A("files"), v,
 		)
 	}

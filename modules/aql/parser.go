@@ -13,7 +13,7 @@ import (
 	timespan "github.com/lkarlslund/time-timespan"
 )
 
-func ParseAQLQuery(s string, ao *engine.Objects) (AQLresolver, error) {
+func ParseAQLQuery(s string, ao *engine.IndexedGraph) (AQLresolver, error) {
 	ts, err := Parse(s)
 	if err != nil {
 		return nil, err
@@ -25,7 +25,7 @@ func ParseAQLQuery(s string, ao *engine.Objects) (AQLresolver, error) {
 	return resolver, nil
 }
 
-func parseAQLstream(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
+func parseAQLstream(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error) {
 	var queries []AQLresolver
 	r, err := parseAQLquery(ts, ao)
 	if err != nil {
@@ -46,7 +46,7 @@ func parseAQLstream(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 	return AQLqueryUnion{queries: queries}, nil
 }
 
-func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
+func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error) {
 	result := AQLquery{
 		datasource: ao,
 		Mode:       Acyclic, // default to something sane
@@ -100,7 +100,7 @@ func parseAQLquery(ts *TokenStream, ao *engine.Objects) (AQLresolver, error) {
 	return result, nil
 }
 
-func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
+func parseNodeFilter(ts *TokenStream, ao *engine.IndexedGraph) (NodeQuery, error) {
 	var result NodeQuery
 
 	if ts.Token().Type == Identifier && (ts.PeekNextToken().Type == Colon || ts.PeekNextToken().Type == Is) {
@@ -165,7 +165,7 @@ func parseNodeFilter(ts *TokenStream, ao *engine.Objects) (NodeQuery, error) {
 	return result, nil
 }
 
-func parseNodeSorter(ts *TokenStream, ao *engine.Objects) (NodeSorter, error) {
+func parseNodeSorter(ts *TokenStream, ao *engine.IndexedGraph) (NodeSorter, error) {
 	if !ts.NextIfIs(OrderBy) {
 		return nil, nil
 	}
@@ -192,7 +192,7 @@ func parseNodeSorter(ts *TokenStream, ao *engine.Objects) (NodeSorter, error) {
 	return result, nil
 }
 
-func parseLDAPFilter(ts *TokenStream, ao *engine.Objects) (query.NodeFilter, error) {
+func parseLDAPFilter(ts *TokenStream, ao *engine.IndexedGraph) (query.NodeFilter, error) {
 	if ts.Token().Type != LParan {
 		return nil, errors.New("Expecting (")
 	}
@@ -209,7 +209,7 @@ func parseLDAPFilter(ts *TokenStream, ao *engine.Objects) (query.NodeFilter, err
 }
 
 // Parse the LDAP filter without surrounding ()
-func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFilter, error) {
+func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.NodeFilter, error) {
 	var subqueries []query.NodeFilter
 	var err error
 
@@ -372,6 +372,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 				direction = engine.In
 			}
 			return query.EdgeQuery{
+				Graph:     ao,
 				Direction: direction,
 				Edge:      edge,
 				Target:    target}, nil
@@ -557,7 +558,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 			} else {
 				result = genwrapper(query.HasStringMatch{
 					Casesensitive: casesensitive,
-					Value:         engine.NewAttributeValueString(strval)})
+					Value:         engine.AttributeValueString(strval)})
 			}
 		}
 	}
@@ -581,16 +582,16 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.Objects) (query.NodeFi
 }
 
 // allows unquoted strings as values
-func parseRelaxedValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
+func parseRelaxedValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue, error) {
 	if ts.Token().Is(QuotedString) {
-		value := engine.NewAttributeValueString(ts.Token().String())
+		value := engine.AttributeValueString(ts.Token().String())
 		ts.Next()
 		return value, nil
 	}
-	return engine.NewAttributeValueString(ts.SnarfTextUntil(RParan)), nil
+	return engine.AttributeValueString(ts.SnarfTextUntil(RParan)), nil
 }
 
-func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, error) {
+func parseValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue, error) {
 	var value engine.AttributeValue
 	switch ts.Token().Type {
 	case Integer:
@@ -598,7 +599,7 @@ func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, err
 	case Float:
 		return nil, errors.New("float type not supported yet")
 	case QuotedString:
-		value = engine.NewAttributeValueString(ts.Token().Value)
+		value = engine.AttributeValueString(ts.Token().Value)
 	case True, False:
 		value = engine.AttributeValueBool(ts.Token().Type == True) // brilliant++
 	default:
@@ -609,7 +610,7 @@ func parseValue(ts *TokenStream, ao *engine.Objects) (engine.AttributeValue, err
 	return value, nil
 }
 
-func parseIndexLookup(ts *TokenStream, ao *engine.Objects) (IndexLookup, error) {
+func parseIndexLookup(ts *TokenStream, ao *engine.IndexedGraph) (IndexLookup, error) {
 	var result IndexLookup
 	attr, err := parseAttribute(ts, ao)
 	if err != nil {
@@ -631,7 +632,7 @@ func parseIndexLookup(ts *TokenStream, ao *engine.Objects) (IndexLookup, error) 
 	return result, nil
 }
 
-func parseAttribute(ts *TokenStream, ao *engine.Objects) (engine.Attribute, error) {
+func parseAttribute(ts *TokenStream, ao *engine.IndexedGraph) (engine.Attribute, error) {
 	if ts.Token().Type != Identifier {
 		return engine.NonExistingAttribute, errors.New("Expecting index lookup attribute")
 	}
@@ -665,7 +666,7 @@ func parseAttribute(ts *TokenStream, ao *engine.Objects) (engine.Attribute, erro
 
 // }
 
-func parseEdgeQuery(ts *TokenStream, ao *engine.Objects) (EdgeSearcher, error) {
+func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, error) {
 	es := EdgeSearcher{
 		Direction:     engine.Any,
 		MinIterations: 1,

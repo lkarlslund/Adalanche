@@ -16,7 +16,7 @@ import (
 )
 
 type NodeFilter interface {
-	Evaluate(o *engine.Object) bool
+	Evaluate(o *engine.Node) bool
 	ToLDAPFilter() string
 	ToWhereClause() string
 }
@@ -24,7 +24,7 @@ type FilterObjectType struct {
 	t engine.ObjectType
 }
 
-func (fot FilterObjectType) Evaluate(o *engine.Object) bool {
+func (fot FilterObjectType) Evaluate(o *engine.Node) bool {
 	return o.Type() == fot.t
 }
 func (fot FilterObjectType) ToLDAPFilter() string {
@@ -40,7 +40,7 @@ type FilterOneAttribute struct {
 	Attribute       engine.Attribute
 }
 
-func (qoa FilterOneAttribute) Evaluate(o *engine.Object) bool {
+func (qoa FilterOneAttribute) Evaluate(o *engine.Node) bool {
 	return qoa.FilterAttribute.Evaluate(qoa.Attribute, o)
 }
 func (qoa FilterOneAttribute) ToLDAPFilter() string {
@@ -57,7 +57,7 @@ type FilterMultipleAttributes struct {
 	Attributes          []engine.Attribute
 }
 
-func (qma FilterMultipleAttributes) Evaluate(o *engine.Object) bool {
+func (qma FilterMultipleAttributes) Evaluate(o *engine.Node) bool {
 	for _, a := range qma.Attributes {
 		if qma.FilterAttribute.Evaluate(a, o) {
 			return true
@@ -77,7 +77,7 @@ type FilterAnyAttribute struct {
 	Attribute FilterAttribute
 }
 
-func (qaa FilterAnyAttribute) Evaluate(o *engine.Object) bool {
+func (qaa FilterAnyAttribute) Evaluate(o *engine.Node) bool {
 	var result bool
 	o.AttrIterator(func(attr engine.Attribute, avs engine.AttributeValues) bool {
 		if qaa.Attribute.Evaluate(attr, o) {
@@ -96,7 +96,7 @@ func (qaa FilterAnyAttribute) ToWhereClause() string {
 }
 
 type FilterAttribute interface {
-	Evaluate(a engine.Attribute, o *engine.Object) bool
+	Evaluate(a engine.Attribute, o *engine.Node) bool
 	ToLDAPFilter(a string) string
 	ToWhereClause(a string) string
 }
@@ -143,7 +143,7 @@ func (c Comparator[t]) String() string {
 
 type LowerStringAttribute engine.Attribute
 
-func (a LowerStringAttribute) Strings(o *engine.Object) []string {
+func (a LowerStringAttribute) Strings(o *engine.Node) []string {
 	l := o.AttrRendered(engine.Attribute(a))
 	lo := make([]string, l.Len())
 	var i int
@@ -159,7 +159,7 @@ type AndQuery struct {
 	Subitems []NodeFilter
 }
 
-func (q AndQuery) Evaluate(o *engine.Object) bool {
+func (q AndQuery) Evaluate(o *engine.Node) bool {
 	for _, query := range q.Subitems {
 		if !query.Evaluate(o) {
 			return false
@@ -189,7 +189,7 @@ type OrQuery struct {
 	Subitems []NodeFilter
 }
 
-func (q OrQuery) Evaluate(o *engine.Object) bool {
+func (q OrQuery) Evaluate(o *engine.Node) bool {
 	for _, query := range q.Subitems {
 		if query.Evaluate(o) {
 			return true
@@ -220,7 +220,7 @@ type NotQuery struct {
 	Subitem NodeFilter
 }
 
-func (q NotQuery) Evaluate(o *engine.Object) bool {
+func (q NotQuery) Evaluate(o *engine.Node) bool {
 	return !q.Subitem.Evaluate(o)
 }
 func (q NotQuery) ToLDAPFilter() string {
@@ -235,7 +235,7 @@ type CountModifier struct {
 	Value      int
 }
 
-func (cm CountModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (cm CountModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	vals, found := o.Get(a)
 	count := 0
 	if found {
@@ -255,7 +255,7 @@ type LengthModifier struct {
 	Value      int
 }
 
-func (lm LengthModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (lm LengthModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	vals, found := o.Get(a)
 	if !found {
 		return Comparator[int](lm.Comparator).Compare(0, lm.Value)
@@ -282,7 +282,7 @@ type SinceModifier struct {
 	Comparator ComparatorType
 }
 
-func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	vals, found := o.Get(a)
 	if !found {
 		return false
@@ -317,7 +317,7 @@ type TimediffModifier struct {
 	Comparator ComparatorType
 }
 
-func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (td TimediffModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	val1s, found := o.Get(a)
 	if !found {
 		return false
@@ -371,7 +371,7 @@ type BinaryAndModifier struct {
 	Value int64
 }
 
-func (am BinaryAndModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (am BinaryAndModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
@@ -389,7 +389,7 @@ type BinaryOrModifier struct {
 	Value int64
 }
 
-func (om BinaryOrModifier) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (om BinaryOrModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	val, ok := o.AttrInt(a)
 	if !ok {
 		return false
@@ -408,7 +408,7 @@ type TypedComparison[t cmp.Ordered] struct {
 	Comparator ComparatorType
 }
 
-func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	val := o.Attr(a)
 	if val == nil {
 		return false
@@ -431,7 +431,7 @@ type id struct {
 	idval int64
 }
 
-func (i *id) Evaluate(o *engine.Object) bool {
+func (i *id) Evaluate(o *engine.Node) bool {
 	return Comparator[int64](i.c).Compare(int64(o.ID()), i.idval)
 }
 func (i *id) ToLDAPFilter() string {
@@ -445,7 +445,7 @@ type Limit struct {
 	Counter int64
 }
 
-func (l *Limit) Evaluate(o *engine.Object) bool {
+func (l *Limit) Evaluate(o *engine.Node) bool {
 	l.Counter--
 	return l.Counter >= 0
 }
@@ -461,7 +461,7 @@ type Random100 struct {
 	Value      int64
 }
 
-func (r Random100) Evaluate(o *engine.Object) bool {
+func (r Random100) Evaluate(o *engine.Node) bool {
 	rnd := rand.Int63n(100)
 	return Comparator[int64](r.Comparator).Compare(rnd, r.Value)
 }
@@ -474,7 +474,7 @@ func (r Random100) ToWhereClause() string {
 
 type HasAttr struct{}
 
-func (ha HasAttr) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (ha HasAttr) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	vals, found := o.Get(engine.Attribute(a))
 	if !found {
 		return false
@@ -489,11 +489,11 @@ func (ha HasAttr) ToWhereClause(a string) string {
 }
 
 type HasStringMatch struct {
-	Value         engine.AttributeValueString
+	Value         engine.AttributeValue
 	Casesensitive bool
 }
 
-func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (hsm HasStringMatch) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	var result bool
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if !hsm.Casesensitive {
@@ -528,7 +528,7 @@ type HasGlobMatch struct {
 	Casesensitive bool
 }
 
-func (hgm HasGlobMatch) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (hgm HasGlobMatch) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	var result bool
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if !hgm.Casesensitive {
@@ -557,7 +557,7 @@ type HasRegexpMatch struct {
 	RegExp *regexp.Regexp
 }
 
-func (hrm HasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Object) (result bool) {
+func (hrm HasRegexpMatch) Evaluate(a engine.Attribute, o *engine.Node) (result bool) {
 	o.AttrRendered(a).Iterate(func(value engine.AttributeValue) bool {
 		if hrm.RegExp.MatchString(value.String()) {
 			result = true
@@ -575,11 +575,11 @@ func (hrm HasRegexpMatch) ToWhereClause(a string) string {
 }
 
 type RecursiveDNmatcher struct {
-	AO *engine.Objects
+	AO *engine.IndexedGraph
 	DN string
 }
 
-func (rdn RecursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Object) bool {
+func (rdn RecursiveDNmatcher) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	return recursiveDNmatchFunc(o, a, rdn.DN, 10, rdn.AO)
 }
 func (rdn RecursiveDNmatcher) ToLDAPFilter(a string) string {
@@ -588,7 +588,7 @@ func (rdn RecursiveDNmatcher) ToLDAPFilter(a string) string {
 func (rdn RecursiveDNmatcher) ToWhereClause(a string) string {
 	return "RECURSIVEDNMATCH(" + a + ", " + rdn.DN + ")"
 }
-func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxdepth int, ao *engine.Objects) (result bool) {
+func recursiveDNmatchFunc(o *engine.Node, a engine.Attribute, dn string, maxdepth int, ao *engine.IndexedGraph) (result bool) {
 	// Just to prevent loops
 	if maxdepth == 0 {
 		return false
@@ -601,7 +601,7 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 			return false // break
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.NewAttributeValueString(value.String())); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value.String())); found {
 			result = recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 			return false // break
 		}
@@ -611,14 +611,15 @@ func recursiveDNmatchFunc(o *engine.Object, a engine.Attribute, dn string, maxde
 }
 
 type EdgeQuery struct {
+	Graph     *engine.IndexedGraph
 	Target    NodeFilter
 	Direction engine.EdgeDirection
 	Edge      engine.Edge
 }
 
-func (p EdgeQuery) Evaluate(o *engine.Object) bool {
+func (p EdgeQuery) Evaluate(o *engine.Node) bool {
 	var result bool
-	o.Edges(p.Direction).Range(func(target *engine.Object, edge engine.EdgeBitmap) bool {
+	p.Graph.Edges(o, p.Direction).Iterate(func(target *engine.Node, edge engine.EdgeBitmap) bool {
 		if (p.Edge == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.Edge) {
 			if p.Target == nil || p.Target.Evaluate(target) {
 				result = true

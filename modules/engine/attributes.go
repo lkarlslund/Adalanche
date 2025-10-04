@@ -11,8 +11,8 @@ import (
 
 var attributenames = make(map[string]Attribute)
 
-type AttributeGetFunc func(o *Object, a Attribute) (v AttributeValues, found bool)
-type AttributeSetFunc func(o *Object, a Attribute, v AttributeValues) error
+type AttributeGetFunc func(o *Node, a Attribute) (v AttributeValues, found bool)
+type AttributeSetFunc func(o *Node, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
 	onset          AttributeSetFunc
@@ -93,7 +93,7 @@ var (
 )
 
 func init() {
-	AddMergeApprover("Merge SIDs", func(a, b *Object) (*Object, error) {
+	AddMergeApprover("Merge SIDs", func(a, b *Node) (*Node, error) {
 		asid := a.SID()
 		bsid := b.SID()
 		if asid.IsBlank() || bsid.IsBlank() {
@@ -236,9 +236,9 @@ func (a Attribute) IsHidden() bool {
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
 var ErrMergeOnThis = errors.New("Merge on this attribute")
 
-type mergefunc func(a, b *Object) (*Object, error)
+type mergefunc func(a, b *Node) (*Node, error)
 
-func StandardMerge(attr Attribute, a, b *Object) (*Object, error) {
+func StandardMerge(attr Attribute, a, b *Node) (*Node, error) {
 	return nil, nil
 }
 

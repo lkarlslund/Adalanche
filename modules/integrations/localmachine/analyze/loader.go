@@ -24,7 +24,7 @@ type loaderQueueItem struct {
 }
 
 type LocalMachineLoader struct {
-	ao          *engine.Objects
+	ao          *engine.IndexedGraph
 	machinesids map[string]*engine.ObjectSlice
 	infostoadd  chan loaderQueueItem
 	done        sync.WaitGroup
@@ -81,20 +81,20 @@ func (ld *LocalMachineLoader) Init() error {
 	}
 	return nil
 }
-func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
+func (ld *LocalMachineLoader) Close() ([]*engine.IndexedGraph, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
 
-	if ld.ao.Len() == 1 {
+	if ld.ao.Order() == 1 {
 		return nil, nil // nothing generated
 	}
 
 	// Knot all the objects with colliding SIDs together
 	for _, os := range ld.machinesids {
-		os.Iterate(func(o *engine.Object) bool {
-			os.Iterate(func(p *engine.Object) bool {
+		os.Iterate(func(o *engine.Node) bool {
+			os.Iterate(func(p *engine.Node) bool {
 				if o != p {
-					o.EdgeTo(p, EdgeSIDCollision)
+					ld.ao.EdgeTo(o, p, EdgeSIDCollision)
 				}
 				return true
 			})
@@ -102,7 +102,7 @@ func (ld *LocalMachineLoader) Close() ([]*engine.Objects, error) {
 		})
 	}
 
-	return []*engine.Objects{ld.ao}, nil
+	return []*engine.IndexedGraph{ld.ao}, nil
 }
 
 func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFunc) error {

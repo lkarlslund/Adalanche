@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	loader.AddProcessor(func(ao *engine.Objects) {
-		ao.Iterate(func(o *engine.Object) bool {
+	loader.AddProcessor(func(ao *engine.IndexedGraph) {
+		ao.Iterate(func(o *engine.Node) bool {
 			if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
 
 				// We can do this with confidence as everything comes from this loader
@@ -46,13 +46,13 @@ func init() {
 		})
 	}, "Link local users and groups to machines", engine.BeforeMergeLow)
 
-	loader.AddProcessor(func(ao *engine.Objects) {
+	loader.AddProcessor(func(ao *engine.IndexedGraph) {
 		var warns int
-		ln := engine.NewAttributeValueString(Loadername)
-		ao.Iterate(func(o *engine.Object) bool {
+		ln := engine.AttributeValueString(Loadername)
+		ao.Iterate(func(o *engine.Node) bool {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
-					if o.Edges(engine.Out).Len()+o.Edges(engine.In).Len() == 0 {
+					if ao.Edges(o, engine.Out).Len()+ao.Edges(o, engine.In).Len() == 0 {
 						ui.Debug().Msgf("Object has no graph connections: %v", o.Label())
 					}
 					warns++

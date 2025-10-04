@@ -51,26 +51,26 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 	return windowssecurity.SID(""), errors.New("Localized group name not found")
 }
 
-func FindWellKnown(ao *engine.Objects, s windowssecurity.SID) *engine.Object {
+func FindWellKnown(ao *engine.IndexedGraph, s windowssecurity.SID) *engine.Node {
 	results, _ := ao.FindMulti(engine.ObjectSid, engine.NewAttributeValueSID(s))
-	var result *engine.Object
-	results.Iterate(func(o *engine.Object) bool {
+	var result *engine.Node
+	results.Iterate(func(o *engine.Node) bool {
 		result = o
 		return true
 	})
 	return result
 }
 
-func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
-	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("domainDNS"))
+func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
 	if !found {
 		err = errors.New("No domain info found in collection")
 		return
 	}
 
-	var domain *engine.Object
+	var domain *engine.Node
 
-	domaindns.Iterate(func(curdomain *engine.Object) bool {
+	domaindns.Iterate(func(curdomain *engine.Node) bool {
 		if curdomain.HasAttr(engine.ObjectSid) {
 			if domain != nil {
 				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
@@ -89,7 +89,7 @@ func FindDomain(ao *engine.Objects) (domaincontext, netbiosname, dnssuffix strin
 	return GetDomainInfo(domain, ao)
 }
 
-func GetDomainInfo(domain *engine.Object, ao *engine.Objects) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	if domain.HasAttr(engine.ObjectSid) {
 		if domaincontext != "" {
 			err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
@@ -106,8 +106,8 @@ func GetDomainInfo(domain *engine.Object, ao *engine.Objects) (domaincontext, ne
 
 	// Find translation to NETBIOS name
 	crossRef, found := ao.FindTwo(
-		engine.ObjectClass, engine.NewAttributeValueString("crossRef"),
-		NCName, engine.NewAttributeValueString(domaincontext),
+		engine.ObjectClass, engine.AttributeValueString("crossRef"),
+		NCName, engine.AttributeValueString(domaincontext),
 	)
 	if !found {
 		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)

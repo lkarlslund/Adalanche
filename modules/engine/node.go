@@ -11,8 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
-	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
 	jsoniter "github.com/json-iterator/go"
@@ -27,306 +27,76 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 
 var BlankSID = windowssecurity.SID("")
 
-type Object struct {
-	edges   [2]EdgeConnectionsPlus
-	sdcache *SecurityDescriptor
-	parent  *Object
-	sid     atomic.Value // windowssecurity.SID
-
-	children ObjectSlice
-
-	values AttributesAndValues
-
-	status atomic.Uint32 // 0 = uninitialized, 1 = valid, 2 = being absorbed, 3 = gone
-	id     ObjectID
-
+type Node struct {
+	sdcache       *SecurityDescriptor
+	parent        *Node
+	sid           atomic.Value // windowssecurity.SID
+	children      ObjectSlice
+	values        AttributesAndValues
 	objectchanged bool
-
-	objecttype ObjectType
+	objecttype    ObjectType
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
 
-func NewObject(flexinit ...any) *Object {
-	var result Object
+func NewNode(flexinit ...any) *Node {
+	var result Node
 	result.init()
 	result.setFlex(flexinit...)
 
 	return &result
 }
 
-func (o *Object) ID() ObjectID {
-	o.panicIfNotValid()
-	return o.id
+// Temporary workaround
+type ObjectID uintptr
+
+func (o *Node) ID() ObjectID {
+	return ObjectID(uintptr(unsafe.Pointer(o)))
 }
 
-func (o *Object) IsValid() bool {
-	return o.status.Load() == 1
+func (o *Node) lockbucket() int {
+	return int(o.ID()) % threadbuckets
 }
 
-func (o *Object) panicIfNotValid() {
-	if o.status.Load() != 1 {
-		panic(fmt.Sprintf("object is not valid: %v", o.status.Load()))
-	}
-}
-
-func (o *Object) lockbucket() int {
-	return int(o.id) % threadbuckets
-}
-
-func (o *Object) lock() {
+func (o *Node) lock() {
 	threadsafeobjectmutexes[o.lockbucket()].Lock()
 }
 
-func (o *Object) trylock() bool {
-	return threadsafeobjectmutexes[o.lockbucket()].TryLock()
-}
-
-func (o *Object) rlock() {
+func (o *Node) rlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RLock()
 }
 
-func (o *Object) unlock() {
+func (o *Node) unlock() {
 	threadsafeobjectmutexes[o.lockbucket()].Unlock()
 }
 
-func (o *Object) runlock() {
+func (o *Node) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
-// var lockwithMu sync.Mutex
-
-func (o *Object) lockwith(o2 *Object) {
-	ol := o.lockbucket()
-	ol2 := o2.lockbucket()
-
-	if ol == ol2 {
-		o.lock()
-		return
-	}
-
-	if ol > ol2 {
-		o, o2 = o2, o
-	}
-
-	// lockwithMu.Lock() // Prevent deadlocks
-	o.lock()
-	o2.lock()
-	// lockwithMu.Unlock()
-}
-
-func (o *Object) unlockwith(o2 *Object) {
-	ol := o.lockbucket()
-	ol2 := o2.lockbucket()
-
-	if ol == ol2 {
-		o.unlock()
-		return
-	}
-
-	if ol > ol2 {
-		o, o2 = o2, o
-	}
-
-	o2.unlock()
-	o.unlock()
-}
-
-var ongoingAbsorbs gsync.MapOf[*Object, *Object]
-
-func (o *Object) Absorb(source *Object) {
+func (o *Node) Absorb(source *Node) {
 	o.AbsorbEx(source, false)
 }
 
-var absorbCriticalSection sync.Mutex
-
-// Absorbs data and Pwn relationships from another object, sucking the soul out of it
-// The sources empty shell should be discarded afterwards (i.e. not appear in an Objects collection)
-func (target *Object) AbsorbEx(source *Object, fast bool) {
-
+// Absorbs data and edge relationships from another object, sucking the soul out of it
+// The sources empty shell should be discarded afterwards (i.e. not appear in an Graph collection)
+func (target *Node) AbsorbEx(source *Node, fast bool) {
 	if target == source {
 		panic("Can't absorb myself")
 	}
 
-	// Keep normies out
-	// target.lockwith(source)
-
-	// ongoingAbsorbs.Store(source, target)
-	absorbCriticalSection.Lock()
-
-	if !source.status.CompareAndSwap(1, 2) {
-		// We're being absorbed, nom nom
-		panic("Can only absorb valid objects")
-	}
-
 	// Fast mode does not merge values, it just relinks the source to the target
-	if fast {
-		// Just merge this one
-		val := MergeValues(source.attr(DataSource), target.attr(DataSource))
-		if val != nil {
-			target.set(DataSource, val...)
-		}
-	} else {
-		newvalues := target.values.Merge(&source.values)
-		target.values = *newvalues
-	}
+	// if fast {
+	// 	// Just merge this one
+	// 	val := MergeValues(source.attr(DataSource), target.attr(DataSource))
+	// 	if val != nil {
+	// 		target.set(DataSource, val...)
+	// 	}
+	// } else {
+	newvalues := target.values.Merge(&source.values)
+	target.values = *newvalues
+	// }
 
-	// fmt.Println("----------------------------------------")
-
-	edgesdone := false
-	for !edgesdone {
-		edgesdone = true
-		source.edges[Out].Range(func(outgoingTarget *Object, edges EdgeBitmap) bool {
-			edgesdone = false
-			if source == outgoingTarget {
-				panic("Pointing at myself")
-			}
-
-			// Load edges from target, and merge with source edges
-			target.edges[Out].setEdges(outgoingTarget, edges)
-			source.edges[Out].del(outgoingTarget)
-
-			/*
-
-				// The target has incoming edges, so redirect those
-				moveto := outgoingTarget
-
-				for moveto.status.Load() == 2 {
-					var success bool
-					moveto, success = ongoingAbsorbs.Load(moveto)
-					if !success {
-						panic("Could not map to next ongoing absorb")
-					}
-				}
-
-				if moveto == target {
-					panic("Moveto pointing at target")
-				}
-				if moveto == source {
-					panic("Moveto pointing at source")
-				}
-
-				moveto.edges[In].setEdges(target, edges)
-			*/
-
-			outgoingTarget.edges[In].setEdges(target, edges)
-			outgoingTarget.edges[In].del(source)
-
-			return true
-		})
-	}
-
-	// Someone is pointing at us, so we need to help them to point to our new target
-
-	edgesdone = false
-	for !edgesdone {
-		edgesdone = true
-		source.edges[In].Range(func(incomingTarget *Object, edges EdgeBitmap) bool {
-			edgesdone = false
-			if source == incomingTarget {
-				panic("Pointing at myself")
-			}
-
-			target.edges[In].setEdges(incomingTarget, edges)
-			source.edges[In].del(incomingTarget)
-
-			/*
-				// The target has incoming edges, so redirect those
-				moveto := incomingTarget
-				for moveto.status.Load() == 2 {
-					var success bool
-					moveto, success = ongoingAbsorbs.Load(moveto)
-					if !success {
-						panic("Could not map to next ongoing absorb")
-					}
-				}
-
-				if moveto == target {
-					panic("Moveto pointing at target")
-				}
-				if moveto == source {
-					panic("Moveto pointing at source")
-				}
-
-				moveto.edges[Out].setEdges(target, edges)
-			*/
-
-			incomingTarget.edges[Out].setEdges(target, edges)
-			incomingTarget.edges[Out].del(source)
-
-			return true
-		})
-	}
-
-	// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
-	if source.parent != nil {
-		moveto := source.parent
-		for moveto.status.Load() == 2 {
-			var success bool
-			moveto, success = ongoingAbsorbs.Load(moveto)
-			if !success {
-				panic("Not a great day, is it")
-			}
-		}
-
-		if target.parent == nil {
-			target.parent = moveto
-			moveto.children.Add(target)
-		}
-		if moveto == source.parent {
-			moveto.removeChild(source)
-		}
-		source.parent = nil
-	}
-
-	source.children.Iterate(func(child *Object) bool {
-		if child.parent != source {
-			panic("Child/parent mismatch")
-		}
-		target.children.Add(child)
-
-		child.parent = target
-		return true
-	})
-	source.children = ObjectSlice{}
-
-	// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
-	if source.sdcache != nil && target.sdcache != nil {
-		// Both has a cache
-		if !source.sdcache.Equals(target.sdcache) {
-			// Different caches, so we need to merge them which is impossible
-			ui.Error().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
-		}
-	} else if target.sdcache == nil && source.sdcache != nil {
-		target.sdcache = source.sdcache
-	}
-
-	target.objecttype = 0 // Recalculate this
-
-	// Nom nommed
-	if !source.status.CompareAndSwap(2, 3) {
-		panic("Unpossible absorption mutation occurred")
-	}
-	// ongoingAbsorbs.Delete(source)
-
-	absorbCriticalSection.Unlock()
-
-	/*
-		// Disable this when everything is under control
-		if source.edges[Out].Len() > 0 || source.edges[In].Len() > 0 {
-			source.edges[In].Range(func(o *Object, edges EdgeBitmap) bool {
-				ui.Debug().Msgf("In: %v", o.Label())
-				return true
-			})
-			source.edges[Out].Range(func(o *Object, edges EdgeBitmap) bool {
-				ui.Debug().Msgf("Out: %v", o.Label())
-				return true
-			})
-			panic("WTF")
-		}
-	*/
-
-	// target.unlockwith(source)
 }
 
 func MergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -401,7 +171,7 @@ func (s StringMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Flush()
 }
 
-func (o *Object) NameStringMap() StringMap {
+func (o *Node) NameStringMap() StringMap {
 	result := make(StringMap)
 	o.values.Iterate(func(attr Attribute, values AttributeValues) bool {
 		result[attr.String()] = values.StringSlice()
@@ -410,19 +180,19 @@ func (o *Object) NameStringMap() StringMap {
 	return result
 }
 
-func (o *Object) MarshalJSON() ([]byte, error) {
+func (o *Node) MarshalJSON() ([]byte, error) {
 	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.NameStringMap())
 }
 
-func (o *Object) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+func (o *Node) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return o.NameStringMap().MarshalXML(e, start)
 }
 
-func (o *Object) IDString() string {
+func (o *Node) IDString() string {
 	return strconv.FormatUint(uint64(o.ID()), 10)
 }
 
-func (o *Object) DN() string {
+func (o *Node) DN() string {
 	return o.OneAttrString(DistinguishedName)
 }
 
@@ -438,7 +208,7 @@ var labelattrs = []Attribute{
 	ObjectSid,
 }
 
-func (o *Object) Label() string {
+func (o *Node) Label() string {
 	for _, attr := range labelattrs {
 		val := o.OneAttrString(attr)
 		if val != "" {
@@ -454,7 +224,7 @@ var primaryidattrs = []Attribute{
 	ObjectSid, // Danger, Will Robinson
 }
 
-func (o *Object) PrimaryID() (Attribute, AttributeValue) {
+func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 	for _, attr := range primaryidattrs {
 		if o.HasAttr(attr) {
 			val := o.OneAttr(attr)
@@ -463,10 +233,10 @@ func (o *Object) PrimaryID() (Attribute, AttributeValue) {
 			}
 		}
 	}
-	return NonExistingAttribute, NewAttributeValueString("N/A")
+	return NonExistingAttribute, AttributeValueString("N/A")
 }
 
-func (o *Object) Type() ObjectType {
+func (o *Node) Type() ObjectType {
 	if o.objecttype > 0 {
 		return o.objecttype
 	}
@@ -484,7 +254,7 @@ func (o *Object) Type() ObjectType {
 	return objecttype
 }
 
-func (o *Object) ObjectCategoryGUID(ao *Objects) uuid.UUID {
+func (o *Node) ObjectCategoryGUID(ao *IndexedGraph) uuid.UUID {
 	// if o.objectcategoryguid == NullGUID {
 	guid := o.OneAttrRaw(ObjectCategoryGUID)
 	if guid == nil {
@@ -494,18 +264,18 @@ func (o *Object) ObjectCategoryGUID(ao *Objects) uuid.UUID {
 	// return o.objectcategoryguid
 }
 
-func (o *Object) AttrString(attr Attribute) []string {
+func (o *Node) AttrString(attr Attribute) []string {
 	return o.Attr(attr).StringSlice()
 }
 
-func (o *Object) AttrRendered(attr Attribute) AttributeValues {
+func (o *Node) AttrRendered(attr Attribute) AttributeValues {
 	if attr == ObjectCategory && o.HasAttr(Type) {
 		return o.Attr(Type)
 	}
 	return o.Attr(attr)
 }
 
-func (o *Object) OneAttrRendered(attr Attribute) string {
+func (o *Node) OneAttrRendered(attr Attribute) string {
 	r := o.AttrRendered(attr)
 	if r.Len() == 0 {
 		return ""
@@ -514,7 +284,7 @@ func (o *Object) OneAttrRendered(attr Attribute) string {
 }
 
 // Returns synthetic blank attribute value if it isn't set
-func (o *Object) get(attr Attribute) (AttributeValues, bool) {
+func (o *Node) get(attr Attribute) (AttributeValues, bool) {
 	if attr == NonExistingAttribute {
 		return nil, false
 	}
@@ -525,13 +295,12 @@ func (o *Object) get(attr Attribute) (AttributeValues, bool) {
 }
 
 // Auto locking version
-func (o *Object) Get(attr Attribute) (AttributeValues, bool) {
-	o.panicIfNotValid()
+func (o *Node) Get(attr Attribute) (AttributeValues, bool) {
 	return o.get(attr)
 }
 
 // Returns synthetic blank attribute value if it isn't set
-func (o *Object) attr(attr Attribute) AttributeValues {
+func (o *Node) attr(attr Attribute) AttributeValues {
 	if attrs, found := o.get(attr); found {
 		if attrs == nil {
 			panic(fmt.Sprintf("Looked for attribute %v and found NIL value", attr.String()))
@@ -542,12 +311,11 @@ func (o *Object) attr(attr Attribute) AttributeValues {
 }
 
 // Returns synthetic blank attribute value if it isn't set
-func (o *Object) Attr(attr Attribute) AttributeValues {
-	o.panicIfNotValid()
+func (o *Node) Attr(attr Attribute) AttributeValues {
 	return o.attr(attr)
 }
 
-func (o *Object) OneAttrString(attr Attribute) string {
+func (o *Node) OneAttrString(attr Attribute) string {
 	a, found := o.get(attr)
 	if !found {
 		return ""
@@ -558,7 +326,7 @@ func (o *Object) OneAttrString(attr Attribute) string {
 	return a.First().String()
 }
 
-func (o *Object) OneAttrRaw(attr Attribute) any {
+func (o *Node) OneAttrRaw(attr Attribute) any {
 	a := o.Attr(attr)
 	if a == nil {
 		return nil
@@ -569,7 +337,7 @@ func (o *Object) OneAttrRaw(attr Attribute) any {
 	return nil
 }
 
-func (o *Object) OneAttr(attr Attribute) AttributeValue {
+func (o *Node) OneAttr(attr Attribute) AttributeValue {
 	a := o.Attr(attr)
 	if a == nil {
 		return nil
@@ -580,12 +348,12 @@ func (o *Object) OneAttr(attr Attribute) AttributeValue {
 	return nil
 }
 
-func (o *Object) HasAttr(attr Attribute) bool {
+func (o *Node) HasAttr(attr Attribute) bool {
 	_, found := o.Get(attr)
 	return found
 }
 
-func (o *Object) HasAttrValue(attr Attribute, hasvalue AttributeValue) bool {
+func (o *Node) HasAttrValue(attr Attribute, hasvalue AttributeValue) bool {
 	var result bool
 	o.Attr(attr).Iterate(func(value AttributeValue) bool {
 		if CompareAttributeValues(value, hasvalue) {
@@ -597,17 +365,17 @@ func (o *Object) HasAttrValue(attr Attribute, hasvalue AttributeValue) bool {
 	return result
 }
 
-func (o *Object) AttrInt(attr Attribute) (int64, bool) {
+func (o *Node) AttrInt(attr Attribute) (int64, bool) {
 	v, ok := o.OneAttrRaw(attr).(int64)
 	return v, ok
 }
 
-func (o *Object) AttrTime(attr Attribute) (time.Time, bool) {
+func (o *Node) AttrTime(attr Attribute) (time.Time, bool) {
 	v, ok := o.OneAttrRaw(attr).(time.Time)
 	return v, ok
 }
 
-func (o *Object) AttrBool(attr Attribute) (bool, bool) {
+func (o *Node) AttrBool(attr Attribute) (bool, bool) {
 	v, ok := o.OneAttrRaw(attr).(bool)
 	return v, ok
 }
@@ -631,7 +399,7 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 }
 */
 
-func (o *Object) SetFlex(flexinit ...any) {
+func (o *Node) SetFlex(flexinit ...any) {
 	o.setFlex(flexinit...)
 }
 
@@ -642,7 +410,7 @@ var avsPool = sync.Pool{
 	},
 }
 
-func (o *Object) setFlex(flexinit ...any) {
+func (o *Node) setFlex(flexinit ...any) {
 	var ignoreblanks bool
 
 	attribute := NonExistingAttribute
@@ -678,7 +446,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, NewAttributeValueString(s))
+				data = append(data, AttributeValueString(s))
 			}
 		case []string:
 			if ignoreblanks && len(v) == 0 {
@@ -688,7 +456,7 @@ func (o *Object) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, NewAttributeValueString(s))
+				data = append(data, AttributeValueString(s))
 			}
 		case *string:
 			if v == nil {
@@ -697,12 +465,12 @@ func (o *Object) setFlex(flexinit ...any) {
 			if ignoreblanks && len(*v) == 0 {
 				continue
 			}
-			data = append(data, NewAttributeValueString(*v))
+			data = append(data, AttributeValueString(*v))
 		case string:
 			if ignoreblanks && len(v) == 0 {
 				continue
 			}
-			data = append(data, NewAttributeValueString(v))
+			data = append(data, AttributeValueString(v))
 		case *time.Time:
 			if v == nil {
 				continue
@@ -788,26 +556,26 @@ func (o *Object) setFlex(flexinit ...any) {
 	avsPool.Put(slice)
 }
 
-func (o *Object) Set(a Attribute, values ...AttributeValue) {
+func (o *Node) Set(a Attribute, values ...AttributeValue) {
 	o.set(a, values...)
 }
 
-func (o *Object) Add(a Attribute, values ...AttributeValue) {
+func (o *Node) Add(a Attribute, values ...AttributeValue) {
 	o.add(a, values...)
 }
 
-func (o *Object) Clear(a Attribute) {
+func (o *Node) Clear(a Attribute) {
 	o.values.Clear(a)
 }
 
-func (o *Object) Tag(v string) {
+func (o *Node) Tag(v string) {
 	if !o.HasTag(v) {
-		o.Add(Tag, NewAttributeValueString(v))
+		o.Add(Tag, AttributeValueString(v))
 	}
 }
 
 // FIXME performance optimization/redesign needed, but needs to work with Objects indexes
-func (o *Object) HasTag(v string) bool {
+func (o *Node) HasTag(v string) bool {
 	tags, found := o.Get(Tag)
 	if !found {
 		return false
@@ -823,7 +591,7 @@ func (o *Object) HasTag(v string) bool {
 	return exists
 }
 
-func (o *Object) add(a Attribute, values ...AttributeValue) {
+func (o *Node) add(a Attribute, values ...AttributeValue) {
 	oldvalues, found := o.values.Get(a)
 	if !found {
 		o.set(a, values...)
@@ -835,7 +603,7 @@ func (o *Object) add(a Attribute, values ...AttributeValue) {
 	}
 }
 
-func (o *Object) set(a Attribute, values ...AttributeValue) {
+func (o *Node) set(a Attribute, values ...AttributeValue) {
 	if a.IsSingle() && len(values) > 1 {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(AttributeValues(values).StringSlice(), ", "))
 	}
@@ -905,7 +673,7 @@ func (o *Object) set(a Attribute, values ...AttributeValue) {
 	o.values.Set(a, values)
 }
 
-func (o *Object) Meta() map[string]string {
+func (o *Node) Meta() map[string]string {
 	result := make(map[string]string)
 	o.AttrIterator(func(attr Attribute, value AttributeValues) bool {
 		if attr.String()[0] == '_' {
@@ -916,13 +684,11 @@ func (o *Object) Meta() map[string]string {
 	return result
 }
 
-func (o *Object) init() {
-	o.id = ObjectID(atomic.AddUint32(&idcounter, 1))
+func (o *Node) init() {
 	o.values.init()
-	o.status.Store(1)
 }
 
-func (o *Object) String() string {
+func (o *Node) String() string {
 	var result string
 	result += "OBJECT " + o.DN() + "\n"
 	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
@@ -945,7 +711,7 @@ func (o *Object) String() string {
 	return result
 }
 
-func (o *Object) StringACL(ao *Objects) string {
+func (o *Node) StringACL(ao *IndexedGraph) string {
 	result := o.String()
 
 	sd, err := o.SecurityDescriptor()
@@ -958,7 +724,7 @@ func (o *Object) StringACL(ao *Objects) string {
 }
 
 // Dump the object to simple map type for debugging
-func (o *Object) ValueMap() map[string][]string {
+func (o *Node) ValueMap() map[string][]string {
 	result := make(map[string][]string)
 	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 		result[attr.String()] = values.StringSlice()
@@ -970,7 +736,7 @@ func (o *Object) ValueMap() map[string][]string {
 var ErrNoSecurityDescriptor = errors.New("no security desciptor")
 
 // Return parsed security descriptor
-func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
+func (o *Node) SecurityDescriptor() (*SecurityDescriptor, error) {
 	if o.sdcache == nil {
 		return nil, ErrNoSecurityDescriptor
 	}
@@ -980,7 +746,7 @@ func (o *Object) SecurityDescriptor() (*SecurityDescriptor, error) {
 var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor attribute!?")
 
 // Return the object's SID
-func (o *Object) SID() windowssecurity.SID {
+func (o *Node) SID() windowssecurity.SID {
 	var sid windowssecurity.SID
 	cachedSid := o.sid.Load()
 	if cachedSid == nil {
@@ -1006,93 +772,14 @@ func (o *Object) SID() windowssecurity.SID {
 // 	return bm
 // }
 
-// Register that this object can pwn another object using the given method
-func (o *Object) EdgeTo(target *Object, edge Edge) {
-	o.EdgeToEx(target, edge, false)
-}
-
-// Register that this object can pwn another object using the given method
-func (o *Object) GetEdge(target *Object) (EdgeBitmap, bool) {
-	edge, ok := o.Edges(Out).Load(Connection{target: target})
-	return edge.edges, ok
-}
-
-// Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (o *Object) EdgeToEx(target *Object, edge Edge, force bool) {
-	if o == target {
-		// Self-loop not supported
-		return
-	}
-
-	if !force {
-		osid := o.SID()
-
-		// Ignore these, SELF = self own, Creator/Owner always has full rights
-		if osid == windowssecurity.SelfSID {
-			return
-		}
-
-		tsid := target.SID()
-		if !osid.IsBlank() && osid == tsid {
-			return
-		}
-	}
-
-	o.Edges(Out).setEdge(target, edge)
-	target.Edges(In).setEdge(o, edge)
-}
-
-// Register that this object can pwn another object using the given method
-func (o *Object) EdgeClear(target *Object, edge Edge) {
-	if o == target {
-		return
-	}
-	o.Edges(Out).clearEdge(target, edge)
-	target.Edges(In).clearEdge(o, edge)
-}
-
-type ObjectEdge struct {
-	o *Object
-	e EdgeBitmap
-}
-
-func (o *Object) Edges(direction EdgeDirection) *EdgeConnectionsPlus {
-	o.panicIfNotValid()
-	return &o.edges[direction]
-}
-
-func (o *Object) EdgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, goDeeperFunc func(source, target *Object, edge EdgeBitmap, depth int) bool) {
-	o.panicIfNotValid()
-	seenobjects := make(map[*Object]struct{})
-	if excludemyself {
-		seenobjects[o] = struct{}{}
-	}
-	o.edgeIteratorRecursive(direction, edgeMatch, goDeeperFunc, seenobjects, 1)
-}
-
-func (o *Object) edgeIteratorRecursive(direction EdgeDirection, edgeMatch EdgeBitmap, goDeeperFunc func(source, target *Object, edge EdgeBitmap, depth int) bool, appliedTo map[*Object]struct{}, depth int) {
-	o.Edges(direction).Range(func(target *Object, edge EdgeBitmap) bool {
-		if _, found := appliedTo[target]; !found {
-			edgeMatches := edge.Intersect(edgeMatch)
-			if !edgeMatches.IsBlank() {
-				appliedTo[target] = struct{}{}
-				if goDeeperFunc(o, target, edgeMatches, depth) {
-					target.edgeIteratorRecursive(direction, edgeMatch, goDeeperFunc, appliedTo, depth+1)
-				}
-			}
-		}
-		return true
-	})
-}
-
-func (o *Object) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
+func (o *Node) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
 	o.values.Iterate(f)
 }
 
-func (o *Object) ChildOf(parent *Object) {
+func (o *Node) ChildOf(parent *Node) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
-		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Trace().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		return
 		// panic("objects can only have one parent")
 	}
@@ -1104,7 +791,7 @@ func (o *Object) ChildOf(parent *Object) {
 	parent.unlock()
 }
 
-func (o *Object) childOf(parent *Object) {
+func (o *Node) childOf(parent *Node) {
 	if o.parent != nil {
 		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		return
@@ -1113,7 +800,7 @@ func (o *Object) childOf(parent *Object) {
 	parent.children.Add(o)
 }
 
-func (o *Object) Adopt(child *Object) {
+func (o *Node) Adopt(child *Node) {
 	o.lock()
 	if o.hasChild(child) {
 		panic("can't adopt same child twice")
@@ -1132,7 +819,7 @@ func (o *Object) Adopt(child *Object) {
 	child.unlock()
 }
 
-func (o *Object) adopt(child *Object) {
+func (o *Node) adopt(child *Node) {
 	if child.parent == nil {
 		panic("can't adopt same child twice")
 	}
@@ -1144,9 +831,9 @@ func (o *Object) adopt(child *Object) {
 	child.parent = o
 }
 
-func (o *Object) hasChild(child *Object) bool {
+func (o *Node) hasChild(child *Node) bool {
 	var found bool
-	o.children.Iterate(func(existingchild *Object) bool {
+	o.children.Iterate(func(existingchild *Node) bool {
 		if existingchild == child {
 			found = true
 			return false
@@ -1156,18 +843,18 @@ func (o *Object) hasChild(child *Object) bool {
 	return found
 }
 
-func (o *Object) removeChild(child *Object) {
+func (o *Node) removeChild(child *Node) {
 	o.children.Remove(child)
 }
 
-func (o *Object) Parent() *Object {
+func (o *Node) Parent() *Node {
 	o.rlock()
 	parent := o.parent
 	o.runlock()
 	return parent
 }
 
-func (o *Object) Children() ObjectSlice {
+func (o *Node) Children() ObjectSlice {
 	o.rlock()
 	defer o.runlock()
 	return o.children

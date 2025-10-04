@@ -17,12 +17,12 @@ import (
 )
 
 var (
-	gposource = engine.NewAttributeValueString("Group Policy")
+	gposource = engine.AttributeValueString("Group Policy")
 	GLoader   = engine.AddLoader(func() engine.Loader { return (&GPOLoader{}) })
 )
 
 type GPOLoader struct {
-	dco              map[string]*engine.Objects
+	dco              map[string]*engine.IndexedGraph
 	gpofiletoprocess chan string
 	done             sync.WaitGroup
 	importmutex      sync.Mutex
@@ -32,7 +32,7 @@ func (ld *GPOLoader) Name() string {
 	return gposource.String()
 }
 func (ld *GPOLoader) Init() error {
-	ld.dco = make(map[string]*engine.Objects)
+	ld.dco = make(map[string]*engine.IndexedGraph)
 	ld.gpofiletoprocess = make(chan string, 8192)
 	// GPO objects
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -72,7 +72,7 @@ func (ld *GPOLoader) Init() error {
 				}
 				if netbios != "" {
 					thisao.AddDefaultFlex(
-						engine.DataSource, engine.NewAttributeValueString(netbios),
+						engine.DataSource, engine.AttributeValueString(netbios),
 					)
 				} else {
 					ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)
@@ -88,10 +88,10 @@ func (ld *GPOLoader) Init() error {
 	}
 	return nil
 }
-func (ld *GPOLoader) getShard(path string) *engine.Objects {
+func (ld *GPOLoader) getShard(path string) *engine.IndexedGraph {
 	shard := filepath.Dir(path)
 	lookupshard := shard
-	var ao *engine.Objects
+	var ao *engine.IndexedGraph
 	ld.importmutex.Lock()
 	ao = ld.dco[lookupshard]
 	if ao == nil {
@@ -108,7 +108,7 @@ func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	}
 	return engine.ErrUninterested
 }
-func (ld *GPOLoader) Close() ([]*engine.Objects, error) {
+func (ld *GPOLoader) Close() ([]*engine.IndexedGraph, error) {
 	close(ld.gpofiletoprocess)
 	ld.done.Wait()
 

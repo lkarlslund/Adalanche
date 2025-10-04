@@ -7,8 +7,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-func LinkSCCM(ao *engine.Objects) {
-	ao.Iterate(func(o *engine.Object) bool {
+func LinkSCCM(ao *engine.IndexedGraph) {
+	ao.Iterate(func(o *engine.Node) bool {
 		if o.HasAttr(WUServer) || o.HasAttr(SCCMServer) {
 			var hosts []string
 			controltype := "unknown"
@@ -23,14 +23,14 @@ func LinkSCCM(ao *engine.Objects) {
 			for _, host := range hosts {
 				// Try full DNS name
 				servers, found := ao.FindTwoMulti(
-					DNSHostname, engine.NewAttributeValueString(host),
-					engine.Type, engine.NewAttributeValueString("Machine"),
+					DNSHostname, engine.AttributeValueString(host),
+					engine.Type, engine.AttributeValueString("Machine"),
 				)
 				// .. or fallback to just the name
 				if !found {
 					servers, found = ao.FindTwoMulti(
-						engine.Name, engine.NewAttributeValueString(host),
-						engine.Type, engine.NewAttributeValueString("Machine"),
+						engine.Name, engine.AttributeValueString(host),
+						engine.Type, engine.AttributeValueString("Machine"),
 					)
 				}
 				if !found {
@@ -45,8 +45,8 @@ func LinkSCCM(ao *engine.Objects) {
 					ui.Warn().Msgf("Could not find controlling %v server %v for %v", controltype, host, o.Label())
 					continue
 				}
-				servers.Iterate(func(server *engine.Object) bool {
-					server.EdgeTo(o, EdgeControlsUpdates)
+				servers.Iterate(func(server *engine.Node) bool {
+					ao.EdgeTo(server, o, EdgeControlsUpdates)
 					return true
 				})
 			}

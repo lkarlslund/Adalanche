@@ -10,7 +10,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/version"
 )
 
-func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename string) error {
+func ExportGraphViz(pg graph.Graph[*engine.Node, engine.EdgeBitmap], filename string) error {
 	df, _ := os.Create(filename)
 	defer df.Close()
 
@@ -25,7 +25,7 @@ func ExportGraphViz(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename 
 	}
 	fmt.Fprintln(df, "")
 
-	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap, flow int) bool {
+	pg.IterateEdges(func(source, target *engine.Node, edge engine.EdgeBitmap, flow int) bool {
 		fmt.Fprintf(df, "    \"%v\" -> \"%v\" [label=\"%v\"];\n", source, target, edge.JoinedString())
 		return true
 	})
@@ -59,7 +59,7 @@ type CytoFlatElement struct {
 	Group string             `json:"group"` // nodes or edges
 }
 
-func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
+func GenerateCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
 		GeneratedBy:              version.ProgramVersionShort(),
@@ -127,7 +127,7 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 		i++
 	}
 
-	pg.IterateEdges(func(source, target *engine.Object, edge engine.EdgeBitmap, flow int) bool {
+	pg.IterateEdges(func(source, target *engine.Node, edge engine.EdgeBitmap, flow int) bool {
 		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
@@ -149,7 +149,7 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], alld
 	return g, nil
 }
 
-func ExportCytoscapeJS(pg graph.Graph[*engine.Object, engine.EdgeBitmap], filename string) error {
+func ExportCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], filename string) error {
 	g, err := GenerateCytoscapeJS(pg, false)
 	if err != nil {
 		return err

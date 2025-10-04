@@ -70,15 +70,15 @@ func (ufs UnionFS) OpenDir(name string) ([]fs.DirEntry, error) {
 	return nil, os.ErrNotExist
 }
 
-type handlerfunc func(*engine.Objects, http.ResponseWriter, *http.Request)
+type handlerfunc func(*engine.IndexedGraph, http.ResponseWriter, *http.Request)
 type optionsetter func(ws *WebService) error
 type WebService struct {
-	quit     chan bool
-	engine   *gin.Engine
-	Router   *gin.RouterGroup
-	API      *gin.RouterGroup
-	Objs     *engine.Objects
-	protocol string
+	quit       chan bool
+	engine     *gin.Engine
+	Router     *gin.RouterGroup
+	API        *gin.RouterGroup
+	SuperGraph *engine.IndexedGraph
+	protocol   string
 	UnionFS
 	// srv *http.Server
 	AdditionalHeaders []string // Additional things to add to the main page
@@ -265,7 +265,7 @@ func (ws *WebService) Analyze(paths ...string) error {
 	ws.status = Analyzing
 
 	var err error
-	ws.Objs, err = engine.Run(paths...)
+	ws.SuperGraph, err = engine.Run(paths...)
 	if err != nil {
 		ws.status = Error
 		return err

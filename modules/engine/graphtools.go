@@ -5,16 +5,16 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-func CalculateGraphValues(ao *Objects, matchEdges EdgeBitmap, requiredProbability Probability, name string, valueFunc func(o *Object) int) map[*Object]int {
-	pb := ui.ProgressBar(name+" power calculation", int64(ao.Len()*3))
+func CalculateGraphValues(ao *IndexedGraph, matchEdges EdgeBitmap, requiredProbability Probability, name string, valueFunc func(o *Node) int) map[*Node]int {
+	pb := ui.ProgressBar(name+" power calculation", int64(ao.Order()*3))
 
 	ui.Debug().Msgf("Building maps and graphs for %v power calculation", name)
 
 	// Build the graph with selected edges in it
-	g := graph.NewGraph[*Object, EdgeBitmap]()
+	g := graph.NewGraph[*Node, EdgeBitmap]()
 
-	ao.Iterate(func(source *Object) bool {
-		source.Edges(Out).Range(func(target *Object, edge EdgeBitmap) bool {
+	ao.Iterate(func(source *Node) bool {
+		ao.Edges(source, Out).Iterate(func(target *Node, edge EdgeBitmap) bool {
 			intersectingEdge := edge.Intersect(matchEdges)
 			if intersectingEdge.Count() > 0 && intersectingEdge.MaxProbability(source, target) >= requiredProbability {
 				g.AddEdge(source, target, intersectingEdge)
@@ -57,7 +57,7 @@ func CalculateGraphValues(ao *Objects, matchEdges EdgeBitmap, requiredProbabilit
 		}
 	}
 
-	deepValues := make(map[*Object]int)
+	deepValues := make(map[*Node]int)
 	for i, scc := range dag.Nodes {
 		for _, v := range scc {
 			deepValues[v] = sccScore[i]
@@ -70,16 +70,16 @@ func CalculateGraphValues(ao *Objects, matchEdges EdgeBitmap, requiredProbabilit
 	return deepValues
 }
 
-func CalculateGraphValuesSlice(ao *Objects, matchEdges EdgeBitmap, requiredProbability Probability, name string, valueFunc func(o *Object) int) map[*Object]int {
-	pb := ui.ProgressBar(name+" power calculation", int64(ao.Len()*3))
+func CalculateGraphValuesSlice(ao *IndexedGraph, matchEdges EdgeBitmap, requiredProbability Probability, name string, valueFunc func(o *Node) int) map[*Node]int {
+	pb := ui.ProgressBar(name+" power calculation", int64(ao.Order()*3))
 
 	ui.Debug().Msgf("Building maps and graphs for %v power calculation", name)
 
 	// Build the graph with selected edges in it
-	g := graph.NewGraph[*Object, EdgeBitmap]()
+	g := graph.NewGraph[*Node, EdgeBitmap]()
 
-	ao.Iterate(func(source *Object) bool {
-		source.Edges(Out).Range(func(target *Object, edge EdgeBitmap) bool {
+	ao.Iterate(func(source *Node) bool {
+		ao.Edges(source, Out).Iterate(func(target *Node, edge EdgeBitmap) bool {
 			intersectingEdge := edge.Intersect(matchEdges)
 			if intersectingEdge.Count() > 0 && intersectingEdge.MaxProbability(source, target) >= requiredProbability {
 				g.AddEdge(source, target, intersectingEdge)
@@ -122,7 +122,7 @@ func CalculateGraphValuesSlice(ao *Objects, matchEdges EdgeBitmap, requiredProba
 		}
 	}
 
-	deepValues := make(map[*Object]int)
+	deepValues := make(map[*Node]int)
 	for i, scc := range dag.Nodes {
 		for _, v := range scc {
 			deepValues[v] = sccScore[i]

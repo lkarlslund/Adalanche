@@ -13,8 +13,8 @@ var (
 	ErrEdgeNotFound = errors.New("edge not found")
 )
 
-type ProbabilityCalculatorFunction func(source, target *Object, edge *EdgeBitmap) Probability
-type DetailFunction func(source, target *Object, edge *EdgeBitmap) string
+type ProbabilityCalculatorFunction func(source, target *Node, edge *EdgeBitmap) Probability
+type DetailFunction func(source, target *Node, edge *EdgeBitmap) string
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
@@ -31,7 +31,7 @@ func (pm Edge) RegisterDetailFunction(doDetails DetailFunction) Edge {
 	return pm
 }
 
-func (pm Edge) Probability(source, target *Object, edges *EdgeBitmap) Probability {
+func (pm Edge) Probability(source, target *Node, edges *EdgeBitmap) Probability {
 	if f := edgeInfos[pm].probability; f != nil {
 		return f(source, target, edges)
 	}
@@ -42,7 +42,7 @@ func (pm Edge) Probability(source, target *Object, edges *EdgeBitmap) Probabilit
 
 // EdgeAnalyzer takes an Object, examines it an outputs a list of Objects that can Pwn it
 type EdgeAnalyzer struct {
-	ObjectAnalyzer func(o *Object, ao *Objects)
+	ObjectAnalyzer func(o *Node, ao *IndexedGraph)
 	Description    string
 }
 
@@ -245,7 +245,16 @@ func (eb EdgeBitmap) Edges() []Edge {
 	return result
 }
 
-type Edge int
+type Edge byte
+
+type BulkEdgeRequest struct {
+	From       int
+	To         int
+	EdgeBitmap EdgeBitmap
+	Edge       Edge
+	Merge      bool
+	Clear      bool
+}
 
 var edgeMutex sync.RWMutex
 var edgeNames = make(map[string]Edge)
@@ -382,8 +391,8 @@ func EdgeInfos() []edgeInfo {
 }
 
 var (
-	NonExistingEdge = Edge(10000)
-	AnyEdgeType     = Edge(9999)
+	NonExistingEdge = Edge(255)
+	AnyEdgeType     = Edge(254)
 )
 
 var AllEdgesBitmap EdgeBitmap
@@ -401,7 +410,7 @@ func (m *EdgeBitmap) IsSet(edge Edge) bool {
 	return (atomic.LoadUint64(&m[index]) & bits) != 0
 }
 
-func (m *EdgeBitmap) MaxProbability(source, target *Object) Probability {
+func (m *EdgeBitmap) MaxProbability(source, target *Node) Probability {
 	max := MINPROBABILITY
 	for i := 0; i < len(edgeInfos); i++ {
 		if m.IsSet(Edge(i)) {

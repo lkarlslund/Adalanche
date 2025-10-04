@@ -5,7 +5,7 @@ import (
 )
 
 func OnlyIfTargetAccountEnabled(wrapped engine.ProbabilityCalculatorFunction) engine.ProbabilityCalculatorFunction {
-	return func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+	return func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
 		if target.Type() != engine.ObjectTypeUser || target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return wrapped(source, target, edges)
 		}
@@ -14,7 +14,7 @@ func OnlyIfTargetAccountEnabled(wrapped engine.ProbabilityCalculatorFunction) en
 }
 
 func FixedProbability(probability int) engine.ProbabilityCalculatorFunction {
-	return func(source, target *engine.Object, edge *engine.EdgeBitmap) engine.Probability {
+	return func(source, target *engine.Node, edge *engine.EdgeBitmap) engine.Probability {
 		return engine.Probability(probability)
 	}
 }
@@ -32,7 +32,7 @@ var (
 	EdgeWriteDACL        = engine.NewEdge("WriteDACL").Tag("Pivot")
 
 	// Kerberoasting
-	calculateKerberoast = func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+	calculateKerberoast = func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_active") {
 			// Get password age
 			pwdage := target.OneAttr(MetaPasswordAge)
@@ -65,7 +65,7 @@ var (
 	EdgeAddSelfMember            = engine.NewEdge("AddSelfMember").Tag("Pivot")
 	EdgeReadGMSAPassword         = engine.NewEdge("ReadGMSAPassword").Tag("Pivot")
 	EdgeHasMSA                   = engine.NewEdge("HasMSA").Tag("Granted")
-	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+	EdgeWriteUserAccountControl  = engine.NewEdge("WriteUserAccountControl").Describe("Allows attacker to set ENABLE and set DONT_REQ_PREAUTH and then to do AS_REP Kerberoasting").RegisterProbabilityCalculator(func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
 		/*if uac, ok := target.AttrInt(activedirectory.UserAccountControl); ok && uac&0x0002 != 0 { //UAC_ACCOUNTDISABLE
 			// Account is disabled
 			return 0
@@ -73,7 +73,7 @@ var (
 		return 50
 	}).Tag("Pivot")
 
-	EdgeWriteKeyCredentialLink = engine.NewEdge("WriteKeyCredentialLink").RegisterProbabilityCalculator(func(source, target *engine.Object, edges *engine.EdgeBitmap) engine.Probability {
+	EdgeWriteKeyCredentialLink = engine.NewEdge("WriteKeyCredentialLink").RegisterProbabilityCalculator(func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return 100
 		}

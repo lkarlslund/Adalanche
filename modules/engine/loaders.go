@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,7 +26,7 @@ type Loader interface {
 	Load(path string, cb ProgressCallbackFunc) error
 
 	// Close signals that no more files are coming
-	Close() ([]*Objects, error)
+	Close() ([]*IndexedGraph, error)
 }
 
 type LoaderEstimator interface {
@@ -47,45 +46,48 @@ func AddLoader(lg LoaderGenerator) LoaderID {
 	return LoaderID(len(loadergenerators) - 1)
 }
 
-func NewLoaderObjects(ld Loader) *Objects {
-	aos := NewObjects()
-	aos.AddDefaultFlex(DataLoader, NewAttributeValueString(ld.Name()))
+func NewLoaderObjects(ld Loader) *IndexedGraph {
+	aos := NewIndexedGraph()
+	aos.AddDefaultFlex(DataLoader, AttributeValueString(ld.Name()))
 
 	// Add the root node
-	rootnode := NewObject(Name, ld.Name())
+	rootnode := NewNode(Name, ld.Name())
 	aos.Add(rootnode)
 	aos.SetRoot(rootnode)
 
 	return aos
 }
 
-type loaderobjects struct {
+type loaderGraphInfo struct {
 	Loader  Loader
-	Objects *Objects
+	Objects *IndexedGraph
 }
 
 // loadWithLoaders runs all registered loaders
-func loadWithLoaders(loaders []Loader, path string, cb ProgressCallbackFunc) ([]loaderobjects, error) {
-	if st, err := os.Stat(path); err != nil || !st.IsDir() {
-		return nil, fmt.Errorf("%v is no a directory", path)
-	}
-
-	ui.Info().Msgf("Scanning for data files from %v ...", path)
+func loadWithLoaders(loaders []Loader, paths []string, cb ProgressCallbackFunc) ([]loaderGraphInfo, error) {
 	type fs struct {
 		filename string
 		size     int64
 	}
-
 	var files []fs
-	filepath.Walk(path, func(lpath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+
+	for _, path := range paths {
+		ui.Info().Msgf("Scanning for data files from %v ...", path)
+
+		if st, err := os.Stat(path); err != nil || !st.IsDir() {
+			ui.Warn().Msgf("%v is not a directory", path)
 		}
-		if !info.IsDir() {
-			files = append(files, fs{lpath, info.Size()})
-		}
-		return nil
-	})
+
+		filepath.Walk(path, func(lpath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				files = append(files, fs{lpath, info.Size()})
+			}
+			return nil
+		})
+	}
 	ui.Info().Msgf("Will process %v files", len(files))
 
 	// Sort by biggest files first
@@ -145,11 +147,11 @@ func loadWithLoaders(loaders []Loader, path string, cb ProgressCallbackFunc) ([]
 	fileQueueWG.Wait()
 
 	var globalerr error
-	var totalobjects int
+	var totalNodes int
 
 	ui.Info().Msgf("Loaded %v files, skipped %v files", len(files)-int(skipped), skipped)
 
-	var aos []loaderobjects
+	var aos []loaderGraphInfo
 
 	for _, loader := range loaders {
 		los, err := loader.Close()
@@ -160,15 +162,15 @@ func loadWithLoaders(loaders []Loader, path string, cb ProgressCallbackFunc) ([]
 		var loaderproduced int
 
 		for _, lo := range los {
-			loaderproduced += lo.Len()
-			totalobjects += lo.Len()
-			aos = append(aos, loaderobjects{loader, lo})
+			loaderproduced += lo.Order()
+			totalNodes += lo.Order()
+			aos = append(aos, loaderGraphInfo{loader, lo})
 		}
-		ui.Info().Msgf("Loader %v produced %v objects in %v collections", loader.Name(), loaderproduced, len(los))
+		ui.Info().Msgf("Loader %v produced %v nodes in %v graphs", loader.Name(), loaderproduced, len(los))
 	}
-	ui.Info().Msgf("We produced a total of %v objects from %v", totalobjects, path)
-	if totalobjects == 0 {
-		globalerr = errors.New("No objects loaded")
+	ui.Info().Msgf("Loaded a total of %v nodes", totalNodes)
+	if totalNodes == 0 {
+		globalerr = errors.New("No nodes loaded")
 	}
 
 	return aos, globalerr

@@ -22,7 +22,7 @@ func init() {
 		aql.GET("validatequery", ws.RequireData(frontend.Ready), func(c *gin.Context) {
 			querytext := strings.Trim(c.Query("query"), " \n\r")
 			if querytext != "" {
-				_, err := ParseAQLQuery(querytext, ws.Objs)
+				_, err := ParseAQLQuery(querytext, ws.SuperGraph)
 				if err != nil {
 					c.String(500, err.Error())
 					return
@@ -43,7 +43,7 @@ func init() {
 
 			query := params["query"]
 
-			resolver, err := ParseAQLQuery(fmt.Sprintf("%v", query), ws.Objs)
+			resolver, err := ParseAQLQuery(fmt.Sprintf("%v", query), ws.SuperGraph)
 			if err != nil {
 				c.String(500, "Error parsing AQL query: %v", err)
 				return

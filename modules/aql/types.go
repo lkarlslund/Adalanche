@@ -9,7 +9,7 @@ import (
 )
 
 type AQLresolver interface {
-	Resolve(ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error)
+	Resolve(ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error)
 }
 
 type IndexLookup struct {
@@ -26,7 +26,7 @@ type NodeQuery struct {
 	Limit       int              // Limiting
 }
 
-func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
+func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {
 	result := ao
 	if nq.Selector != nil {
 		result = query.NodeFilterExecute(nq.Selector, ao)
@@ -39,8 +39,8 @@ func (nq NodeQuery) Populate(ao *engine.Objects) *engine.Objects {
 		}
 		n.Skip(nq.Skip)
 		n.Limit(nq.Limit)
-		no := engine.NewObjects()
-		n.Iterate(func(o *engine.Object) bool {
+		no := engine.NewIndexedGraph()
+		n.Iterate(func(o *engine.Node) bool {
 			no.Add(o)
 			return true
 		})
@@ -57,7 +57,7 @@ type EdgeMatcher struct {
 }
 type EdgeSearcher struct {
 	PathNodeRequirement          *NodeQuery // Nodes passed along the way must fulfill this filter
-	pathNodeRequirementCache     *engine.Objects
+	pathNodeRequirementCache     *engine.IndexedGraph
 	FilterEdges                  EdgeMatcher // match any of these
 	Direction                    engine.EdgeDirection
 	MinIterations, MaxIterations int // there should be between min and max iterations in the chain
@@ -65,7 +65,7 @@ type EdgeSearcher struct {
 	ProbabilityComparator        query.ComparatorType
 }
 type NodeMatcher interface {
-	Match(o *engine.Object) bool
+	Match(o *engine.Node) bool
 }
 type NodeSorter interface {
 	Sort(engine.ObjectSlice) engine.ObjectSlice
@@ -89,8 +89,8 @@ type AQLqueryUnion struct {
 	queries []AQLresolver
 }
 
-func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
-	var result *graph.Graph[*engine.Object, engine.EdgeBitmap]
+func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
+	var result *graph.Graph[*engine.Node, engine.EdgeBitmap]
 	for _, q := range aqlqu.queries {
 		g, err := q.Resolve(opts)
 		if err != nil {
@@ -122,7 +122,7 @@ type id struct {
 	idval int64
 }
 
-func (i *id) Evaluate(o *engine.Object) bool {
+func (i *id) Evaluate(o *engine.Node) bool {
 	return query.Comparator[int64](i.c).Compare(int64(o.ID()), i.idval)
 }
 func (i *id) ToLDAPFilter() string {

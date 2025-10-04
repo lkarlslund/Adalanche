@@ -24,6 +24,6 @@ type ResolverOptions struct {
 	PruneIslands              bool               `json:"prune_islands,omitempty"`
 }
 
-func ResolveWithOptions(resolver AQLresolver, opts ResolverOptions) (*graph.Graph[*engine.Object, engine.EdgeBitmap], error) {
+func ResolveWithOptions(resolver AQLresolver, opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	return nil, nil
 }

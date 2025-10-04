@@ -13,7 +13,7 @@ import (
 	timespan "github.com/lkarlslund/time-timespan"
 )
 
-func ParseLDAPQueryStrict(s string, ao *engine.Objects) (NodeFilter, error) {
+func ParseLDAPQueryStrict(s string, ao *engine.IndexedGraph) (NodeFilter, error) {
 	s, query, err := ParseLDAPQuery(s, ao)
 	if err == nil && s != "" {
 		return nil, fmt.Errorf("Extra data after query parsing: %v", s)
@@ -21,12 +21,12 @@ func ParseLDAPQueryStrict(s string, ao *engine.Objects) (NodeFilter, error) {
 	return query, err
 }
 
-func ParseLDAPQuery(s string, ao *engine.Objects) (string, NodeFilter, error) {
+func ParseLDAPQuery(s string, ao *engine.IndexedGraph) (string, NodeFilter, error) {
 	qs, q, err := parseLDAPRuneQuery([]rune(s), ao)
 	return string(qs), q, err
 }
 
-func parseLDAPRuneQuery(s []rune, ao *engine.Objects) ([]rune, NodeFilter, error) {
+func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, error) {
 	if len(s) < 5 {
 		return nil, nil, errors.New("Query string too short")
 	}
@@ -256,6 +256,7 @@ valueloop:
 				direction = engine.In
 			}
 			return s, EdgeQuery{
+				Graph:     ao,
 				Direction: direction,
 				Edge:      edge,
 				Target:    target}, nil
@@ -414,7 +415,7 @@ valueloop:
 			} else {
 				result = genwrapper(HasStringMatch{
 					Casesensitive: casesensitive,
-					Value:         engine.NewAttributeValueString(value)})
+					Value:         engine.AttributeValueString(value)})
 			}
 		}
 	}
@@ -436,7 +437,7 @@ valueloop:
 	return s, result, nil
 }
 
-func parseMultipleLDAPRuneQueries(s []rune, ao *engine.Objects) ([]rune, []NodeFilter, error) {
+func parseMultipleLDAPRuneQueries(s []rune, ao *engine.IndexedGraph) ([]rune, []NodeFilter, error) {
 	var result []NodeFilter
 	for len(s) > 0 && s[0] == '(' {
 		var query NodeFilter

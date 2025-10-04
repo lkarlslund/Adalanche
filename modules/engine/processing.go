@@ -1,11 +1,10 @@
 package engine
 
 import (
-	"runtime"
+	"slices"
 	"sort"
 	"sync"
 
-	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -26,194 +25,160 @@ func getMergeAttributes() []Attribute {
 	return mergeon
 }
 
-func Merge(aos []*Objects) (*Objects, error) {
-	var biggest, biggestcount, totalobjects int
-	for i, caos := range aos {
-		loaderproduced := caos.Len()
-		totalobjects += loaderproduced
-		if loaderproduced > biggestcount {
-			biggestcount = loaderproduced
-			biggest = i
+func Merge(graphs []*IndexedGraph) (*IndexedGraph, error) {
+	var largestGraph, largestGraphNodeCount, largestGraphEdgeCount, totalNodes, totalEdges int
+	for i, g := range graphs {
+		thisGraphNodeCount := g.Order()
+		totalNodes += thisGraphNodeCount
+		thisGraphEdgeCount := g.Size()
+		totalEdges += thisGraphEdgeCount
+		if thisGraphNodeCount > largestGraphNodeCount {
+			largestGraph = i
+			largestGraphNodeCount = thisGraphNodeCount
+			largestGraphEdgeCount = thisGraphEdgeCount
 		}
 	}
+	_ = largestGraph
+	_ = largestGraphEdgeCount
+	otherNodes := totalNodes - largestGraphNodeCount
+	_ = otherNodes
 
-	ui.Info().Msgf("Initiating merge with a total of %v objects", totalobjects)
+	// Largest graphs first
+	slices.SortFunc(graphs, func(i, j *IndexedGraph) int {
+		return j.Order() - i.Order()
+	})
 
-	_ = biggest
+	ui.Info().Msgf("Initiating merge with a total of %v objects", totalNodes)
 
 	// ui.Info().Msgf("Using object collection with %v objects as target to merge into .... reindexing it", len(globalobjects.Slice()))
 
 	// Find all the attributes that can be merged objects on
-	globalobjects := NewObjects()
-	globalroot := NewObject(
-		Name, NewAttributeValueString("Adalanche root node"),
-		Type, NewAttributeValueString("Root"),
+	superGraph := NewIndexedGraph()
+	superGraph.BulkLoadEdges(true)
+	globalroot := NewNode(
+		Name, AttributeValueString("Adalanche root node"),
+		Type, AttributeValueString("Root"),
 	)
-	globalobjects.SetRoot(globalroot)
-	orphancontainer := NewObject(Name, NewAttributeValueString("Orphans"))
+	superGraph.SetRoot(globalroot)
+
+	orphancontainer := NewNode(Name, AttributeValueString("Orphans"))
 	orphancontainer.ChildOf(globalroot)
-	globalobjects.Add(orphancontainer)
+	superGraph.Add(orphancontainer)
 
-	ui.Info().Msgf("Merging %v objects into the object metaverse", totalobjects)
-
-	pb := ui.ProgressBar("Merging objects from each unique source", int64(totalobjects))
-
-	// To ease anti-cross-the-beams on DataSource we temporarily group each source and combine them in the end
-	type sourceinfo struct {
-		queue chan *Object
-		shard *Objects
+	type mergeinfo struct {
+		graph *IndexedGraph
+		node  *Node
 	}
 
-	var sourcemap gsync.MapOf[string, sourceinfo]
-
-	var consumerWG, producerWG sync.WaitGroup
+	var trymerge []mergeinfo
+	nodeMerged := make(map[*Node]*Node)
+	var mergeMutex sync.Mutex
 
 	// Iterate over all the object collections
-	for _, mergeobjects := range aos {
-		if mergeroot := mergeobjects.Root(); mergeroot != nil {
+	ui.Info().Msgf("Scanning %v nodes for mergeability potential", totalNodes)
+	pb := ui.ProgressBar("Scanning nodes to add directly", int64(totalNodes))
+	for _, g := range graphs {
+		// We're grabbing the index directly for faster processing here
+		dnindex := superGraph.GetIndex(DistinguishedName)
+
+		if mergeroot := g.Root(); mergeroot != nil {
 			mergeroot.ChildOf(globalroot)
 		}
 
-		// Merge all objects into their own shard based on the DataSource attribute if any
-		producerWG.Add(1)
-		go func(os *Objects) {
-			nextshard := sourceinfo{
-				queue: make(chan *Object, 64),
-				shard: NewObjects(),
-			}
-
-			os.Iterate(func(mergeobject *Object) bool {
-				pb.Add(1)
-				ds := mergeobject.OneAttr(DataSource)
-				if ds != nil {
-					ds = AttributeValueToIndex(ds)
-				} else {
-					ds = NewAttributeValueString("")
-				}
-
-				info, loaded := sourcemap.LoadOrStore(ds.String(), nextshard)
-				if !loaded {
-					consumerWG.Add(1)
-					go func(shard *Objects, queue chan *Object) {
-						var i int
-						mergeon := getMergeAttributes()
-						for mergeobject := range queue {
-							if i%16384 == 0 {
-								mergeon = getMergeAttributes()
-							}
-							shard.AddMerge(mergeon, mergeobject)
-							i++
-						}
-						consumerWG.Done()
-					}(info.shard, info.queue)
-					nextshard = sourceinfo{
-						queue: make(chan *Object, 64),
-						shard: NewObjects(),
-					}
-				}
-				info.queue <- mergeobject
-				return true
-			})
-			producerWG.Done()
-		}(mergeobjects)
-	}
-
-	producerWG.Wait()
-	sourcemap.Range(func(key string, value sourceinfo) bool {
-		close(value.queue)
-		return true
-	})
-	consumerWG.Wait()
-	pb.Finish()
-
-	var needsfinalization int
-	sourcemap.Range(func(key string, value sourceinfo) bool {
-		needsfinalization += value.shard.Len()
-		return true
-	})
-
-	pb = ui.ProgressBar("Finalizing merge", int64(needsfinalization))
-
-	// We're grabbing the index directly for faster processing here
-	dnindex := globalobjects.GetIndex(DistinguishedName)
-
-	mergeon := getMergeAttributes()
-
-	// Just add these. they have a DataSource so we're not merging them EXCEPT for ones with a DistinguishedName collision FME
-	sourcemap.Range(func(us string, usao sourceinfo) bool {
-		if us == "" {
-			return true // continue - not these, we'll try to merge at the very end
-		}
-		usao.shard.Iterate(func(addobject *Object) bool {
+		// Add all nodes and edges from other graphs into the global graph
+		g.IterateParallel(func(node *Node) bool {
 			pb.Add(1)
-			// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice ...
 
-			// FIXME - THIS ISN'T WORKING
-			// aosid := addobject.SID()
-			// if !aosid.IsBlank() && aosid.Component(2) == 21 {
-			// 	// Always merge these, they might belong elsewhere
-			// 	globalobjects.AddMerge(mergeon, addobject)
-			// 	return true
-			// }
-
-			// Skip duplicate DNs entirely, just absorb them (solves the issue of duplicates due to shared configuration context etc)
-			if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-				if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-					existing.First().AbsorbEx(addobject, true)
+			// Just fast track melting nodes with same DN together, solves duplicate schema items etc.
+			if val := node.OneAttr(DistinguishedName); val != nil {
+				if samedn, found := dnindex.Lookup(val); found {
+					mergeMutex.Lock()
+					nodeMerged[node] = samedn.First()
+					mergeMutex.Unlock()
 					return true
 				}
 			}
 
-			globalobjects.Add(addobject)
+			if !node.HasAttr(DataSource) {
+				mergeMutex.Lock()
+				trymerge = append(trymerge, mergeinfo{graph: g, node: node})
+				mergeMutex.Unlock()
+			} else {
+				// Just add it now
+				superGraph.Add(node)
+			}
 			return true
-		})
-		return true
-	})
+		}, 0)
+	}
+	pb.Finish()
 
-	nodatasource, _ := sourcemap.Load("")
-	var i int
-	nodatasource.shard.Iterate(func(addobject *Object) bool {
+	// We now have a list of nodes that potentially can be merged into the global graph
+	pb = ui.ProgressBar("Attempting merge on potential nodes", int64(len(trymerge)))
+	mergeon := getMergeAttributes()
+	for i, mergeinfo := range trymerge {
 		pb.Add(1)
-		// Here we'll deduplicate DNs, because sometimes schema and config context slips in twice
-		// if dn := addobject.OneAttr(DistinguishedName); dn != nil {
-		// 	if existing, exists := dnindex.Lookup(AttributeValueToIndex(dn)); exists {
-		// 		existing.First().AbsorbEx(addobject, true)
-		// 		return true
-		// 	}
-		// }
+		node := mergeinfo.node
+		// graph := mergeinfo.graph
+
 		if i%16384 == 0 {
 			// Refresh the list of attributes, ordered by most successfull first
 			mergeon = getMergeAttributes()
 		}
-		globalobjects.AddMerge(mergeon, addobject)
-		i++
-		return true
-	})
 
+		mergedTo, merged := superGraph.Merge(mergeon, node)
+		if merged {
+			nodeMerged[node] = mergedTo
+		} else {
+			superGraph.Add(node)
+		}
+	}
 	pb.Finish()
 
-	aftermergetotalobjects := globalobjects.Len()
-	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalobjects-aftermergetotalobjects)
+	ui.Info().Msgf("We merged %v nodes into the metaverse", len(nodeMerged))
 
-	runtime.GC()
+	// Add all outgoing edges from the other graphs
+	pb = ui.ProgressBar("Adding edges", int64(totalEdges))
+	for _, g := range graphs {
+		g.IterateParallel(func(source *Node) bool {
+			g.Edges(source, Out).Iterate(func(target *Node, ebm EdgeBitmap) bool {
+				pb.Add(1)
+				if newSource, merged := nodeMerged[source]; merged {
+					source = newSource
+				}
+				if newTarget, merged := nodeMerged[target]; merged {
+					target = newTarget
+				}
+				superGraph.SetEdge(source, target, ebm, true)
+				return true
+			})
+			return true
+		}, 0)
+		// Release the goroutine, so we can GC this
+		g.BulkLoadEdges(false)
+	}
+	pb.Finish()
+
+	superGraph.FlushEdges()
+	aftermergetotalobjects := superGraph.Order()
+	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalNodes-aftermergetotalobjects)
 
 	var orphans int
-	processed := make(map[ObjectID]struct{})
-	var processobject func(o *Object)
-	processobject = func(o *Object) {
-		if _, done := processed[o.ID()]; !done {
-			if _, found := globalobjects.FindID(o.ID()); !found {
+	processed := make(map[*Node]struct{})
+	var processobject func(o *Node)
+	processobject = func(o *Node) {
+		if _, done := processed[o]; !done {
+			if !superGraph.Contains(o) {
 				ui.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
-				globalobjects.Add(o)
+				superGraph.Add(o)
 			}
-			processed[o.ID()] = struct{}{}
-			o.Children().Iterate(func(child *Object) bool {
+			processed[o] = struct{}{}
+			o.Children().Iterate(func(child *Node) bool {
 				processobject(child)
 				return true
 			})
 		}
 	}
-	globalobjects.Iterate(func(object *Object) bool {
+	superGraph.Iterate(func(object *Node) bool {
 		if object.Parent() == nil {
 			object.ChildOf(orphancontainer)
 			orphans++
@@ -225,5 +190,5 @@ func Merge(aos []*Objects) (*Objects, error) {
 		ui.Warn().Msgf("Detected %v orphan objects in final results", orphans)
 	}
 
-	return globalobjects, nil
+	return superGraph, nil
 }

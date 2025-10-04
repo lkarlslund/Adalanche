@@ -11,11 +11,11 @@ type GraphNode struct {
 	accumulatedprobability float32 // 0-1
 }
 
-type PostProcessorFunc func(pg graph.Graph[*engine.Object, engine.EdgeBitmap]) graph.Graph[*engine.Object, engine.EdgeBitmap]
+type PostProcessorFunc func(pg graph.Graph[*engine.Node, engine.EdgeBitmap]) graph.Graph[*engine.Node, engine.EdgeBitmap]
 
 var PostProcessors []PostProcessorFunc
 
 type AnalysisResults struct {
-	Graph   graph.Graph[*engine.Object, engine.EdgeBitmap]
+	Graph   graph.Graph[*engine.Node, engine.EdgeBitmap]
 	Removed int
 }

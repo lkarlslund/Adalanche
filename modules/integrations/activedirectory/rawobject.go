@@ -27,11 +27,11 @@ func (r *RawObject) Init() {
 	r.Attributes = make(map[string][]string)
 }
 
-func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Object {
-	newobject := engine.NewObject()
+func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
+	newobject := engine.NewNode()
 
 	newobject.SetFlex(
-		DistinguishedName, engine.NewAttributeValueString(r.DistinguishedName),
+		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 
 	// Reusable slice
@@ -145,9 +145,9 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				period = fmt.Sprintf("v% hours", secs/3600)
 			}
 			if period != "" {
-				attributevalue = engine.NewAttributeValueString(period)
+				attributevalue = engine.AttributeValueString(period)
 			} else {
-				attributevalue = engine.NewAttributeValueString(value)
+				attributevalue = engine.AttributeValueString(value)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
@@ -213,7 +213,7 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			}
 
 			// Just a string
-			attributevalue = engine.NewAttributeValueString(value)
+			attributevalue = engine.AttributeValueString(value)
 		}
 
 		if attributevalue != nil {

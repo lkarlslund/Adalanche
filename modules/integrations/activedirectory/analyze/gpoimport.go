@@ -36,7 +36,7 @@ var (
 )
 
 func init() {
-	engine.AddMergeApprover("Don't merge differing relative paths from GPOs", func(a, b *engine.Object) (*engine.Object, error) {
+	engine.AddMergeApprover("Don't merge differing relative paths from GPOs", func(a, b *engine.Node) (*engine.Node, error) {
 		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
 			return nil, engine.ErrDontMerge
 		}
@@ -47,8 +47,8 @@ func init() {
 var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
 var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
-func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
-	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NewAttributeValueString(ginfo.Path))
+func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error {
+	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
@@ -74,7 +74,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 		)
 
 		if relativepath == "/" {
-			itemobject.EdgeTo(gpoobject, EdgeFSPartOfGPO)
+			ao.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
 			gpoobject.Adopt(itemobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
@@ -82,14 +82,14 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				parentpath = "/"
 			}
 
-			parent, _ := ao.FindOrAdd(AbsolutePath, engine.NewAttributeValueString(parentpath))
-			itemobject.EdgeTo(parent, EdgeFSPartOfGPO)
+			parent, _ := ao.FindOrAdd(AbsolutePath, engine.AttributeValueString(parentpath))
+			ao.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
 			parent.Adopt(itemobject)
 		}
 
 		if !item.OwnerSID.IsNull() {
 			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.NewAttributeValueSID(item.OwnerSID))
-			owner.EdgeTo(itemobject, EdgeOwns)
+			ao.EdgeTo(owner, itemobject, EdgeOwns)
 		}
 
 		if item.DACL != nil {
@@ -102,19 +102,19 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
-						entrysidobject.EdgeTo(itemobject, EdgeFileCreate)
+						ao.EdgeTo(entrysidobject, itemobject, EdgeFileCreate)
 					}
 					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
-						entrysidobject.EdgeTo(itemobject, EdgeDirCreate)
+						ao.EdgeTo(entrysidobject, itemobject, EdgeDirCreate)
 					}
 					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						entrysidobject.EdgeTo(itemobject, EdgeFileWrite)
+						ao.EdgeTo(entrysidobject, itemobject, EdgeFileWrite)
 					}
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						entrysidobject.EdgeTo(itemobject, EdgeTakeOwnership) // Not sure about this one
+						ao.EdgeTo(entrysidobject, itemobject, EdgeTakeOwnership) // Not sure about this one
 					}
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						entrysidobject.EdgeTo(itemobject, EdgeModifyDACL)
+						ao.EdgeTo(entrysidobject, itemobject, EdgeModifyDACL)
 					}
 				}
 			}
@@ -162,21 +162,21 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			)
 
 			// The account targeted
-			var target *engine.Object
+			var target *engine.Node
 			if strings.Contains(e.Username, "\\") {
 				target, _ = ao.FindOrAdd(
-					engine.DownLevelLogonName, engine.NewAttributeValueString(e.Username),
+					engine.DownLevelLogonName, engine.AttributeValueString(e.Username),
 				)
 			} else {
 				target, _ = ao.FindOrAdd(
-					engine.SAMAccountName, engine.NewAttributeValueString(e.Username),
+					engine.SAMAccountName, engine.AttributeValueString(e.Username),
 				)
 			}
 
 			// GPO exposes this object
-			itemobject.EdgeTo(expobj, EdgeContainsSensitiveData)
+			ao.EdgeTo(itemobject, expobj, EdgeContainsSensitiveData)
 			// Exposed password leaks this object
-			expobj.EdgeTo(target, EdgeExposesPassword)
+			ao.EdgeTo(expobj, target, EdgeExposesPassword)
 
 			// Everyone that can read the file can then read the password
 			if item.DACL != nil {
@@ -189,7 +189,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
-							entrysidobject.EdgeTo(expobj, EdgeReadSensitiveData)
+							ao.EdgeTo(entrysidobject, expobj, EdgeReadSensitiveData)
 						}
 					}
 				}
@@ -207,10 +207,10 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 			}
 
 			for _, sidpair := range pairs {
-				var member *engine.Object
+				var member *engine.Node
 				if sidpair.MemberSID == "" {
 					// Just use the name, we assume it's a domain object
-					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.NewAttributeValueString(sidpair.MemberName))
+					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
 				} else {
 					// Use the SID
 					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
@@ -221,11 +221,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 				if member != nil {
 					switch sidpair.GroupSID {
 					case "S-1-5-32-544":
-						member.EdgeTo(gpoobject, activedirectory.EdgeLocalAdminRights)
+						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalAdminRights)
 					case "S-1-5-32-562":
-						member.EdgeTo(gpoobject, activedirectory.EdgeLocalDCOMRights)
+						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalDCOMRights)
 					case "S-1-5-32-555":
-						member.EdgeTo(gpoobject, activedirectory.EdgeLocalRDPRights)
+						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalRDPRights)
 					case "":
 						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
@@ -266,13 +266,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					break
 				}
 				// Create new synthetic object
-				sob := engine.NewObject(
-					engine.Type, engine.NewAttributeValueString("Script"),
-					engine.DistinguishedName, engine.NewAttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Name, engine.NewAttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+				sob := engine.NewNode(
+					engine.Type, engine.AttributeValueString("Script"),
+					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
-				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)
+				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
 				sob.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
@@ -285,13 +285,13 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.Objects) error {
 					break
 				}
 				// Create new synthetic object
-				sob := engine.NewObject(
-					engine.DistinguishedName, engine.NewAttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Type, engine.NewAttributeValueString("Script"),
-					engine.Name, engine.NewAttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+				sob := engine.NewNode(
+					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Type, engine.AttributeValueString("Script"),
+					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
-				sob.EdgeTo(gpoobject, activedirectory.EdgeMachineScript)
+				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
 				sob.ChildOf(gpoobject)
 				scriptnum++
 			}

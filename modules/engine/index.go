@@ -24,7 +24,7 @@ func (i *Index) Lookup(key AttributeValue) (ObjectSlice, bool) {
 	return *result, found
 }
 
-func (i *Index) Add(key AttributeValue, o *Object, undupe bool) {
+func (i *Index) Add(key AttributeValue, o *Node, undupe bool) {
 	iv := AttributeValueToIndex(key)
 	i.Lock()
 	existing, found := i.lookup[iv]
@@ -36,7 +36,7 @@ func (i *Index) Add(key AttributeValue, o *Object, undupe bool) {
 	i.Unlock()
 	if undupe && existing.Len() > 0 {
 		dupefound := false
-		existing.Iterate(func(eo *Object) bool {
+		existing.Iterate(func(eo *Node) bool {
 			if o == eo {
 				dupefound = true
 				return false
@@ -82,7 +82,7 @@ func (i *MultiIndex) Lookup(key, key2 AttributeValue) (ObjectSlice, bool) {
 	return *result, found
 }
 
-func (i *MultiIndex) Add(key, key2 AttributeValue, o *Object, undupe bool) {
+func (i *MultiIndex) Add(key, key2 AttributeValue, o *Node, undupe bool) {
 	iv := AttributeValueToIndex(key)
 	iv2 := AttributeValueToIndex(key2)
 	avp := AttributeValuePair{iv, iv2}
@@ -95,7 +95,7 @@ func (i *MultiIndex) Add(key, key2 AttributeValue, o *Object, undupe bool) {
 	}
 	if undupe && existing.Len() > 0 {
 		dupefound := false
-		existing.Iterate(func(eo *Object) bool {
+		existing.Iterate(func(eo *Node) bool {
 			if o == eo {
 				dupefound = true
 				return false

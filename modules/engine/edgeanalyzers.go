@@ -10,7 +10,7 @@ import (
 
 type ProgressCallbackFunc func(progress int, totalprogress int)
 
-type ProcessorFunc func(ao *Objects)
+type ProcessorFunc func(ao *IndexedGraph)
 
 type ProcessPriority int
 
@@ -44,7 +44,7 @@ func (l LoaderID) AddProcessor(pf ProcessorFunc, description string, priority Pr
 }
 
 // LoaderID = wildcard
-func Process(ao *Objects, statustext string, l LoaderID, priority ProcessPriority) error {
+func Process(ao *IndexedGraph, statustext string, l LoaderID, priority ProcessPriority) error {
 	var priorityProcessors []ppfInfo
 	for _, potentialProcessor := range registeredProcessors {
 		if (potentialProcessor.loader == l || l == -1) && potentialProcessor.priority == priority {
@@ -52,7 +52,7 @@ func Process(ao *Objects, statustext string, l LoaderID, priority ProcessPriorit
 		}
 	}
 
-	aoLen := ao.Len()
+	aoLen := ao.Order()
 	total := len(priorityProcessors) * aoLen
 
 	if total == 0 {

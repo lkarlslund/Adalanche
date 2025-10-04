@@ -34,7 +34,7 @@ func (q QueryDefinition) ID() string {
 }
 
 // Compiles the query and makes it a resolver
-func (qd QueryDefinition) Resolver(ao *engine.Objects) (AQLresolver, error) {
+func (qd QueryDefinition) Resolver(ao *engine.IndexedGraph) (AQLresolver, error) {
 	return ParseAQLQuery(qd.Query, ao)
 }
 
