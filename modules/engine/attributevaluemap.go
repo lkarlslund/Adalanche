@@ -178,8 +178,8 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 		newCap := len(avm.values) + len(av)
 		if newCap < 8 {
 			newCap = 8
-		} else if newCap < 2*cap(avm.values) {
-			newCap = 2 * cap(avm.values)
+		} else if newCap < cap(avm.values)*100/80 { // grow by 25%
+			newCap = cap(avm.values) * 100 / 80
 		}
 		newValues := make(AttributeValues, len(avm.values), newCap)
 		copy(newValues, avm.values)
