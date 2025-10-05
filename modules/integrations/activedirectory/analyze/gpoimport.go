@@ -88,7 +88,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner, _ := ao.FindOrAdd(engine.ObjectSid, engine.NewAttributeValueSID(item.OwnerSID))
+			owner := ao.FindOrAddAdjacentSID(item.OwnerSID, nil)
 			ao.EdgeTo(owner, itemobject, EdgeOwns)
 		}
 
