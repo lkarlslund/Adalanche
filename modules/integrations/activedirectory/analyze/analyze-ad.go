@@ -1650,7 +1650,8 @@ func init() {
 				if computers, found := ao.FindMulti(engine.ObjectSid, DomainJoinedSID); found {
 					ui.Warn().Msgf("Machine %v with DomainJoinedSID %v has multiple computer accounts", machine.OneAttrString(engine.Name), DomainJoinedSID)
 					computers.Iterate(func(o *engine.Node) bool {
-						ui.Warn().Msgf("Computer - %v", o.ValueMap())
+						ui.Warn().Msgf("Computer - %v (id %v)", o.DN(), o.ID())
+						ui.Warn().Msgf("Values - %v", o.ValueMap())
 						return true
 					})
 					return true // continue
