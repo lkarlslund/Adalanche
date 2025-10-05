@@ -2,8 +2,8 @@ package analyze
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"maps"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -22,24 +22,25 @@ var (
 )
 
 type GPOLoader struct {
-	dco              map[string]*engine.IndexedGraph
-	gpofiletoprocess chan string
-	done             sync.WaitGroup
-	importmutex      sync.Mutex
+	graphs      map[string]*engine.IndexedGraph
+	fileQueue   chan string
+	done        sync.WaitGroup
+	importMutex sync.Mutex
 }
 
 func (ld *GPOLoader) Name() string {
 	return gposource.String()
 }
+
 func (ld *GPOLoader) Init() error {
-	ld.dco = make(map[string]*engine.IndexedGraph)
-	ld.gpofiletoprocess = make(chan string, 8192)
+	ld.graphs = make(map[string]*engine.IndexedGraph)
+	ld.fileQueue = make(chan string, 8192)
 	// GPO objects
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
 		go func() {
-			for path := range ld.gpofiletoprocess {
-				raw, err := ioutil.ReadFile(path)
+			for path := range ld.fileQueue {
+				raw, err := os.ReadFile(path)
 				if err != nil {
 					ui.Warn().Msgf("Problem reading data from GPO JSON file %v: %v", path, err)
 					continue
@@ -50,7 +51,7 @@ func (ld *GPOLoader) Init() error {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", path, err)
 					continue
 				}
-				thisao := ld.getShard(path)
+				g := ld.getShard(path)
 				netbios := ginfo.DomainNetbios
 				if netbios == "" {
 					// Fallback to extracting from the domain DN
@@ -70,14 +71,14 @@ func (ld *GPOLoader) Init() error {
 						netbios, _, _ = strings.Cut(parts[sysvol+1], ".")
 					}
 				}
-				if netbios != "" {
-					thisao.AddDefaultFlex(
-						engine.DataSource, engine.AttributeValueString(netbios),
-					)
-				} else {
-					ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)
-				}
-				err = ImportGPOInfo(ginfo, thisao)
+				/*				if netbios != "" {
+									g.AddDefaultFlex(
+										engine.DataSource, engine.AttributeValueString(netbios),
+									)
+								} else {
+									ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)
+								} */
+				err = ImportGPOInfo(ginfo, g)
 				if err != nil {
 					ui.Warn().Msgf("Problem importing GPO: %v", err)
 					continue
@@ -91,26 +92,26 @@ func (ld *GPOLoader) Init() error {
 func (ld *GPOLoader) getShard(path string) *engine.IndexedGraph {
 	shard := filepath.Dir(path)
 	lookupshard := shard
-	var ao *engine.IndexedGraph
-	ld.importmutex.Lock()
-	ao = ld.dco[lookupshard]
-	if ao == nil {
-		ao = engine.NewLoaderObjects(ld)
-		ld.dco[lookupshard] = ao
+	var g *engine.IndexedGraph
+	ld.importMutex.Lock()
+	g = ld.graphs[lookupshard]
+	if g == nil {
+		g = engine.NewLoaderObjects(ld)
+		ld.graphs[lookupshard] = g
 	}
-	ld.importmutex.Unlock()
-	return ao
+	ld.importMutex.Unlock()
+	return g
 }
 func (ld *GPOLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	if strings.HasSuffix(path, ".gpodata.json") {
-		ld.gpofiletoprocess <- path
+		ld.fileQueue <- path
 		return nil
 	}
 	return engine.ErrUninterested
 }
 func (ld *GPOLoader) Close() ([]*engine.IndexedGraph, error) {
-	close(ld.gpofiletoprocess)
+	close(ld.fileQueue)
 	ld.done.Wait()
 
-	return slices.Collect(maps.Values(ld.dco)), nil
+	return slices.Collect(maps.Values(ld.graphs)), nil
 }
