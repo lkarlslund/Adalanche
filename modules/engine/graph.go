@@ -765,11 +765,14 @@ func (os *IndexedGraph) FindOrAddAdjacentSID(s windowssecurity.SID, r *Node, fle
 	return sidobject
 }
 
-func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Node, flexinit ...any) (*Node, bool) {
+func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo *Node, flexinit ...any) (*Node, bool) {
+	if relativeTo == nil {
+		return os.FindOrAdd(ObjectSid, NewAttributeValueSID(s))
+	}
 	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
-	if r.Type() == ObjectTypeMachine && r.HasAttr(DataSource) {
+	if relativeTo.Type() == ObjectTypeMachine && relativeTo.HasAttr(DataSource) {
 		// See if we can find it relative to the computer
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource)); found {
 			return o.First(), true
 		}
 	}
@@ -787,15 +790,15 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Node
 	}
 
 	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
-	if r.HasAttr(DomainContext) {
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DomainContext, r.OneAttr(DomainContext)); found {
+	if relativeTo.HasAttr(DomainContext) {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DomainContext, relativeTo.OneAttr(DomainContext)); found {
 			return o.First(), true
 		}
 	}
 
 	// Use the objects datasource as the relative reference
-	if r.HasAttr(DataSource) {
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, r.OneAttr(DataSource)); found {
+	if relativeTo.HasAttr(DataSource) {
+		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource)); found {
 			return o.First(), true
 		}
 	}
@@ -803,10 +806,9 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, r *Node
 	// Not found, so fall back to just looking up the SID
 	no, found := os.FindOrAdd(ObjectSid, NewAttributeValueSID(s),
 		IgnoreBlanks,
-		DomainContext, r.Attr(DomainContext),
-		DataSource, r.Attr(DataSource),
+		DomainContext, relativeTo.Attr(DomainContext),
+		DataSource, relativeTo.Attr(DataSource),
 	)
-
 	return no, found
 }
 
