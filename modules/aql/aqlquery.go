@@ -85,6 +85,80 @@ var (
 	directionsAny = []engine.EdgeDirection{engine.In, engine.Out}
 )
 
+var pWPPool sync.Pool
+
+func init() {
+	pWPPool.New = func() any {
+		return &probableWorkingPath{}
+	}
+}
+
+type pathItem struct {
+	target    *engine.Node
+	direction engine.EdgeDirection
+}
+
+type probableWorkingPath struct {
+	filter bloom
+	path   []pathItem
+}
+
+func (pWP probableWorkingPath) Clone() probableWorkingPath {
+	clone := pWPPool.Get().(*probableWorkingPath)
+	clone.filter = pWP.filter
+	clone.path = append(clone.path[:0], pWP.path...)
+	return *clone
+}
+
+func (pWP probableWorkingPath) HasNode(node *engine.Node) bool {
+	if pWP.filter.Has(node.ID()) {
+		for _, item := range pWP.path {
+			if node == item.target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (pWP probableWorkingPath) HasEdge(from, to *engine.Node) bool {
+	if pWP.filter.Has(from.ID()) && pWP.filter.Has(to.ID()) {
+		for i := 0; i < len(pWP.path)-1; i++ {
+			if pWP.path[i].target == from && pWP.path[i+1].target == to {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (pWP *probableWorkingPath) Add(node *engine.Node, direction engine.EdgeDirection) {
+	pWP.filter.Add(node.ID())
+	pWP.path = append(pWP.path, pathItem{
+		target:    node,
+		direction: direction,
+	})
+}
+
+func (pWP *probableWorkingPath) CommitToGraph(ao *engine.IndexedGraph, g graph.Graph[*engine.Node, engine.EdgeBitmap]) {
+	var lastNode *engine.Node
+	for _, pathItem := range pWP.path {
+		if lastNode == nil {
+			lastNode = pathItem.target
+			continue
+		}
+		if pathItem.direction == engine.Out {
+			// lookup edge from start object to current object
+			bitmap, _ := ao.GetEdge(lastNode, pathItem.target)
+			g.AddEdge(lastNode, pathItem.target, bitmap)
+		} else {
+			bitmap, _ := ao.GetEdge(pathItem.target, lastNode)
+			g.AddEdge(pathItem.target, lastNode, bitmap)
+		}
+		lastNode = pathItem.target
+	}
+}
+
 func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
 	startObject *engine.Node,
@@ -94,7 +168,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 	type searchState struct {
 		currentObject             *engine.Node
-		workingGraph              graph.Graph[*engine.Node, engine.EdgeBitmap]
+		workingGraph              probableWorkingPath
 		currentSearchIndex        int // index into Next and sourceCache patterns
 		currentDepth              int // depth in current edge searcher
 		currentTotalDepth         int // total depth in all edge searchers (for total depth limiting)
@@ -102,9 +176,9 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	}
 
 	// Initialize the search queue with the starting object and search index
-	initialWorkingGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
-	initialWorkingGraph.AddNode(startObject)
-	initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
+	var initialWorkingGraph probableWorkingPath
+	initialWorkingGraph.Add(startObject, engine.Any)
+	// FIXME initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
 
 	queue := deque.NewDeque[searchState]()
 	queue.PushBack(searchState{
@@ -116,13 +190,18 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		currentOverAllProbability: 1,
 	})
 
+	first := true
+	var currentState searchState
 	for !queue.IsEmpty() {
 		// Check if we've reached the node limit
 		if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 			break
 		}
 
-		var currentState searchState
+		if !first {
+			pWPPool.Put(currentState)
+		}
+
 		if aqlq.Shortest {
 			// Pop from front for BFS (standard, shortest results)
 			currentState = queue.PopFront()
@@ -166,7 +245,8 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				})
 			} else {
 				// The last edge searcher is not required, so add this as a match
-				committedGraph.Merge(currentState.workingGraph)
+				currentState.workingGraph.CommitToGraph(aqlq.datasource, committedGraph)
+				// committedGraph.Merge(currentState.workingGraph)
 				committedGraph.SetNodeData(currentState.currentObject, "reference", aqlq.Sources[currentState.currentSearchIndex].Reference)
 			}
 		}
@@ -243,18 +323,21 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 				nextOverAllProbability = nextOverAllProbability / 100 // make it 0-1 float
 
-				addedge := matchedEdges
-				if thisEdgeSearcher.FilterEdges.NoTrimEdges {
-					addedge = eb
-				}
+				// addedge := matchedEdges
+				// if thisEdgeSearcher.FilterEdges.NoTrimEdges {
+				// 	addedge = eb
+				// }
 
 				// Valid next object
 				newWorkingGraph := currentState.workingGraph.Clone()
-				if direction == engine.Out {
-					newWorkingGraph.AddEdge(currentState.currentObject, nextObject, addedge)
-				} else {
-					newWorkingGraph.AddEdge(nextObject, currentState.currentObject, addedge)
-				}
+				newWorkingGraph.Add(nextObject, direction)
+				/*
+					if direction == engine.Out {
+						newWorkingGraph.AddEdge(currentState.currentObject, nextObject, addedge)
+					} else {
+						newWorkingGraph.AddEdge(nextObject, currentState.currentObject, addedge)
+					}
+				*/
 
 				if nextDepth >= thisEdgeSearcher.MinIterations {
 					// Next node is a match
@@ -274,7 +357,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					if currentState.currentSearchIndex == len(aqlq.Next)-1 &&
 						(nextTargets == nil || nextTargets.Contains(nextObject)) {
 						// We've reached the end of the current search index, so let's merge the working graph into the committed graph - it's a complete match
-						committedGraph.Merge(newWorkingGraph)
+
+						// The last edge searcher is not required, so add this as a match
+						currentState.workingGraph.CommitToGraph(aqlq.datasource, committedGraph)
+						// committedGraph.Merge(newWorkingGraph)
 						committedGraph.SetNodeData(nextObject, "reference", aqlq.Sources[currentState.currentSearchIndex+1].Reference)
 					}
 
