@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"sort"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -118,7 +119,7 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, directi
 			// Writing a blank edge "unsets" it, but we have none
 			return
 		}
-		toMap = make(map[NodeIndexType]int)
+		toMap = make(map[NodeIndexType]EdgeComboType)
 		g.edges[direction][from] = toMap
 	}
 	if edge.IsBlank() {
@@ -128,17 +129,20 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, directi
 	}
 }
 
-func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) int {
+func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeComboType {
 	ue, found := g.edgeComboLookup[edge]
 	if !found {
-		ue = len(g.edgeCombos)
+		ue = EdgeComboType(len(g.edgeCombos))
+		if ue == math.MaxUint16 {
+			ui.Fatal().Msgf("Too many unique edges")
+		}
 		g.edgeComboLookup[edge] = ue
 		g.edgeCombos = append(g.edgeCombos, edge)
 	}
 	return ue
 }
 
-func (g *IndexedGraph) edgeComboToEdgeBitmap(ue int) EdgeBitmap {
+func (g *IndexedGraph) edgeComboToEdgeBitmap(ue EdgeComboType) EdgeBitmap {
 	return g.edgeCombos[ue]
 }
 

@@ -33,9 +33,8 @@ var (
 
 	EdgeHasServiceAccountCredentials = engine.NewEdge("SvcAccntCreds").Tag("Pivot")
 	EdgeHasAutoAdminLogonCredentials = engine.NewEdge("AutoAdminLogonCreds").Tag("Pivot")
-	EdgeRunsExecutable               = engine.NewEdge("RunsExecutable")
 	EdgeHosts                        = engine.NewEdge("Hosts")
-	EdgeExecuted                     = engine.NewEdge("Executed")
+	EdgeExecutes                     = engine.NewEdge("Executes")
 	EdgeMemberOfGroup                = engine.NewEdge("MemberOfGroup")
 	EdgeFileWrite                    = engine.NewEdge("FileWrite")
 	EdgeFileRead                     = engine.NewEdge("FileRead")

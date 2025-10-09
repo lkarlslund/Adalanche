@@ -104,11 +104,11 @@ type probableWorkingPath struct {
 	path   []pathItem
 }
 
-func (pWP probableWorkingPath) Clone() probableWorkingPath {
+func (pWP probableWorkingPath) Clone() *probableWorkingPath {
 	clone := pWPPool.Get().(*probableWorkingPath)
 	clone.filter = pWP.filter
 	clone.path = append(clone.path[:0], pWP.path...)
-	return *clone
+	return clone
 }
 
 func (pWP probableWorkingPath) HasNode(node *engine.Node) bool {
@@ -185,7 +185,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 	type searchState struct {
 		currentObject             *engine.Node
-		workingGraph              probableWorkingPath
+		workingGraph              *probableWorkingPath
 		currentSearchIndex        int // index into Next and sourceCache patterns
 		currentDepth              int // depth in current edge searcher
 		currentTotalDepth         int // total depth in all edge searchers (for total depth limiting)
@@ -201,13 +201,13 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	queue.PushBack(searchState{
 		currentObject:             startObject,
 		currentSearchIndex:        0,
-		workingGraph:              initialWorkingGraph,
+		workingGraph:              &initialWorkingGraph,
 		currentDepth:              0,
 		currentTotalDepth:         0,
 		currentOverAllProbability: 1,
 	})
 
-	first := true
+	var processed int
 	var currentState searchState
 	for !queue.IsEmpty() {
 		// Check if we've reached the node limit
@@ -215,9 +215,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			break
 		}
 
-		if !first {
-			pWPPool.Put(currentState)
+		if processed != 0 {
+			pWPPool.Put(currentState.workingGraph)
 		}
+		processed++
 
 		if aqlq.Shortest {
 			// Pop from front for BFS (standard, shortest results)
@@ -379,6 +380,8 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			})
 		}
 	}
+
+	ui.Debug().Msgf("Processed %v path permutations, returning graph with %v nodes", processed, committedGraph.Order())
 
 	return committedGraph
 }

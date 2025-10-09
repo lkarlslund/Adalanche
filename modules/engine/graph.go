@@ -19,6 +19,7 @@ import (
 type typestatistics [256]int
 
 type NodeIndexType uint32
+type EdgeComboType uint16
 
 type IndexedGraph struct {
 	Datapath      string
@@ -31,9 +32,9 @@ type IndexedGraph struct {
 	nodes      []*Node                           // All objects, int -> *Node
 
 	// Edge tracking
-	edgeComboLookup map[EdgeBitmap]int
+	edgeComboLookup map[EdgeBitmap]EdgeComboType
 	edgeCombos      []EdgeBitmap
-	edges           [2]map[NodeIndexType]map[NodeIndexType]int // from index -> to index -> edgeCombo
+	edges           [2]map[NodeIndexType]map[NodeIndexType]EdgeComboType // from index -> to index -> edgeCombo
 
 	bulkloading   bool                 // If true, we are bulk loading, so defer some operations
 	incomingEdges chan BulkEdgeRequest // Channel to receive incoming edges during bulk load
@@ -52,10 +53,10 @@ func NewIndexedGraph() *IndexedGraph {
 	g := IndexedGraph{
 		// indexes:      make(map[Attribute]*Index),
 		multiindexes:    make(map[AttributePair]*MultiIndex),
-		edgeComboLookup: make(map[EdgeBitmap]int, 1024),
+		edgeComboLookup: make(map[EdgeBitmap]EdgeComboType, 1024),
 		edgeCombos:      make([]EdgeBitmap, 0, 1024),
-		edges: [2]map[NodeIndexType]map[NodeIndexType]int{
-			make(map[NodeIndexType]map[NodeIndexType]int, 8192), make(map[NodeIndexType]map[NodeIndexType]int, 8192)},
+		edges: [2]map[NodeIndexType]map[NodeIndexType]EdgeComboType{
+			make(map[NodeIndexType]map[NodeIndexType]EdgeComboType, 8192), make(map[NodeIndexType]map[NodeIndexType]EdgeComboType, 8192)},
 	}
 
 	// Super important for this to work!
@@ -783,13 +784,6 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 	if relativeTo == nil {
 		return os.FindOrAdd(ObjectSid, NewAttributeValueSID(s))
 	}
-	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
-	if relativeTo.Type() == ObjectTypeMachine && relativeTo.HasAttr(DataSource) {
-		// See if we can find it relative to the computer
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource)); found {
-			return o.First(), true
-		}
-	}
 
 	// Let's assume it's not relative to a computer, and therefore truly unique
 	if s.Component(2) == 21 && s.Component(3) != 0 {
@@ -801,6 +795,12 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 			return no
 		})
 		return result.First(), found
+	}
+
+	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
+	if relativeTo.Type() == ObjectTypeMachine && relativeTo.HasAttr(DataSource) {
+		// See if we can find it relative to the computer
+		return os.FindTwoOrAdd(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource))
 	}
 
 	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
