@@ -248,8 +248,8 @@ func (eb EdgeBitmap) Edges() []Edge {
 type Edge byte
 
 type BulkEdgeRequest struct {
-	From       int
-	To         int
+	From       NodeIndexType
+	To         NodeIndexType
 	EdgeBitmap EdgeBitmap
 	Edge       Edge
 	Merge      bool

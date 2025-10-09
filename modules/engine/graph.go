@@ -18,6 +18,8 @@ import (
 
 type typestatistics [256]int
 
+type NodeIndexType uint32
+
 type IndexedGraph struct {
 	Datapath      string
 	root          *Node
@@ -25,13 +27,13 @@ type IndexedGraph struct {
 
 	// Node tracking
 	nodeMutex  sync.RWMutex
-	nodeLookup gsync.MapOf[*Node, int] // map to index in objects
-	nodes      []*Node                 // All objects, int -> *Node
+	nodeLookup gsync.MapOf[*Node, NodeIndexType] // map to index in objects
+	nodes      []*Node                           // All objects, int -> *Node
 
 	// Edge tracking
 	edgeComboLookup map[EdgeBitmap]int
 	edgeCombos      []EdgeBitmap
-	edges           [2]map[int]map[int]int // from index -> to index -> edgeCombo
+	edges           [2]map[NodeIndexType]map[NodeIndexType]int // from index -> to index -> edgeCombo
 
 	bulkloading   bool                 // If true, we are bulk loading, so defer some operations
 	incomingEdges chan BulkEdgeRequest // Channel to receive incoming edges during bulk load
@@ -52,7 +54,8 @@ func NewIndexedGraph() *IndexedGraph {
 		multiindexes:    make(map[AttributePair]*MultiIndex),
 		edgeComboLookup: make(map[EdgeBitmap]int, 1024),
 		edgeCombos:      make([]EdgeBitmap, 0, 1024),
-		edges:           [2]map[int]map[int]int{make(map[int]map[int]int, 8192), make(map[int]map[int]int, 8192)},
+		edges: [2]map[NodeIndexType]map[NodeIndexType]int{
+			make(map[NodeIndexType]map[NodeIndexType]int, 8192), make(map[NodeIndexType]map[NodeIndexType]int, 8192)},
 	}
 
 	// Super important for this to work!
@@ -362,6 +365,17 @@ func (os *IndexedGraph) Contains(o *Node) bool {
 	return found
 }
 
+func (os *IndexedGraph) LookupNodeByIndex(id NodeIndexType) (*Node, bool) {
+	if len(os.nodes) <= int(id) {
+		return nil, false
+	}
+	return os.nodes[id], true
+}
+
+func (os *IndexedGraph) NodeIndex(node *Node) (NodeIndexType, bool) {
+	return os.nodeLookup.Load(node)
+}
+
 func (os *IndexedGraph) LookupNodeByID(id ObjectID) (*Node, bool) {
 	// It's a uintptr ... shoot me!
 	fakenode := (*Node)(unsafe.Pointer(uintptr(id)))
@@ -488,7 +502,7 @@ func (os *IndexedGraph) Merge(attrtomerge []Attribute, source *Node) (*Node, boo
 }
 
 func (os *IndexedGraph) add(newNode *Node) {
-	if _, found := os.nodeLookup.LoadOrStore(newNode, len(os.nodes)); !found {
+	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndexType(len(os.nodes))); !found {
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
@@ -502,7 +516,7 @@ func (os *IndexedGraph) add(newNode *Node) {
 
 func (os *IndexedGraph) AddRelaxed(newNode *Node) {
 	os.nodeMutex.Lock()
-	if _, found := os.nodeLookup.LoadOrStore(newNode, len(os.nodes)); !found {
+	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndexType(len(os.nodes))); !found {
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}

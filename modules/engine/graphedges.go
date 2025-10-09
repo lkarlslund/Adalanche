@@ -48,7 +48,7 @@ func (g *IndexedGraph) processBulkEdges(eps []BulkEdgeRequest) {
 		return eps[i].From < eps[j].From
 	})
 
-	var lastFrom, lastTo int
+	var lastFrom, lastTo NodeIndexType
 	var lastEdge EdgeBitmap
 
 	g.edgeMutex.Lock()
@@ -97,7 +97,7 @@ func (g *IndexedGraph) processBulkEdges(eps []BulkEdgeRequest) {
 	g.edgeMutex.Unlock()
 }
 
-func (g *IndexedGraph) loadEdge(from, to int, direction EdgeDirection) (EdgeBitmap, bool) {
+func (g *IndexedGraph) loadEdge(from, to NodeIndexType, direction EdgeDirection) (EdgeBitmap, bool) {
 	// Load the edge
 	toMap := g.edges[direction][from]
 	if toMap == nil {
@@ -110,7 +110,7 @@ func (g *IndexedGraph) loadEdge(from, to int, direction EdgeDirection) (EdgeBitm
 	return g.edgeComboToEdgeBitmap(combo), true
 }
 
-func (g *IndexedGraph) saveEdge(from, to int, edge EdgeBitmap, direction EdgeDirection) {
+func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, direction EdgeDirection) {
 	// Save the edge
 	toMap := g.edges[direction][from]
 	if toMap == nil {
@@ -118,7 +118,7 @@ func (g *IndexedGraph) saveEdge(from, to int, edge EdgeBitmap, direction EdgeDir
 			// Writing a blank edge "unsets" it, but we have none
 			return
 		}
-		toMap = make(map[int]int)
+		toMap = make(map[NodeIndexType]int)
 		g.edges[direction][from] = toMap
 	}
 	if edge.IsBlank() {
@@ -260,8 +260,8 @@ func (g *IndexedGraph) Edges(node *Node, direction EdgeDirection) EdgeFilter {
 	if !ok {
 		return EdgeFilter{
 			graph:     g,
-			direction: direction,
-			fromNode:  -1, // Invalid index
+			direction: Invalid,
+			fromNode:  0, // Invalid index
 		}
 	}
 	return EdgeFilter{
@@ -274,16 +274,22 @@ func (g *IndexedGraph) Edges(node *Node, direction EdgeDirection) EdgeFilter {
 type EdgeFilter struct {
 	graph     *IndexedGraph
 	direction EdgeDirection
-	fromNode  int
+	fromNode  NodeIndexType
 }
 
 func (ef EdgeFilter) Len() int {
+	if ef.direction > In {
+		return 0
+	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
 	return len(ef.graph.edges[ef.direction][ef.fromNode])
 }
 
 func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
+	if ef.direction > In {
+		return
+	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
 	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
