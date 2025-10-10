@@ -2,7 +2,6 @@ package aql
 
 import (
 	"errors"
-	"runtime"
 	"sync"
 
 	deque "github.com/edwingeng/deque/v2"
@@ -75,7 +74,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 			return true
 		}
 		return false
-	}, runtime.NumCPU())
+	}, 0)
 	return &result, nil
 }
 
@@ -338,7 +337,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				// }
 
 				// Next node is a match
-				if currentState.currentDepth >= thisEdgeSearcher.MinIterations &&
+				if nextDepth >= thisEdgeSearcher.MinIterations &&
 					(nextTargets == nil || nextTargets.Contains(nextObject)) {
 					newWorkingGraph := currentState.workingGraph.Clone()
 					newWorkingGraph.Add(nextObject, direction, byte(currentState.currentSearchIndex+1))
