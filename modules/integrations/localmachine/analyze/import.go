@@ -457,6 +457,11 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		ao.EdgeTo(machine, loggedin, EdgeSession)
 
 		for _, ipaddress := range login.IpAddress {
+			// skip localhost IPv4 and IPv6
+			if ipaddress == "127.0.0.1" || strings.HasPrefix(ipaddress, "::1") {
+				continue
+			}
+
 			IpMachine := ao.AddNew(
 				engine.IPAddress, engine.AttributeValueString(ipaddress),
 				engine.Type, "Machine",
