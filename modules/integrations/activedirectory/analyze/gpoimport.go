@@ -209,8 +209,12 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			for _, sidpair := range pairs {
 				var member *engine.Node
 				if sidpair.MemberSID == "" {
-					// Just use the name, we assume it's a domain object
-					member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
+					if strings.Contains(sidpair.MemberName, "\\") || strings.Contains(sidpair.MemberName, "@") {
+						ui.Debug().Msgf("GPO member with \\ or @ detected: %v", sidpair.MemberName)
+					} else {
+						// Just use the name, we assume it's a domain object
+						member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
+					}
 				} else {
 					// Use the SID
 					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
