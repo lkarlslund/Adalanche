@@ -11,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/gofrs/uuid"
 	"github.com/icza/gox/stringsx"
@@ -22,6 +21,9 @@ import (
 
 var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
+
+var AttributeNodeId = NewAttribute("nodeID").Single().Hidden()
+var uniqueNodeID atomic.Uint32
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
@@ -48,10 +50,14 @@ func NewNode(flexinit ...any) *Node {
 }
 
 // Temporary workaround
-type ObjectID uintptr
+type NodeID uint32
 
-func (o *Node) ID() ObjectID {
-	return ObjectID(uintptr(unsafe.Pointer(o)))
+func (o *Node) ID() NodeID {
+	n := o.OneAttr(AttributeNodeId)
+	if n == nil {
+		return 0
+	}
+	return NodeID(n.(AttributeValueInt))
 }
 
 func (o *Node) lockbucket() int {
@@ -686,6 +692,7 @@ func (o *Node) Meta() map[string]string {
 
 func (o *Node) init() {
 	o.values.init()
+	o.Set(AttributeNodeId, AttributeValueInt(NodeID(uniqueNodeID.Add(1))))
 }
 
 func (o *Node) String() string {

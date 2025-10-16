@@ -190,7 +190,7 @@ func AddUIEndpoints(ws *WebService) {
 }
 
 type APINodeDetails struct {
-	ID                engine.ObjectID     `json:"id"`
+	ID                engine.NodeID       `json:"id"`
 	Label             string              `json:"label"`
 	DistinguishedName string              `json:"distinguishedname"`
 	Attributes        map[string][]string `json:"attributes"`
@@ -284,7 +284,7 @@ func AddDataEndpoints(ws *WebService) {
 				c.String(500, "Error parsing ID")
 				return
 			}
-			o, found = ws.SuperGraph.LookupNodeByID(engine.ObjectID(id))
+			o, found = ws.SuperGraph.LookupNodeByID(engine.NodeID(id))
 			// o, found = ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id))
 		case "dn", "distinguishedname":
 			o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
@@ -329,7 +329,7 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, "Error parsing ID")
 					return
 				}
-				o, found = ws.SuperGraph.LookupNodeByID(engine.ObjectID(thisId))
+				o, found = ws.SuperGraph.LookupNodeByID(engine.NodeID(thisId))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -407,7 +407,7 @@ func AddDataEndpoints(ws *WebService) {
 				return
 			}
 
-			if parent, found := ws.SuperGraph.LookupNodeByID(engine.ObjectID(id)); found {
+			if parent, found := ws.SuperGraph.LookupNodeByID(engine.NodeID(id)); found {
 				// if parent, found := ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id)); found {
 				children = parent.Children()
 			} else {
@@ -416,10 +416,10 @@ func AddDataEndpoints(ws *WebService) {
 			}
 		}
 		type treeData struct {
-			Label    string          `json:"text"`
-			Type     string          `json:"type,omitempty"`
-			ID       engine.ObjectID `json:"id"`
-			Children bool            `json:"children,omitempty"`
+			Label    string        `json:"text"`
+			Type     string        `json:"type,omitempty"`
+			ID       engine.NodeID `json:"id"`
+			Children bool          `json:"children,omitempty"`
 		}
 		var results []treeData
 		children.Iterate(func(object *engine.Node) bool {

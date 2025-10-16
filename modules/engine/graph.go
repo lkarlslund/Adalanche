@@ -6,7 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/akyoto/cache"
@@ -377,13 +376,8 @@ func (os *IndexedGraph) NodeIndex(node *Node) (NodeIndexType, bool) {
 	return os.nodeLookup.Load(node)
 }
 
-func (os *IndexedGraph) LookupNodeByID(id ObjectID) (*Node, bool) {
-	// It's a uintptr ... shoot me!
-	fakenode := (*Node)(unsafe.Pointer(uintptr(id)))
-	if os.Contains(fakenode) {
-		return fakenode, true
-	}
-	return nil, false
+func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
+	return os.Find(AttributeNodeId, AttributeValueInt(id))
 }
 
 // Attemps to merge the object into the objects

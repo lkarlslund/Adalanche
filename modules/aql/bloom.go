@@ -9,7 +9,7 @@ const totalBits = bloomSize * bloomItemSize
 type bloom [bloomSize]byte
 
 // Calculate a bit to set or test
-func (b *bloom) hash(item engine.ObjectID) int {
+func (b *bloom) hash(item engine.NodeID) int {
 	// incoming item value is a pointer, so mix it up a bit
 	hash := int(item ^ item>>17 ^ item>>31)
 
@@ -18,13 +18,13 @@ func (b *bloom) hash(item engine.ObjectID) int {
 	return bit
 }
 
-func (b *bloom) Add(item engine.ObjectID) {
+func (b *bloom) Add(item engine.NodeID) {
 	// hash the value to a given bit
 	bit := b.hash(item)
 	b[bit/bloomItemSize] |= 1 << (bit % bloomItemSize)
 }
 
-func (b *bloom) Has(item engine.ObjectID) bool {
+func (b *bloom) Has(item engine.NodeID) bool {
 	// hash the value to a given bit
 	bit := b.hash(item)
 	return b[bit/bloomItemSize]&(1<<(bit%bloomItemSize)) != 0

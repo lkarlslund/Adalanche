@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"encoding/xml"
+
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
@@ -37,15 +38,15 @@ type XGMMLNode struct {
 	XMLName    xml.Name `xml:"node"`
 	Label      string   `xml:"label,attr"`
 	Attributes []XGMMLAttribute
-	Weight     int             `xml:"weight,attr,omitempty"`
-	Id         engine.ObjectID `xml:"id,attr"`
+	Weight     int           `xml:"weight,attr,omitempty"`
+	Id         engine.NodeID `xml:"id,attr"`
 }
 type XGMMLEdge struct {
 	XMLName    xml.Name `xml:"edge"`
 	Label      string   `xml:"label,attr"`
 	Attributes []XGMMLAttribute
-	Source     engine.ObjectID `xml:"source,attr"`
-	Target     engine.ObjectID `xml:"target,attr"`
+	Source     engine.NodeID `xml:"source,attr"`
+	Target     engine.NodeID `xml:"target,attr"`
 }
 type XGMMLAttribute struct {
 	XMLName xml.Name `xml:"att"`
