@@ -85,6 +85,7 @@ func Run(paths ...string) (*IndexedGraph, error) {
 				status := fmt.Sprintf("Preprocessing %v priority %v with %v objects", lobj.Loader.Name(), priority.String(), lobj.Objects.Order())
 				ui.Debug().Msg(status)
 				Process(lobj.Objects, status, loaderid, priority)
+				lobj.Objects.FlushEdges()
 			}
 
 			preprocessWG.Done()
@@ -182,6 +183,7 @@ func PostProcess(ao *IndexedGraph, priority ProcessPriority) {
 
 	// Do global post-processing
 	Process(ao, fmt.Sprintf("Postprocessing priority %v", priority.String()), -1, priority)
+	ao.FlushEdges()
 
 	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
 }

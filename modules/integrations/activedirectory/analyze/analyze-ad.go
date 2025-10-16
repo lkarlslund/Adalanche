@@ -973,28 +973,28 @@ func init() {
 			ao.EdgeTo(o, DCsyncObject, activedirectory.EdgeControls)
 
 			for index, acl := range sd.DACL.Entries {
+				var changes, changesall bool
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
 					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
 				}
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
 					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
+					changes = true
 				}
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
 					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
+					changesall = true
 				}
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
 					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 				}
+
+				// Combo = DCsync
+				if changes && changesall {
+					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), DCsyncObject, activedirectory.EdgeCall)
+				}
 			}
 
-			// Add the DCsync combination flag
-			ao.Edges(o, engine.In).Iterate(func(target *engine.Node, edge engine.EdgeBitmap) bool {
-				if edge.IsSet(activedirectory.EdgeDSReplicationGetChanges) && edge.IsSet(activedirectory.EdgeDSReplicationGetChangesAll) {
-					// DCsync attack WOT WOT
-					ao.EdgeTo(target, DCsyncObject, activedirectory.EdgeCall)
-				}
-				return true
-			})
 			return true
 		})
 	}, "Permissions on DomainDNS objects leading to DCsync attacks", engine.BeforeMergeFinal)
