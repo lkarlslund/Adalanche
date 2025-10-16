@@ -88,7 +88,7 @@ var pWPPool sync.Pool
 
 func init() {
 	pWPPool.New = func() any {
-		return &probableWorkingPath{}
+		return probableWorkingPath{}
 	}
 }
 
@@ -103,8 +103,8 @@ type probableWorkingPath struct {
 	path   []pathItem
 }
 
-func (pWP probableWorkingPath) Clone() *probableWorkingPath {
-	clone := pWPPool.Get().(*probableWorkingPath)
+func (pWP probableWorkingPath) Clone() probableWorkingPath {
+	clone := pWPPool.Get().(probableWorkingPath)
 	clone.filter = pWP.filter
 	clone.path = append(clone.path[:0], pWP.path...)
 	return clone
@@ -184,11 +184,11 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 	type searchState struct {
 		currentObject             *engine.Node
-		workingGraph              *probableWorkingPath
-		currentSearchIndex        int // index into Next and sourceCache patterns
-		currentDepth              int // depth in current edge searcher
-		currentTotalDepth         int // total depth in all edge searchers (for total depth limiting)
+		workingGraph              probableWorkingPath
 		currentOverAllProbability float64
+		currentSearchIndex        byte // index into Next and sourceCache patterns
+		currentDepth              byte // depth in current edge searcher
+		currentTotalDepth         byte // total depth in all edge searchers (for total depth limiting)
 	}
 
 	// Initialize the search queue with the starting object and search index
@@ -196,11 +196,13 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	initialWorkingGraph.Add(startObject, engine.Any, 0)
 	// FIXME initialWorkingGraph.SetNodeData(startObject, "reference", aqlq.Sources[0].Reference)
 
+	maxSearchIndex := byte(len(aqlq.Next) - 1)
+
 	queue := deque.NewDeque[searchState]()
 	queue.PushBack(searchState{
 		currentObject:             startObject,
 		currentSearchIndex:        0,
-		workingGraph:              &initialWorkingGraph,
+		workingGraph:              initialWorkingGraph,
 		currentDepth:              0,
 		currentTotalDepth:         0,
 		currentOverAllProbability: 1,
@@ -251,7 +253,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		// Optionally skip this edge searcher if MinIterations == 0
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
 			// We can skip this one!
-			if currentState.currentSearchIndex < len(aqlq.Next)-1 {
+			if currentState.currentSearchIndex < byte(maxSearchIndex) {
 				queue.PushBack(searchState{
 					currentObject:             currentState.currentObject,
 					currentSearchIndex:        currentState.currentSearchIndex + 1,
@@ -337,18 +339,18 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				// }
 
 				// Next node is a match
-				if nextDepth >= thisEdgeSearcher.MinIterations &&
+				if nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
 					(nextTargets == nil || nextTargets.Contains(nextObject)) {
 					newWorkingGraph := currentState.workingGraph.Clone()
 					newWorkingGraph.Add(nextObject, direction, byte(currentState.currentSearchIndex+1))
 
-					atLastIndex := currentState.currentSearchIndex == len(aqlq.Next)-1
+					atLastIndex := currentState.currentSearchIndex == byte(maxSearchIndex)
 					if atLastIndex {
 						// We've reached the end of the current search index, so let's merge the working graph into the committed graph - it's a complete match
 						newWorkingGraph.CommitToGraph(aqlq.datasource, committedGraph, aqlq.Sources)
 					}
 					// Reached max depth for this edge searcher, cannot continue
-					if currentState.currentSearchIndex < len(aqlq.Next)-1 && nextTotalDepth <= opts.MaxDepth {
+					if currentState.currentSearchIndex < maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
 						// queue next search index
 						queue.PushBack(searchState{
 							currentObject:             nextObject,
@@ -360,7 +362,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 						})
 					}
 				}
-				if nextDepth < thisEdgeSearcher.MaxIterations && nextTotalDepth <= opts.MaxDepth &&
+				if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) &&
 					(nextEdgeTargets == nil || nextEdgeTargets.Contains(nextObject)) {
 					// More edges and nodes along the same searcher (deeper search)
 					newWorkingGraph := currentState.workingGraph.Clone()
