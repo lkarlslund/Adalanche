@@ -98,7 +98,7 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	overallprogress.Add(1)
 
 	// Merging all subgraphs into the globalGraph
-	globalGraph, err := Merge(graphsToMerge)
+	globalGraph, err := MergeGraphs(graphsToMerge)
 	if err != nil {
 		return nil, err
 	}

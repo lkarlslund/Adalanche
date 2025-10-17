@@ -16,11 +16,11 @@ import (
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Merge()
+	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
 
-	AbsolutePath    = engine.NewAttribute("absolutePath").Single()
-	RelativePath    = engine.NewAttribute("relativePath").Single()
-	BinarySize      = engine.NewAttribute("binarySize").Single()
+	AbsolutePath    = engine.NewAttribute("absolutePath").Flag(engine.Single)
+	RelativePath    = engine.NewAttribute("relativePath").Flag(engine.Single)
+	BinarySize      = engine.NewAttribute("binarySize").Flag(engine.Single)
 	ExposedPassword = engine.NewAttribute("exposedPassword")
 
 	EdgeExposesPassword       = engine.NewEdge("ExposesPassword").Tag("Pivot")

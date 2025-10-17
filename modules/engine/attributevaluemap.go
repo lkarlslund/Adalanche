@@ -64,8 +64,10 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 			av1 = avm.values[sl.start : sl.start+sl.length]
 		}
 		var av2 AttributeValues
-		if sl, found := avm2.attributes[attr]; found {
-			av2 = avm2.values[sl.start : sl.start+sl.length]
+		if !attr.HasFlag(DropWhenMerging) {
+			if sl, found := avm2.attributes[attr]; found {
+				av2 = avm2.values[sl.start : sl.start+sl.length]
+			}
 		}
 		mergedVals := MergeValues(av1, av2)
 		if len(mergedVals) == 0 {

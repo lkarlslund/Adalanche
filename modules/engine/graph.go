@@ -261,7 +261,7 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 				// If it's a string, lowercase it before adding to index, we do the same on lookups
 				indexval := AttributeValueToIndex(value)
 
-				unique := attribute.IsUnique()
+				unique := attribute.HasFlag(Unique)
 
 				if isnew && unique {
 					existing, dupe := index.Lookup(indexval)
@@ -338,23 +338,23 @@ func (os *IndexedGraph) AddNew(flexinit ...any) *Node {
 	if os.DefaultValues != nil {
 		o.setFlex(os.DefaultValues...)
 	}
-	os.AddMerge(nil, o)
+	os.AddMerge(nil, nil, o)
 	return o
 }
 
 func (os *IndexedGraph) Add(obs ...*Node) {
-	os.AddMerge(nil, obs...)
+	os.AddMerge(nil, nil, obs...)
 }
 
-func (os *IndexedGraph) AddMerge(attrtomerge []Attribute, obs ...*Node) {
-	for _, o := range obs {
+func (os *IndexedGraph) AddMerge(mergeAttr, conflictAttr []Attribute, nodes ...*Node) {
+	for _, inconingNode := range nodes {
 		var processed bool
-		if len(attrtomerge) > 0 {
-			_, processed = os.Merge(attrtomerge, o)
+		if len(mergeAttr) > 0 {
+			_, processed = os.Merge(mergeAttr, conflictAttr, inconingNode)
 		}
 		if !processed {
 			os.nodeMutex.Lock() // This is due to FindOrAdd consistency
-			os.add(o)
+			os.add(inconingNode)
 			os.nodeMutex.Unlock()
 		}
 	}
@@ -381,7 +381,7 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 }
 
 // Attemps to merge the object into the objects
-func (os *IndexedGraph) Merge(attrtomerge []Attribute, source *Node) (*Node, bool) {
+func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node) (*Node, bool) {
 	var mergedTo *Node
 	var merged bool
 
@@ -403,17 +403,23 @@ func (os *IndexedGraph) Merge(attrtomerge []Attribute, source *Node) (*Node, boo
 
 						// Test if any single attribute holding values violate this merge
 						var failed bool
-						source.AttrIterator(func(attr Attribute, sourceValues AttributeValues) bool {
-							if attr.IsSingle() && target.HasAttr(attr) {
-								if !CompareAttributeValues(sourceValues.First(), target.Attr(attr).First()) {
-									// Conflicting attribute values, we can't merge these
-									ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", source.Label(), target.Label(), mergeattr.String(), lookfor.String(), attr.String(), sourceValues.First().String(), target.Attr(attr).First().String())
-									failed = true
-									return false
-								}
+						var sv, tv AttributeValues
+						for _, attr := range singleattrs {
+							sv = source.Attr(attr)
+							if sv == nil {
+								continue
 							}
-							return true
-						})
+							tv = target.Attr(attr)
+							if tv == nil {
+								continue
+							}
+							if !CompareAttributeValues(sv.First(), tv.First()) {
+								// Conflicting attribute values, we can't merge these
+								ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", source.Label(), target.Label(), mergeattr.String(), lookfor.String(), attr.String(), sv.First().String(), tv.First().String())
+								failed = true
+								break
+							}
+						}
 						if failed {
 							return true // break
 						}

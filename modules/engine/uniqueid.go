@@ -2,7 +2,7 @@ package engine
 
 import "github.com/gofrs/uuid"
 
-var UniqueID = NewAttribute("UniqueID").Single().Hidden().SetDescription("Internal unique identifier for the object")
+var UniqueID = NewAttribute("UniqueID").Flag(Single, Hidden).SetDescription("Internal unique identifier for the object")
 
 type InternalLoader struct {
 }

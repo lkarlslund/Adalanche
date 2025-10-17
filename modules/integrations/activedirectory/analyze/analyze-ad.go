@@ -69,7 +69,7 @@ var (
 	MemberOfIndirect = engine.NewAttribute("memberOfIndirect")
 
 	ObjectTypeMachine = engine.NewObjectType("Machine", "Machine")
-	DomainJoinedSID   = engine.NewAttribute("domainJoinedSid").Merge()
+	DomainJoinedSID   = engine.NewAttribute("domainJoinedSid").Flag(engine.Single, engine.Merge)
 	DnsHostName       = engine.NewAttribute("dnsHostName")
 
 	EdgeAuthenticatesAs  = engine.NewEdge("AuthenticatesAs")

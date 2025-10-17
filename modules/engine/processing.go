@@ -10,13 +10,11 @@ import (
 
 func getMergeAttributes() []Attribute {
 	var mergeon []Attribute
-	attributemutex.RLock()
-	for i := range attributeinfos {
-		if attributeinfos[i].merge {
-			mergeon = append(mergeon, Attribute(i))
+	for attr := range attributeinfos {
+		if Attribute(attr).HasFlag(Merge) {
+			mergeon = append(mergeon, Attribute(attr))
 		}
 	}
-	attributemutex.RUnlock()
 	sort.Slice(mergeon, func(i, j int) bool {
 		isuccess := attributeinfos[mergeon[i]].mergeSuccesses.Load()
 		jsuccess := attributeinfos[mergeon[j]].mergeSuccesses.Load()
@@ -25,7 +23,17 @@ func getMergeAttributes() []Attribute {
 	return mergeon
 }
 
-func Merge(graphs []*IndexedGraph) (*IndexedGraph, error) {
+func getConflictAttributes() []Attribute {
+	var conflicts []Attribute
+	for attr := range attributeinfos {
+		if Attribute(attr).HasFlag(Single) && !Attribute(attr).HasFlag(DropWhenMerging) {
+			conflicts = append(conflicts, Attribute(attr))
+		}
+	}
+	return conflicts
+}
+
+func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	var largestGraph, largestGraphNodeCount, largestGraphEdgeCount, totalNodes, totalEdges int
 	for i, g := range graphs {
 		thisGraphNodeCount := g.Order()
@@ -114,7 +122,8 @@ func Merge(graphs []*IndexedGraph) (*IndexedGraph, error) {
 
 	// We now have a list of nodes that potentially can be merged into the global graph
 	pb = ui.ProgressBar("Attempting merge on potential nodes", int64(len(trymerge)))
-	mergeon := getMergeAttributes()
+	conflictAttrs := getConflictAttributes()
+	mergeAttrs := getMergeAttributes()
 	for i, mergeinfo := range trymerge {
 		pb.Add(1)
 		node := mergeinfo.node
@@ -122,10 +131,10 @@ func Merge(graphs []*IndexedGraph) (*IndexedGraph, error) {
 
 		if i%16384 == 0 {
 			// Refresh the list of attributes, ordered by most successfull first
-			mergeon = getMergeAttributes()
+			mergeAttrs = getMergeAttributes()
 		}
 
-		mergedTo, merged := superGraph.Merge(mergeon, node)
+		mergedTo, merged := superGraph.Merge(mergeAttrs, conflictAttrs, node)
 		if merged {
 			nodeMerged[node] = mergedTo
 		} else {

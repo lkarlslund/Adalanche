@@ -22,11 +22,19 @@ type attributeinfo struct {
 	tags           []string
 	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
 	atype          AttributeType
-	single         bool // If true, this attribute can not have multiple values
-	unique         bool // Doing a Find on this attribute will return multiple results
-	merge          bool // If true, objects can be merged on this attribute
-	hidden         bool // If true this does not show up in the list of attributes
+	flags          AttributeFlag
 }
+
+type AttributeFlag uint64
+
+const (
+	AttributeFlagNone AttributeFlag = 1 << iota
+	Hidden                          // Don't expose this when displaying node info in the UI
+	Unique                          // Contents is truly unique across all nodes
+	Merge                           // Try to merge on this
+	Single                          // Can only hold one value
+	DropWhenMerging                 // Node being merged from does not contribute this attribute
+)
 
 type AttributeType uint8
 
@@ -56,25 +64,25 @@ var attributeinfos []attributeinfo
 var (
 	NonExistingAttribute = ^Attribute(0)
 
-	DistinguishedName     = NewAttribute("distinguishedName").Single().Unique()
+	DistinguishedName     = NewAttribute("distinguishedName").Flag(Single, Unique, Merge)
 	ObjectClass           = NewAttribute("objectClass")
-	ObjectCategory        = NewAttribute("objectCategory").Single()
-	Type                  = NewAttribute("type").Single()
-	Name                  = NewAttribute("name").Single()
-	DisplayName           = NewAttribute("displayName").Single()
-	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Single()
+	ObjectCategory        = NewAttribute("objectCategory").Flag(Single)
+	Type                  = NewAttribute("type").Flag(Single)
+	Name                  = NewAttribute("name").Flag(Single)
+	DisplayName           = NewAttribute("displayName").Flag(Single)
+	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Flag(Single)
 	Description           = NewAttribute("description")
-	SAMAccountName        = NewAttribute("sAMAccountName").Single()
-	ObjectSid             = NewAttribute("objectSid").Single() // Single, but not unique! Strange yes, but in the final results there are multiple objects with the same SID
-	ObjectGUID            = NewAttribute("objectGUID").Single().Merge().Unique()
-	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Single()
+	SAMAccountName        = NewAttribute("sAMAccountName").Flag(Single)
+	ObjectSid             = NewAttribute("objectSid").Flag(Single) // Single, but not unique! Strange yes, but in the final results there are multiple objects with the same SID
+	ObjectGUID            = NewAttribute("objectGUID").Flag(Single, Merge, Unique)
+	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Flag(Single)
 	SchemaIDGUID          = NewAttribute("schemaIDGUID")
 	RightsGUID            = NewAttribute("rightsGUID")
 	AttributeSecurityGUID = NewAttribute("attributeSecurityGUID")
 
 	WhenChanged = NewAttribute("whenChanged").Type(AttributeTypeTime) // Not replicated, so we're not marking it as "single"
 
-	WhenCreated = NewAttribute("whenCreated").Single().Type(AttributeTypeTime)
+	WhenCreated = NewAttribute("whenCreated").Flag(Single).Type(AttributeTypeTime)
 
 	ObjectClassGUIDs       = NewAttribute("objectClassGUID")    // Used for caching the GUIDs, should belong in AD analyzer, but it's used in the SecurityDescritor mapping, so we're cheating a bit
 	ObjectCategoryGUID     = NewAttribute("objectCategoryGUID") // Used for caching the GUIDs
@@ -83,11 +91,11 @@ var (
 	DataLoader = NewAttribute("dataLoader").SetDescription("Where did data in this object come from")
 	DataSource = NewAttribute("dataSource").SetDescription("Data from different sources are never merged together")
 
-	IPAddress          = NewAttribute("iPAddress").Merge()
-	DownLevelLogonName = NewAttribute("downLevelLogonName").Merge()
-	UserPrincipalName  = NewAttribute("userPrincipalName").Merge()
-	NetbiosDomain      = NewAttribute("netbiosDomain").Single() // Used to merge users with - if we only have a DOMAIN\USER type of info
-	DomainContext      = NewAttribute("domainContext").Single()
+	IPAddress          = NewAttribute("iPAddress").Flag(Merge)
+	DownLevelLogonName = NewAttribute("downLevelLogonName").Flag(Merge, Single)
+	UserPrincipalName  = NewAttribute("userPrincipalName").Flag(Merge, Single)
+	NetbiosDomain      = NewAttribute("netbiosDomain").Flag(Single) // Used to merge users with - if we only have a DOMAIN\USER type of info
+	DomainContext      = NewAttribute("domainContext").Flag(Single)
 
 	Tag = NewAttribute("tag")
 )
@@ -174,63 +182,24 @@ func (a Attribute) String() string {
 	if a == NonExistingAttribute {
 		return "N/A"
 	}
-	attributemutex.RLock()
 	result := attributeinfos[a].name
-	attributemutex.RUnlock()
 	return result
 }
 
 func (a Attribute) Type(t AttributeType) Attribute {
-	attributemutex.Lock()
 	attributeinfos[a].atype = t
-	attributemutex.Unlock()
 	return a
 }
 
-func (a Attribute) Single() Attribute {
-	attributemutex.Lock()
-	attributeinfos[a].single = true
-	attributemutex.Unlock()
+func (a Attribute) Flag(flags ...AttributeFlag) Attribute {
+	for _, flag := range flags {
+		attributeinfos[a].flags |= flag
+	}
 	return a
 }
 
-func (a Attribute) IsSingle() bool {
-	attributemutex.RLock()
-	result := attributeinfos[a].single
-	attributemutex.RUnlock()
-	return result
-}
-
-func (a Attribute) Unique() Attribute {
-	attributemutex.Lock()
-	attributeinfos[a].unique = true
-	attributemutex.Unlock()
-	return a
-}
-
-func (a Attribute) IsNonUnique() bool {
-	attributemutex.RLock()
-	result := !attributeinfos[a].unique
-	attributemutex.RUnlock()
-	return result
-}
-
-func (a Attribute) IsUnique() bool {
-	attributemutex.RLock()
-	result := attributeinfos[a].unique
-	attributemutex.RUnlock()
-	return result
-}
-
-func (a Attribute) Hidden() Attribute {
-	attributemutex.Lock()
-	attributeinfos[a].hidden = true
-	attributemutex.Unlock()
-	return a
-}
-
-func (a Attribute) IsHidden() bool {
-	return attributeinfos[a].hidden
+func (a Attribute) HasFlag(flag AttributeFlag) bool {
+	return (attributeinfos[a].flags & flag) != 0
 }
 
 var ErrDontMerge = errors.New("Dont merge objects using any methods")
@@ -240,13 +209,6 @@ type mergefunc func(a, b *Node) (*Node, error)
 
 func StandardMerge(attr Attribute, a, b *Node) (*Node, error) {
 	return nil, nil
-}
-
-func (a Attribute) Merge() Attribute {
-	attributemutex.Lock()
-	attributeinfos[a].merge = true
-	attributemutex.Unlock()
-	return a
 }
 
 // AddMergeApprover adds a new function that can object to an object merge, or forever hold its silence

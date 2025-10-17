@@ -22,7 +22,8 @@ import (
 var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 
-var AttributeNodeId = NewAttribute("nodeID").Single().Hidden()
+var AttributeNodeId = NewAttribute("nodeID").Flag(Single, Hidden, DropWhenMerging)
+
 var uniqueNodeID atomic.Uint32
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -610,7 +611,7 @@ func (o *Node) add(a Attribute, values ...AttributeValue) {
 }
 
 func (o *Node) set(a Attribute, values ...AttributeValue) {
-	if a.IsSingle() && len(values) > 1 {
+	if a.HasFlag(Single) && len(values) > 1 {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(AttributeValues(values).StringSlice(), ", "))
 	}
 
