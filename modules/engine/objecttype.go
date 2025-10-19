@@ -5,134 +5,134 @@ import (
 	"sync"
 )
 
-type ObjectType byte
+type NodeType byte
 
 var (
-	NonExistingObjectType                = ^ObjectType(0)
-	ObjectTypeOther                      = NewObjectType("Other", "")
-	ObjectTypeCallableServicePoint       = NewObjectType("CallableService", "Callable-Service-Point")
-	ObjectTypeDomainDNS                  = NewObjectType("DomainDNS", "Domain-DNS")
-	ObjectTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node") //.SetDefault(Last, false)
-	ObjectTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone") //.SetDefault(Last, false)
-	ObjectTypeUser                       = NewObjectType("User", "Person")
-	ObjectTypeGroup                      = NewObjectType("Group", "Group")
-	ObjectTypeGroupManagedServiceAccount = NewObjectType("GroupManagedServiceAccount", "ms-DS-Group-Managed-Service-Account")
-	ObjectTypeManagedServiceAccount      = NewObjectType("ManagedServiceAccount", "ms-DS-Managed-Service-Account")
-	ObjectTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit") //.SetDefault(Last, false)
-	ObjectTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
-	ObjectTypeContainer                  = NewObjectType("Container", "Container") //.SetDefault(Last, false)
-	ObjectTypeComputer                   = NewObjectType("Computer", "Computer")
-	ObjectTypeMachine                    = NewObjectType("Machine", "Machine")
-	ObjectTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
-	ObjectTypeTrust                      = NewObjectType("Trust", "Trusted-Domain")
-	ObjectTypeAttributeSchema            = NewObjectType("AttributeSchema", "Attribute-Schema")
-	ObjectTypeClassSchema                = NewObjectType("ClassSchema", "Class-Schema")
-	ObjectTypeControlAccessRight         = NewObjectType("ControlAccessRight", "Control-Access-Right")
-	ObjectTypeCertificateTemplate        = NewObjectType("CertificateTemplate", "PKI-Certificate-Template")
-	ObjectTypePKIEnrollmentService       = NewObjectType("PKIEnrollmentService", "PKI-Enrollment-Service")
-	ObjectTypeCertificationAuthority     = NewObjectType("CertificationAuthority", "Certification-Authority")
-	ObjectTypeForeignSecurityPrincipal   = NewObjectType("ForeignSecurityPrincipal", "Foreign-Security-Principal")
-	ObjectTypeService                    = NewObjectType("Service", "Service")       //.SetDefault(Last, false)
-	ObjectTypeExecutable                 = NewObjectType("Executable", "Executable") //.SetDefault(Last, false)
-	ObjectTypeDirectory                  = NewObjectType("Directory", "Directory")   //.SetDefault(Last, false)
-	ObjectTypeFile                       = NewObjectType("File", "File")             //.SetDefault(Last, false)
+	NonExistingObjectType              = ^NodeType(0)
+	NodeTypeOther                      = NewObjectType("Other", "")
+	NodeTypeCallableServicePoint       = NewObjectType("CallableService", "Callable-Service-Point")
+	NodeTypeDomainDNS                  = NewObjectType("DomainDNS", "Domain-DNS")
+	NodeTypeDNSNode                    = NewObjectType("DNSNode", "Dns-Node") //.SetDefault(Last, false)
+	NodeTypeDNSZone                    = NewObjectType("DNSZone", "Dns-Zone") //.SetDefault(Last, false)
+	NodeTypeUser                       = NewObjectType("User", "Person")
+	NodeTypeGroup                      = NewObjectType("Group", "Group")
+	NodeTypeGroupManagedServiceAccount = NewObjectType("GroupManagedServiceAccount", "ms-DS-Group-Managed-Service-Account")
+	NodeTypeManagedServiceAccount      = NewObjectType("ManagedServiceAccount", "ms-DS-Managed-Service-Account")
+	NodeTypeOrganizationalUnit         = NewObjectType("OrganizationalUnit", "Organizational-Unit") //.SetDefault(Last, false)
+	NodeTypeBuiltinDomain              = NewObjectType("BuiltinDomain", "Builtin-Domain")
+	NodeTypeContainer                  = NewObjectType("Container", "Container") //.SetDefault(Last, false)
+	NodeTypeComputer                   = NewObjectType("Computer", "Computer")
+	NodeTypeMachine                    = NewObjectType("Machine", "Machine")
+	NodeTypeGroupPolicyContainer       = NewObjectType("GroupPolicyContainer", "Group-Policy-Container")
+	NodeTypeTrust                      = NewObjectType("Trust", "Trusted-Domain")
+	NodeTypeAttributeSchema            = NewObjectType("AttributeSchema", "Attribute-Schema")
+	NodeTypeClassSchema                = NewObjectType("ClassSchema", "Class-Schema")
+	NodeTypeControlAccessRight         = NewObjectType("ControlAccessRight", "Control-Access-Right")
+	NodeTypeCertificateTemplate        = NewObjectType("CertificateTemplate", "PKI-Certificate-Template")
+	NodeTypePKIEnrollmentService       = NewObjectType("PKIEnrollmentService", "PKI-Enrollment-Service")
+	NodeTypeCertificationAuthority     = NewObjectType("CertificationAuthority", "Certification-Authority")
+	NodeTypeForeignSecurityPrincipal   = NewObjectType("ForeignSecurityPrincipal", "Foreign-Security-Principal")
+	NodeTypeService                    = NewObjectType("Service", "Service")       //.SetDefault(Last, false)
+	NodeTypeExecutable                 = NewObjectType("Executable", "Executable") //.SetDefault(Last, false)
+	NodeTypeDirectory                  = NewObjectType("Directory", "Directory")   //.SetDefault(Last, false)
+	NodeTypeFile                       = NewObjectType("File", "File")             //.SetDefault(Last, false)
 )
 
-var objecttypenames = make(map[string]ObjectType)
+var nodeTypeNames = make(map[string]NodeType)
 
-type objecttypeinfo struct {
+type nodeTypeInfo struct {
 	Name           string
 	Lookup         string
 	DefaultEnabled bool
 }
 
-var objecttypenums = []objecttypeinfo{
+var nodeTypeNums = []nodeTypeInfo{
 	{Name: "#OBJECT_TYPE_NOT_FOUND_ERROR#"},
 }
 
-var objecttypemutex sync.RWMutex
+var nodeTypeMutex sync.RWMutex
 
-func NewObjectType(name, lookup string) ObjectType {
+func NewObjectType(name, lookup string) NodeType {
 	// Lowercase it, everything is case insensitive
 	lowercase := strings.ToLower(lookup)
 
-	objecttypemutex.RLock()
-	if objecttype, found := objecttypenames[lowercase]; found {
-		objecttypemutex.RUnlock()
-		return objecttype
+	nodeTypeMutex.RLock()
+	if nodeType, found := nodeTypeNames[lowercase]; found {
+		nodeTypeMutex.RUnlock()
+		return nodeType
 	}
-	objecttypemutex.RUnlock()
-	objecttypemutex.Lock()
+	nodeTypeMutex.RUnlock()
+	nodeTypeMutex.Lock()
 	// Retry, someone might have beaten us to it
-	if objecttype, found := objecttypenames[lowercase]; found {
-		objecttypemutex.Unlock()
-		return objecttype
+	if nodeType, found := nodeTypeNames[lowercase]; found {
+		nodeTypeMutex.Unlock()
+		return nodeType
 	}
 
-	newindex := ObjectType(len(objecttypenums))
+	newindex := NodeType(len(nodeTypeNums))
 
 	// both sensitive and insensitive at the same time when adding
-	objecttypenames[lowercase] = newindex
-	objecttypenames[lookup] = newindex
+	nodeTypeNames[lowercase] = newindex
+	nodeTypeNames[lookup] = newindex
 
-	objecttypenums = append(objecttypenums, objecttypeinfo{
+	nodeTypeNums = append(nodeTypeNums, nodeTypeInfo{
 		Name:           name,
 		Lookup:         lookup,
 		DefaultEnabled: true,
 	})
-	objecttypemutex.Unlock()
+	nodeTypeMutex.Unlock()
 
 	return newindex
 }
 
-func ObjectTypeLookup(lookup string) (ObjectType, bool) {
-	objecttypemutex.RLock()
-	objecttype, found := objecttypenames[lookup]
+func NodeTypeLookup(lookup string) (NodeType, bool) {
+	nodeTypeMutex.RLock()
+	objecttype, found := nodeTypeNames[lookup]
 	if found {
-		objecttypemutex.RUnlock()
+		nodeTypeMutex.RUnlock()
 		return objecttype, true
 	}
 
 	lowername := strings.ToLower(lookup)
-	objecttype, found = objecttypenames[lowername]
-	objecttypemutex.RUnlock()
+	objecttype, found = nodeTypeNames[lowername]
+	nodeTypeMutex.RUnlock()
 	if found {
 		// lowercase version found, add the cased version too
-		objecttypemutex.Lock()
-		objecttypenames[lookup] = objecttype
-		objecttypemutex.Unlock()
+		nodeTypeMutex.Lock()
+		nodeTypeNames[lookup] = objecttype
+		nodeTypeMutex.Unlock()
 		return objecttype, found
 	}
 
 	// not found, we don't know what this is, but lets speed this up for next time
-	objecttypemutex.Lock()
-	objecttypenames[lookup] = ObjectTypeOther
-	objecttypemutex.Unlock()
+	nodeTypeMutex.Lock()
+	nodeTypeNames[lookup] = NodeTypeOther
+	nodeTypeMutex.Unlock()
 
-	return ObjectTypeOther, false
+	return NodeTypeOther, false
 }
 
-func (ot ObjectType) String() string {
-	return objecttypenums[ot].Name
+func (ot NodeType) String() string {
+	return nodeTypeNums[ot].Name
 }
 
-func (ot ObjectType) ValueString() attributeValueString {
-	return AttributeValueString(objecttypenums[ot].Lookup)
+func (ot NodeType) ValueString() attributeValueString {
+	return AttributeValueString(nodeTypeNums[ot].Lookup)
 }
 
-func (ot ObjectType) Lookup() string {
-	return objecttypenums[ot].Lookup
+func (ot NodeType) Lookup() string {
+	return nodeTypeNums[ot].Lookup
 }
 
-func (ot ObjectType) SetDefault(enabled bool) ObjectType {
-	objecttypemutex.Lock()
-	objecttypenums[ot].DefaultEnabled = enabled
-	objecttypemutex.Unlock()
+func (ot NodeType) SetDefault(enabled bool) NodeType {
+	nodeTypeMutex.Lock()
+	nodeTypeNums[ot].DefaultEnabled = enabled
+	nodeTypeMutex.Unlock()
 	return ot
 }
 
-func ObjectTypes() []objecttypeinfo {
-	objecttypemutex.RLock()
-	defer objecttypemutex.RUnlock()
-	return objecttypenums[1:]
+func NodeTypes() []nodeTypeInfo {
+	nodeTypeMutex.RLock()
+	defer nodeTypeMutex.RUnlock()
+	return nodeTypeNums[1:]
 }

@@ -34,10 +34,10 @@ type Node struct {
 	sdcache       *SecurityDescriptor
 	parent        *Node
 	sid           atomic.Value // windowssecurity.SID
-	children      ObjectSlice
+	children      NodeSlice
 	values        AttributesAndValues
 	objectchanged bool
-	objecttype    ObjectType
+	objecttype    NodeType
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
@@ -243,7 +243,7 @@ func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 	return NonExistingAttribute, AttributeValueString("N/A")
 }
 
-func (o *Node) Type() ObjectType {
+func (o *Node) Type() NodeType {
 	if o.objecttype > 0 {
 		return o.objecttype
 	}
@@ -251,10 +251,10 @@ func (o *Node) Type() ObjectType {
 	category := o.Attr(Type)
 
 	if category.Len() == 0 {
-		return ObjectTypeOther
+		return NodeTypeOther
 	}
 
-	objecttype, found := ObjectTypeLookup(category.First().String())
+	objecttype, found := NodeTypeLookup(category.First().String())
 	if found {
 		o.objecttype = objecttype
 	}
@@ -862,7 +862,7 @@ func (o *Node) Parent() *Node {
 	return parent
 }
 
-func (o *Node) Children() ObjectSlice {
+func (o *Node) Children() NodeSlice {
 	o.rlock()
 	defer o.runlock()
 	return o.children

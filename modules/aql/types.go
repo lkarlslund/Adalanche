@@ -68,20 +68,20 @@ type NodeMatcher interface {
 	Match(o *engine.Node) bool
 }
 type NodeSorter interface {
-	Sort(engine.ObjectSlice) engine.ObjectSlice
+	Sort(engine.NodeSlice) engine.NodeSlice
 }
 type NodeSorterImpl struct {
 	Attr       engine.Attribute
 	Descending bool
 }
 
-func (nsi NodeSorterImpl) Sort(o engine.ObjectSlice) engine.ObjectSlice {
+func (nsi NodeSorterImpl) Sort(o engine.NodeSlice) engine.NodeSlice {
 	o.Sort(nsi.Attr, nsi.Descending)
 	return o
 }
 
 type NodeLimiter interface {
-	Limit(engine.ObjectSlice) engine.ObjectSlice
+	Limit(engine.NodeSlice) engine.NodeSlice
 }
 
 // Union of multiple queries

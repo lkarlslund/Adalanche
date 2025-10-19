@@ -2,9 +2,11 @@ package analyze
 
 import (
 	"net"
+	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func LinkSCCM(ao *engine.IndexedGraph) {
@@ -59,6 +61,43 @@ func init() {
 	loader.AddProcessor(
 		LinkSCCM,
 		"Link SCCM and WSUS servers to controlled computers",
+		engine.AfterMerge,
+	)
+	loader.AddProcessor(
+
+		func(ao *engine.IndexedGraph) {
+			var mut sync.Mutex
+			sids := make(map[windowssecurity.SID][]*engine.Node)
+			ao.IterateParallel(func(o *engine.Node) bool {
+				if o.Type() != engine.NodeTypeMachine {
+					return true
+				}
+				sid := o.SID()
+				if sid.IsBlank() {
+					return true
+				}
+				mut.Lock()
+				sids[sid] = append(sids[sid], o)
+				mut.Unlock()
+				return true
+			}, 0)
+
+			for _, nodes := range sids {
+				if len(nodes) < 2 {
+					continue
+				}
+				for i := 0; i < len(nodes); i++ {
+					for j := i + 1; j < len(nodes); j++ {
+						if i == j {
+							continue
+						}
+						ao.EdgeTo(nodes[i], nodes[j], EdgeSIDCollision)
+					}
+				}
+			}
+
+		},
+		"Local SID collisions",
 		engine.AfterMerge,
 	)
 }

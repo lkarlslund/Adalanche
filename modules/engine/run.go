@@ -138,7 +138,7 @@ func Run(paths ...string) (*IndexedGraph, error) {
 			continue
 		}
 		statarray = append(statarray, statentry{
-			name:  ObjectType(ot).String(),
+			name:  NodeType(ot).String(),
 			count: count,
 		})
 	}

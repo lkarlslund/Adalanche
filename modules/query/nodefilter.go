@@ -21,7 +21,7 @@ type NodeFilter interface {
 	ToWhereClause() string
 }
 type FilterObjectType struct {
-	t engine.ObjectType
+	t engine.NodeType
 }
 
 func (fot FilterObjectType) Evaluate(o *engine.Node) bool {

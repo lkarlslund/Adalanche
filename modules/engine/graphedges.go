@@ -8,8 +8,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func (g *IndexedGraph) processIncomingEdges() {
-	bulkProcessBuffer := make([]BulkEdgeRequest, 0, 32768)
+func (g *IndexedGraph) processIncomingEdges(queuesize int) {
+	bulkProcessBuffer := make([]BulkEdgeRequest, 0, queuesize)
 
 	// continue running while incomingEdges is not closed
 	// add new edges to buffer while there is space
@@ -23,6 +23,7 @@ func (g *IndexedGraph) processIncomingEdges() {
 				if len(bulkProcessBuffer) > 0 {
 					g.processBulkEdges(bulkProcessBuffer)
 				}
+				g.bulkWorkers.Done()
 				return
 			}
 			bulkProcessBuffer = append(bulkProcessBuffer, ep)

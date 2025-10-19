@@ -35,7 +35,8 @@ type IndexedGraph struct {
 	edgeCombos      []EdgeBitmap
 	edges           [2]map[NodeIndexType]map[NodeIndexType]EdgeComboType // from index -> to index -> edgeCombo
 
-	bulkloading   bool                 // If true, we are bulk loading, so defer some operations
+	bulkloading   bool // If true, we are bulk loading, so defer some operations
+	bulkWorkers   sync.WaitGroup
 	incomingEdges chan BulkEdgeRequest // Channel to receive incoming edges during bulk load
 	flushEdges    chan struct{}        // Channel to request flushing of buffered edges
 	edgeMutex     sync.RWMutex         // When we're not bulk loading
@@ -78,15 +79,17 @@ func (g *IndexedGraph) BulkLoadEdges(enable bool) bool {
 	g.nodeMutex.Lock()
 	if !g.bulkloading && enable {
 		g.bulkloading = true
-		g.incomingEdges = make(chan BulkEdgeRequest, 1024)
+		g.incomingEdges = make(chan BulkEdgeRequest, 32768)
 		g.flushEdges = make(chan struct{}, 5)
-		go g.processIncomingEdges()
+		g.bulkWorkers.Add(1)
+		go g.processIncomingEdges(32768)
 		result = true
 	} else if g.bulkloading && !enable {
 		close(g.incomingEdges)
 		close(g.flushEdges)
 		g.bulkloading = false
 		result = true
+		g.bulkWorkers.Wait()
 	}
 	g.nodeMutex.Unlock()
 	return result
@@ -342,8 +345,10 @@ func (os *IndexedGraph) AddNew(flexinit ...any) *Node {
 	return o
 }
 
-func (os *IndexedGraph) Add(obs ...*Node) {
-	os.AddMerge(nil, nil, obs...)
+func (os *IndexedGraph) Add(obs *Node) {
+	os.nodeMutex.Lock() // This is due to FindOrAdd consistency
+	os.add(obs)
+	os.nodeMutex.Unlock()
 }
 
 func (os *IndexedGraph) AddMerge(mergeAttr, conflictAttr []Attribute, nodes ...*Node) {
@@ -395,7 +400,7 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 					mergetargets.Iterate(func(target *Node) bool {
 						// Test if types mismatch violate this merge
 						targetType := target.Type()
-						if targetType != ObjectTypeOther && sourceType != ObjectTypeOther && targetType != sourceType {
+						if targetType != NodeTypeOther && sourceType != NodeTypeOther && targetType != sourceType {
 							// Merge conflict, can't merge different types
 							ui.Trace().Msgf("Merge failure due to type difference, not merging %v of type %v with %v of type %v", source.Label(), sourceType.String(), target.Label(), targetType.String())
 							return true // continue
@@ -484,7 +489,7 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 			child.parent = mergedTo
 			return true
 		})
-		source.children = ObjectSlice{}
+		source.children = NodeSlice{}
 
 		// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
 		if source.sdcache != nil && mergedTo.sdcache != nil {
@@ -539,8 +544,8 @@ func (os *IndexedGraph) Statistics() typestatistics {
 	return os.typecount
 }
 
-func (os *IndexedGraph) AsSlice() ObjectSlice {
-	result := NewObjectSlice(os.Order())
+func (os *IndexedGraph) AsSlice() NodeSlice {
+	result := NewNodeSlice(os.Order())
 	os.Iterate(func(o *Node) bool {
 		result.Add(o)
 		return true
@@ -659,19 +664,19 @@ func (os *IndexedGraph) FindTwoOrAdd(attribute Attribute, value AttributeValue, 
 	return results.First(), results.Len() == 1
 }
 
-func (os *IndexedGraph) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o ObjectSlice, found bool) {
+func (os *IndexedGraph) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o NodeSlice, found bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, nil)
 }
 
-func (os *IndexedGraph) FindMulti(attribute Attribute, value AttributeValue) (ObjectSlice, bool) {
+func (os *IndexedGraph) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, nil)
 }
 
-func (os *IndexedGraph) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Node) (ObjectSlice, bool) {
+func (os *IndexedGraph) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
 	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, addifnotfound)
 }
 
-func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Node) (ObjectSlice, bool) {
+func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
 	if attribute > attribute2 {
 		attribute, attribute2 = attribute2, attribute
 		value, value2 = value2, value
@@ -717,12 +722,12 @@ func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeVa
 		}
 		os.add(no)
 		os.nodeMutex.Unlock()
-		nos := NewObjectSlice(1)
+		nos := NewNodeSlice(1)
 		nos.Add(no)
 		return nos, false
 	}
 	os.nodeMutex.Unlock()
-	return ObjectSlice{}, false
+	return NodeSlice{}, false
 }
 
 func (os *IndexedGraph) DistinguishedParent(o *Node) (*Node, bool) {
@@ -798,7 +803,7 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 	}
 
 	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
-	if relativeTo.Type() == ObjectTypeMachine && relativeTo.HasAttr(DataSource) {
+	if relativeTo.Type() == NodeTypeMachine && relativeTo.HasAttr(DataSource) {
 		// See if we can find it relative to the computer
 		return os.FindTwoOrAdd(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource))
 	}

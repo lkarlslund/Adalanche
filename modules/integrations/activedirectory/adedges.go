@@ -6,7 +6,7 @@ import (
 
 func OnlyIfTargetAccountEnabled(wrapped engine.ProbabilityCalculatorFunction) engine.ProbabilityCalculatorFunction {
 	return func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
-		if target.Type() != engine.ObjectTypeUser || target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
+		if target.Type() != engine.NodeTypeUser || target.HasTag("account_enabled") || edges.IsSet(EdgeWriteUserAccountControl) {
 			return wrapped(source, target, edges)
 		}
 		return 0

@@ -16,16 +16,16 @@ func init() {
 				sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
 
 				switch o.Type() {
-				case engine.ObjectTypeComputer:
+				case engine.NodeTypeComputer:
 					// We don't link that - it's either absorbed into the real computer object, or it's orphaned
-				case engine.ObjectTypeUser:
+				case engine.NodeTypeUser:
 					// It's a User we added, find the machine
 					if machine, found := ao.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),
 						LocalMachineSID, engine.NewAttributeValueSID(sidwithoutrid)); found {
 						o.ChildOf(machine) // FIXME -> Users
 					}
-				case engine.ObjectTypeGroup:
+				case engine.NodeTypeGroup:
 					// It's a Group we added
 					if machine, found := ao.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),

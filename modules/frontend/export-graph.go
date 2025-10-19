@@ -18,7 +18,7 @@ func ExportGraphViz(pg graph.Graph[*engine.Node, engine.EdgeBitmap], filename st
 	for object := range pg.Nodes() {
 		var formatting = ""
 		switch object.Type() {
-		case engine.ObjectTypeComputer:
+		case engine.NodeTypeComputer:
 			formatting = ""
 		}
 		fmt.Fprintf(df, "    \"%v\" [label=\"%v\";%v];\n", object.ID(), object.OneAttr(activedirectory.Name), formatting)

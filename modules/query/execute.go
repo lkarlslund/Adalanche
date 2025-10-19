@@ -8,7 +8,7 @@ import (
 
 type IndexSelectorInfo struct {
 	match      string
-	results    engine.ObjectSlice
+	results    engine.NodeSlice
 	a          engine.Attribute
 	queryIndex int
 }

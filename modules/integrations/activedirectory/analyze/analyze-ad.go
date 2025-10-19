@@ -119,7 +119,7 @@ func init() {
 
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for computers
-			if o.Type() != engine.ObjectTypeComputer {
+			if o.Type() != engine.NodeTypeComputer {
 				return true
 			}
 
@@ -186,7 +186,7 @@ func init() {
 
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for computers
-			if o.Type() != engine.ObjectTypeComputer {
+			if o.Type() != engine.NodeTypeComputer {
 				return true
 			}
 
@@ -230,7 +230,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() == engine.ObjectTypeForeignSecurityPrincipal {
+			if o.Type() == engine.NodeTypeForeignSecurityPrincipal {
 				return true
 			}
 			if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
@@ -245,12 +245,12 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
+			if o.Type() != engine.NodeTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
 				return true
 			}
 			// Only for computers, you can't really pwn users this way
 			p, hasparent := ao.DistinguishedParent(o)
-			if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
+			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
 			ao.EdgeTo(p, o, activedirectory.PartOfGPO)
@@ -262,7 +262,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeUser || !strings.HasPrefix(o.OneAttrString(engine.Name), "MSOL_") {
+			if o.Type() != engine.NodeTypeUser || !strings.HasPrefix(o.OneAttrString(engine.Name), "MSOL_") {
 				return true
 			}
 
@@ -290,12 +290,12 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeContainer || o.OneAttrString(engine.Name) != "User" {
+			if o.Type() != engine.NodeTypeContainer || o.OneAttrString(engine.Name) != "User" {
 				return true
 			}
 			// Only for users, you can't really pwn users this way
 			p, hasparent := ao.DistinguishedParent(o)
-			if !hasparent || p.Type() != engine.ObjectTypeGroupPolicyContainer {
+			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
 			ao.EdgeTo(p, o, activedirectory.PartOfGPO)
@@ -349,7 +349,7 @@ func init() {
 					aclhasdeny = true
 				}
 			}
-			if disableOwnerImplicitRights && o.Type() == engine.ObjectTypeComputer {
+			if disableOwnerImplicitRights && o.Type() == engine.NodeTypeComputer {
 				return true // Skibidi it
 			}
 
@@ -455,7 +455,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			sd, err := o.SecurityDescriptor()
-			if o.Type() != engine.ObjectTypeAttributeSchema {
+			if o.Type() != engine.NodeTypeAttributeSchema {
 				return true
 			}
 			// FIXME - check for SYSTEM ATTRIBUTES - these can NEVER be changed
@@ -474,7 +474,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only users, computers and service accounts
-			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
+			if o.Type() != engine.NodeTypeUser && o.Type() != engine.NodeTypeComputer {
 				return true
 			}
 			// Check who can reset the password
@@ -494,7 +494,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only group managed service accounts
-			if o.Type() != engine.ObjectTypeGroupManagedServiceAccount {
+			if o.Type() != engine.NodeTypeGroupManagedServiceAccount {
 				return true
 			}
 
@@ -522,7 +522,7 @@ func init() {
 
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only computers and users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
@@ -543,7 +543,7 @@ func init() {
 
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
@@ -557,7 +557,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -576,7 +576,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only computers and users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -596,7 +596,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only computers
-			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -617,7 +617,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only computers
-			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
@@ -640,7 +640,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only computers
-			if o.Type() != engine.ObjectTypeComputer && o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok {
@@ -707,7 +707,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for groups
-			if o.Type() != engine.ObjectTypeGroup {
+			if o.Type() != engine.NodeTypeGroup {
 				return true
 			}
 			// It's a group
@@ -727,7 +727,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for groups
-			if o.Type() != engine.ObjectTypeGroup {
+			if o.Type() != engine.NodeTypeGroup {
 				return true
 			}
 			// It's a group
@@ -747,7 +747,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for groups
-			if o.Type() != engine.ObjectTypeGroup {
+			if o.Type() != engine.NodeTypeGroup {
 				return true
 			}
 			// It's a group
@@ -783,7 +783,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -802,7 +802,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -821,7 +821,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for users
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -851,7 +851,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for groups
-			if o.Type() != engine.ObjectTypeUser && o.Type() != engine.ObjectTypeComputer {
+			if o.Type() != engine.NodeTypeUser && o.Type() != engine.NodeTypeComputer {
 				return true
 			}
 			// It's a group
@@ -898,7 +898,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeCertificateTemplate {
+			if o.Type() != engine.NodeTypeCertificateTemplate {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -918,7 +918,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeCertificateTemplate {
+			if o.Type() != engine.NodeTypeCertificateTemplate {
 				return true
 			}
 			sd, err := o.SecurityDescriptor()
@@ -953,7 +953,7 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.ObjectTypeDomainDNS {
+			if o.Type() != engine.NodeTypeDomainDNS {
 				return true
 			}
 			if !o.HasAttr(activedirectory.SystemFlags) {
@@ -965,7 +965,7 @@ func init() {
 			}
 
 			DCsyncObject, _ := ao.FindTwoOrAdd(
-				engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+				engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
 				engine.Name, engine.AttributeValueString("DCsync"),
 			)
 			DCsyncObject.Tag("hvt")
@@ -1002,7 +1002,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Ensure everyone has a family
 		ao.Iterate(func(computeraccount *engine.Node) bool {
-			if computeraccount.Type() != engine.ObjectTypeComputer {
+			if computeraccount.Type() != engine.NodeTypeComputer {
 				return true
 			}
 
@@ -1049,7 +1049,7 @@ func init() {
 				}
 
 				dn := potentialorphan.DN()
-				if potentialorphan.Type() == engine.ObjectTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
+				if potentialorphan.Type() == engine.NodeTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
 					// Top of some AD we think, hook to top of browsable tree
 					o.ChildOf(ao.Root())
 					return true
@@ -1194,7 +1194,7 @@ func init() {
 
 			ao.Filter(func(o *engine.Node) bool {
 				// Check if object is a group
-				if o.Type() != engine.ObjectTypeGroup {
+				if o.Type() != engine.NodeTypeGroup {
 					return false
 				}
 
@@ -1307,7 +1307,7 @@ func init() {
 		}
 
 		DCsyncObject, _ := ao.FindTwoOrAdd(
-			engine.Type, engine.ObjectTypeCallableServicePoint.ValueString(),
+			engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
 			engine.Name, engine.AttributeValueString("DCsync"),
 		)
 		DCsyncObject.Tag("hvt")
@@ -1332,7 +1332,7 @@ func init() {
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
-			if object.SID().Components() == 7 && object.SID().StripRID() == domainsid && object.Type() != engine.ObjectTypeGroup {
+			if object.SID().Components() == 7 && object.SID().StripRID() == domainsid && object.Type() != engine.NodeTypeGroup {
 				// if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
 				ao.EdgeTo(object, authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			}
@@ -1467,7 +1467,7 @@ func init() {
 				}
 			}
 
-			if object.Type() == engine.ObjectTypeTrust {
+			if object.Type() == engine.NodeTypeTrust {
 				// http://www.frickelsoft.net/blog/?p=211
 				var direction string
 				dir, _ := object.AttrInt(activedirectory.TrustDirection)
@@ -1572,7 +1572,7 @@ func init() {
 		ao.Iterate(func(object *engine.Node) bool {
 			if object.SID().Component(2) == 21 && object.SID().RID() == 525 { // "Protected Users"
 				ao.EdgeIteratorRecursive(object, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Node, edge engine.EdgeBitmap, depth int) bool {
-					if member.Type() == engine.ObjectTypeComputer || member.Type() == engine.ObjectTypeUser {
+					if member.Type() == engine.NodeTypeComputer || member.Type() == engine.NodeTypeUser {
 						member.Tag("protected_user")
 					}
 					return true
@@ -1869,7 +1869,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for containers and org units
-			if o.Type() != engine.ObjectTypeUser {
+			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 
@@ -1892,7 +1892,7 @@ func init() {
 
 		// Build graph with reversed edges - from groups to their members
 		ao.Iterate(func(group *engine.Node) bool {
-			if group.Type() != engine.ObjectTypeGroup && group.HasAttr(activedirectory.DistinguishedName) {
+			if group.Type() != engine.NodeTypeGroup && group.HasAttr(activedirectory.DistinguishedName) {
 				ao.Edges(group, engine.In).Iterate(func(member *engine.Node, edge engine.EdgeBitmap) bool {
 					if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
 						groupToMemberGraph.AddEdge(group, member, edge)
@@ -1964,7 +1964,7 @@ func init() {
 	LoaderID.AddProcessor(
 		func(ao *engine.IndexedGraph) {
 			ao.Iterate(func(enrollementService *engine.Node) bool {
-				if enrollementService.Type() == engine.ObjectTypePKIEnrollmentService {
+				if enrollementService.Type() == engine.NodeTypePKIEnrollmentService {
 					var ca *engine.Node
 					var found bool
 					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); cadns != nil {
@@ -2062,7 +2062,7 @@ func init() {
 		// Find all domains, save info so we can see if an object is "local" or not
 		sidmap := make(map[windowssecurity.SID]sidinfo)
 		ao.Filter(func(o *engine.Node) bool {
-			return o.HasAttr(activedirectory.ObjectSid) && o.Type() == engine.ObjectTypeDomainDNS
+			return o.HasAttr(activedirectory.ObjectSid) && o.Type() == engine.NodeTypeDomainDNS
 		}).Iterate(func(domain *engine.Node) bool {
 			sid := domain.SID()
 			domainContext := domain.OneAttrString(engine.DomainContext)
@@ -2104,7 +2104,7 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		var warnlines int
 		ao.Filter(func(o *engine.Node) bool {
-			return o.Type() == engine.ObjectTypeGroupPolicyContainer
+			return o.Type() == engine.NodeTypeGroupPolicyContainer
 		}).Iterate(func(gpo *engine.Node) bool {
 			ao.Edges(gpo, engine.In).Iterate(func(group *engine.Node, methods engine.EdgeBitmap) bool {
 				groupname := group.OneAttrString(engine.SAMAccountName)
@@ -2114,7 +2114,7 @@ func init() {
 
 					// It has some sort of % variable in it, let's go
 					ao.Edges(gpo, engine.Out).Iterate(func(affected *engine.Node, amethods engine.EdgeBitmap) bool {
-						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.ObjectTypeComputer {
+						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.NodeTypeComputer {
 							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
 							if !found {
 								ui.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
@@ -2127,7 +2127,7 @@ func init() {
 							realgroup = strings.Replace(realgroup, "%domainname%", netbiosdomain, -1)
 							realgroup = strings.Replace(realgroup, "%domain%", netbiosdomain, -1)
 
-							var targetgroups engine.ObjectSlice
+							var targetgroups engine.NodeSlice
 
 							if !strings.Contains(realgroup, "\\") {
 								realgroup = netbiosdomain + "\\" + realgroup

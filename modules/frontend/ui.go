@@ -47,7 +47,7 @@ func AddUIEndpoints(ws *WebService) {
 				})
 			}
 		}
-		for _, objecttype := range engine.ObjectTypes() {
+		for _, objecttype := range engine.NodeTypes() {
 			results.ObjectTypes = append(results.ObjectTypes, filterinfo{
 				Name:           objecttype.Name,
 				Lookup:         objecttype.Lookup,
@@ -92,7 +92,7 @@ func AddUIEndpoints(ws *WebService) {
 				if count == 0 {
 					continue
 				}
-				result.Statistics[engine.ObjectType(objecttype).String()] += count
+				result.Statistics[engine.NodeType(objecttype).String()] += count
 			}
 			result.Statistics["Nodes"] = ws.SuperGraph.Order()
 			result.Statistics["Edges"] = ws.SuperGraph.Size()
@@ -397,7 +397,7 @@ func AddDataEndpoints(ws *WebService) {
 
 	api.GET("tree", ws.RequireData(Ready), func(c *gin.Context) {
 		idstr := c.Query("id")
-		var children engine.ObjectSlice
+		var children engine.NodeSlice
 		if idstr == "#" {
 			children = ws.SuperGraph.Root().Children()
 		} else {

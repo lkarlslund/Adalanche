@@ -36,6 +36,9 @@ func getConflictAttributes() []Attribute {
 func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	var largestGraph, largestGraphNodeCount, largestGraphEdgeCount, totalNodes, totalEdges int
 	for i, g := range graphs {
+		// Release the goroutine, so we can GC this
+		g.BulkLoadEdges(false)
+
 		thisGraphNodeCount := g.Order()
 		totalNodes += thisGraphNodeCount
 		thisGraphEdgeCount := g.Size()
@@ -162,8 +165,6 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 			})
 			return true
 		}, 0)
-		// Release the goroutine, so we can GC this
-		g.BulkLoadEdges(false)
 	}
 	pb.Finish()
 

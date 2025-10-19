@@ -55,10 +55,10 @@ func ParseQueryDefinitionFromPOST(ctx *gin.Context) (QueryDefinition, error) {
 	return qd, nil
 }
 
-func ParseObjectTypeStrings(typeslice []string) (map[engine.ObjectType]struct{}, error) {
-	result := make(map[engine.ObjectType]struct{})
+func ParseObjectTypeStrings(typeslice []string) (map[engine.NodeType]struct{}, error) {
+	result := make(map[engine.NodeType]struct{})
 	for _, t := range typeslice {
-		ot, found := engine.ObjectTypeLookup(t)
+		ot, found := engine.NodeTypeLookup(t)
 		if found {
 			result[ot] = struct{}{}
 		}

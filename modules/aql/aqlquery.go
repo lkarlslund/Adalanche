@@ -31,7 +31,6 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 		}
 	}
 	pb := ui.ProgressBar("Preparing AQL query sources", int64(len(aqlq.Sources)*2))
-	defer pb.Finish()
 
 	// Prepare all the potentialnodes by filtering them and saving them in potentialnodes[n]
 	aqlq.sourceCache = make([]*engine.IndexedGraph, len(aqlq.Sources))
@@ -65,16 +64,18 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 	var resultlock sync.Mutex
 	nodeindex := 0
 	// Iterate over all starting nodes
+	pb = ui.ProgressBar("Searching from start nodes", int64(len(aqlq.sourceCache)))
 	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Node) bool {
+		pb.Add(1)
 		searchResult := aqlq.resolveEdgesFrom(opts, o)
 		resultlock.Lock()
-		defer resultlock.Unlock()
 		if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
 			result.Merge(searchResult)
-			return true
 		}
+		resultlock.Unlock()
 		return false
 	}, 0)
+	pb.Finish()
 	return &result, nil
 }
 

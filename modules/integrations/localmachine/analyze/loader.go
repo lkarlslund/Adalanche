@@ -24,19 +24,16 @@ type loaderQueueItem struct {
 }
 
 type LocalMachineLoader struct {
-	ao          *engine.IndexedGraph
-	machinesids map[string]*engine.ObjectSlice
-	infostoadd  chan loaderQueueItem
-	done        sync.WaitGroup
-	mutex       sync.Mutex
+	graphs     []*engine.IndexedGraph
+	infostoadd chan loaderQueueItem
+	done       sync.WaitGroup
+	mutex      sync.Mutex
 }
 
 func (ld *LocalMachineLoader) Name() string {
 	return Loadername
 }
 func (ld *LocalMachineLoader) Init() error {
-	ld.ao = engine.NewLoaderObjects(ld)
-	ld.machinesids = make(map[string]*engine.ObjectSlice)
 	ld.infostoadd = make(chan loaderQueueItem, 128)
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
@@ -47,7 +44,6 @@ func (ld *LocalMachineLoader) Init() error {
 					ui.Warn().Msgf("Problem reading data from JSON file %v: %v", queueItem, err)
 					continue
 				}
-				defer r.Close()
 
 				var cinfo localmachine.Info
 				var dec = sonic.ConfigDefault.NewDecoder(r)
@@ -56,23 +52,24 @@ func (ld *LocalMachineLoader) Init() error {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)
 					continue
 				}
-				// ld.infoaddmutex.Lock()
-				computerobject, err := ImportCollectorInfo(ld.ao, cinfo)
+				r.Close()
+
+				g := engine.NewLoaderObjects(ld)
+				g.BulkLoadEdges(true)
+				computerobject, err := ImportCollectorInfo(g, cinfo)
+				g.BulkLoadEdges(false)
+
+				_ = computerobject
+
 				if err != nil {
 					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
 				}
-				if cinfo.Machine.LocalSID != "" {
-					ld.mutex.Lock()
-					sids := ld.machinesids[cinfo.Machine.LocalSID]
-					if sids == nil {
-						slice := engine.NewObjectSlice(0)
-						sids = &slice
-						ld.machinesids[cinfo.Machine.LocalSID] = sids
-					}
-					sids.Add(computerobject)
-					ld.mutex.Unlock()
-				}
+
+				ld.mutex.Lock()
+				ld.graphs = append(ld.graphs, g)
+				ld.mutex.Unlock()
+
 				// Add progress
 				queueItem.cb(-100, 0)
 			}
@@ -85,24 +82,7 @@ func (ld *LocalMachineLoader) Close() ([]*engine.IndexedGraph, error) {
 	close(ld.infostoadd)
 	ld.done.Wait()
 
-	if ld.ao.Order() == 1 {
-		return nil, nil // nothing generated
-	}
-
-	// Knot all the objects with colliding SIDs together
-	for _, os := range ld.machinesids {
-		os.Iterate(func(o *engine.Node) bool {
-			os.Iterate(func(p *engine.Node) bool {
-				if o != p {
-					ld.ao.EdgeTo(o, p, EdgeSIDCollision)
-				}
-				return true
-			})
-			return true
-		})
-	}
-
-	return []*engine.IndexedGraph{ld.ao}, nil
+	return ld.graphs, nil
 }
 
 func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFunc) error {

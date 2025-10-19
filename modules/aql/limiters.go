@@ -4,7 +4,7 @@ import "github.com/lkarlslund/adalanche/modules/engine"
 
 type SkipLimiter int
 
-func (sl SkipLimiter) Limit(o engine.ObjectSlice) engine.ObjectSlice {
+func (sl SkipLimiter) Limit(o engine.NodeSlice) engine.NodeSlice {
 	new := o
 	new.Skip(int(sl))
 	return new
@@ -12,7 +12,7 @@ func (sl SkipLimiter) Limit(o engine.ObjectSlice) engine.ObjectSlice {
 
 type FirstLimiter int
 
-func (fl FirstLimiter) Limit(o engine.ObjectSlice) engine.ObjectSlice {
+func (fl FirstLimiter) Limit(o engine.NodeSlice) engine.NodeSlice {
 	new := o
 	new.Limit(int(fl))
 	return new

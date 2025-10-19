@@ -10,33 +10,33 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-type ObjectSlice struct {
-	objects []*Node
+type NodeSlice struct {
+	nodes []*Node
 }
 
-func NewObjectSlice(prealloc int) ObjectSlice {
-	return ObjectSlice{
-		objects: make([]*Node, 0, prealloc),
+func NewNodeSlice(prealloc int) NodeSlice {
+	return NodeSlice{
+		nodes: make([]*Node, 0, prealloc),
 	}
 }
 
-func (os ObjectSlice) Len() int {
-	return len(os.objects)
+func (ns NodeSlice) Len() int {
+	return len(ns.nodes)
 }
 
-func (os *ObjectSlice) Add(o *Node) {
-	os.objects = append(os.objects, o)
+func (ns *NodeSlice) Add(n *Node) {
+	ns.nodes = append(ns.nodes, n)
 	// os.objects = append(os.objects, o.ID())
 }
 
-func (os *ObjectSlice) Remove(o *Node) {
-	for i, cur := range os.objects {
-		if cur == o {
-			if len(os.objects) == 1 {
-				os.objects = nil
+func (ns *NodeSlice) Remove(n *Node) {
+	for i, cur := range ns.nodes {
+		if cur == n {
+			if len(ns.nodes) == 1 {
+				ns.nodes = nil
 			} else {
-				os.objects[i] = os.objects[len(os.objects)-1]
-				os.objects = os.objects[:len(os.objects)-1]
+				ns.nodes[i] = ns.nodes[len(ns.nodes)-1]
+				ns.nodes = ns.nodes[:len(ns.nodes)-1]
 			}
 			return
 		}
@@ -44,28 +44,28 @@ func (os *ObjectSlice) Remove(o *Node) {
 	panic("Asked to remove item from ObjectSlice that isn't there")
 }
 
-func (os ObjectSlice) First() *Node {
-	if len(os.objects) == 0 {
+func (ns NodeSlice) First() *Node {
+	if len(ns.nodes) == 0 {
 		return nil
 	}
-	return os.objects[0]
+	return ns.nodes[0]
 }
 
-func (os ObjectSlice) Iterate(af func(o *Node) bool) {
-	if os.objects == nil {
+func (ns NodeSlice) Iterate(af func(o *Node) bool) {
+	if ns.nodes == nil {
 		return
 	}
-	for _, o := range os.objects {
+	for _, o := range ns.nodes {
 		if !af(o) {
 			break
 		}
 	}
 }
 
-func (os *ObjectSlice) Sort(attr Attribute, reverse bool) {
+func (ns *NodeSlice) Sort(attr Attribute, reverse bool) {
 	orderf := func(i, j int) bool {
-		iv, ifound := os.objects[i].Get(attr)
-		jv, jfound := os.objects[j].Get(attr)
+		iv, ifound := ns.nodes[i].Get(attr)
+		jv, jfound := ns.nodes[j].Get(attr)
 
 		// No one has attribute, so not less
 		if !ifound && !jfound {
@@ -148,43 +148,43 @@ func (os *ObjectSlice) Sort(attr Attribute, reverse bool) {
 		}
 	}
 
-	sort.Slice(os.objects, orderf)
+	sort.Slice(ns.nodes, orderf)
 }
 
-func (os *ObjectSlice) SortFunc(lessthan func(o, o2 *Node) bool) {
-	sort.Slice(os.objects, func(i int, j int) bool {
-		return lessthan(os.objects[i], os.objects[j])
+func (ns *NodeSlice) SortFunc(lessthan func(o, o2 *Node) bool) {
+	sort.Slice(ns.nodes, func(i int, j int) bool {
+		return lessthan(ns.nodes[i], ns.nodes[j])
 	})
 }
 
-func (os *ObjectSlice) Skip(count int) {
+func (ns *NodeSlice) Skip(count int) {
 	if count > 0 {
 		// from start
-		if count > len(os.objects) {
-			os.objects = os.objects[count:]
+		if count > len(ns.nodes) {
+			ns.nodes = ns.nodes[count:]
 		} else {
-			os.objects = os.objects[:0]
+			ns.nodes = ns.nodes[:0]
 		}
 	} else if count < 0 {
 		// from end
 		count = -count
-		if count > len(os.objects) {
-			os.objects = os.objects[:len(os.objects)-count]
+		if count > len(ns.nodes) {
+			ns.nodes = ns.nodes[:len(ns.nodes)-count]
 		} else {
-			os.objects = os.objects[:0]
+			ns.nodes = ns.nodes[:0]
 		}
 	}
 }
 
-func (os *ObjectSlice) Limit(count int) {
+func (ns *NodeSlice) Limit(count int) {
 	if count > 0 {
-		if count < len(os.objects) {
-			os.objects = os.objects[:count]
+		if count < len(ns.nodes) {
+			ns.nodes = ns.nodes[:count]
 		}
 	} else if count < 0 {
 		count = -count
-		if count < len(os.objects) {
-			os.objects = os.objects[len(os.objects)-count:]
+		if count < len(ns.nodes) {
+			ns.nodes = ns.nodes[len(ns.nodes)-count:]
 		}
 	}
 }
