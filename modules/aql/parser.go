@@ -18,6 +18,12 @@ func ParseAQLQuery(s string, ao *engine.IndexedGraph) (AQLresolver, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Ignore initial whitespace
+	for ts.NextIfIs(Whitespace) {
+		ts.Next()
+	}
+
 	resolver, err := parseAQLstream(ts, ao)
 	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v around position %v", err, ts.Token().Position.TC)
@@ -50,13 +56,20 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 	result := AQLquery{
 		datasource: ao,
 		Mode:       Acyclic, // default to something sane
-		Shortest:   true,
+		Traversal:  ShortestFirst,
 	}
 
 	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "LONGEST":
-			result.Shortest = false
+			result.Traversal = LongestFirst
+		case "SHORTEST":
+			result.Traversal = ShortestFirst
+		case "LIKELY":
+			result.Traversal = ProbableShortest
+		case "UNLIKELY":
+			result.Traversal = UnlikelyLongest
+
 		case "WALK":
 			result.Mode = Walk // No deduplication, allow cycles
 		case "TRAIL":
