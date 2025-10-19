@@ -35,14 +35,14 @@ type layoutNode[NodeType GraphNodeInterface[NodeType]] struct {
 func DefaultLayoutSettings() COSELayoutOptions {
 	return COSELayoutOptions{
 		MinIterations:     50,    // Ensure some minimum iterations
-		MaxIterations:     2500,  // No more than these iterations
+		MaxIterations:     5000,  // No more than these iterations
 		MovementThreshold: 0.002, // More strict convergence
 
-		Gravity:        0.05, // Gravity that pulls nodes to center
-		SpringCoeff:    0.8,  // Spring force for the ideal edge length
-		RepulsionCoeff: 1.3,  // Repulsion between nodes
+		Gravity:        0.04, // Gravity that pulls nodes to center
+		SpringCoeff:    0.6,  // Spring force for the ideal edge length
+		RepulsionCoeff: 2,    // Repulsion between nodes
 
-		IdealEdgeLength: 2,    // Base distance
+		IdealEdgeLength: 5,    // Base distance
 		Temperature:     1.0,  // Start with lower temperature
 		CoolingFactor:   0.98, // Slower cooling
 		UseMultiLevel:   true,
@@ -84,18 +84,13 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 		avgDegree = float64(edgeCount) / float64(nodeCount)
 	}
 
+	k := float64(32) // overall scale
+
 	// Area proportional to node count and average degree
-	area := float64(nodeCount) * (float64(nodeCount) + avgDegree) * 50
+	radius := math.Sqrt(float64(nodeCount)) * avgDegree * k
+	area := radius * radius * math.Pi
 
-	radius := math.Sqrt(area) / 2
-	k := radius / 4
-
-	// Ensure k is not too small
-	if k < 1.0 {
-		k = 1.0
-	}
-
-	idealLineLength := settings.IdealEdgeLength * k / 8
+	idealLineLength := settings.IdealEdgeLength * k
 
 	currentTemp := settings.Temperature * k
 	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %f", area, radius, nodeCount)
