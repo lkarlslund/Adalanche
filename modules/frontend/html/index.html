@@ -8,7 +8,9 @@
       content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1"
     />
     <meta charset="utf-8">
-    
+    <meta name="theme-color" content="#ffc107"> <!-- mobile browser -->
+    <meta name="description" content="Adalanche is a graph analytics platform.">
+
     <link rel="icon" type="image/png" href="icons/adalanche-favicon.png" />
 
     <!-- <link rel="stylesheet" type="text/css" href="external/halfmoon-ui/halfmoon.css" /> -->
@@ -190,7 +192,7 @@
                   </div>
 
                   <div class="row">
-                    <div class="col">
+                    <!-- <div class="col">
                       <label
                         for="max_outgoing_connections"
                         class="col-form-label"
@@ -198,7 +200,7 @@
                         data-bs-title="If a node has more than this amount of edges, drop some of them to keep output less cluttered (you will lose some insights)"
                         >Max outgoing edges</label
                       >
-                    </div>
+                    </div> -->
                     <div class="col">
                       <input
                         id="max_outgoing_connections"
@@ -327,6 +329,22 @@
                   <option value="random">Random (debug)</option>
                   <option value="fixed">Fixed (debug)</option>
                 </select>
+
+                <label for="gravity">Gravity</label>
+                <input type="range" class="form-range" for="remote-cose" id="gravity" min="0" max="1" step="0.01">
+
+                <label for="spring_coeff">Spring Coefficient</label>
+                <input type="range" class="form-range" for="remote-cose" id="spring_coeff" min="0.1" max="5" step="0.1">
+
+                <label for="repulsion_coeff">Repulsion Coefficient</label>
+                <input type="range" class="form-range" for="remote-cose" id="repulsion_coeff" min="0.1" max="5" step="0.1">
+
+                <label for="ideal_edge_length">Ideal Edge Length</label>
+                <input type="range" class="form-range" for="remote-cose" id="ideal_edge_length" min="0.5" max="20" step="0.1">
+
+
+
+
 
                 <div class="mb-1">
                   <label for="nodelabels">Node labels</label>
