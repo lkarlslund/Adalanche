@@ -6,7 +6,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"runtime/pprof"
 	"strings"
 	"sync"
@@ -253,8 +252,6 @@ func init() {
 				}()
 			}
 		}
-
-		debug.SetGCPercent(10)
 
 		// Ensure the data folder is available
 		if _, err := os.Stat(*Datapath); os.IsNotExist(err) {
