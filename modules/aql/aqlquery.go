@@ -170,7 +170,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	startObject *engine.Node,
 ) graph.Graph[*engine.Node, engine.EdgeBitmap] {
 	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
-	maxSearchIndex := byte(len(aqlq.Next) - 1)
+	maxSearchIndex := byte(len(aqlq.Next))
 
 	var initialWorkingGraph probableWorkingPath
 	initialWorkingGraph.Add(startObject, engine.Any, 0)
@@ -201,8 +201,16 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 		currentState = queue.Pop()
 
+		// completed path in queue
+		if currentState.currentSearchIndex == maxSearchIndex {
+			// do deduplication checks here if needed
+			currentState.workingGraph.CommitToGraph(aqlq.datasource, committedGraph, aqlq.Sources)
+			continue
+		}
+
 		nextDepth := currentState.currentDepth + 1
 		nextTotalDepth := currentState.currentTotalDepth + 1
+		nextSearchIndex := currentState.currentSearchIndex + 1
 
 		thisEdgeSearcher := aqlq.Next[currentState.currentSearchIndex]
 		nextTargets := aqlq.sourceCache[currentState.currentSearchIndex+1]
@@ -223,18 +231,14 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
-			if currentState.currentSearchIndex < byte(maxSearchIndex) {
-				queue.Push(searchState{
-					currentObject:             currentState.currentObject,
-					currentSearchIndex:        currentState.currentSearchIndex + 1,
-					workingGraph:              currentState.workingGraph,
-					currentDepth:              0,
-					currentTotalDepth:         currentState.currentTotalDepth,
-					currentOverAllProbability: currentState.currentOverAllProbability,
-				})
-			} else {
-				currentState.workingGraph.CommitToGraph(aqlq.datasource, committedGraph, aqlq.Sources)
-			}
+			queue.Push(searchState{
+				currentObject:             currentState.currentObject,
+				currentSearchIndex:        currentState.currentSearchIndex + 1,
+				workingGraph:              currentState.workingGraph,
+				currentDepth:              0,
+				currentTotalDepth:         currentState.currentTotalDepth,
+				currentOverAllProbability: currentState.currentOverAllProbability,
+			})
 		}
 
 		for _, direction := range directions {
@@ -303,14 +307,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					newWorkingGraph := currentState.workingGraph.Clone()
 					newWorkingGraph.Add(nextObject, direction, byte(currentState.currentSearchIndex+1))
 
-					atLastIndex := currentState.currentSearchIndex == byte(maxSearchIndex)
-					if atLastIndex {
-						newWorkingGraph.CommitToGraph(aqlq.datasource, committedGraph, aqlq.Sources)
-					}
-					if currentState.currentSearchIndex < maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
+					if nextSearchIndex <= maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
 						queue.Push(searchState{
 							currentObject:             nextObject,
-							currentSearchIndex:        currentState.currentSearchIndex + 1,
+							currentSearchIndex:        nextSearchIndex,
 							workingGraph:              newWorkingGraph,
 							currentDepth:              0,
 							currentTotalDepth:         nextTotalDepth,
