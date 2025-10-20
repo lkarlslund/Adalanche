@@ -31,13 +31,12 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 var BlankSID = windowssecurity.SID("")
 
 type Node struct {
-	sdcache       *SecurityDescriptor
-	parent        *Node
-	sid           atomic.Value // windowssecurity.SID
-	children      NodeSlice
-	values        AttributesAndValues
-	objectchanged bool
-	objecttype    NodeType
+	sdcache    *SecurityDescriptor
+	parent     *Node
+	sid        atomic.Value // windowssecurity.SID
+	children   NodeSlice
+	values     AttributesAndValues
+	objecttype NodeType
 }
 
 var IgnoreBlanks = "_IGNOREBLANKS_"
