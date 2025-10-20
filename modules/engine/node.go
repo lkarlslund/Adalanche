@@ -58,7 +58,7 @@ func (o *Node) ID() NodeID {
 	if n == nil {
 		return 0
 	}
-	return NodeID(n.(AttributeValueInt))
+	return NodeID(n.Raw().(int64))
 }
 
 func (o *Node) lockbucket() int {
@@ -240,7 +240,7 @@ func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 			}
 		}
 	}
-	return NonExistingAttribute, AttributeValueString("N/A")
+	return NonExistingAttribute, NV("N/A")
 }
 
 func (o *Node) Type() NodeType {
@@ -437,11 +437,6 @@ func (o *Node) setFlex(flexinit ...any) {
 			ui.Fatal().Msgf("Flex initialization with NIL value")
 		}
 		switch v := i.(type) {
-		case windowssecurity.SID:
-			if ignoreblanks && v.IsNull() {
-				continue
-			}
-			data = append(data, NewAttributeValueSID(v))
 		case *[]string:
 			if v == nil {
 				continue
@@ -453,7 +448,7 @@ func (o *Node) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NV(s))
 			}
 		case []string:
 			if ignoreblanks && len(v) == 0 {
@@ -463,71 +458,8 @@ func (o *Node) setFlex(flexinit ...any) {
 				if ignoreblanks && s == "" {
 					continue
 				}
-				data = append(data, AttributeValueString(s))
+				data = append(data, NV(s))
 			}
-		case *string:
-			if v == nil {
-				continue
-			}
-			if ignoreblanks && len(*v) == 0 {
-				continue
-			}
-			data = append(data, AttributeValueString(*v))
-		case string:
-			if ignoreblanks && len(v) == 0 {
-				continue
-			}
-			data = append(data, AttributeValueString(v))
-		case *time.Time:
-			if v == nil {
-				continue
-			}
-			if ignoreblanks && v.IsZero() {
-				continue
-			}
-			data = append(data, AttributeValueTime(*v))
-		case time.Time:
-			if ignoreblanks && v.IsZero() {
-				continue
-			}
-			data = append(data, AttributeValueTime(v))
-		case uuid.UUID:
-			if ignoreblanks && v.IsNil() {
-				continue
-			}
-			data = append(data, NewAttributeValueGUID(v))
-		case *uuid.UUID:
-			if ignoreblanks && v.IsNil() {
-				continue
-			}
-			data = append(data, NewAttributeValueGUID(*v))
-		case *bool:
-			if v == nil {
-				continue
-			}
-			data = append(data, AttributeValueBool(*v))
-		case bool:
-			data = append(data, AttributeValueBool(v))
-		case int:
-			if ignoreblanks && v == 0 {
-				continue
-			}
-			data = append(data, AttributeValueInt(v))
-		case int64:
-			if ignoreblanks && v == 0 {
-				continue
-			}
-			data = append(data, AttributeValueInt(v))
-		case uint64:
-			if ignoreblanks && v == 0 {
-				continue
-			}
-			data = append(data, AttributeValueInt(v))
-		case AttributeValue:
-			if ignoreblanks && v.IsZero() {
-				continue
-			}
-			data = append(data, v)
 		case []AttributeValue:
 			for _, value := range v {
 				if ignoreblanks && value.IsZero() {
@@ -542,8 +474,6 @@ func (o *Node) setFlex(flexinit ...any) {
 				}
 				data = append(data, value)
 			}
-		case nil:
-			// Ignore it, this doesn't work?
 		case Attribute:
 			if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
 				o.set(attribute, data...)
@@ -551,7 +481,11 @@ func (o *Node) setFlex(flexinit ...any) {
 			data = data[:0]
 			attribute = v
 		default:
-			panic("SetFlex called with invalid type in object declaration")
+			newvalue := NV(i)
+			if newvalue == nil || (ignoreblanks && newvalue.IsZero()) {
+				continue
+			}
+			data = append(data, newvalue)
 		}
 	}
 	if attribute != NonExistingAttribute && (!ignoreblanks || len(data) > 0) {
@@ -577,7 +511,7 @@ func (o *Node) Clear(a Attribute) {
 
 func (o *Node) Tag(v string) {
 	if !o.HasTag(v) {
-		o.Add(Tag, AttributeValueString(v))
+		o.Add(Tag, NV(v))
 	}
 }
 
@@ -693,30 +627,35 @@ func (o *Node) Meta() map[string]string {
 
 func (o *Node) init() {
 	o.values.init()
-	o.Set(AttributeNodeId, AttributeValueInt(NodeID(uniqueNodeID.Add(1))))
+	o.Set(AttributeNodeId, NV(uniqueNodeID.Add(1)))
 }
 
 func (o *Node) String() string {
-	var result string
-	result += "OBJECT " + o.DN() + "\n"
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Node %v\n", o.ID()))
+
 	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
 		if attr == NTSecurityDescriptor {
 			return true // continue
 		}
-		result += "  " + attributeinfos[attr].name + ":\n"
+		result.WriteString(" ")
+		result.WriteString(attributeinfos[attr].name)
+		result.WriteString(":\n")
 		values.Iterate(func(value AttributeValue) bool {
 			cleanval := stringsx.Clean(value.String())
 			if cleanval != value.String() {
-				result += fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value.String()), len(cleanval))
+				result.WriteString(fmt.Sprintf("    %v (%v original, %v cleaned)\n", value, len(value.String()), len(cleanval)))
 			} else {
-				result += "    " + value.String() + "\n"
+				result.WriteString("    ")
+				result.WriteString(value.String())
+				result.WriteString("\n")
 			}
 			return true
 		})
 
 		return true // one more
 	})
-	return result
+	return result.String()
 }
 
 func (o *Node) StringACL(ao *IndexedGraph) string {

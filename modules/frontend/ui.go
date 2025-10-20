@@ -285,23 +285,23 @@ func AddDataEndpoints(ws *WebService) {
 				return
 			}
 			o, found = ws.SuperGraph.LookupNodeByID(engine.NodeID(id))
-			// o, found = ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id))
+			// o, found = ws.SuperGraph.Find(engine.UniqueID, engine.NV(id))
 		case "dn", "distinguishedname":
-			o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.AttributeValueString(c.Param("id")))
+			o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.NV(c.Param("id")))
 		case "sid":
 			sid, err := windowssecurity.ParseStringSID(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
+			o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NV(sid))
 		case "guid":
 			u, err := uuid.FromString(c.Param("id"))
 			if err != nil {
 				c.String(500, err.Error())
 				return
 			}
-			o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
+			o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NV(u))
 		}
 		if !found {
 			c.AbortWithStatus(404)
@@ -338,7 +338,7 @@ func AddDataEndpoints(ws *WebService) {
 			}
 		case "dn", "distinguishedname":
 			for i, id := range ids {
-				o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.AttributeValueString(id))
+				o, found = ws.SuperGraph.Find(activedirectory.DistinguishedName, engine.NV(id))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -352,7 +352,7 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, err.Error())
 					return
 				}
-				o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NewAttributeValueSID(sid))
+				o, found = ws.SuperGraph.Find(activedirectory.ObjectSid, engine.NV(sid))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -366,7 +366,7 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, err.Error())
 					return
 				}
-				o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NewAttributeValueGUID(u))
+				o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NV(u))
 				if !found {
 					c.AbortWithStatus(404)
 					return
@@ -408,7 +408,6 @@ func AddDataEndpoints(ws *WebService) {
 			}
 
 			if parent, found := ws.SuperGraph.LookupNodeByID(engine.NodeID(id)); found {
-				// if parent, found := ws.SuperGraph.Find(engine.UniqueID, engine.NewAttributeValueGUID(id)); found {
 				children = parent.Children()
 			} else {
 				c.String(404, "object not found")

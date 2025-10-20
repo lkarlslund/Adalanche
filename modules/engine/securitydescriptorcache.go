@@ -1,29 +1,27 @@
 package engine
 
-import (
-	"sync"
-)
+import gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 
 var (
-	securityDescriptorCache sync.Map
+	securityDescriptorCache gsync.MapOf[string, *SecurityDescriptor]
 )
 
 // Parse and cache security descriptor
-func CacheOrParseSecurityDescriptor(rawsd string) (SecurityDescriptor, error) {
+func CacheOrParseSecurityDescriptor(rawsd string) (*SecurityDescriptor, error) {
 	if len(rawsd) == 0 {
-		return SecurityDescriptor{}, ErrEmptySecurityDescriptorAttribute
+		return nil, ErrEmptySecurityDescriptorAttribute
 	}
 
 	sd, found := securityDescriptorCache.Load(rawsd)
 	if found {
-		return sd.(SecurityDescriptor), nil
+		return sd, nil
 	}
 
 	newsd, err := ParseSecurityDescriptor([]byte(rawsd))
 	if err != nil {
-		return newsd, err
+		return &newsd, err
 	}
 
-	securityDescriptorCache.Store(rawsd, newsd)
-	return newsd, err
+	securityDescriptorCache.Store(rawsd, &newsd)
+	return &newsd, err
 }

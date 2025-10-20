@@ -437,7 +437,7 @@ func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID,
 			if !found {
 				// Not in cache, let's populate it
 				cachedset = UnknownGUID // Assume failure
-				if s, found := ao.Find(SchemaIDGUID, NewAttributeValueGUID(g)); found {
+				if s, found := ao.Find(SchemaIDGUID, NV(g)); found {
 					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
 						cachedset = set
 						if cachedset.IsNil() {
@@ -504,7 +504,7 @@ func (a ACE) String(ao *IndexedGraph) string {
 	if a.Flags&OBJECT_TYPE_PRESENT != 0 {
 		// ui.Debug().Msgf("Looking for right %v", a.ObjectType)
 		result += " OBJECT_TYPE_PRESENT"
-		av := NewAttributeValueGUID(a.ObjectType)
+		av := NV(a.ObjectType)
 		if ao != nil {
 			if o, found := ao.Find(RightsGUID, av); found {
 				result += fmt.Sprintf(" RIGHT %v (%v)", o.OneAttr(Name), a.ObjectType)
@@ -530,7 +530,7 @@ func (a ACE) String(ao *IndexedGraph) string {
 			result += a.InheritedObjectType.String()
 		} else {
 			if ao != nil {
-				if o, found := ao.Find(SchemaIDGUID, NewAttributeValueGUID(a.InheritedObjectType)); found {
+				if o, found := ao.Find(SchemaIDGUID, NV(a.InheritedObjectType)); found {
 					result += fmt.Sprintf("CLASS %v (%v)", o.OneAttr(Name), a.InheritedObjectType)
 				} else {
 					result += " " + a.InheritedObjectType.String() + " (not found)"

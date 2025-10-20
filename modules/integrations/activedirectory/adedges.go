@@ -36,17 +36,19 @@ var (
 		if target.HasTag("account_active") {
 			// Get password age
 			pwdage := target.OneAttr(MetaPasswordAge)
-			if age, ok := pwdage.(engine.AttributeValueInt); ok {
-				// Just set passwords ate 20% success, up to 80% for 10 year old passwords
-				tenyears := 24 * 365 * 10
-				if int(age) > tenyears {
-					return 80
+			if pwdage != nil {
+				if age, ok := pwdage.Raw().(int64); ok {
+					// Just set passwords ate 20% success, up to 80% for 10 year old passwords
+					tenyears := 24 * 365 * 10
+					if int(age) > tenyears {
+						return 80
+					}
+					risk := (80 * int(age)) / tenyears
+					if risk < 20 {
+						return 20
+					}
+					return engine.Probability(risk)
 				}
-				risk := (80 * int(age)) / tenyears
-				if risk < 20 {
-					return 20
-				}
-				return engine.Probability(risk)
 			}
 			return 50
 		}

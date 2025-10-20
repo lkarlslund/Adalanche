@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	gposource = engine.AttributeValueString("Group Policy")
+	gposource = engine.NV("Group Policy")
 	GLoader   = engine.AddLoader(func() engine.Loader { return (&GPOLoader{}) })
 )
 
@@ -73,7 +73,7 @@ func (ld *GPOLoader) Init() error {
 				}
 				/*				if netbios != "" {
 									g.AddDefaultFlex(
-										engine.DataSource, engine.AttributeValueString(netbios),
+										engine.DataSource, engine.NV(netbios),
 									)
 								} else {
 									ui.Error().Msgf("Loading GPO %v without tagging source, this will give merge problems", ginfo.Path)

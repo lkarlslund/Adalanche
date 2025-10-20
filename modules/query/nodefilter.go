@@ -289,12 +289,11 @@ func (sm SinceModifier) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	}
 	var result bool
 	vals.Iterate(func(value engine.AttributeValue) bool {
-		avt, ok := value.(engine.AttributeValueTime)
+		t, ok := value.Raw().(time.Time)
 		if !ok {
 			result = false
 			return false // break
 		}
-		t := time.Time(avt)
 		if Comparator[int64](sm.Comparator).Compare(t.Unix(), sm.TimeSpan.From(time.Now()).Unix()) {
 			result = true
 			return false // break
@@ -601,7 +600,7 @@ func recursiveDNmatchFunc(o *engine.Node, a engine.Attribute, dn string, maxdept
 			return false // break
 		}
 		// Perhaps parent matches?
-		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.AttributeValueString(value.String())); found {
+		if parent, found := ao.Find(activedirectory.DistinguishedName, engine.NV(value.String())); found {
 			result = recursiveDNmatchFunc(parent, a, dn, maxdepth-1, ao)
 			return false // break
 		}

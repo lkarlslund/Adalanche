@@ -14,6 +14,8 @@ import (
 
 const Loadername = "Local Machine"
 
+const estimatedNodesGenerated = 1400
+
 var (
 	loader = engine.AddLoader(func() engine.Loader { return &LocalMachineLoader{} })
 )
@@ -71,7 +73,7 @@ func (ld *LocalMachineLoader) Init() error {
 				ld.mutex.Unlock()
 
 				// Add progress
-				queueItem.cb(-100, 0)
+				queueItem.cb(-estimatedNodesGenerated, 0)
 			}
 			ld.done.Done()
 		}()
@@ -90,7 +92,7 @@ func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFu
 		return engine.ErrUninterested
 	}
 	// Estimate progress
-	cb(0, -100)
+	cb(0, -estimatedNodesGenerated)
 	return nil
 }
 

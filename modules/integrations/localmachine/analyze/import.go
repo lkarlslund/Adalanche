@@ -43,7 +43,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		domainsid, err = windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
 		if cinfo.Machine.ComputerDomainSID != "" && err == nil {
 			machine, existing = ao.FindOrAdd(
-				analyze.DomainJoinedSID, engine.NewAttributeValueSID(domainsid),
+				analyze.DomainJoinedSID, engine.NV(domainsid),
 			)
 			// It's a duplicate domain member SID :-(
 			if existing {
@@ -51,12 +51,12 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			}
 			// Link to the AD account
 			computer, _ := ao.FindOrAdd(
-				activedirectory.ObjectSid, engine.NewAttributeValueSID(domainsid),
+				activedirectory.ObjectSid, engine.NV(domainsid),
 			)
 			downlevelmachinename := cinfo.Machine.Domain + "\\" + cinfo.Machine.Name + "$"
 			computer.SetFlex(
-				activedirectory.SAMAccountName, engine.AttributeValueString(strings.ToUpper(cinfo.Machine.Name)+"$"),
-				engine.DownLevelLogonName, engine.AttributeValueString(downlevelmachinename),
+				activedirectory.SAMAccountName, engine.NV(strings.ToUpper(cinfo.Machine.Name)+"$"),
+				engine.DownLevelLogonName, engine.NV(downlevelmachinename),
 			)
 			ao.EdgeTo(machine, computer, analyze.EdgeAuthenticatesAs)
 			ao.EdgeTo(machine, computer, analyze.EdgeMachineAccount)
@@ -85,14 +85,14 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		engine.NewAttribute("productSuite"), cinfo.Machine.ProductSuite,
 		engine.NewAttribute("productType"), cinfo.Machine.ProductType,
 		engine.ObjectSid, localsid,
-		engine.Type, engine.AttributeValueString("Machine"),
+		engine.Type, engine.NV("Machine"),
 		engine.NewAttribute("connectivity"), cinfo.Network.InternetConnectivity,
 	)
 	if cinfo.Machine.WUServer != "" {
 		if u, err := url.Parse(cinfo.Machine.WUServer); err == nil {
 			host, _, _ := strings.Cut(u.Host, ":")
 			machine.SetFlex(
-				WUServer, engine.AttributeValueString(host),
+				WUServer, engine.NV(host),
 			)
 		}
 	}
@@ -100,7 +100,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		if u, err := url.Parse(cinfo.Machine.SCCMLastValidMP); err == nil {
 			host, _, _ := strings.Cut(u.Host, ":")
 			machine.SetFlex(
-				SCCMServer, engine.AttributeValueString(host),
+				SCCMServer, engine.NV(host),
 			)
 		}
 	}
@@ -122,15 +122,15 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		ui.Debug().Msgf("Detected %v as local machine data coming from a Domain Controller", cinfo.Machine.Name)
 	}
 	// Local accounts should not merge, unless we're a DC, then it's OK to merge with the domain source
-	uniquesource := engine.AttributeValueString(cinfo.Machine.Name)
+	uniquesource := engine.NV(cinfo.Machine.Name)
 	// Set source to domain NetBios name if we're a DC
 	if isdomaincontroller {
-		uniquesource = engine.AttributeValueString(cinfo.Machine.Domain)
+		uniquesource = engine.NV(cinfo.Machine.Domain)
 	}
 
 	// ri := relativeInfo{
-	// 	LocalName:          engine.AttributeValueString(cinfo.Machine.Name),
-	// 	DomainName:         engine.AttributeValueString(cinfo.Machine.Domain),
+	// 	LocalName:          engine.NV(cinfo.Machine.Name),
+	// 	DomainName:         engine.NV(cinfo.Machine.Domain),
 	// 	DomainJoinedSID:    domainsid,
 	// 	MachineSID:         localsid,
 	// 	IsDomainController: isdomaincontroller,
@@ -148,8 +148,8 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	authenticatedUsers.ChildOf(machine)
 	if cinfo.Machine.IsDomainJoined {
 		domainauthenticatedusers, _ := ao.FindTwoOrAdd(
-			engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.EveryoneSID),
-			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
+			engine.ObjectSid, engine.NV(windowssecurity.EveryoneSID),
+			engine.DataSource, engine.NV(cinfo.Machine.Domain),
 		)
 		ao.EdgeTo(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 	}
@@ -198,7 +198,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			if err == nil {
 				localUser := ao.AddNew(
 					engine.IgnoreBlanks,
-					activedirectory.ObjectSid, engine.NewAttributeValueSID(usid),
+					activedirectory.ObjectSid, engine.NV(usid),
 					activedirectory.Type, "Person",
 					activedirectory.DisplayName, user.FullName,
 					activedirectory.Name, user.Name,
@@ -244,7 +244,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			// Potential translation
 			localGroup := ao.AddNew(
 				engine.IgnoreBlanks,
-				activedirectory.ObjectSid, engine.NewAttributeValueSID(groupsid),
+				activedirectory.ObjectSid, engine.NV(groupsid),
 				activedirectory.Name, group.Name,
 				activedirectory.Description, group.Comment,
 				engine.Type, "Group",
@@ -406,11 +406,11 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		var username string
 		if !strings.Contains(login.Domain, ".") {
 			username = login.Domain + "\\" + login.User
-			loggedin.Set(engine.DownLevelLogonName, engine.AttributeValueString(username))
+			loggedin.Set(engine.DownLevelLogonName, engine.NV(username))
 		} else {
 			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
 			username = login.User + "@" + login.Domain
-			loggedin.Set(engine.UserPrincipalName, engine.AttributeValueString(username))
+			loggedin.Set(engine.UserPrincipalName, engine.NV(username))
 		}
 
 		if login.LogonType == 2 || login.LogonType == 11 {
@@ -463,7 +463,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			}
 
 			IpMachine := ao.AddNew(
-				engine.IPAddress, engine.AttributeValueString(ipaddress),
+				engine.IPAddress, engine.NV(ipaddress),
 				engine.Type, "Machine",
 			)
 			ao.EdgeTo(IpMachine, loggedin, EdgeSession)
@@ -479,7 +479,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			}
 		}
 		if primaryuser != "" {
-			machine.Set(PrimaryUser, engine.AttributeValueString(primaryuser))
+			machine.Set(PrimaryUser, engine.NV(primaryuser))
 		}
 	}
 
@@ -489,7 +489,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		strings.EqualFold(cinfo.Machine.DefaultDomain, cinfo.Machine.Domain) {
 		// NETBIOS name for domain check FIXME
 		user, _ := ao.FindOrAdd(
-			engine.NetbiosDomain, engine.AttributeValueString(cinfo.Machine.DefaultDomain),
+			engine.NetbiosDomain, engine.NV(cinfo.Machine.DefaultDomain),
 			activedirectory.SAMAccountName, cinfo.Machine.DefaultUsername,
 			engine.DownLevelLogonName, cinfo.Machine.DefaultDomain+"\\"+cinfo.Machine.DefaultUsername,
 		)
@@ -521,7 +521,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	servicescontainer.ChildOf(machine)
 	// All services are a member of this group
 	localservicesgroup := ao.AddNew(
-		activedirectory.ObjectSid, engine.NewAttributeValueSID(windowssecurity.ServicesSID),
+		activedirectory.ObjectSid, engine.NV(windowssecurity.ServicesSID),
 		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
 		engine.DisplayName, "Services (local)",
 		engine.DataSource, cinfo.Machine.Name,
@@ -612,14 +612,14 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 							nameparts[0] = cinfo.Machine.Name
 						}
 
-						svcaccount, _ = ao.FindOrAdd(engine.DownLevelLogonName, engine.AttributeValueString(nameparts[0]+"\\"+nameparts[1]))
+						svcaccount, _ = ao.FindOrAdd(engine.DownLevelLogonName, engine.NV(nameparts[0]+"\\"+nameparts[1]))
 
 						if !strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
 							svcaccount.ChildOf(serviceobject)
 						}
 					} else if strings.Contains(service.Account, "@") {
 						svcaccount, _ = ao.FindOrAdd(
-							engine.UserPrincipalName, engine.AttributeValueString(service.Account),
+							engine.UserPrincipalName, engine.NV(service.Account),
 						)
 					} else {
 						ui.Warn().Msgf("Don't know how to parse service account name %v", service.Account)
@@ -653,9 +653,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		so := ao.FindOrAddAdjacentSID(windowssecurity.ServiceNameToServiceSID(service.Name), machine)
 		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
 		so.SetFlex(
-			activedirectory.Name, engine.AttributeValueString(service.Name),
-			activedirectory.Description, engine.AttributeValueString("Service virtual account for "+service.Name),
-			engine.DownLevelLogonName, engine.AttributeValueString("NT SERVICE\\"+service.Name),
+			activedirectory.Name, engine.NV(service.Name),
+			activedirectory.Description, engine.NV("Service virtual account for "+service.Name),
+			engine.DownLevelLogonName, engine.NV("NT SERVICE\\"+service.Name),
 		)
 		ao.EdgeTo(serviceexecutable, so, analyze.EdgeAuthenticatesAs)
 
@@ -886,14 +886,14 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	// Everyone / World and Authenticated Users merge with Domain - not pretty IMO
 	if cinfo.Machine.IsDomainJoined && !isdomaincontroller {
 		domaineveryoneobject := ao.AddNew(
-			activedirectory.ObjectSid, engine.NewAttributeValueSID(windowssecurity.EveryoneSID),
-			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
+			activedirectory.ObjectSid, engine.NV(windowssecurity.EveryoneSID),
+			engine.DataSource, engine.NV(cinfo.Machine.Domain),
 		)
 		// Everyone who is a member of the Domain is also a member of "our" Everyone
 		ao.EdgeTo(domaineveryoneobject, everyone, activedirectory.EdgeMemberOfGroup)
 		domainauthenticatedusers := ao.AddNew(
-			activedirectory.ObjectSid, engine.NewAttributeValueSID(windowssecurity.AuthenticatedUsersSID),
-			engine.DataSource, engine.AttributeValueString(cinfo.Machine.Domain),
+			activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID),
+			engine.DataSource, engine.NV(cinfo.Machine.Domain),
 		)
 		ao.EdgeTo(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 	}

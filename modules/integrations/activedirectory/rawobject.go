@@ -31,7 +31,7 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
 	newobject := engine.NewNode()
 
 	newobject.SetFlex(
-		DistinguishedName, engine.AttributeValueString(r.DistinguishedName),
+		DistinguishedName, engine.NV(r.DistinguishedName),
 	) // This is possibly repeated in member attributes, so dedup it
 
 	// Reusable slice
@@ -95,14 +95,14 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 		case MsPKIRoamingTimeStamp:
 			// https://www.sysadmins.lv/blog-en/how-to-convert-ms-pki-roaming-timestamp-attribute.aspx
 			t := util.FiletimeToTime(binary.LittleEndian.Uint64([]byte(value[8:])))
-			attributevalue = engine.AttributeValueTime(t)
+			attributevalue = engine.NV(t)
 		case AccountExpires, CreationTime, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime, MSLAPSPasswordExpirationTime, BadPasswordTime:
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
 				if intval == 0 {
-					attributevalue = engine.AttributeValueInt(intval)
+					attributevalue = engine.NV(intval)
 				} else {
 					t := util.FiletimeToTime(uint64(intval))
-					attributevalue = engine.AttributeValueTime(t)
+					attributevalue = engine.NV(t)
 				}
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
@@ -116,13 +116,13 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			switch len(tvalue) {
 			case 14:
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
-					attributevalue = engine.AttributeValueTime(t)
+					attributevalue = engine.NV(t)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
 			case 12:
 				if t, err := time.Parse("060102150405", tvalue); err == nil {
-					attributevalue = engine.AttributeValueTime(t)
+					attributevalue = engine.NV(t)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
@@ -145,9 +145,9 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				period = fmt.Sprintf("v% hours", secs/3600)
 			}
 			if period != "" {
-				attributevalue = engine.AttributeValueString(period)
+				attributevalue = engine.NV(period)
 			} else {
-				attributevalue = engine.AttributeValueString(value)
+				attributevalue = engine.NV(value)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
@@ -155,14 +155,14 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				guid, err := uuid.FromBytes([]byte(value))
 				if err == nil {
 					guid = util.SwapUUIDEndianess(guid)
-					attributevalue = engine.NewAttributeValueGUID(guid)
+					attributevalue = engine.NV(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 				}
 			case 36:
 				guid, err := uuid.FromString(value)
 				if err == nil {
-					attributevalue = engine.NewAttributeValueGUID(guid)
+					attributevalue = engine.NV(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
 				}
@@ -171,28 +171,28 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				// 	guid = SwapUUIDEndianess(guid)
-				attributevalue = engine.NewAttributeValueGUID(guid)
+				attributevalue = engine.NV(guid)
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			sid, _, _ := windowssecurity.BytesToSID([]byte(value))
-			attributevalue = engine.NewAttributeValueSID(sid)
+			attributevalue = engine.NV(sid)
 		case MSDSAllowedToActOnBehalfOfOtherIdentity, FRSRootSecurity, MSDFSLinkSecurityDescriptorv2,
 			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
 			sd, err := engine.CacheOrParseSecurityDescriptor(value)
 			if err == nil {
-				attributevalue = engine.AttributeValueSecurityDescriptor{&sd}
+				attributevalue = engine.NV(sd)
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to security descriptor: %v", attribute.String(), []byte(value), err)
 			}
 		default:
 			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
 			if value == "true" || value == "TRUE" {
-				attributevalue = engine.AttributeValueBool(true)
+				attributevalue = engine.NV(true)
 				break
 			} else if value == "false" || value == "FALSE" {
-				attributevalue = engine.AttributeValueBool(true)
+				attributevalue = engine.NV(true)
 				break
 			}
 
@@ -201,19 +201,19 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
 				tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
-					attributevalue = engine.AttributeValueTime(t)
+					attributevalue = engine.NV(t)
 					break
 				}
 			}
 
 			// Integer
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-				attributevalue = engine.AttributeValueInt(intval)
+				attributevalue = engine.NV(intval)
 				break
 			}
 
 			// Just a string
-			attributevalue = engine.AttributeValueString(value)
+			attributevalue = engine.NV(value)
 		}
 
 		if attributevalue != nil {

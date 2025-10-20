@@ -116,8 +116,8 @@ func (ot NodeType) String() string {
 	return nodeTypeNums[ot].Name
 }
 
-func (ot NodeType) ValueString() attributeValueString {
-	return AttributeValueString(nodeTypeNums[ot].Lookup)
+func (ot NodeType) ValueString() AttributeValue {
+	return NV(nodeTypeNums[ot].Lookup)
 }
 
 func (ot NodeType) Lookup() string {

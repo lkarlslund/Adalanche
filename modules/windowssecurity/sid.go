@@ -11,6 +11,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -28,6 +29,8 @@ type SID string
 // 0-5 = authority
 // 6-9+ = chunks of 4 with subauthorities
 
+var sidDeduplicator gsync.MapOf[SID, SID]
+
 func BytesToSID(data []byte) (SID, []byte, error) {
 	if len(data) == 0 {
 		return "", data, errors.New("No data supplied")
@@ -42,8 +45,16 @@ func BytesToSID(data []byte) (SID, []byte, error) {
 	if subauthoritycount > 15 {
 		return "", data, errors.New("SID subauthority count is more than 15")
 	}
+
+	// two step lookup to avoid unnecessary allocations
 	sidend := 8 + 4*subauthoritycount
-	return SID(data[2:sidend]), data[sidend:], nil
+	if cached, found := sidDeduplicator.Load(SID(string(data[2:sidend]))); found {
+		return cached, data[sidend:], nil
+	}
+	// not found, create new and try again
+	lookup := SID(string(data[2:sidend]))
+	cached, _ := sidDeduplicator.LoadOrStore(lookup, lookup)
+	return cached, data[sidend:], nil
 }
 
 func ParseStringSID(input string) (SID, error) {
@@ -84,7 +95,15 @@ func ParseStringSID(input string) (SID, error) {
 		}
 		binary.LittleEndian.PutUint32(sid[6+4*i:], uint32(subauthority))
 	}
-	return SID(sid), nil
+
+	// two step lookup to avoid unnecessary allocations
+	if cached, found := sidDeduplicator.Load(SID(sid)); found {
+		return cached, nil
+	}
+	// not found, create new and try again
+	lookup := SID(sid)
+	cached, _ := sidDeduplicator.LoadOrStore(lookup, lookup)
+	return cached, nil
 }
 
 func MustParseStringSID(input string) SID {

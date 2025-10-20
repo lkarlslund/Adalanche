@@ -52,7 +52,7 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 }
 
 func FindWellKnown(ao *engine.IndexedGraph, s windowssecurity.SID) *engine.Node {
-	results, _ := ao.FindMulti(engine.ObjectSid, engine.NewAttributeValueSID(s))
+	results, _ := ao.FindMulti(engine.ObjectSid, engine.NV(s))
 	var result *engine.Node
 	results.Iterate(func(o *engine.Node) bool {
 		result = o
@@ -62,7 +62,7 @@ func FindWellKnown(ao *engine.IndexedGraph, s windowssecurity.SID) *engine.Node 
 }
 
 func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
-	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("domainDNS"))
+	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {
 		err = errors.New("No domain info found in collection")
 		return
@@ -106,8 +106,8 @@ func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext,
 
 	// Find translation to NETBIOS name
 	crossRef, found := ao.FindTwo(
-		engine.ObjectClass, engine.AttributeValueString("crossRef"),
-		NCName, engine.AttributeValueString(domaincontext),
+		engine.ObjectClass, engine.NV("crossRef"),
+		NCName, engine.NV(domaincontext),
 	)
 	if !found {
 		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unique"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
+	"github.com/cespare/xxhash/v2"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -85,48 +85,105 @@ type AttributeValue interface {
 	Compare(AttributeValue) int
 }
 
+var uniqueValues gsync.MapOf[uint64, AttributeValue]
+
+func NV(v any) AttributeValue {
+	if v == nil {
+		return nil
+	}
+
+	var digest xxhash.Digest
+
+	switch val := v.(type) {
+	case AttributeValue:
+		// assume it's already normalized / deduplicated
+		return val
+	case string:
+		digest.ResetWithSeed(0)
+		digest.WriteString(val)
+		hash := digest.Sum64()
+		existingValue, isCached := uniqueValues.Load(hash)
+		if isCached {
+			// compare base types
+			return existingValue
+		}
+		newValue := attributeValueString(val)
+		existingValue, _ = uniqueValues.LoadOrStore(hash, newValue)
+		return existingValue
+	case *bool:
+		if val == nil {
+			return nil
+		}
+		return attributeValueBool(*val)
+	case bool:
+		return attributeValueBool(val)
+	case int:
+		return attributeValueInt(int64(val))
+	case int32:
+		return attributeValueInt(val)
+	case uint32:
+		return attributeValueInt(val)
+	case int64:
+		return attributeValueInt(val)
+	case uint64:
+		return attributeValueInt(val)
+	case time.Time:
+		return attributeValueTime(val)
+	case windowssecurity.SID:
+		// assume it's deduplicated already
+		return attributeValueSID(val)
+	case uuid.UUID:
+		digest.ResetWithSeed(3117)
+		digest.Write(val[:])
+		hash := digest.Sum64()
+		// try to find existing, no allocs
+		if existingValue, isCached := uniqueValues.Load(hash); isCached {
+			return existingValue
+		}
+		existingValue, _ := uniqueValues.LoadOrStore(hash, attributeValueGUID(val))
+		return existingValue
+	case *Node:
+		return attributeValueNode{Node: val}
+	case *SecurityDescriptor:
+		return attributeValueSecurityDescriptor{SD: val}
+	default:
+		panic("unsupported attribute value type")
+	}
+	return nil
+}
+
 type AttributeValuePair struct {
 	Value1 AttributeValue
 	Value2 AttributeValue
 }
 
-type AttributeValueObject struct {
+type attributeValueNode struct {
 	*Node
 }
 
-func (avo AttributeValueObject) String() string {
+func (avo attributeValueNode) String() string {
 	return (*Node)(avo.Node).Label() + " (object)"
 }
 
-func (avo AttributeValueObject) Raw() any {
+func (avo attributeValueNode) Raw() any {
 	return (*Node)(avo.Node)
 }
 
-func (avo AttributeValueObject) IsZero() bool {
+func (avo attributeValueNode) IsZero() bool {
 	if avo.Node == nil {
 		return true
 	}
 	return avo.values.Len() == 0
 }
 
-func (ab AttributeValueObject) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueObject); ok {
+func (ab attributeValueNode) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueNode); ok {
 		return int(ab.ID() - cb.ID())
 	}
 	return strings.Compare(ab.String(), c.String())
 }
 
-var uniqueStrings gsync.MapOf[string, string]
-
 type attributeValueString string
-
-func AttributeValueString(s string) attributeValueString {
-	unique, loaded := uniqueStrings.LoadOrStore(s, s)
-	if loaded {
-		return attributeValueString(unique)
-	}
-	return attributeValueString(s)
-}
 
 func (as attributeValueString) String() string {
 	return string(as)
@@ -150,25 +207,25 @@ func (as attributeValueString) Compare(c AttributeValue) int {
 	return util.CompareStringsCaseInsensitiveUnicodeFast(as.String(), c.String())
 }
 
-type AttributeValueBool bool
+type attributeValueBool bool
 
-func (ab AttributeValueBool) String() string {
+func (ab attributeValueBool) String() string {
 	if bool(ab) {
 		return "true"
 	}
 	return "false"
 }
 
-func (ab AttributeValueBool) Raw() any {
+func (ab attributeValueBool) Raw() any {
 	return bool(ab)
 }
 
-func (ab AttributeValueBool) IsZero() bool {
+func (ab attributeValueBool) IsZero() bool {
 	return !bool(ab)
 }
 
-func (ab AttributeValueBool) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueBool); ok {
+func (ab attributeValueBool) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueBool); ok {
 		if ab == cb {
 			return 0
 		}
@@ -180,113 +237,105 @@ func (ab AttributeValueBool) Compare(c AttributeValue) int {
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueInt int64
+type attributeValueInt int64
 
-func (as AttributeValueInt) String() string {
+func (as attributeValueInt) String() string {
 	return strconv.FormatInt(int64(as), 10)
 }
 
-func (as AttributeValueInt) Raw() any {
+func (as attributeValueInt) Raw() any {
 	return int64(as)
 }
 
-func (as AttributeValueInt) IsZero() bool {
+func (as attributeValueInt) IsZero() bool {
 	return int64(as) == 0
 }
 
-func (ab AttributeValueInt) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueInt); ok {
+func (ab attributeValueInt) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueInt); ok {
 		return int(ab - cb)
 	}
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueTime time.Time
+type attributeValueTime time.Time
 
-func (as AttributeValueTime) String() string {
-	return time.Time(as).Format("20060102150405")
+func (as attributeValueTime) String() string {
+	return time.Time(as).Format(time.RFC3339Nano)
 }
 
-func (as AttributeValueTime) Raw() any {
+func (as attributeValueTime) Raw() any {
 	return time.Time(as)
 }
 
-func (as AttributeValueTime) IsZero() bool {
+func (as attributeValueTime) IsZero() bool {
 	return time.Time(as).IsZero()
 }
 
-func (ab AttributeValueTime) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueTime); ok {
-		return int(time.Time(ab).Sub(time.Time(cb)))
+func (ab attributeValueTime) Compare(c AttributeValue) int {
+	if cb, ok := c.Raw().(time.Time); ok {
+		return int(time.Time(ab).Sub(cb))
 	}
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueSID unique.Handle[windowssecurity.SID]
+type attributeValueSID windowssecurity.SID
 
-func NewAttributeValueSID(s windowssecurity.SID) AttributeValueSID {
-	return AttributeValueSID(unique.Make(s))
+func (as attributeValueSID) String() string {
+	return windowssecurity.SID(as).String()
 }
 
-func (as AttributeValueSID) String() string {
-	return unique.Handle[windowssecurity.SID](as).Value().String()
+func (as attributeValueSID) Raw() any {
+	return windowssecurity.SID(as)
 }
 
-func (as AttributeValueSID) Raw() any {
-	return unique.Handle[windowssecurity.SID](as).Value()
+func (as attributeValueSID) IsZero() bool {
+	return windowssecurity.SID(as).IsNull()
 }
 
-func (as AttributeValueSID) IsZero() bool {
-	return unique.Handle[windowssecurity.SID](as).Value().IsNull()
-}
-
-func (ab AttributeValueSID) Compare(c AttributeValue) int {
+func (ab attributeValueSID) Compare(c AttributeValue) int {
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueGUID unique.Handle[uuid.UUID]
+type attributeValueGUID uuid.UUID
 
-func NewAttributeValueGUID(u uuid.UUID) AttributeValueGUID {
-	return AttributeValueGUID(unique.Make(u))
+func (as attributeValueGUID) String() string {
+	return uuid.UUID(as).String()
 }
 
-func (as AttributeValueGUID) String() string {
-	return (unique.Handle[uuid.UUID])(as).Value().String()
+func (as attributeValueGUID) Raw() any {
+	return uuid.UUID(as)
 }
 
-func (as AttributeValueGUID) Raw() any {
-	return (unique.Handle[uuid.UUID])(as).Value()
+func (as attributeValueGUID) IsZero() bool {
+	return uuid.UUID(as).IsNil()
 }
 
-func (as AttributeValueGUID) IsZero() bool {
-	return (unique.Handle[uuid.UUID])(as).Value().IsNil()
-}
-
-func (ab AttributeValueGUID) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueGUID); ok {
-		return bytes.Compare((unique.Handle[uuid.UUID])(ab).Value().Bytes(), (unique.Handle[uuid.UUID])(cb).Value().Bytes())
+func (ab attributeValueGUID) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueGUID); ok {
+		return bytes.Compare(uuid.UUID(ab).Bytes(), uuid.UUID(cb).Bytes())
 	}
 	return strings.Compare(ab.String(), c.String())
 }
 
-type AttributeValueSecurityDescriptor struct {
+type attributeValueSecurityDescriptor struct {
 	SD *SecurityDescriptor
 }
 
-func (as AttributeValueSecurityDescriptor) String() string {
+func (as attributeValueSecurityDescriptor) String() string {
 	return as.SD.StringNoLookup()
 }
 
-func (as AttributeValueSecurityDescriptor) Raw() any {
+func (as attributeValueSecurityDescriptor) Raw() any {
 	return as.SD
 }
 
-func (as AttributeValueSecurityDescriptor) IsZero() bool {
+func (as attributeValueSecurityDescriptor) IsZero() bool {
 	return len(as.SD.DACL.Entries) == 0
 }
 
-func (ab AttributeValueSecurityDescriptor) Compare(c AttributeValue) int {
-	if cb, ok := c.(AttributeValueSecurityDescriptor); ok {
+func (ab attributeValueSecurityDescriptor) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueSecurityDescriptor); ok {
 		return bytes.Compare([]byte(ab.SD.Raw), []byte(cb.SD.Raw))
 	}
 	return strings.Compare(ab.String(), c.String())

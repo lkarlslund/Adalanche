@@ -48,7 +48,7 @@ var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^
 var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error {
-	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.AttributeValueString(ginfo.Path))
+	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
@@ -82,7 +82,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				parentpath = "/"
 			}
 
-			parent, _ := ao.FindOrAdd(AbsolutePath, engine.AttributeValueString(parentpath))
+			parent, _ := ao.FindOrAdd(AbsolutePath, engine.NV(parentpath))
 			ao.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
 			parent.Adopt(itemobject)
 		}
@@ -98,7 +98,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				return err
 			}
 			for _, entry := range dacl.Entries {
-				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NewAttributeValueSID(entry.SID))
+				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
@@ -165,11 +165,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			var target *engine.Node
 			if strings.Contains(e.Username, "\\") {
 				target, _ = ao.FindOrAdd(
-					engine.DownLevelLogonName, engine.AttributeValueString(e.Username),
+					engine.DownLevelLogonName, engine.NV(e.Username),
 				)
 			} else {
 				target, _ = ao.FindOrAdd(
-					engine.SAMAccountName, engine.AttributeValueString(e.Username),
+					engine.SAMAccountName, engine.NV(e.Username),
 				)
 			}
 
@@ -185,7 +185,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					return err
 				}
 				for _, entry := range dacl.Entries {
-					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NewAttributeValueSID(entry.SID))
+					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
@@ -213,7 +213,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 						ui.Debug().Msgf("GPO member with \\ or @ detected: %v", sidpair.MemberName)
 					} else {
 						// Just use the name, we assume it's a domain object
-						member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.AttributeValueString(sidpair.MemberName))
+						member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.NV(sidpair.MemberName))
 					}
 				} else {
 					// Use the SID
@@ -271,9 +271,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				}
 				// Create new synthetic object
 				sob := engine.NewNode(
-					engine.Type, engine.AttributeValueString("Script"),
-					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Name, engine.AttributeValueString("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+					engine.Type, engine.NV("Script"),
+					engine.DistinguishedName, engine.NV(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Name, engine.NV("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
@@ -290,9 +290,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				}
 				// Create new synthetic object
 				sob := engine.NewNode(
-					engine.DistinguishedName, engine.AttributeValueString(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
-					engine.Type, engine.AttributeValueString("Script"),
-					engine.Name, engine.AttributeValueString("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
+					engine.DistinguishedName, engine.NV(fmt.Sprintf("CN=Shutdown Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
+					engine.Type, engine.NV("Script"),
+					engine.Name, engine.NV("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				ao.Add(sob)
 				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)

@@ -59,10 +59,9 @@ require (
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
 
-require (
-	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/edwingeng/deque/v2 v2.1.1
-)
+require github.com/cespare/xxhash/v2 v2.3.0
+
+require github.com/bytedance/gopkg v0.1.3 // indirect
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect

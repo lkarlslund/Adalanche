@@ -102,8 +102,8 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-Mcs-AdmPwd"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-Mcs-AdmPwd"),
+			engine.ObjectClass, engine.NV("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsGUID = objectGUID
@@ -139,7 +139,7 @@ func init() {
 			if computerSid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(computerSid))
+			machine, found := ao.Find(DomainJoinedSID, engine.NV(computerSid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", computerSid)
 				return true
@@ -160,8 +160,8 @@ func init() {
 		var lapsV2PasswordGUID uuid.UUID
 		var lapsV2EncryptedPasswordGUID uuid.UUID
 
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-Password"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-LAPS-Password"),
+			engine.ObjectClass, engine.NV("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsV2PasswordGUID = objectGUID
@@ -169,8 +169,8 @@ func init() {
 				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
 			}
 		}
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.AttributeValueString("ms-LAPS-EncryptedPassword"),
-			engine.ObjectClass, engine.AttributeValueString("attributeSchema")); found {
+		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-LAPS-EncryptedPassword"),
+			engine.ObjectClass, engine.NV("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
 				lapsV2EncryptedPasswordGUID = objectGUID
@@ -206,7 +206,7 @@ func init() {
 			if machinesid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.NewAttributeValueSID(machinesid))
+			machine, found := ao.Find(DomainJoinedSID, engine.NV(machinesid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v2", machinesid)
 				return true
@@ -276,7 +276,7 @@ func init() {
 			machineName := string(match[2])
 
 			machine, found := ao.FindTwo(engine.Type, ObjectTypeMachine.ValueString(),
-				engine.Name, engine.AttributeValueString(machineName))
+				engine.Name, engine.NV(machineName))
 
 			if !found {
 				ui.Warn().Msgf("%v detected as Azure Connect running on %v, but machine not found - not linking", o.OneAttrString(engine.Name), machineName)
@@ -324,11 +324,11 @@ func init() {
 		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 		var disableOwnerImplicitRights bool
 		domain, found := ao.FindTwo(
-			engine.ObjectClass, engine.AttributeValueString("domainDNS"),
-			engine.IsCriticalSystemObject, engine.AttributeValueBool(true))
+			engine.ObjectClass, engine.NV("domainDNS"),
+			engine.IsCriticalSystemObject, engine.NV(true))
 		domainContext := domain.OneAttrString(engine.DomainContext)
 		if found {
-			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainContext)); found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.NV("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainContext)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 29 {
 					disableOwnerImplicitRights = string(excluded[28]) == "1"
@@ -666,8 +666,8 @@ func init() {
 							ui.Debug().Msgf("Constrained delegation host name %v is not FQDN, adding domain context DNS", val.String())
 							host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
 						}
-						if target, found := ao.FindTwo(DnsHostName, engine.AttributeValueString(host),
-							engine.Type, engine.AttributeValueString("Machine"),
+						if target, found := ao.FindTwo(DnsHostName, engine.NV(host),
+							engine.Type, engine.NV("Machine"),
 						); found {
 							ao.EdgeTo(o, target, EdgeCD)
 						} else {
@@ -966,7 +966,7 @@ func init() {
 
 			DCsyncObject, _ := ao.FindTwoOrAdd(
 				engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
-				engine.Name, engine.AttributeValueString("DCsync"),
+				engine.Name, engine.NV("DCsync"),
 			)
 			DCsyncObject.Tag("hvt")
 
@@ -1082,7 +1082,7 @@ func init() {
 		}
 		var domains []domaininfo
 
-		results, found := ao.FindMulti(engine.ObjectClass, engine.AttributeValueString("crossRef"))
+		results, found := ao.FindMulti(engine.ObjectClass, engine.NV("crossRef"))
 
 		if !found {
 			ui.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
@@ -1125,7 +1125,7 @@ func init() {
 			dn := o.DN()
 			for _, domaininfo := range domains {
 				if strings.HasSuffix(dn, domaininfo.suffix) {
-					o.Set(engine.DownLevelLogonName, engine.AttributeValueString(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
+					o.Set(engine.DownLevelLogonName, engine.NV(domaininfo.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
 					break
 				}
 			}
@@ -1164,7 +1164,7 @@ func init() {
 			}
 
 			if lastpart != -1 {
-				o.Set(engine.DomainContext, engine.AttributeValueString(strings.Join(parts[lastpart:], ",")))
+				o.Set(engine.DomainContext, engine.NV(strings.Join(parts[lastpart:], ",")))
 			}
 			return true
 		})
@@ -1185,7 +1185,7 @@ func init() {
 
 			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-			if ds, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
+			if ds, found := ao.Find(engine.DistinguishedName, engine.NV("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
 				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
 				if len(excluded) >= 16 {
 					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
@@ -1272,11 +1272,11 @@ func init() {
 				dn := "CN=" + name + ",CN=microsoft-builtin"
 				ui.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
 				ao.Add(engine.NewNode(
-					engine.DistinguishedName, engine.AttributeValueString(dn),
-					engine.Name, engine.AttributeValueString(name),
-					engine.ObjectSid, engine.NewAttributeValueSID(binsid),
-					engine.ObjectClass, engine.AttributeValueString("person"), engine.AttributeValueString("user"), engine.AttributeValueString("top"),
-					engine.Type, engine.AttributeValueString("Group"),
+					engine.DistinguishedName, engine.NV(dn),
+					engine.Name, engine.NV(name),
+					engine.ObjectSid, engine.NV(binsid),
+					engine.ObjectClass, engine.NV("person"), engine.NV("user"), engine.NV("top"),
+					engine.Type, engine.NV("Group"),
 				))
 			}
 		}
@@ -1308,7 +1308,7 @@ func init() {
 
 		DCsyncObject, _ := ao.FindTwoOrAdd(
 			engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
-			engine.Name, engine.AttributeValueString("DCsync"),
+			engine.Name, engine.NV("DCsync"),
 		)
 		DCsyncObject.Tag("hvt")
 
@@ -1338,10 +1338,10 @@ func init() {
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.Set(activedirectory.MetaLastLoginAge, engine.AttributeValueInt(int(time.Since(lastlogon)/time.Hour)))
+				object.Set(activedirectory.MetaLastLoginAge, engine.NV(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.Set(activedirectory.MetaPasswordAge, engine.AttributeValueInt(int(time.Since(passwordlastset)/time.Hour)))
+				object.Set(activedirectory.MetaPasswordAge, engine.NV(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
 				object.Tag("linux")
@@ -1415,8 +1415,8 @@ func init() {
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
 					// find the machine object for this
-					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
-						DomainJoinedSID, engine.NewAttributeValueSID(object.SID()))
+					machine, found := ao.FindTwo(engine.Type, engine.NV("Machine"),
+						DomainJoinedSID, engine.NV(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
@@ -1428,21 +1428,21 @@ func init() {
 							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
 						}
 
-						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.AdministratorsSID),
+						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.AdministratorsSID),
 							engine.DomainContext, domainContext); found {
 							ao.EdgeTo(administrators, machine, activedirectory.EdgeLocalAdminRights)
 						} else {
 							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 						}
 
-						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.RemoteDesktopUsersSID),
+						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.RemoteDesktopUsersSID),
 							engine.DomainContext, domainContext); found {
 							ao.EdgeTo(remotedesktopusers, machine, activedirectory.EdgeLocalRDPRights)
 						} else {
 							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 						}
 
-						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.NewAttributeValueSID(windowssecurity.DCOMUsersSID),
+						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.DCOMUsersSID),
 							engine.DomainContext, domainContext); found {
 							ao.EdgeTo(distributeddcomusers, machine, activedirectory.EdgeLocalDCOMRights)
 						} else {
@@ -1451,10 +1451,10 @@ func init() {
 					}
 				}
 
-				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.AttributeValueInt(521)) {
+				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.NV(521)) {
 					// Read Only Domain Controller
-					machine, found := ao.FindTwo(engine.Type, engine.AttributeValueString("Machine"),
-						DomainJoinedSID, engine.NewAttributeValueSID(object.SID()))
+					machine, found := ao.FindTwo(engine.Type, engine.NV("Machine"),
+						DomainJoinedSID, engine.NV(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
 					} else {
@@ -1520,7 +1520,7 @@ func init() {
 				guids := make([]engine.AttributeValue, 0, objectclasses.Len())
 				objectclasses.Iterate(func(class engine.AttributeValue) bool {
 					if oto, found := ao.Find(engine.LDAPDisplayName, class); found {
-						if guid, ok := oto.OneAttr(activedirectory.SchemaIDGUID).(engine.AttributeValueGUID); !ok {
+						if guid := oto.OneAttr(activedirectory.SchemaIDGUID); guid == nil {
 							ui.Debug().Msgf("%v", oto)
 							ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 						} else {
@@ -1531,15 +1531,15 @@ func init() {
 					}
 					return true // continue
 				})
-				object.SetFlex(engine.ObjectClassGUIDs, guids)
+				object.Set(engine.ObjectClassGUIDs, guids...)
 			}
 
 			// ObjectCategory handling
 			var objectcategoryguid engine.AttributeValue
 			var simple engine.AttributeValue
 
-			objectcategoryguid = engine.NewAttributeValueGUID(engine.UnknownGUID)
-			simple = engine.AttributeValueString("Unknown")
+			objectcategoryguid = engine.NV(engine.UnknownGUID)
+			simple = engine.NV("Unknown")
 
 			typedn := object.OneAttr(engine.ObjectCategory)
 
@@ -1705,7 +1705,7 @@ func init() {
 								}
 								linkedgpodn := linkinfo[0][7:] // strip LDAP:// prefix and link to this
 
-								gpo, found := ao.Find(engine.DistinguishedName, engine.AttributeValueString(linkedgpodn))
+								gpo, found := ao.Find(engine.DistinguishedName, engine.NV(linkedgpodn))
 								if !found {
 									if _, warned := warnedgpos[linkedgpodn]; !warned {
 										warnedgpos[linkedgpodn] = struct{}{}
@@ -1713,9 +1713,7 @@ func init() {
 									}
 								} else {
 									linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
-									collecteddata = append(collecteddata, engine.AttributeValueObject{
-										Node: gpo,
-									}, engine.AttributeValueInt(linktype))
+									collecteddata = append(collecteddata, engine.NV(gpo), engine.NV(linktype))
 								}
 							}
 							gpcachelinks = collecteddata
@@ -1813,7 +1811,7 @@ func init() {
 					if stringsid, _, found := strings.Cut(memberof.String(), ",CN=ForeignSecurityPrincipals,"); found {
 						// We can figure out what the SID is
 						if c, err := windowssecurity.ParseStringSID(stringsid); err == nil {
-							sid = engine.NewAttributeValueSID(c)
+							sid = engine.NV(c)
 						}
 						ui.Info().Msgf("Missing Foreign-Security-Principal: %v is a member of %v, which is not found - adding enhanced synthetic group", object.DN(), memberof)
 					} else {
@@ -1822,12 +1820,12 @@ func init() {
 					group = engine.NewNode(
 						engine.IgnoreBlanks,
 						engine.DistinguishedName, memberof,
-						engine.Type, engine.AttributeValueString("Group"),
-						engine.ObjectClass, engine.AttributeValueString("top"), engine.AttributeValueString("group"),
-						engine.Name, engine.AttributeValueString("Synthetic group "+memberof.String()),
-						engine.Description, engine.AttributeValueString("Synthetic group"),
+						engine.Type, engine.NV("Group"),
+						engine.ObjectClass, engine.NV("top"), engine.NV("group"),
+						engine.Name, engine.NV("Synthetic group "+memberof.String()),
+						engine.Description, engine.NV("Synthetic group"),
 						engine.ObjectSid, sid,
-						engine.DataLoader, engine.AttributeValueString("Autogenerated"),
+						engine.DataLoader, engine.NV("Autogenerated"),
 					)
 					ao.Add(group)
 				}
@@ -1984,7 +1982,7 @@ func init() {
 					enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
 
 						templates, found := ao.FindTwoMulti(engine.Name, templatename,
-							engine.ObjectClass, engine.AttributeValueString("pKICertificateTemplate"))
+							engine.ObjectClass, engine.NV("pKICertificateTemplate"))
 
 						if found {
 							alreadyset := false
@@ -1998,7 +1996,7 @@ func init() {
 								}
 
 								template.SetFlex(
-									PublishedBy, engine.AttributeValueString(enrollementService.DN()),
+									PublishedBy, engine.NV(enrollementService.DN()),
 									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
 								)
 
@@ -2082,8 +2080,8 @@ func init() {
 				if found && domaininfo.domainContext != domainContext {
 					// it's foreign, find the local one
 					nativeObjects, found := ao.FindTwoMulti(
-						engine.ObjectSid, engine.NewAttributeValueSID(sid),
-						engine.DomainContext, engine.AttributeValueString(domainContext),
+						engine.ObjectSid, engine.NV(sid),
+						engine.DomainContext, engine.NV(domainContext),
 					)
 					if found {
 						nativeobject := nativeObjects.First()
@@ -2133,7 +2131,7 @@ func init() {
 								realgroup = netbiosdomain + "\\" + realgroup
 							}
 							targetgroups, _ = ao.FindMulti(
-								engine.DownLevelLogonName, engine.AttributeValueString(realgroup),
+								engine.DownLevelLogonName, engine.NV(realgroup),
 							)
 
 							if targetgroups.Len() == 0 {

@@ -49,7 +49,7 @@ func NodeFilterExecute(q NodeFilter, ao *engine.IndexedGraph) *engine.IndexedGra
 
 	for i, potentialIndex := range potentialindexes {
 		index := ao.GetIndex(potentialIndex.a)
-		foundObjects, found := index.Lookup(engine.AttributeValueString(potentialIndex.match))
+		foundObjects, found := index.Lookup(engine.NV(potentialIndex.match))
 		if found {
 			potentialindexes[i].results = foundObjects
 		}

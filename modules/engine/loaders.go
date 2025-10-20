@@ -48,7 +48,7 @@ func AddLoader(lg LoaderGenerator) LoaderID {
 
 func NewLoaderObjects(ld Loader) *IndexedGraph {
 	aos := NewIndexedGraph()
-	aos.AddDefaultFlex(DataLoader, AttributeValueString(ld.Name()))
+	aos.AddDefaultFlex(DataLoader, NV(ld.Name()))
 
 	// Add the root node
 	rootnode := NewNode(Name, ld.Name())

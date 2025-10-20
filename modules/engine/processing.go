@@ -67,12 +67,12 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	superGraph := NewIndexedGraph()
 	superGraph.BulkLoadEdges(true)
 	globalroot := NewNode(
-		Name, AttributeValueString("Adalanche root node"),
-		Type, AttributeValueString("Root"),
+		Name, NV("Adalanche root node"),
+		Type, NV("Root"),
 	)
 	superGraph.SetRoot(globalroot)
 
-	orphancontainer := NewNode(Name, AttributeValueString("Orphans"))
+	orphancontainer := NewNode(Name, NV("Orphans"))
 	orphancontainer.ChildOf(globalroot)
 	superGraph.Add(orphancontainer)
 

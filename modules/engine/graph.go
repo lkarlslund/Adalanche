@@ -317,7 +317,7 @@ func AttributeValueToIndex(value AttributeValue) AttributeValue {
 		if lowered, found := avtiCache.Get(s); found {
 			return lowered.(AttributeValue)
 		}
-		lowered := AttributeValueString(strings.ToLower(s))
+		lowered := NV(strings.ToLower(s))
 		avtiCache.Set(s, lowered, time.Second*30)
 		return lowered
 	}
@@ -382,7 +382,7 @@ func (os *IndexedGraph) NodeIndex(node *Node) (NodeIndexType, bool) {
 }
 
 func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
-	return os.Find(AttributeNodeId, AttributeValueInt(id))
+	return os.Find(AttributeNodeId, NV(int(id)))
 }
 
 // Attemps to merge the object into the objects
@@ -747,7 +747,7 @@ func (os *IndexedGraph) DistinguishedParent(o *Node) (*Node, bool) {
 		return directparent, true
 	}
 
-	return os.Find(DistinguishedName, AttributeValueString(parentDN))
+	return os.Find(DistinguishedName, NV(parentDN))
 }
 
 func (os *IndexedGraph) Subordinates(o *Node) *IndexedGraph {
@@ -768,9 +768,9 @@ func (os *IndexedGraph) Subordinates(o *Node) *IndexedGraph {
 }
 
 func (os *IndexedGraph) FindOrAddSID(s windowssecurity.SID) *Node {
-	o, _ := os.FindMultiOrAdd(ObjectSid, NewAttributeValueSID(s), func() *Node {
+	o, _ := os.FindMultiOrAdd(ObjectSid, NV(s), func() *Node {
 		no := NewNode(
-			ObjectSid, NewAttributeValueSID(s),
+			ObjectSid, NV(s),
 		)
 		if os.DefaultValues != nil {
 			no.SetFlex(os.DefaultValues...)
@@ -787,14 +787,14 @@ func (os *IndexedGraph) FindOrAddAdjacentSID(s windowssecurity.SID, r *Node, fle
 
 func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo *Node, flexinit ...any) (*Node, bool) {
 	if relativeTo == nil {
-		return os.FindOrAdd(ObjectSid, NewAttributeValueSID(s))
+		return os.FindOrAdd(ObjectSid, NV(s))
 	}
 
 	// Let's assume it's not relative to a computer, and therefore truly unique
 	if s.Component(2) == 21 && s.Component(3) != 0 {
-		result, found := os.FindMultiOrAdd(ObjectSid, NewAttributeValueSID(s), func() *Node {
+		result, found := os.FindMultiOrAdd(ObjectSid, NV(s), func() *Node {
 			no := NewNode(
-				ObjectSid, NewAttributeValueSID(s),
+				ObjectSid, NV(s),
 			)
 			no.SetFlex(flexinit...)
 			return no
@@ -805,25 +805,25 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
 	if relativeTo.Type() == NodeTypeMachine && relativeTo.HasAttr(DataSource) {
 		// See if we can find it relative to the computer
-		return os.FindTwoOrAdd(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource))
+		return os.FindTwoOrAdd(ObjectSid, NV(s), DataSource, relativeTo.OneAttr(DataSource))
 	}
 
 	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
 	if relativeTo.HasAttr(DomainContext) {
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DomainContext, relativeTo.OneAttr(DomainContext)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NV(s), DomainContext, relativeTo.OneAttr(DomainContext)); found {
 			return o.First(), true
 		}
 	}
 
 	// Use the objects datasource as the relative reference
 	if relativeTo.HasAttr(DataSource) {
-		if o, found := os.FindTwoMulti(ObjectSid, NewAttributeValueSID(s), DataSource, relativeTo.OneAttr(DataSource)); found {
+		if o, found := os.FindTwoMulti(ObjectSid, NV(s), DataSource, relativeTo.OneAttr(DataSource)); found {
 			return o.First(), true
 		}
 	}
 
 	// Not found, so fall back to just looking up the SID
-	no, found := os.FindOrAdd(ObjectSid, NewAttributeValueSID(s),
+	no, found := os.FindOrAdd(ObjectSid, NV(s),
 		IgnoreBlanks,
 		DomainContext, relativeTo.Attr(DomainContext),
 		DataSource, relativeTo.Attr(DataSource),
@@ -832,5 +832,5 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 }
 
 func (os *IndexedGraph) FindGUID(g uuid.UUID) (o *Node, found bool) {
-	return os.Find(ObjectGUID, NewAttributeValueGUID(g))
+	return os.Find(ObjectGUID, NV(g))
 }

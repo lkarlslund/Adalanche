@@ -571,7 +571,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			} else {
 				result = genwrapper(query.HasStringMatch{
 					Casesensitive: casesensitive,
-					Value:         engine.AttributeValueString(strval)})
+					Value:         engine.NV(strval)})
 			}
 		}
 	}
@@ -597,24 +597,24 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 // allows unquoted strings as values
 func parseRelaxedValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue, error) {
 	if ts.Token().Is(QuotedString) {
-		value := engine.AttributeValueString(ts.Token().String())
+		value := engine.NV(ts.Token().String())
 		ts.Next()
 		return value, nil
 	}
-	return engine.AttributeValueString(ts.SnarfTextUntil(RParan)), nil
+	return engine.NV(ts.SnarfTextUntil(RParan)), nil
 }
 
 func parseValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue, error) {
 	var value engine.AttributeValue
 	switch ts.Token().Type {
 	case Integer:
-		value = engine.AttributeValueInt(ts.Token().Native.(int64))
+		value = engine.NV(ts.Token().Native.(int64))
 	case Float:
 		return nil, errors.New("float type not supported yet")
 	case QuotedString:
-		value = engine.AttributeValueString(ts.Token().Value)
+		value = engine.NV(ts.Token().Value)
 	case True, False:
-		value = engine.AttributeValueBool(ts.Token().Type == True) // brilliant++
+		value = engine.NV(ts.Token().Type == True) // brilliant++
 	default:
 		return nil, fmt.Errorf("unexpected value %v (type %v)"+ts.Token().Value, ts.Token().Type.String())
 	}
