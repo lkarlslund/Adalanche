@@ -40,7 +40,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	// Memory, GC and CPU settings
 	memlimit.SetGoMemLimit(0.8)
-	debug.SetGCPercent(100)
+	debug.SetGCPercent(35)
 
 	maxprocs.Set(maxprocs.Logger(ui.Debug().Msgf))
 
