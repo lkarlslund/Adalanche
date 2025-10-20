@@ -57,13 +57,11 @@ require (
 	golang.org/x/term v0.35.0
 	golang.org/x/text v0.29.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
+    github.com/cespare/xxhash/v2 v2.3.0
 )
 
-require github.com/cespare/xxhash/v2 v2.3.0
-
-require github.com/bytedance/gopkg v0.1.3 // indirect
-
 require (
+    github.com/bytedance/gopkg v0.1.3 // indirect
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect

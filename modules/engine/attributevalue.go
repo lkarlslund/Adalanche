@@ -8,7 +8,7 @@ import (
 	"time"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
-	"github.com/cespare/xxhash/v2"
+	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
