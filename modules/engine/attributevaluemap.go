@@ -8,8 +8,8 @@ import (
 )
 
 type StartLength struct {
-	start  int
-	length int
+	start  uint16
+	length uint16
 }
 
 type AttributesAndValues struct {
@@ -76,7 +76,10 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 		}
 		start := len(merged.values)
 		merged.values = append(merged.values, mergedVals...)
-		merged.attributes[attr] = StartLength{start, len(mergedVals)}
+		if start > 0xFFFF || len(mergedVals) > 0xFFFF {
+			panic("too many attribute values to store in merged AttributesAndValues")
+		}
+		merged.attributes[attr] = StartLength{uint16(start), uint16(len(mergedVals))}
 	}
 
 	return &merged
@@ -141,22 +144,22 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 	sl, found := avm.attributes[a]
 	if found {
 		// If we are last and there is room just add the missing elements
-		weAreLast := sl.start+sl.length == len(avm.values)
-		if weAreLast && cap(avm.values)-len(avm.values) >= len(av)-sl.length {
+		weAreLast := sl.start+sl.length == uint16(len(avm.values))
+		if weAreLast && cap(avm.values)-len(avm.values) >= len(av)-int(sl.length) {
 			// extend the slice
-			avm.values = avm.values[:len(avm.values)+len(av)-sl.length]
+			avm.values = avm.values[:len(avm.values)+len(av)-int(sl.length)]
 			copy(avm.values[sl.start:], av)
-			avm.attributes[a] = StartLength{sl.start, len(av)} // Update the length
+			avm.attributes[a] = StartLength{sl.start, uint16(len(av))} // Update the length
 			return
 		}
 
-		if sl.length == len(av) {
+		if int(sl.length) == len(av) {
 			// Easy
 			copy(avm.values[sl.start:sl.start+sl.length], av)
 			return
 		} else {
 			// Remove it, and we add it again below
-			avm.values = slices.Delete(avm.values, sl.start, sl.start+sl.length)
+			avm.values = slices.Delete(avm.values, int(sl.start), int(sl.start+sl.length))
 			if !weAreLast {
 				// Adjust start positions of all attributes that come after the deleted one
 				for k, v := range avm.attributes {
@@ -175,7 +178,7 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 
 	start := len(avm.values)
 	length := len(av)
-	avm.attributes[a] = StartLength{start, length}
+	avm.attributes[a] = StartLength{uint16(start), uint16(length)}
 	if len(avm.values)+length > cap(avm.values) {
 		newCap := len(avm.values) + len(av)
 		if newCap < 8 {
@@ -205,8 +208,8 @@ func (avm *AttributesAndValues) Clear(a Attribute) {
 	sl, found := avm.attributes[a]
 	if found {
 		// Remove it, and we add it again below
-		weAreLast := sl.start+sl.length == len(avm.values)
-		avm.values = slices.Delete(avm.values, sl.start, sl.start+sl.length)
+		weAreLast := int(sl.start+sl.length) == len(avm.values)
+		avm.values = slices.Delete(avm.values, int(sl.start), int(sl.start+sl.length))
 		if !weAreLast {
 			for k, v := range avm.attributes {
 				if v.start > sl.start {
