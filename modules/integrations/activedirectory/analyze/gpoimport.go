@@ -73,6 +73,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			activedirectory.WhenChanged, item.Timestamp,
 		)
 
+		if strings.EqualFold(relativepath, "/adm") ||
+			strings.EqualFold(relativepath, "/gpt.ini") {
+			// not really useful from an attack perspective
+			continue
+		}
 		if relativepath == "/" {
 			ao.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
 			gpoobject.Adopt(itemobject)
