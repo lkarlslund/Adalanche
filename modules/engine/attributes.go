@@ -100,30 +100,30 @@ var (
 	Tag = NewAttribute("tag")
 )
 
-func init() {
-	AddMergeApprover("Merge SIDs", func(a, b *Node) (*Node, error) {
-		asid := a.SID()
-		bsid := b.SID()
-		if asid.IsBlank() || bsid.IsBlank() {
-			return nil, nil
-		}
+// func init() {
+// AddMergeApprover("Merge SIDs", func(a, b *Node) (*Node, error) {
+// 	asid := a.SID()
+// 	bsid := b.SID()
+// 	if asid.IsBlank() || bsid.IsBlank() {
+// 		return nil, nil
+// 	}
 
-		if asid != bsid {
-			return nil, ErrDontMerge
-		}
-		if asid.Component(2) == 21 {
-			return nil, nil // Merge, these should be universally mappable !?
-		}
+// 	if asid != bsid {
+// 		return nil, ErrDontMerge
+// 	}
+// 	if asid.Component(2) == 21 {
+// 		return nil, nil // Merge, these should be universally mappable !?
+// 	}
 
-		asource := a.OneAttr(DataSource)
-		bsource := b.OneAttr(DataSource)
-		if CompareAttributeValues(asource, bsource) {
-			// Stuff from GPOs can have non universal SIDs but should still be mapped
-			return nil, nil
-		}
-		return nil, ErrDontMerge
-	})
-}
+// 	asource := a.OneAttr(DataSource)
+// 	bsource := b.OneAttr(DataSource)
+// 	if CompareAttributeValues(asource, bsource) {
+// 		// Stuff from GPOs can have non universal SIDs but should still be mapped
+// 		return nil, nil
+// 	}
+// 	return nil, ErrDontMerge
+// })
+// }
 
 type Attribute uint16
 

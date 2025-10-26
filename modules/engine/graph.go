@@ -5,10 +5,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
-	"github.com/akyoto/cache"
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
@@ -17,8 +15,8 @@ import (
 
 type typestatistics [256]int
 
-type NodeIndexType uint32
-type EdgeComboType uint16
+type NodeIndex uint32
+type EdgeCombo uint16
 
 type IndexedGraph struct {
 	Datapath      string
@@ -27,13 +25,14 @@ type IndexedGraph struct {
 
 	// Node tracking
 	nodeMutex  sync.RWMutex
-	nodeLookup gsync.MapOf[*Node, NodeIndexType] // map to index in objects
-	nodes      []*Node                           // All objects, int -> *Node
+	nodeLookup gsync.MapOf[*Node, NodeIndex] // map to index in objects
+	nodes      []*Node                       // All objects, int -> *Node
 
 	// Edge tracking
-	edgeComboLookup map[EdgeBitmap]EdgeComboType
+	edgeComboLookup map[EdgeBitmap]EdgeCombo
 	edgeCombos      []EdgeBitmap
-	edges           [2]map[NodeIndexType]map[NodeIndexType]EdgeComboType // from index -> to index -> edgeCombo
+	edges           [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
+	edgeComboMutex  sync.RWMutex                             // When we're not bulk loading
 
 	bulkloading   bool // If true, we are bulk loading, so defer some operations
 	bulkWorkers   sync.WaitGroup
@@ -53,10 +52,10 @@ func NewIndexedGraph() *IndexedGraph {
 	g := IndexedGraph{
 		// indexes:      make(map[Attribute]*Index),
 		multiindexes:    make(map[AttributePair]*MultiIndex),
-		edgeComboLookup: make(map[EdgeBitmap]EdgeComboType, 1024),
+		edgeComboLookup: make(map[EdgeBitmap]EdgeCombo, 1024),
 		edgeCombos:      make([]EdgeBitmap, 0, 1024),
-		edges: [2]map[NodeIndexType]map[NodeIndexType]EdgeComboType{
-			make(map[NodeIndexType]map[NodeIndexType]EdgeComboType, 8192), make(map[NodeIndexType]map[NodeIndexType]EdgeComboType, 8192)},
+		edges: [2]map[NodeIndex]map[NodeIndex]EdgeCombo{
+			make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192), make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192)},
 	}
 
 	// Super important for this to work!
@@ -306,20 +305,12 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 	os.indexlock.RUnlock()
 }
 
-var avtiCache = cache.New(time.Second * 30)
-
 func AttributeValueToIndex(value AttributeValue) AttributeValue {
 	if value == nil {
 		return nil
 	}
-	if _, ok := value.(attributeValueString); ok {
-		s := value.String()
-		if lowered, found := avtiCache.Get(s); found {
-			return lowered.(AttributeValue)
-		}
-		lowered := NV(strings.ToLower(s))
-		avtiCache.Set(s, lowered, time.Second*30)
-		return lowered
+	if s, ok := value.(attributeValueString); ok {
+		return NV(strings.ToLower(s.String()))
 	}
 	return value
 }
@@ -327,9 +318,9 @@ func AttributeValueToIndex(value AttributeValue) AttributeValue {
 func (os *IndexedGraph) Filter(evaluate func(o *Node) bool) *IndexedGraph {
 	result := NewIndexedGraph()
 
-	os.Iterate(func(object *Node) bool {
-		if evaluate(object) {
-			result.Add(object)
+	os.Iterate(func(n *Node) bool {
+		if evaluate(n) {
+			result.Add(n)
 		}
 		return true
 	})
@@ -370,14 +361,14 @@ func (os *IndexedGraph) Contains(o *Node) bool {
 	return found
 }
 
-func (os *IndexedGraph) LookupNodeByIndex(id NodeIndexType) (*Node, bool) {
+func (os *IndexedGraph) IndexToNode(id NodeIndex) (*Node, bool) {
 	if len(os.nodes) <= int(id) {
 		return nil, false
 	}
 	return os.nodes[id], true
 }
 
-func (os *IndexedGraph) NodeIndex(node *Node) (NodeIndexType, bool) {
+func (os *IndexedGraph) NodeToIndex(node *Node) (NodeIndex, bool) {
 	return os.nodeLookup.Load(node)
 }
 
@@ -385,7 +376,7 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 	return os.Find(AttributeNodeId, NV(int(id)))
 }
 
-// Attemps to merge the object into the objects
+// Attemps to merge the node into the objects
 func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node) (*Node, bool) {
 	var mergedTo *Node
 	var merged bool
@@ -508,7 +499,7 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 }
 
 func (os *IndexedGraph) add(newNode *Node) {
-	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndexType(len(os.nodes))); !found {
+	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndex(len(os.nodes))); !found {
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
@@ -516,13 +507,13 @@ func (os *IndexedGraph) add(newNode *Node) {
 		os.ReindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	} else {
-		panic("Object already exists in objects, so we can't add it")
+		panic("Node already exists in graph, so we can't add it")
 	}
 }
 
 func (os *IndexedGraph) AddRelaxed(newNode *Node) {
 	os.nodeMutex.Lock()
-	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndexType(len(os.nodes))); !found {
+	if _, found := os.nodeLookup.LoadOrStore(newNode, NodeIndex(len(os.nodes))); !found {
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
@@ -533,7 +524,7 @@ func (os *IndexedGraph) AddRelaxed(newNode *Node) {
 	os.nodeMutex.Unlock()
 }
 
-// First object added is the root object
+// First node added is the root object
 func (os *IndexedGraph) Root() *Node {
 	return os.root
 }
@@ -566,8 +557,8 @@ func (os *IndexedGraph) Size() int {
 }
 
 func (os *IndexedGraph) Iterate(each func(o *Node) bool) {
-	for _, object := range os.nodes {
-		if !each(object) {
+	for _, n := range os.nodes {
+		if !each(n) {
 			return
 		}
 	}
@@ -741,7 +732,7 @@ func (os *IndexedGraph) DistinguishedParent(o *Node) (*Node, bool) {
 		return nil, false
 	}
 
-	// Use object chaining if possible
+	// Use node chaining if possible
 	directparent := o.Parent()
 	if directparent != nil && strings.EqualFold(directparent.OneAttrString(DistinguishedName), parentDN) {
 		return directparent, true
@@ -790,8 +781,17 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 		return os.FindOrAdd(ObjectSid, NV(s))
 	}
 
-	// Let's assume it's not relative to a computer, and therefore truly unique
+	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
+	if relativeTo.Type() == NodeTypeMachine && relativeTo.HasAttr(DataSource) {
+		// Test whether this SID is relative to the computer (this solves problem with machines having the same machine SIDs)
+		if s.StripRID() == relativeTo.SID() {
+			// See if we can find or create it relative to the computer
+			return os.FindTwoOrAdd(ObjectSid, NV(s), DataSource, relativeTo.OneAttr(DataSource))
+		}
+	}
+
 	if s.Component(2) == 21 && s.Component(3) != 0 {
+		// Let's assume it's not relative to a computer, and therefore truly unique
 		result, found := os.FindMultiOrAdd(ObjectSid, NV(s), func() *Node {
 			no := NewNode(
 				ObjectSid, NV(s),
@@ -802,20 +802,14 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 		return result.First(), found
 	}
 
-	// If it's relative to a computer, then let's see if we can find it (there could be SID collisions across local machines)
-	if relativeTo.Type() == NodeTypeMachine && relativeTo.HasAttr(DataSource) {
-		// See if we can find it relative to the computer
-		return os.FindTwoOrAdd(ObjectSid, NV(s), DataSource, relativeTo.OneAttr(DataSource))
-	}
-
-	// This is relative to an object that is part of a domain, so lets use that as a lookup reference
+	// This is relative to an node that is part of a domain, so lets use that as a lookup reference
 	if relativeTo.HasAttr(DomainContext) {
 		if o, found := os.FindTwoMulti(ObjectSid, NV(s), DomainContext, relativeTo.OneAttr(DomainContext)); found {
 			return o.First(), true
 		}
 	}
 
-	// Use the objects datasource as the relative reference
+	// Use the object's datasource as the relative reference
 	if relativeTo.HasAttr(DataSource) {
 		if o, found := os.FindTwoMulti(ObjectSid, NV(s), DataSource, relativeTo.OneAttr(DataSource)); found {
 			return o.First(), true

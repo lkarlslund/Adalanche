@@ -50,7 +50,7 @@ func (g *IndexedGraph) processBulkEdges(eps []BulkEdgeRequest) {
 		return eps[i].From < eps[j].From
 	})
 
-	var lastFrom, lastTo NodeIndexType
+	var lastFrom, lastTo NodeIndex
 	var lastEdge EdgeBitmap
 
 	g.edgeMutex.Lock()
@@ -99,7 +99,7 @@ func (g *IndexedGraph) processBulkEdges(eps []BulkEdgeRequest) {
 	g.edgeMutex.Unlock()
 }
 
-func (g *IndexedGraph) loadEdge(from, to NodeIndexType, direction EdgeDirection) (EdgeBitmap, bool) {
+func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (EdgeBitmap, bool) {
 	// Load the edge
 	toMap := g.edges[direction][from]
 	if toMap == nil {
@@ -109,10 +109,10 @@ func (g *IndexedGraph) loadEdge(from, to NodeIndexType, direction EdgeDirection)
 	if !found {
 		return EdgeBitmap{}, false
 	}
-	return g.edgeComboToEdgeBitmap(combo), true
+	return g.EdgeComboToEdgeBitmap(combo), true
 }
 
-func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, direction EdgeDirection) {
+func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
 	// Save the edge
 	toMap := g.edges[direction][from]
 	if toMap == nil {
@@ -120,7 +120,7 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, directi
 			// Writing a blank edge "unsets" it, but we have none
 			return
 		}
-		toMap = make(map[NodeIndexType]EdgeComboType)
+		toMap = make(map[NodeIndex]EdgeCombo)
 		g.edges[direction][from] = toMap
 	}
 	if edge.IsBlank() {
@@ -130,10 +130,10 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndexType, edge EdgeBitmap, directi
 	}
 }
 
-func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeComboType {
+func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
 	ue, found := g.edgeComboLookup[edge]
 	if !found {
-		ue = EdgeComboType(len(g.edgeCombos))
+		ue = EdgeCombo(len(g.edgeCombos))
 		if ue == math.MaxUint16 {
 			ui.Fatal().Msgf("Too many unique edges")
 		}
@@ -143,7 +143,30 @@ func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeComboType {
 	return ue
 }
 
-func (g *IndexedGraph) edgeComboToEdgeBitmap(ue EdgeComboType) EdgeBitmap {
+func (g *IndexedGraph) EdgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
+	g.edgeComboMutex.RLock()
+	ue, found := g.edgeComboLookup[edge]
+	g.edgeComboMutex.RUnlock()
+	if !found {
+		g.edgeComboMutex.Lock()
+		ue = EdgeCombo(len(g.edgeCombos))
+		if ue == math.MaxUint16 {
+			ui.Fatal().Msgf("Too many unique edges")
+		}
+		g.edgeComboLookup[edge] = ue
+		g.edgeCombos = append(g.edgeCombos, edge)
+		g.edgeComboMutex.Unlock()
+	}
+	return ue
+}
+
+func (g *IndexedGraph) EdgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
+	g.edgeComboMutex.RLock()
+	defer g.edgeComboMutex.RUnlock()
+	return g.edgeCombos[ue]
+}
+
+func (g *IndexedGraph) edgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
 	return g.edgeCombos[ue]
 }
 
@@ -279,7 +302,7 @@ func (g *IndexedGraph) Edges(node *Node, direction EdgeDirection) EdgeFilter {
 type EdgeFilter struct {
 	graph     *IndexedGraph
 	direction EdgeDirection
-	fromNode  NodeIndexType
+	fromNode  NodeIndex
 }
 
 func (ef EdgeFilter) Len() int {

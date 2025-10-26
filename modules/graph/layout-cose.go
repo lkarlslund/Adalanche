@@ -15,6 +15,7 @@ type COSELayoutOptions struct {
 	IdealEdgeLength   float64 `json:"ideal_edge_length,omitempty"`  // Ideal edge length
 	SpringCoeff       float64 `json:"spring_coeff,omitempty"`       // Spring coefficient
 	RepulsionCoeff    float64 `json:"repulsion_coeff,omitempty"`    // Repulsion coefficient
+	NodeDistance      float64 `json:"node_distance,omitempty"`      // Minimum distance between nodes
 	MaxIterations     int     `json:"max_iterations,omitempty"`     // Maximum iterations
 	Temperature       float64 `json:"temperature,omitempty"`        // Initial temperature
 	CoolingFactor     float64 `json:"cooling_factor,omitempty"`     // Temperature cooling factor
@@ -22,14 +23,7 @@ type COSELayoutOptions struct {
 	UseMultiLevel     bool    `json:"use_multi_level,omitempty"`    // Use multi-level scaling
 	MovementThreshold float64 `json:"movement_threshold,omitempty"` // Movement threshold for early termination
 	MinIterations     int     `json:"min_iterations,omitempty"`     // Minimum iterations before early termination
-}
-
-type layoutNode[NodeType GraphNodeInterface[NodeType]] struct {
-	id     int // Add index for proper force mapping
-	node   NodeType
-	x, y   float64
-	dx, dy float64
-	fixed  bool
+	K                 float64 `json:"k,omitempty"`                  // Scaling factor
 }
 
 func DefaultLayoutSettings() COSELayoutOptions {
@@ -41,35 +35,46 @@ func DefaultLayoutSettings() COSELayoutOptions {
 		Gravity:        0.04, // Gravity that pulls nodes to center
 		SpringCoeff:    0.6,  // Spring force for the ideal edge length
 		RepulsionCoeff: 2,    // Repulsion between nodes
+		NodeDistance:   4,    // Minimum distance between nodes
 
-		IdealEdgeLength: 5,    // Base distance
-		Temperature:     1.0,  // Start with lower temperature
-		CoolingFactor:   0.98, // Slower cooling
-		UseMultiLevel:   true,
+		IdealEdgeLength: 5,     // Base distance
+		Temperature:     1.0,   // Start with lower temperature
+		CoolingFactor:   0.995, // Slower cooling
+
+		K: 48, // Base scaling factor
+
+		UseMultiLevel: true,
 	}
 }
 
 // Work item for force calculation
-type forceWork[NodeType GraphNodeInterface[NodeType]] struct {
+type layoutNode struct {
+	id              int // Add index for proper force mapping
+	x, y            float64
+	dx, dy          float64
+	dampeningFactor float64
+}
+
+type forceWork struct {
 	startIdx, endIdx int
-	nodes            []layoutNode[NodeType]
+	nodes            []layoutNode
 	k                float64
 	settings         COSELayoutOptions
 }
 
-type forceResult[NodeType GraphNodeInterface[NodeType]] struct {
+type forceResult struct {
 	startIdx, endIdx int
 	forces           [][2]float64
 }
 
 // COSELayout computes COSE layout coordinates for the graph
-func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[NodeType][2]float64 {
+func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) map[NodeType][2]float64 {
 	ui.Debug().Msgf("Starting COSE layout with %d nodes", len(pg.nodes))
 	pg.autoCleanupEdges()
 
 	// Initialize layout nodes
-	nodes := make([]layoutNode[NodeType], 0, len(pg.nodes))
-	nodeMap := make(map[NodeType]*layoutNode[NodeType])
+	nodes := make([]layoutNode, 0, len(pg.nodes))
+	nodeMap := make(map[NodeType]*layoutNode)
 
 	nodeCount := len(pg.nodes)
 	edgeCount := len(pg.edges)
@@ -84,7 +89,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 		avgDegree = float64(edgeCount) / float64(nodeCount)
 	}
 
-	k := float64(32) // overall scale
+	k := float64(48) // overall scale
 
 	// Area proportional to node count and average degree
 	radius := math.Sqrt(float64(nodeCount)) * avgDegree * k
@@ -95,14 +100,16 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 	currentTemp := settings.Temperature * k
 	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %f", area, radius, nodeCount)
 	ui.Debug().Msgf("Calculated k: %f, temperature %f", k, currentTemp)
+
+	// random placement
 	for node := range pg.nodes {
 		angle := rand.Float64() * 2 * math.Pi
 		r := radius * math.Sqrt(rand.Float64()) // Better radial distribution
-		ln := layoutNode[NodeType]{
-			id:   idx,
-			node: node,
-			x:    math.Cos(angle) * r,
-			y:    math.Sin(angle) * r,
+		ln := layoutNode{
+			id:              idx,
+			x:               math.Cos(angle) * r,
+			y:               math.Sin(angle) * r,
+			dampeningFactor: 1,
 		}
 		nodes = append(nodes, ln)
 		nodeMap[node] = &nodes[idx]
@@ -119,8 +126,8 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 	}
 	taskCount := (nodeCount + itemsPerTask - 1) / itemsPerTask
 
-	jobChan := make(chan forceWork[NodeType], 16)
-	resultChan := make(chan forceResult[NodeType], 16)
+	jobChan := make(chan forceWork, 16)
+	resultChan := make(chan forceResult, 16)
 
 	// Start workers
 	var wg sync.WaitGroup
@@ -138,12 +145,18 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 					j := localIdx + work.startIdx
 
 					// Apply repulsion forces against all nodes
-					for k := range work.nodes {
-						if j != k {
-							dx := work.nodes[j].x - work.nodes[k].x
-							dy := work.nodes[j].y - work.nodes[k].y
+					for workNode := range work.nodes {
+						if j != workNode {
+							dx := work.nodes[j].x - work.nodes[workNode].x
+							dy := work.nodes[j].y - work.nodes[workNode].y
 							distSq := dx*dx + dy*dy
 							dist := math.Max(math.Sqrt(distSq), 0.01)
+
+							// Enforce minimum node distance
+							if dist < work.settings.NodeDistance*k {
+								dist = work.settings.NodeDistance * k
+								distSq = dist * dist
+							}
 
 							// Use inverse square law for repulsion
 							force := work.settings.RepulsionCoeff * work.k * work.k / distSq
@@ -164,7 +177,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 					forces[localIdx][1] += (dy / dist) * force
 				}
 
-				resultChan <- forceResult[NodeType]{
+				resultChan <- forceResult{
 					startIdx: work.startIdx,
 					endIdx:   work.endIdx,
 					forces:   forces[:work.endIdx-work.startIdx],
@@ -174,7 +187,8 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 	}
 
 	// Main layout loop
-	for iteration := 0; iteration < settings.MaxIterations; iteration++ {
+	var iteration int
+	for iteration = 0; iteration < settings.MaxIterations; iteration++ {
 		// Queue jobs in the background
 		go func() {
 			for job := 0; job < taskCount; job++ {
@@ -183,7 +197,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 				if job == taskCount-1 {
 					end = nodeCount
 				}
-				jobChan <- forceWork[NodeType]{
+				jobChan <- forceWork{
 					startIdx: start,
 					endIdx:   end,
 					nodes:    nodes,
@@ -228,14 +242,12 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 		// Update positions with movement tracking
 		totalMovement := 0.0
 		for j := range nodes {
-			if !nodes[j].fixed {
-				dist := math.Sqrt(nodes[j].dx*nodes[j].dx + nodes[j].dy*nodes[j].dy)
-				if dist > 0 {
-					limitedDist := math.Min(dist, currentTemp*k)
-					nodes[j].x += nodes[j].dx / dist * limitedDist
-					nodes[j].y += nodes[j].dy / dist * limitedDist
-					totalMovement += limitedDist
-				}
+			dist := math.Sqrt(nodes[j].dx*nodes[j].dx + nodes[j].dy*nodes[j].dy)
+			if dist > 0 {
+				limitedDist := math.Min(dist, currentTemp*k)
+				nodes[j].x += nodes[j].dx / dist * limitedDist * nodes[j].dampeningFactor
+				nodes[j].y += nodes[j].dy / dist * limitedDist * nodes[j].dampeningFactor
+				totalMovement += limitedDist
 			}
 			// Clear forces
 			nodes[j].dx = 0
@@ -271,10 +283,10 @@ func (pg *Graph[NodeType, EdgeType]) COSELayout(settings COSELayoutOptions) map[
 
 	// Convert result to coordinate map
 	result := make(map[NodeType][2]float64)
-	for _, node := range nodes {
-		result[node.node] = [2]float64{node.x, node.y}
+	for node, layout := range nodeMap {
+		result[node] = [2]float64{layout.x, layout.y}
 	}
 
-	ui.Debug().Msgf("COSE layout completed with %d nodes", len(result))
+	ui.Debug().Msgf("COSE layout completed with %d nodes after %v iterations", len(result), iteration)
 	return result
 }

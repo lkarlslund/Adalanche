@@ -75,7 +75,14 @@ func AddGraphEndpoints(ws *WebService) {
 			g.AddEdge(DummyNode(e.From), DummyNode(e.To), DummyEdge{})
 		}
 
-		coordinates := g.COSELayout(req.Options)
+		var coordinates map[DummyNode][2]float64
+		switch req.Layout {
+		case "cosev2":
+			// Use COSE v2 layout
+			coordinates = g.COSELayoutV2(req.Options)
+		default:
+			coordinates = g.COSELayoutV1(req.Options)
+		}
 
 		// Build response
 		respNodes := make([]ResponseNode, 0, len(req.Graph.Nodes))

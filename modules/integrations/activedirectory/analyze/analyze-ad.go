@@ -514,8 +514,8 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		kerberoast := "kerberoast"
-		authusers := FindWellKnown(ao, windowssecurity.AuthenticatedUsersSID)
-		if authusers == nil {
+		authusers, found := ao.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
+		if !found {
 			ui.Error().Msgf("Could not locate Authenticated Users")
 			return
 		}
@@ -534,9 +534,8 @@ func init() {
 	}, "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		anonymous := FindWellKnown(ao, windowssecurity.AnonymousLogonSID)
-
-		if anonymous == nil {
+		anonymous, found := ao.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
+		if !found {
 			ui.Error().Msgf("Could not locate Anonymous Logon")
 			return
 		}
@@ -872,8 +871,7 @@ func init() {
 		ao.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
-					target := ao.FindOrAddAdjacentSID(sid, o)
-					ao.EdgeTo(o, target, activedirectory.EdgeSIDHistoryEquality)
+					ao.EdgeTo(o, ao.FindOrAddAdjacentSID(sid, o), activedirectory.EdgeSIDHistoryEquality)
 				}
 				return true
 			})
@@ -1262,23 +1260,26 @@ func init() {
 		engine.BeforeMerge)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+		// Find domain object
+		domain, err := FindDomainNode(ao)
+		if err != nil {
+			ui.Fatal().Msgf("Could not find domain node: %v", err)
+		}
+
 		// Add our known SIDs if they're missing
 		for sid, name := range windowssecurity.KnownSIDs {
 			binsid, err := windowssecurity.ParseStringSID(sid)
 			if err != nil {
 				ui.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
-			if fo := FindWellKnown(ao, binsid); fo == nil {
-				dn := "CN=" + name + ",CN=microsoft-builtin"
-				ui.Debug().Msgf("Adding missing well known SID %v (%v) as %v", name, sid, dn)
-				ao.Add(engine.NewNode(
-					engine.DistinguishedName, engine.NV(dn),
-					engine.Name, engine.NV(name),
-					engine.ObjectSid, engine.NV(binsid),
-					engine.ObjectClass, engine.NV("person"), engine.NV("user"), engine.NV("top"),
-					engine.Type, engine.NV("Group"),
-				))
-			}
+			dn := "CN=" + name + ",CN=microsoft-builtin"
+			ao.FindOrAddAdjacentSID(binsid, domain,
+				engine.DistinguishedName, engine.NV(dn),
+				engine.Name, engine.NV(name),
+				engine.ObjectSid, engine.NV(binsid),
+				engine.ObjectClass, engine.NV("person"), engine.NV("user"), engine.NV("top"),
+				engine.Type, engine.NV("Group"),
+			)
 		}
 	},
 		"missing well-known SIDs",
@@ -1287,14 +1288,17 @@ func init() {
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Generate member of chains
-		everyonesid, _ := windowssecurity.ParseStringSID("S-1-1-0")
-		everyone := FindWellKnown(ao, everyonesid)
+		domainNode, err := FindDomainNode(ao)
+		if err != nil {
+			ui.Fatal().Msgf("Could not find domain node: %v", err)
+		}
+
+		everyone := ao.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
 		if everyone == nil {
 			ui.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		authenticateduserssid, _ := windowssecurity.ParseStringSID("S-1-5-11")
-		authenticatedusers := FindWellKnown(ao, authenticateduserssid)
+		authenticatedusers := ao.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
 		if authenticatedusers == nil {
 			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}

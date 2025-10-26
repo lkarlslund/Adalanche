@@ -174,7 +174,7 @@
                         class="col-form-label"
                         data-bs-toggle="tooltip"
                         data-bs-title="How many steps away from the targets should be searched"
-                        >Analysis depth</label
+                        >Max analysis depth</label
                       >
                     </div>
                     <div class="col">
@@ -200,7 +200,7 @@
                         data-bs-title="If a node has more than this amount of edges, drop some of them to keep output less cluttered (you will lose some insights)"
                         >Max outgoing edges</label
                       >
-                    </div> -->
+                    </div> 
                     <div class="col">
                       <input
                         id="max_outgoing_connections"
@@ -212,7 +212,7 @@
                         preference="analysis.max.ootgoing"
                         class="form-control text-right"
                       />
-                    </div>
+                    </div> -->
                   </div>
 
                   <div class="row">
@@ -247,7 +247,7 @@
                         class="col-form-label"
                         data-bs-toggle="tooltip"
                         data-bs-title="The minimum accumulated probability for an edge to be included, eg. two steps with 50% and 50% will give an accumulated probability of 25%"
-                        >Min accumulated probability %</label
+                        >Min total probability %</label
                       >
                     </div>
                     <div class="col">
@@ -323,6 +323,7 @@
                   <option value="d3force">D3 Force</option>
                   <option value="cose">COSE</option>
                   <option value="remote">Remote COSE</option>
+                  <option value="remotev2">Remote COSE v2</option>
                   <option value="cosebilkent">COSE Bilkent</option>
                   <option value="dagre">DAGRE</option>
                   <!-- <option value="cise">CISE</option> -->

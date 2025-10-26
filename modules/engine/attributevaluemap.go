@@ -69,7 +69,7 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 				av2 = avm2.values[sl.start : sl.start+sl.length]
 			}
 		}
-		mergedVals := MergeValues(av1, av2)
+		mergedVals := mergeValues(av1, av2)
 		if len(mergedVals) == 0 {
 			// nothing to store for this attribute
 			continue

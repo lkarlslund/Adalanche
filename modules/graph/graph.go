@@ -500,7 +500,7 @@ func visit(graph [][]int, visited []bool, node int) []int {
 	return results
 }
 
-// AdjacencyMap returns the adjacency map
+// AdjacencyMap returns the adjacency map - map of Source -> []Target
 func (pg Graph[NodeType, EdgeType]) AdjacencyMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	adjacencyMap := make(map[NodeType][]NodeType)
@@ -516,7 +516,7 @@ func (pg Graph[NodeType, EdgeType]) AdjacencyMap() map[NodeType][]NodeType {
 	return adjacencyMap
 }
 
-// PredecessorMap returns the predecessor map
+// PredecessorMap returns the predecessor map - map of Target -> []Source
 func (pg Graph[NodeType, EdgeType]) PredecessorMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	predecessorMap := make(map[NodeType][]NodeType)

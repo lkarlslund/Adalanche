@@ -6,6 +6,12 @@ var remoteLayout = {
   url: "/api/graph/layout",        // server endpoint (required)
 }
 
+var remoteLayoutv2 = {
+  name: "remote",
+  url: "/api/graph/layout",        // server endpoint (required)
+  layout: "cosev2",
+}
+
 // Configure
 var d3forcelayout = {
     name: "d3-force",
@@ -577,37 +583,40 @@ var cytostyle = [
 function getGraphlayout(choice) {
     var layouttemplate = fcoselayout
     switch (choice) {
-        case "cose":
-            layouttemplate = coselayout
-            break
-        case "cosebilkent":
-            layouttemplate = cosebilkentlayout
-            break
-        case "dagre":
-            layouttemplate = dagrelayout
-            break
-        case "fcose":
-            layouttemplate = fcoselayout
-            break
-        case "d3force":
-            layouttemplate = d3forcelayout
-            break
-        case "random":
-            layouttemplate = randomlayout
-            break
-        case "fixed":
-            layouttemplate = fixedlayout
-            break
-        case "cise":
-            layouttemplate = ciselayout
-            break
-        case "remote":
-            layouttemplate = remoteLayout
-            break
-        default:
-            // toast error
-            console.log("Unknown layout choice: " + choice);
-            break;
+      case "cose":
+        layouttemplate = coselayout;
+        break;
+      case "cosebilkent":
+        layouttemplate = cosebilkentlayout;
+        break;
+      case "dagre":
+        layouttemplate = dagrelayout;
+        break;
+      case "fcose":
+        layouttemplate = fcoselayout;
+        break;
+      case "d3force":
+        layouttemplate = d3forcelayout;
+        break;
+      case "random":
+        layouttemplate = randomlayout;
+        break;
+      case "fixed":
+        layouttemplate = fixedlayout;
+        break;
+      case "cise":
+        layouttemplate = ciselayout;
+        break;
+      case "remote":
+        layouttemplate = remoteLayout;
+        break;
+      case "remotev2":
+        layouttemplate = remoteLayoutv2;
+        break;
+      default:
+        // toast error
+        console.log("Unknown layout choice: " + choice);
+        break;
     }
 
     var layout = cy.layout(layouttemplate)

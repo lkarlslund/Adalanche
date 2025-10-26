@@ -82,7 +82,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	}
 
 	var trymerge []mergeinfo
-	nodeMerged := make(map[*Node]*Node)
+	mergedNodesMap := make(map[*Node]*Node)
 	var mergeMutex sync.Mutex
 
 	// Iterate over all the object collections
@@ -104,7 +104,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 			if val := node.OneAttr(DistinguishedName); val != nil {
 				if samedn, found := dnindex.Lookup(val); found {
 					mergeMutex.Lock()
-					nodeMerged[node] = samedn.First()
+					mergedNodesMap[node] = samedn.First()
 					mergeMutex.Unlock()
 					return true
 				}
@@ -139,14 +139,15 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 
 		mergedTo, merged := superGraph.Merge(mergeAttrs, conflictAttrs, node)
 		if merged {
-			nodeMerged[node] = mergedTo
+			mergedNodesMap[node] = mergedTo
 		} else {
 			superGraph.Add(node)
 		}
 	}
 	pb.Finish()
 
-	ui.Info().Msgf("We merged %v nodes into the metaverse", len(nodeMerged))
+	aftermergetotalobjects := superGraph.Order()
+	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, len(mergedNodesMap))
 
 	// Add all outgoing edges from the other graphs
 	pb = ui.ProgressBar("Adding edges", int64(totalEdges))
@@ -154,10 +155,10 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		g.IterateParallel(func(source *Node) bool {
 			g.Edges(source, Out).Iterate(func(target *Node, ebm EdgeBitmap) bool {
 				pb.Add(1)
-				if newSource, merged := nodeMerged[source]; merged {
+				if newSource, merged := mergedNodesMap[source]; merged {
 					source = newSource
 				}
-				if newTarget, merged := nodeMerged[target]; merged {
+				if newTarget, merged := mergedNodesMap[target]; merged {
 					target = newTarget
 				}
 				superGraph.SetEdge(source, target, ebm, true)
@@ -167,10 +168,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		}, 0)
 	}
 	pb.Finish()
-
 	superGraph.FlushEdges()
-	aftermergetotalobjects := superGraph.Order()
-	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, totalNodes-aftermergetotalobjects)
 
 	var orphans int
 	processed := make(map[*Node]struct{})

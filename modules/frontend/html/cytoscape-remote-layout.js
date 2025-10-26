@@ -8,7 +8,7 @@
     var defaults = {
       url: null,
       method: "POST",
-      layout: "COSE",
+      layout: "cose",
       nodeMapper: (n) => ({
         id: n.id(),
         data: n.data(),
@@ -23,7 +23,7 @@
         data: e.data(),
       }),
       extra: {},
-      timeout: 30000,
+      timeout: 120000,
       onError: (err) => {
         console.error(err);
       },

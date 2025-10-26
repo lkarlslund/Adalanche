@@ -91,21 +91,11 @@ func (target *Node) AbsorbEx(source *Node, fast bool) {
 		panic("Can't absorb myself")
 	}
 
-	// Fast mode does not merge values, it just relinks the source to the target
-	// if fast {
-	// 	// Just merge this one
-	// 	val := MergeValues(source.attr(DataSource), target.attr(DataSource))
-	// 	if val != nil {
-	// 		target.set(DataSource, val...)
-	// 	}
-	// } else {
 	newvalues := target.values.Merge(&source.values)
 	target.values = *newvalues
-	// }
-
 }
 
-func MergeValues(v1, v2 AttributeValues) AttributeValues {
+func mergeValues(v1, v2 AttributeValues) AttributeValues {
 	if v1.Len() == 0 {
 		return v2
 	}

@@ -51,24 +51,21 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 	return windowssecurity.SID(""), errors.New("Localized group name not found")
 }
 
-func FindWellKnown(ao *engine.IndexedGraph, s windowssecurity.SID) *engine.Node {
-	results, _ := ao.FindMulti(engine.ObjectSid, engine.NV(s))
-	var result *engine.Node
-	results.Iterate(func(o *engine.Node) bool {
-		result = o
-		return true
-	})
-	return result
+func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+	var domain *engine.Node
+	domain, err = FindDomainNode(ao)
+	if err != nil {
+		return
+	}
+	return GetDomainInfo(domain, ao)
 }
 
-func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {
 		err = errors.New("No domain info found in collection")
 		return
 	}
-
-	var domain *engine.Node
 
 	domaindns.Iterate(func(curdomain *engine.Node) bool {
 		if curdomain.HasAttr(engine.ObjectSid) {
@@ -85,8 +82,7 @@ func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix 
 		err = errors.New("Could not find domainDNS in object shard collection, giving up")
 		return
 	}
-
-	return GetDomainInfo(domain, ao)
+	return
 }
 
 func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {

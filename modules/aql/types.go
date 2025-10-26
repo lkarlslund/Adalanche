@@ -50,10 +50,15 @@ func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {
 }
 
 type EdgeMatcher struct {
-	Bitmap      engine.EdgeBitmap
-	Count       int64 // minimum number of edges to match
-	Comparator  query.ComparatorType
-	NoTrimEdges bool // don't trim edges to just the filter
+	Bitmap     engine.EdgeBitmap
+	Count      int64 // minimum number of edges to match
+	Comparator query.ComparatorType
+
+	NegativeBitmap     engine.EdgeBitmap
+	NegativeCount      int64 // minimum number of edges to match
+	NegativeComparator query.ComparatorType
+
+	NoTrimEdges bool // don't trim returned edges to just the filter
 }
 type EdgeSearcher struct {
 	PathNodeRequirement          *NodeQuery // Nodes passed along the way must fulfill this filter

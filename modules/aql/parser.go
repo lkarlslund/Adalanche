@@ -681,13 +681,10 @@ func parseAttribute(ts *TokenStream, ao *engine.IndexedGraph) (engine.Attribute,
 
 func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, error) {
 	es := EdgeSearcher{
-		Direction:     engine.Any,
-		MinIterations: 1,
-		MaxIterations: 1,
-		FilterEdges: EdgeMatcher{
-			Comparator: query.CompareGreaterThanEqual,
-			Count:      1,
-		},
+		Direction:             engine.Any,
+		MinIterations:         1,
+		MaxIterations:         1,
+		FilterEdges:           EdgeMatcher{},
 		ProbabilityComparator: query.CompareGreaterThanEqual,
 		ProbabilityValue:      1,
 	}
@@ -763,29 +760,75 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					// find all the edges with that tag
 					for _, edge := range engine.Edges() {
 						if edge.HasTag(tagname) {
-							es.FilterEdges.Bitmap.Set(edge)
+							es.FilterEdges.Bitmap = es.FilterEdges.Bitmap.Set(edge)
 						}
 					}
-				} else if strings.EqualFold(ts.Token().Value, "match") {
+				} else if ts.Token().Is(Exclamation) && strings.EqualFold(ts.PeekNextToken().Value, "tag") {
+					ts.Next() // eat exclamation
 					ts.Next() // eat tag identifier
 					comparator, err := GetComparator(ts)
 					if err != nil {
-						return es, fmt.Errorf("Expected comparator in edge query 'match' restrictions, %v", err)
+						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+					}
+					if comparator != query.CompareEquals {
+						return es, fmt.Errorf("Tag requires equals, but we got %v (%v)", comparator, ts.Token().Value)
+					}
+					if ts.Token().Type != Identifier {
+						return es, fmt.Errorf("Expected tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+					}
+					tagname := ts.Token().Value
+					ts.Next()
+
+					// find all the edges with that tag
+					for _, edge := range engine.Edges() {
+						if edge.HasTag(tagname) {
+							es.FilterEdges.NegativeBitmap = es.FilterEdges.NegativeBitmap.Set(edge)
+						}
+					}
+				} else if strings.EqualFold(ts.Token().Value, "match") || strings.EqualFold(ts.Token().Value, "notmatch") {
+					isNotMatch := strings.EqualFold(ts.Token().Value, "notmatch")
+					ts.Next() // eat tag identifier
+					comparator, err := GetComparator(ts)
+					if err != nil {
+						return es, fmt.Errorf("Expected comparator in edge query 'match' or 'notmatch' restrictions, %v", err)
 					}
 					if !ts.Token().Is(Integer) {
-						return es, fmt.Errorf("Expected integer in edge query 'match' restrictions, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("Expected integer in edge query 'match' or 'notmatch' restrictions, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					count := ts.Token().Native.(int64)
-					es.FilterEdges.Comparator = comparator
-					es.FilterEdges.Count = count
+					if isNotMatch {
+						es.FilterEdges.NegativeComparator = comparator
+						es.FilterEdges.NegativeCount = count
+					} else {
+						es.FilterEdges.Comparator = comparator
+						es.FilterEdges.Count = count
+					}
+					ts.Next()
+				} else if ts.Token().Is(Exclamation) {
+					// Negative edge
+					ts.Next()
+					// It has to be an attribute
+					edge := engine.LookupEdge(ts.Token().Value)
+					if edge == engine.NonExistingEdge {
+						return es, fmt.Errorf("Unknown edge %v references in negative edge requirement", ts.Token().Value)
+					}
+					es.FilterEdges.NegativeBitmap = es.FilterEdges.NegativeBitmap.Set(edge) // Add it
+					if es.FilterEdges.NegativeComparator == query.CompareInvalid {
+						es.FilterEdges.NegativeComparator = query.CompareGreaterThanEqual
+						es.FilterEdges.NegativeCount = 1
+					}
 					ts.Next()
 				} else {
 					// It has to be an attribute
 					edge := engine.LookupEdge(ts.Token().Value)
 					if edge == engine.NonExistingEdge {
-						return es, fmt.Errorf("Unknown edge %v references in edge query", ts.Token().Value)
+						return es, fmt.Errorf("Unknown edge %v references in edge requirement", ts.Token().Value)
 					}
 					es.FilterEdges.Bitmap = es.FilterEdges.Bitmap.Set(edge) // Add it
+					if es.FilterEdges.Comparator == query.CompareInvalid {
+						es.FilterEdges.Comparator = query.CompareGreaterThanEqual
+						es.FilterEdges.Count = 1
+					}
 					ts.Next()
 				}
 			}
