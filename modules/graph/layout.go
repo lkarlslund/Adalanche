@@ -36,3 +36,55 @@ func (g *Graph[NodeType, EdgeType]) CoarsenOuterNodes() Graph[NodeType, EdgeType
 
 	return newGraph
 }
+
+func (g *Graph[NodeType, EdgeType]) CoarsenBySCCs() Graph[NodeType, EdgeType] {
+	sccs := g.SCCGabow()
+	newGraph := NewGraph[NodeType, EdgeType]()
+
+	sccNodeMap := make(map[int]NodeType)
+
+	// Create new nodes for each SCC
+	for i, scc := range sccs {
+		if len(scc) == 0 {
+			continue
+		}
+		// Create a new coarse node representing this SCC
+		coarseNode := scc[0] // Just pick the first node as representative
+		newGraph.AddNode(coarseNode)
+		sccNodeMap[i] = coarseNode
+	}
+
+	outgoingMap := g.AdjacencyMap()
+
+	// Create edges between coarse nodes
+	for i, scc := range sccs {
+		fromNode := sccNodeMap[i]
+		for _, node := range scc {
+			for _, toNode := range outgoingMap[node] {
+				toSCCIndex := -1
+				for j, targetSCC := range sccs {
+					for _, targetNode := range targetSCC {
+						if targetNode == toNode {
+							toSCCIndex = j
+							break
+						}
+					}
+					if toSCCIndex != -1 {
+						break
+					}
+				}
+				if toSCCIndex != -1 && toSCCIndex != i {
+					edge, found := g.GetEdge(node, toNode)
+					if !found {
+						continue
+					}
+
+					toCoarseNode := sccNodeMap[toSCCIndex]
+					newGraph.AddEdge(fromNode, toCoarseNode, edge)
+				}
+			}
+		}
+	}
+
+	return newGraph
+}

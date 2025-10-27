@@ -28,9 +28,9 @@ type COSELayoutOptions struct {
 
 func DefaultLayoutSettings() COSELayoutOptions {
 	return COSELayoutOptions{
-		MinIterations:     50,    // Ensure some minimum iterations
-		MaxIterations:     5000,  // No more than these iterations
-		MovementThreshold: 0.002, // More strict convergence
+		MinIterations:     50,   // Ensure some minimum iterations
+		MaxIterations:     5000, // No more than these iterations
+		MovementThreshold: 0.01, // More strict convergence
 
 		Gravity:        0.04, // Gravity that pulls nodes to center
 		SpringCoeff:    0.6,  // Spring force for the ideal edge length
@@ -41,7 +41,7 @@ func DefaultLayoutSettings() COSELayoutOptions {
 		Temperature:     1.0,   // Start with lower temperature
 		CoolingFactor:   0.995, // Slower cooling
 
-		K: 48, // Base scaling factor
+		K: 60, // Base scaling factor
 
 		UseMultiLevel: true,
 	}
@@ -89,7 +89,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) ma
 		avgDegree = float64(edgeCount) / float64(nodeCount)
 	}
 
-	k := float64(48) // overall scale
+	k := settings.K // overall scale
 
 	// Area proportional to node count and average degree
 	radius := math.Sqrt(float64(nodeCount)) * avgDegree * k

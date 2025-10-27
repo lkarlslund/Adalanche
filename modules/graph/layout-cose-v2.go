@@ -37,16 +37,27 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 	lastGraphLen := pg.Order()
 	ui.Debug().Msgf("Initial graph has %d nodes", lastGraphLen)
 
-	for lastGraphLen > 100 {
-		coarsenedGraph := lastGraph.CoarsenOuterNodes()
-		if coarsenedGraph.Order() == lastGraphLen {
-			ui.Debug().Msgf("No further coarsening possible at %d nodes", lastGraphLen)
-			break // No further coarsening possible
+	if settings.UseMultiLevel {
+		ui.Debug().Msg("Starting multi-level coarsening")
+		for lastGraphLen > 100 {
+			coarsenedGraph := lastGraph.CoarsenOuterNodes()
+			if coarsenedGraph.Order() == lastGraphLen {
+				// Try coarsening by SCCs
+				coarsenedGraph = lastGraph.CoarsenBySCCs()
+
+				if coarsenedGraph.Order() == lastGraphLen {
+					ui.Debug().Msgf("No further coarsening possible at %d nodes", lastGraphLen)
+					break // No further coarsening possible
+				} else {
+					ui.Debug().Msgf("Coarsened graph to %d nodes by SCC", coarsenedGraph.Order())
+				}
+			} else {
+				ui.Debug().Msgf("Coarsened graph to %d nodes by pruning outer nodes", coarsenedGraph.Order())
+			}
+			graphs = append(graphs, coarsenedGraph)
+			lastGraphLen = coarsenedGraph.Order()
+			lastGraph = coarsenedGraph
 		}
-		graphs = append(graphs, coarsenedGraph)
-		lastGraphLen = coarsenedGraph.Order()
-		lastGraph = coarsenedGraph
-		ui.Debug().Msgf("Coarsened graph to %d nodes", lastGraphLen)
 	}
 
 	// Initialize layout currentNodes
@@ -159,9 +170,9 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 		graphs = graphs[:len(graphs)-1]
 
 		// Use spatial grid for repulsion forces (O(n) instead of O(n²))
-		gridSize := int(math.Sqrt(float64(totalNodeCount))) + 1
-		if gridSize > 100 {
-			gridSize = 100
+		gridSize := int(math.Sqrt(float64(currentGraph.Order())))/5 + 1
+		if gridSize > 25 {
+			gridSize = 25
 		}
 		grid := make([][]int, gridSize*gridSize)
 		for i := range grid {
