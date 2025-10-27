@@ -1735,7 +1735,31 @@ func init() {
 						// Enforcement required, but this is not an enforced GPO
 						continue
 					}
-					ao.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+
+					// Check securit filtering
+					var canRead, canApply bool
+
+					canRead = true
+					canApply = true
+
+					/*					sd, _ := gpo.SecurityDescriptor()
+										if sd != nil {
+											for _, ace := range sd.DACL.Entries {
+												// check for read and apply gpo permissions
+												if ace.Type == engine.ACETYPE_ACCESS_ALLOWED && (ace.Mask&engine.RIGHT_GENERIC_READ != 0) {
+													// is computer a member of this SID)
+													vsid := engine.NV(ace.SID)
+													if computer.HasAttr() {
+
+													}
+												}
+
+											}
+										} */
+
+					if canRead && canApply {
+						ao.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+					}
 				}
 				gpoptions := currentObject.OneAttrString(activedirectory.GPOptions)
 				if gpoptions == "1" {
