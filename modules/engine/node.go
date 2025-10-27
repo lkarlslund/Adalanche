@@ -580,7 +580,7 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 					!strings.HasSuffix(netbios, " NT") &&
 					netbios != "BUILTIN" &&
 					netbios != "IIS APPPOOL" {
-					ui.Warn().Msgf("Object DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
+					ui.Warn().Msgf("Node DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
 				}
 			}
 
@@ -715,7 +715,7 @@ func (o *Node) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
 func (o *Node) ChildOf(parent *Node) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
-		ui.Trace().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Trace().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		return
 		// panic("objects can only have one parent")
 	}
@@ -729,7 +729,7 @@ func (o *Node) ChildOf(parent *Node) {
 
 func (o *Node) childOf(parent *Node) {
 	if o.parent != nil {
-		ui.Debug().Msgf("Object %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
+		ui.Debug().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
 		return
 	}
 	o.parent = parent
