@@ -59,7 +59,7 @@ type CytoFlatElement struct {
 	Group string             `json:"group"` // nodes or edges
 }
 
-func GenerateCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
+func GenerateCytoscapeJS(ao *engine.IndexedGraph, pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
 		GeneratedBy:              version.ProgramVersionShort(),
@@ -86,17 +86,21 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldet
 
 	g.Elements = make(CytoElements, pg.Order()+pg.Size())
 	var i int
-	for object, df := range pg.Nodes() {
+	for node, df := range pg.Nodes() {
+		nodeid, found := ao.NodeToIndex(node)
+		if !found {
+			continue
+		}
 		newnode := CytoFlatElement{
 			Group: "nodes",
 			Data: map[string]any{
-				"id":    fmt.Sprintf("n%v", object.ID()),
-				"label": object.Label(),
-				"type":  object.OneAttrString(engine.Type),
+				"id":    fmt.Sprintf("n%v", nodeid),
+				"label": node.Label(),
+				"type":  node.OneAttrString(engine.Type),
 			},
 		}
 
-		object.Attr(engine.Tag).Iterate(func(tag engine.AttributeValue) bool {
+		node.Attr(engine.Tag).Iterate(func(tag engine.AttributeValue) bool {
 			newnode.Data[tag.String()] = true
 			return true
 		})
@@ -128,12 +132,17 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldet
 	}
 
 	pg.IterateEdges(func(source, target *engine.Node, edge engine.EdgeBitmap, flow int) bool {
+		sourceid, found1 := ao.NodeToIndex(source)
+		targetid, found2 := ao.NodeToIndex(target)
+		if !found1 || !found2 {
+			return true
+		}
 		cytoedge := CytoFlatElement{
 			Group: "edges",
 			Data: MapStringInterface{
-				"id":       fmt.Sprintf("e%v-%v", source.ID(), target.ID()),
-				"source":   fmt.Sprintf("n%v", source.ID()),
-				"target":   fmt.Sprintf("n%v", target.ID()),
+				"id":       fmt.Sprintf("e%v-%v", sourceid, targetid),
+				"source":   fmt.Sprintf("n%v", sourceid),
+				"target":   fmt.Sprintf("n%v", targetid),
 				"flow":     flow,
 				"_maxprob": edge.MaxProbability(source, target),
 				"methods":  edge.StringSlice(),
@@ -149,8 +158,8 @@ func GenerateCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldet
 	return g, nil
 }
 
-func ExportCytoscapeJS(pg graph.Graph[*engine.Node, engine.EdgeBitmap], filename string) error {
-	g, err := GenerateCytoscapeJS(pg, false)
+func ExportCytoscapeJS(ao *engine.IndexedGraph, pg graph.Graph[*engine.Node, engine.EdgeBitmap], filename string) error {
+	g, err := GenerateCytoscapeJS(ao, pg, false)
 	if err != nil {
 		return err
 	}

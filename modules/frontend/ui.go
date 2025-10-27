@@ -279,6 +279,13 @@ func AddDataEndpoints(ws *WebService) {
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
 		case "id":
+			index, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			if err != nil {
+				c.String(500, "Error parsing index")
+				return
+			}
+			o, found = ws.SuperGraph.IndexToNode(engine.NodeIndex(index))
+		case "nodeid":
 			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 			if err != nil {
 				c.String(500, "Error parsing ID")
@@ -302,6 +309,8 @@ func AddDataEndpoints(ws *WebService) {
 				return
 			}
 			o, found = ws.SuperGraph.Find(activedirectory.ObjectGUID, engine.NV(u))
+		default:
+			o, found = ws.SuperGraph.Find(engine.LookupAttribute(c.Param("locateby")), engine.NV(c.Param("id")))
 		}
 		if !found {
 			c.AbortWithStatus(404)

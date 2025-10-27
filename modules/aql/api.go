@@ -99,7 +99,7 @@ func init() {
 				}
 			}
 
-			cytograph, err := frontend.GenerateCytoscapeJS(*results, false)
+			cytograph, err := frontend.GenerateCytoscapeJS(ws.SuperGraph, *results, false)
 			if err != nil {
 				c.String(500, "Error generating cytoscape graph: %v", err)
 				return
