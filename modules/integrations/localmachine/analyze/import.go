@@ -291,7 +291,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				}
 				if memberobject.HasAttr(engine.DataSource) && !existing {
 					// Maybe a deleted user or group
-					memberobject.ChildOf(machine)
+					if memberobject.Parent() == nil {
+						memberobject.ChildOf(machine)
+					}
 				}
 			}
 		}
@@ -615,7 +617,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 						svcaccount, _ = ao.FindOrAdd(engine.DownLevelLogonName, engine.NV(nameparts[0]+"\\"+nameparts[1]))
 
 						if !strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
-							svcaccount.ChildOf(serviceobject)
+							if svcaccount.Parent() == nil {
+								svcaccount.ChildOf(serviceobject)
+							}
 						}
 					} else if strings.Contains(service.Account, "@") {
 						svcaccount, _ = ao.FindOrAdd(
