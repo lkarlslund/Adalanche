@@ -87,10 +87,7 @@ func (pq *PriorityQueue) Pop() searchState {
 	pq.siftDown(0)
 
 	if len(pq.items) <= cap(pq.items)/4 {
-		newCap := cap(pq.items) / 2
-		if newCap < 1 {
-			newCap = 1
-		}
+		newCap := max(cap(pq.items)/2, 1)
 		newItems := make([]searchState, len(pq.items), newCap)
 		copy(newItems, pq.items)
 		pq.items = newItems

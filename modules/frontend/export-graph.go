@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"fmt"
+	"maps"
 	"os"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -105,9 +106,7 @@ func GenerateCytoscapeJS(ao *engine.IndexedGraph, pg graph.Graph[*engine.Node, e
 			return true
 		})
 
-		for key, value := range df {
-			newnode.Data[key] = value
-		}
+		maps.Copy(newnode.Data, df)
 
 		// If we added empty junk, remove it again
 		for attr, value := range newnode.Data {

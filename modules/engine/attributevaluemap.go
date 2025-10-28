@@ -34,10 +34,7 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 	merged.init()
 
 	// pre-allocate backing array for values to avoid repeated reallocations
-	longestlen := len(avm.values)
-	if len(avm2.values) > longestlen {
-		longestlen = len(avm2.values)
-	}
+	longestlen := max(len(avm2.values), len(avm.values))
 	merged.values = make(AttributeValues, 0, longestlen)
 
 	// Collect keys directly from both maps (avoids extra Iterate/map lookups).

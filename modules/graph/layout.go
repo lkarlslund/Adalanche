@@ -1,5 +1,7 @@
 package graph
 
+import "slices"
+
 type CoarseGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
 	coarseGraph *Graph[NodeType, EdgeType]
 	fineGraph   *Graph[NodeType, EdgeType]
@@ -63,11 +65,8 @@ func (g *Graph[NodeType, EdgeType]) CoarsenBySCCs() Graph[NodeType, EdgeType] {
 			for _, toNode := range outgoingMap[node] {
 				toSCCIndex := -1
 				for j, targetSCC := range sccs {
-					for _, targetNode := range targetSCC {
-						if targetNode == toNode {
-							toSCCIndex = j
-							break
-						}
+					if slices.Contains(targetSCC, toNode) {
+						toSCCIndex = j
 					}
 					if toSCCIndex != -1 {
 						break

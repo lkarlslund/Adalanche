@@ -93,7 +93,7 @@ func init() {
 			}
 
 			resulttypes := make(map[string]int)
-			for i := 0; i < 256; i++ {
+			for i := range 256 {
 				if objecttypes[i] > 0 {
 					resulttypes[engine.NodeType(i).String()] = objecttypes[i]
 				}

@@ -10,22 +10,22 @@ import (
 type Info struct {
 	basedata.Common
 	RegistryData RegistryData `json:",omitempty"`
-	Machine      Machine      `json:",omitempty"`
-	LoginInfos   []LogonInfo  `json:",omitempty"`
+	Machine      Machine
+	LoginInfos   []LogonInfo `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
-	Network                                 NetworkInformation `json:",omitempty"`
-	Users                                   Users              `json:",omitempty"`
-	Groups                                  Groups             `json:",omitempty"`
-	Shares                                  Shares             `json:",omitempty"`
-	Services                                Services           `json:",omitempty"`
-	ServiceControlManagerSecurityDescriptor []byte             `json:",omitempty"`
-	Software                                []Software         `json:",omitempty"`
-	Tasks                                   []RegisteredTask   `json:",omitempty"`
-	Privileges                              Privileges         `json:",omitempty"`
+	Network                                 NetworkInformation
+	Users                                   Users            `json:",omitempty"`
+	Groups                                  Groups           `json:",omitempty"`
+	Shares                                  Shares           `json:",omitempty"`
+	Services                                Services         `json:",omitempty"`
+	ServiceControlManagerSecurityDescriptor []byte           `json:",omitempty"`
+	Software                                []Software       `json:",omitempty"`
+	Tasks                                   []RegisteredTask `json:",omitempty"`
+	Privileges                              Privileges       `json:",omitempty"`
 	// OperatingSystem shared.OperatingSystem `json:",omitempty"`
 	// Memory          shared.Memory          `json:",omitempty"`
-	Availability           Availability `json:",omitempty"`
-	UnprivilegedCollection bool         `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
+	Availability           Availability
+	UnprivilegedCollection bool `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
 }
 type Machine struct {
 	Name               string   `json:",omitempty"`
@@ -60,15 +60,15 @@ type Availability struct {
 }
 
 type LogonInfo struct {
-	User                      string    `json:",omitempty"`
-	Domain                    string    `json:",omitempty"`
-	SID                       string    `json:",omitempty"`
-	Count                     uint64    `json:",omitempty"`
-	LogonType                 uint32    `json:",omitempty"`
-	AuthenticationPackageName string    `json:",omitempty"`
-	IpAddress                 []string  `json:",omitempty"`
-	FirstSeen                 time.Time `json:",omitempty"`
-	LastSeen                  time.Time `json:",omitempty"`
+	User                      string   `json:",omitempty"`
+	Domain                    string   `json:",omitempty"`
+	SID                       string   `json:",omitempty"`
+	Count                     uint64   `json:",omitempty"`
+	LogonType                 uint32   `json:",omitempty"`
+	AuthenticationPackageName string   `json:",omitempty"`
+	IpAddress                 []string `json:",omitempty"`
+	FirstSeen                 time.Time
+	LastSeen                  time.Time
 }
 type Shares []Share
 type Share struct {
@@ -117,19 +117,19 @@ type Software struct {
 }
 type Users []User
 type User struct {
-	PasswordLastSet      time.Time `json:",omitempty"`
-	LastLogon            time.Time `json:",omitempty"`
-	LastLogoff           time.Time `json:",omitempty"`
-	Name                 string    `json:",omitempty"`
-	SID                  string    `json:",omitempty"`
-	FullName             string    `json:",omitempty"`
-	BadPasswordCount     int       `json:",omitempty"`
-	NumberOfLogins       int       `json:",omitempty"`
-	IsEnabled            bool      `json:",omitempty"`
-	IsLocked             bool      `json:",omitempty"`
-	IsAdmin              bool      `json:",omitempty"`
-	PasswordNeverExpires bool      `json:",omitempty"`
-	NoChangePassword     bool      `json:",omitempty"`
+	PasswordLastSet      time.Time
+	LastLogon            time.Time
+	LastLogoff           time.Time
+	Name                 string `json:",omitempty"`
+	SID                  string `json:",omitempty"`
+	FullName             string `json:",omitempty"`
+	BadPasswordCount     int    `json:",omitempty"`
+	NumberOfLogins       int    `json:",omitempty"`
+	IsEnabled            bool   `json:",omitempty"`
+	IsLocked             bool   `json:",omitempty"`
+	IsAdmin              bool   `json:",omitempty"`
+	PasswordNeverExpires bool   `json:",omitempty"`
+	NoChangePassword     bool   `json:",omitempty"`
 }
 type Groups []Group
 type Group struct {
@@ -159,25 +159,25 @@ type NetworkInterfaceInfo struct {
 	Flags      uint     `json:",omitempty"`
 }
 type RegisteredTask struct {
-	NextRunTime    time.Time      `json:",omitempty"`
-	LastRunTime    time.Time      `json:",omitempty"`
-	Definition     TaskDefinition `json:",omitempty"`
-	Name           string         `json:",omitempty"`
-	Path           string         `json:",omitempty"`
-	State          string         `json:",omitempty"`
-	MissedRuns     uint           `json:",omitempty"`
-	LastTaskResult uint32         `json:",omitempty"`
-	Enabled        bool           `json:",omitempty"`
+	NextRunTime    time.Time
+	LastRunTime    time.Time
+	Definition     TaskDefinition
+	Name           string `json:",omitempty"`
+	Path           string `json:",omitempty"`
+	State          string `json:",omitempty"`
+	MissedRuns     uint   `json:",omitempty"`
+	LastTaskResult uint32 `json:",omitempty"`
+	Enabled        bool   `json:",omitempty"`
 }
 type TaskDefinition struct {
-	RegistrationInfo RegistrationInfo `json:",omitempty"`
-	Principal        Principal        `json:",omitempty"`
-	Context          string           `json:",omitempty"`
-	Data             string           `json:",omitempty"`
-	XMLText          string           `json:",omitempty"`
-	Settings         TaskSettings     `json:",omitempty"`
-	Actions          []TaskAction     `json:",omitempty"`
-	Triggers         []string         `json:",omitempty"`
+	RegistrationInfo RegistrationInfo
+	Principal        Principal
+	Context          string `json:",omitempty"`
+	Data             string `json:",omitempty"`
+	XMLText          string `json:",omitempty"`
+	Settings         TaskSettings
+	Actions          []TaskAction `json:",omitempty"`
+	Triggers         []string     `json:",omitempty"`
 }
 type TaskAction struct {
 	Type       string `json:",omitempty"`
@@ -196,14 +196,14 @@ type Principal struct {
 	RunLevel  int    `json:",omitempty"`
 }
 type RegistrationInfo struct {
-	Author             string    `json:",omitempty"`
-	Date               time.Time `json:",omitempty"`
-	Description        string    `json:",omitempty"`
-	Documentation      string    `json:",omitempty"`
-	SecurityDescriptor string    `json:",omitempty"`
-	Source             string    `json:",omitempty"`
-	URI                string    `json:",omitempty"`
-	Version            string    `json:",omitempty"`
+	Author             string `json:",omitempty"`
+	Date               time.Time
+	Description        string `json:",omitempty"`
+	Documentation      string `json:",omitempty"`
+	SecurityDescriptor string `json:",omitempty"`
+	Source             string `json:",omitempty"`
+	URI                string `json:",omitempty"`
+	Version            string `json:",omitempty"`
 }
 type TaskSettings struct {
 	DeleteExpiredTaskAfter    string `json:",omitempty"`

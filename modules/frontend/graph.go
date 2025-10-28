@@ -27,7 +27,7 @@ type RequestNode struct {
 	Data     map[string]any `json:"data"`
 	Height   float64        `json:"height,omitempty"`
 	Width    float64        `json:"width,omitempty"`
-	Position Position       `json:"position,omitempty"`
+	Position Position       `json:"position"`
 }
 
 type RequestEdge struct {

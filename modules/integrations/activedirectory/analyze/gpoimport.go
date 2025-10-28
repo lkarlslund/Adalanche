@@ -127,7 +127,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 
 		var exposed []struct{ Username, Password string }
 
-		for _, line := range strings.Split(string(item.Contents), "\n") {
+		for line := range strings.SplitSeq(string(item.Contents), "\n") {
 			var unhandledpass bool
 
 			// FIXME: Handle other formats, adding something to catch this here
@@ -452,8 +452,8 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 						membersid = translatedsid.String()
 					}
 				}
-				groups := strings.Split(v, ",")
-				for _, groupsid := range groups {
+				groups := strings.SplitSeq(v, ",")
+				for groupsid := range groups {
 					var groupname string
 					if strings.HasPrefix(groupsid, "*") {
 						groupsid = strings.Trim(groupsid[1:], " ")
@@ -498,8 +498,8 @@ func GPOparseGptTmplInf(rawini string) []SIDpair {
 					}
 				}
 
-				members := strings.Split(v, ",")
-				for _, membersid := range members {
+				members := strings.SplitSeq(v, ",")
+				for membersid := range members {
 					var membername string
 					if strings.HasPrefix(membersid, "*") {
 						membersid = membersid[1:]

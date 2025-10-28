@@ -85,7 +85,7 @@ func (eb EdgeBitmap) ToStringSlice() []string {
 }
 
 func (eb EdgeBitmap) Range(f func(e Edge) bool) {
-	for index := 0; index < MAXEDGEPOSSIBLE; index++ {
+	for index := range MAXEDGEPOSSIBLE {
 		if eb.IsSet(Edge(index)) {
 			if !f(Edge(index)) {
 				return
@@ -400,7 +400,7 @@ var AllEdgesBitmap EdgeBitmap
 var EdgePopularity [MAXEDGEPOSSIBLE]uint64
 
 func init() {
-	for i := Edge(0); i < MAXEDGEPOSSIBLE; i++ {
+	for i := range Edge(MAXEDGEPOSSIBLE) {
 		AllEdgesBitmap = AllEdgesBitmap.set(i)
 	}
 }

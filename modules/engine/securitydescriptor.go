@@ -264,7 +264,7 @@ func ParseACL(data []byte) (ACL, error) {
 
 	acl.Entries = make([]ACE, aclcount)
 
-	for i := 0; i < aclcount; i++ {
+	for i := range aclcount {
 		var err error
 		var ace ACE
 		ace, acledata, err = ParseACLentry(acledata)
@@ -1085,7 +1085,7 @@ func parseAttributeName(blob []byte, pos *int) (string, error) {
 		return "", errors.New("unexpected EOF reading attribute name bytes")
 	}
 	u16 := make([]uint16, nameLen/2)
-	for i := 0; i < len(u16); i++ {
+	for i := range u16 {
 		u16[i] = binary.LittleEndian.Uint16(blob[*pos+2*i : *pos+2*i+2])
 	}
 	*pos += nameLen
@@ -1125,7 +1125,7 @@ func parseLiteralUnicodeString(blob []byte, pos *int) (exprNode, error) {
 		return exprNode{}, errors.New("unexpected EOF reading unicode string data")
 	}
 	u16 := make([]uint16, byteLen/2)
-	for i := 0; i < len(u16); i++ {
+	for i := range u16 {
 		u16[i] = binary.LittleEndian.Uint16(blob[*pos+2*i : *pos+2*i+2])
 	}
 	*pos += byteLen
@@ -1182,7 +1182,7 @@ func parseCompositeLiteral(blob []byte, pos *int) (exprNode, error) {
 				return exprNode{}, errors.New("composite: bad unicode string size")
 			}
 			u16 := make([]uint16, strLen/2)
-			for j := 0; j < len(u16); j++ {
+			for j := range u16 {
 				u16[j] = binary.LittleEndian.Uint16(sub[i+2*j : i+2*j+2])
 			}
 			i += strLen

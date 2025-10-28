@@ -126,10 +126,7 @@ func (ns *NodeSlice) Sort(attr Attribute, reverse bool) {
 			if !ok {
 				return false // Not comparable
 			}
-			components := it.Components()
-			if jt.Components() < components {
-				components = jt.Components()
-			}
+			components := min(jt.Components(), it.Components())
 			for i := 0; i < components; i++ {
 				if it.Component(i) == jt.Component(i) {
 					continue

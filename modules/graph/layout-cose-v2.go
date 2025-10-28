@@ -97,7 +97,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	for w := 0; w < numWorkers; w++ {
+	for range numWorkers {
 		go func() {
 			defer wg.Done()
 			for workItem := range workChan {
@@ -170,10 +170,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 		graphs = graphs[:len(graphs)-1]
 
 		// Use spatial grid for repulsion forces (O(n) instead of O(n²))
-		gridSize := int(math.Sqrt(float64(currentGraph.Order())))/5 + 1
-		if gridSize > 25 {
-			gridSize = 25
-		}
+		gridSize := min(int(math.Sqrt(float64(currentGraph.Order())))/5+1, 25)
 		grid := make([][]int, gridSize*gridSize)
 		for i := range grid {
 			grid[i] = make([]int, 0)
@@ -282,7 +279,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 			}()
 
 			// Collect forces
-			for i := 0; i < len(grid); i++ {
+			for range grid {
 				resultItem := <-resultChan
 				gridItem := grid[resultItem.gridY*gridSize+resultItem.gridX]
 				for j, result := range resultItem.forces {

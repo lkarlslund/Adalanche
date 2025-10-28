@@ -86,7 +86,7 @@ func init() {
 				if len(nodes) < 2 {
 					continue
 				}
-				for i := 0; i < len(nodes); i++ {
+				for i := range nodes {
 					for j := i + 1; j < len(nodes); j++ {
 						if i == j {
 							continue

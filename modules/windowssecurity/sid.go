@@ -88,7 +88,7 @@ func ParseStringSID(input string) (SID, error) {
 	binary.BigEndian.PutUint64(authslice, uint64(authority)<<16) // dirty tricks
 	copy(sid[0:], authslice[0:6])
 
-	for i := 0; i < subauthoritycount; i++ {
+	for i := range subauthoritycount {
 		subauthority, err := strconv.ParseUint(strnums[3+i], 10, 32)
 		if err != nil {
 			return "", err

@@ -19,7 +19,7 @@ type GPOinfo struct {
 	GUID          uuid.UUID     `json:",omitempty"`
 }
 type GPOfileinfo struct {
-	Timestamp    time.Time           `json:",omitempty"`
+	Timestamp    time.Time
 	RelativePath string              `json:",omitempty"`
 	OwnerSID     windowssecurity.SID `json:",omitempty"`
 	DACL         []byte              `json:",omitempty"`

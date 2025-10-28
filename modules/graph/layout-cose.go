@@ -120,10 +120,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) ma
 
 	// Set up parallel force calculation
 	numWorkers := runtime.GOMAXPROCS(0)
-	itemsPerTask := len(nodes) / numWorkers / 16
-	if itemsPerTask < 16 {
-		itemsPerTask = 16
-	}
+	itemsPerTask := max(len(nodes)/numWorkers/16, 16)
 	taskCount := (nodeCount + itemsPerTask - 1) / itemsPerTask
 
 	jobChan := make(chan forceWork, 16)
@@ -191,7 +188,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) ma
 	for iteration = 0; iteration < settings.MaxIterations; iteration++ {
 		// Queue jobs in the background
 		go func() {
-			for job := 0; job < taskCount; job++ {
+			for job := range taskCount {
 				start := job * itemsPerTask
 				end := start + itemsPerTask
 				if job == taskCount-1 {
@@ -208,7 +205,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) ma
 		}()
 
 		// Apply force results to nodes
-		for i := 0; i < taskCount; i++ {
+		for range taskCount {
 			result := <-resultChan
 			for localIdx := 0; localIdx < result.endIdx-result.startIdx; localIdx++ {
 				nodeIdx := localIdx + result.startIdx

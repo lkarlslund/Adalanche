@@ -68,7 +68,7 @@ func (avs AttributeValues) Iterate(it func(val AttributeValue) bool) {
 
 func (avs AttributeValues) StringSlice() []string {
 	result := make([]string, len(avs))
-	for i := 0; i < len(avs); i++ {
+	for i := range avs {
 		result[i] = avs[i].String()
 	}
 	return result

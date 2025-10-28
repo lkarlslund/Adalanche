@@ -181,9 +181,7 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 			if ourNodeData == nil {
 				pg.nodes[otherNode] = otherNodeData
 			} else {
-				for k, v := range otherNodeData {
-					ourNodeData[k] = v
-				}
+				maps.Copy(ourNodeData, otherNodeData)
 			}
 		}
 	}
@@ -195,9 +193,7 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 			if mergeddata == nil {
 				mergeddata = otheredge.Data
 			} else if otheredge.Data != nil {
-				for k, v := range otheredge.Data {
-					mergeddata[k] = v
-				}
+				maps.Copy(mergeddata, otheredge.Data)
 			}
 			pg.edges[otherconnection] = Edge[EdgeType]{
 				Edge: mergededge,
@@ -459,9 +455,7 @@ func (pg Graph[NodeType, EdgeType]) Transpose() Graph[NodeType, EdgeType] {
 	npg := NewGraph[NodeType, EdgeType]()
 
 	// Copy nodes
-	for id, node := range pg.nodes {
-		npg.nodes[id] = node
-	}
+	maps.Copy(npg.nodes, pg.nodes)
 
 	// Add reverse connections
 	for connection, edge := range pg.edges {
