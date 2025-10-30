@@ -338,6 +338,20 @@ func AddDataEndpoints(ws *WebService) {
 					c.String(500, "Error parsing ID")
 					return
 				}
+				o, found = ws.SuperGraph.IndexToNode(engine.NodeIndex(thisId))
+				if !found {
+					c.AbortWithStatus(404)
+					return
+				}
+				nodes[i] = o
+			}
+		case "nodeid":
+			for i, id := range ids {
+				thisId, err := strconv.ParseInt(id, 10, 64)
+				if err != nil {
+					c.String(500, "Error parsing ID")
+					return
+				}
 				o, found = ws.SuperGraph.LookupNodeByID(engine.NodeID(thisId))
 				if !found {
 					c.AbortWithStatus(404)
