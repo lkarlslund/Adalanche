@@ -28,19 +28,23 @@ type Info struct {
 	UnprivilegedCollection bool `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
 }
 type Machine struct {
-	Name               string   `json:",omitempty"`
-	LocalSID           string   `json:",omitempty"`
-	Domain             string   `json:",omitempty"`
-	ComputerDomainSID  string   `json:",omitempty"`
-	Architecture       string   `json:",omitempty"`
-	ProductName        string   `json:",omitempty"`
-	ProductType        string   `json:",omitempty"`
-	ProductSuite       string   `json:",omitempty"`
-	EditionID          string   `json:",omitempty"`
-	ReleaseID          string   `json:",omitempty"`
-	BuildBranch        string   `json:",omitempty"`
-	Version            string   `json:",omitempty"`
-	BuildNumber        string   `json:",omitempty"`
+	Name              string `json:",omitempty"`
+	LocalSID          string `json:",omitempty"`
+	Domain            string `json:",omitempty"`
+	ComputerDomainSID string `json:",omitempty"`
+	Architecture      string `json:",omitempty"`
+	ProductName       string `json:",omitempty"`
+	ProductType       string `json:",omitempty"`
+	ProductSuite      string `json:",omitempty"`
+	EditionID         string `json:",omitempty"`
+	ReleaseID         string `json:",omitempty"`
+	BuildBranch       string `json:",omitempty"`
+	Version           string `json:",omitempty"`
+	BuildNumber       string `json:",omitempty"`
+	DisplayVersion    string `json:",omitempty"`
+	BuildLab          string `json:",omitempty"`
+	LCUVer            string `json:",omitempty"`
+
 	DefaultUsername    string   `json:",omitempty"`
 	DefaultDomain      string   `json:",omitempty"`
 	AltDefaultUsername string   `json:",omitempty"`

@@ -101,6 +101,9 @@ func Collect() (localmachine.Info, error) {
 		machineinfo.MajorVersionNumber, _, _ = currentversion_key.GetIntegerValue("CurrentVersionMajorNumber")
 		machineinfo.Version, _, _ = currentversion_key.GetStringValue("CurrentVersion")
 		machineinfo.BuildNumber, _, _ = currentversion_key.GetStringValue("CurrentBuildNumber")
+		machineinfo.DisplayVersion, _, _ = currentversion_key.GetStringValue("DisplayVersion")
+		machineinfo.BuildLab, _, _ = currentversion_key.GetStringValue("BuildLab")
+		machineinfo.LCUVer, _, _ = currentversion_key.GetStringValue("LCUVer")
 		UBR, _, _ := currentversion_key.GetStringValue("UBR")
 		if UBR != "" {
 			machineinfo.BuildNumber += "." + UBR
