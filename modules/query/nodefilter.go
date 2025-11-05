@@ -412,12 +412,21 @@ func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	if val == nil {
 		return false
 	}
-	realval, ok := val.First().(t)
-	if !ok {
-		return false
-	}
-	return Comparator[t](tc.Comparator).Compare(realval, tc.Value)
+	var matched bool
+	val.Iterate(func(thisVal engine.AttributeValue) bool {
+		realval, ok := thisVal.Raw().(t)
+		if !ok {
+			return false
+		}
+		if Comparator[t](tc.Comparator).Compare(realval, tc.Value) {
+			matched = true
+			return false
+		}
+		return true
+	})
+	return matched
 }
+
 func (tc TypedComparison[t]) ToLDAPFilter(a string) string {
 	return a + tc.Comparator.String() + fmt.Sprintf("%v", tc.Value)
 }
