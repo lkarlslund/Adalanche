@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
@@ -470,6 +471,14 @@ func (o *Node) setFlex(flexinit ...any) {
 			data = data[:0]
 			attribute = v
 		default:
+			if i == nil && ignoreblanks {
+				continue
+			}
+			// deref pointers
+			if reflect.ValueOf(i).Kind() == reflect.Ptr {
+				i = reflect.ValueOf(i).Elem().Interface()
+			}
+
 			newvalue := NV(i)
 			if newvalue == nil || (ignoreblanks && newvalue.IsZero()) {
 				continue

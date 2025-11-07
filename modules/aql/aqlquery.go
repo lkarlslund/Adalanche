@@ -157,15 +157,17 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 
 				switch aqlq.Mode {
+				case Walk:
+					// no-op
 				case Trail:
 					if direction == engine.Out {
-						if committedGraph.HasEdge(currentState.node, nextNode) ||
-							currentState.workingGraph.HasEdge(currentState.node.ID(), nextNode.ID()) {
+						if /*committedGraph.HasEdge(currentState.node, nextNode) ||*/
+						currentState.workingGraph.HasEdge(currentState.node.ID(), nextNode.ID()) {
 							return true
 						}
 					} else {
-						if committedGraph.HasEdge(nextNode, currentState.node) ||
-							currentState.workingGraph.HasEdge(nextNode.ID(), currentState.node.ID()) {
+						if /*committedGraph.HasEdge(nextNode, currentState.node) ||*/
+						currentState.workingGraph.HasEdge(nextNode.ID(), currentState.node.ID()) {
 							return true
 						}
 					}
@@ -173,10 +175,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					if currentState.workingGraph.HasNode(nextNode.ID()) || committedGraph.HasNode(nextNode) {
 						return true
 					}
-				case Simple:
-					if currentState.workingGraph.HasNode(nextNode.ID()) {
-						return true
-					}
+					// case Path:
+					// 	if currentState.workingGraph.HasNode(nextNode.ID()) {
+					// 		return true
+					// 	}
 				}
 
 				if thisEdgeSearcher.FilterEdges.NegativeComparator != query.CompareInvalid {
