@@ -317,7 +317,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	case GreaterThanEquals:
 		comparator = query.CompareGreaterThanEqual
 	case Equals:
-		comparator = query.CompareEquals
+		comparator = query.CompareEqual
 	default:
 		return nil, errors.New("Expected comparator, got " + ts.Token().Value)
 	}
@@ -490,7 +490,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			TimeSpan:   duration})
 		break
 	case "1.2.840.113556.1.4.803", "and":
-		if comparator != query.CompareEquals {
+		if comparator != query.CompareEqual {
 			return nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
 
@@ -503,7 +503,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 
 		result = genwrapper(query.BinaryAndModifier{Value: i})
 	case "1.2.840.113556.1.4.804", "or":
-		if comparator != query.CompareEquals {
+		if comparator != query.CompareEqual {
 			return nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
 		if !ts.Token().Is(Integer) {
@@ -536,7 +536,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	if result == nil {
 		// string comparison
 		strval := value.String()
-		if comparator == query.CompareEquals {
+		if comparator == query.CompareEqual {
 			if value.String() == "*" {
 				result = genwrapper(query.HasAttr{})
 			} else if strings.HasPrefix(strval, "/") && strings.HasSuffix(strval, "/") {
@@ -582,9 +582,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		if err != nil {
 			return nil, fmt.Errorf("Could not convert value to integer for numeric comparison: %v", err)
 		}
-		result = genwrapper(query.TypedComparison[int64]{
+		result = genwrapper(query.AttributeComparison{
 			Comparator: comparator,
-			Value:      i})
+			Value:      engine.NV(i),
+		})
 	}
 
 	if invert {
@@ -748,7 +749,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					if err != nil {
 						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
-					if comparator != query.CompareEquals {
+					if comparator != query.CompareEqual {
 						return es, fmt.Errorf("Tag requires equals, but we got %v (%v)", comparator, ts.Token().Value)
 					}
 					if ts.Token().Type != Identifier {
@@ -770,7 +771,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					if err != nil {
 						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
-					if comparator != query.CompareEquals {
+					if comparator != query.CompareEqual {
 						return es, fmt.Errorf("Tag requires equals, but we got %v (%v)", comparator, ts.Token().Value)
 					}
 					if ts.Token().Type != Identifier {
@@ -885,7 +886,7 @@ func GetComparator(ts *TokenStream) (query.ComparatorType, error) {
 	var result query.ComparatorType
 	switch ts.Token().Type {
 	case Equals:
-		result = query.CompareEquals
+		result = query.CompareEqual
 	case GreaterThan:
 		result = query.CompareGreaterThan
 	case GreaterThanEquals:

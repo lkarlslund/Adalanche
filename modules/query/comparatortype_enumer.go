@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const _ComparatorTypeName = "CompareInvalidCompareEqualsCompareLessThanCompareLessThanEqualCompareGreaterThanCompareGreaterThanEqual"
+const _ComparatorTypeName = "CompareInvalidCompareDifferentCompareEqualCompareLessThanCompareLessThanEqualCompareGreaterThanCompareGreaterThanEqual"
 
-var _ComparatorTypeIndex = [...]uint8{0, 14, 27, 42, 62, 80, 103}
+var _ComparatorTypeIndex = [...]uint8{0, 14, 30, 42, 57, 77, 95, 118}
 
-const _ComparatorTypeLowerName = "compareinvalidcompareequalscomparelessthancomparelessthanequalcomparegreaterthancomparegreaterthanequal"
+const _ComparatorTypeLowerName = "compareinvalidcomparedifferentcompareequalcomparelessthancomparelessthanequalcomparegreaterthancomparegreaterthanequal"
 
 func (i ComparatorType) String() string {
 	if i >= ComparatorType(len(_ComparatorTypeIndex)-1) {
@@ -25,37 +25,41 @@ func (i ComparatorType) String() string {
 func _ComparatorTypeNoOp() {
 	var x [1]struct{}
 	_ = x[CompareInvalid-(0)]
-	_ = x[CompareEquals-(1)]
-	_ = x[CompareLessThan-(2)]
-	_ = x[CompareLessThanEqual-(3)]
-	_ = x[CompareGreaterThan-(4)]
-	_ = x[CompareGreaterThanEqual-(5)]
+	_ = x[CompareDifferent-(1)]
+	_ = x[CompareEqual-(2)]
+	_ = x[CompareLessThan-(3)]
+	_ = x[CompareLessThanEqual-(4)]
+	_ = x[CompareGreaterThan-(5)]
+	_ = x[CompareGreaterThanEqual-(6)]
 }
 
-var _ComparatorTypeValues = []ComparatorType{CompareInvalid, CompareEquals, CompareLessThan, CompareLessThanEqual, CompareGreaterThan, CompareGreaterThanEqual}
+var _ComparatorTypeValues = []ComparatorType{CompareInvalid, CompareDifferent, CompareEqual, CompareLessThan, CompareLessThanEqual, CompareGreaterThan, CompareGreaterThanEqual}
 
 var _ComparatorTypeNameToValueMap = map[string]ComparatorType{
 	_ComparatorTypeName[0:14]:        CompareInvalid,
 	_ComparatorTypeLowerName[0:14]:   CompareInvalid,
-	_ComparatorTypeName[14:27]:       CompareEquals,
-	_ComparatorTypeLowerName[14:27]:  CompareEquals,
-	_ComparatorTypeName[27:42]:       CompareLessThan,
-	_ComparatorTypeLowerName[27:42]:  CompareLessThan,
-	_ComparatorTypeName[42:62]:       CompareLessThanEqual,
-	_ComparatorTypeLowerName[42:62]:  CompareLessThanEqual,
-	_ComparatorTypeName[62:80]:       CompareGreaterThan,
-	_ComparatorTypeLowerName[62:80]:  CompareGreaterThan,
-	_ComparatorTypeName[80:103]:      CompareGreaterThanEqual,
-	_ComparatorTypeLowerName[80:103]: CompareGreaterThanEqual,
+	_ComparatorTypeName[14:30]:       CompareDifferent,
+	_ComparatorTypeLowerName[14:30]:  CompareDifferent,
+	_ComparatorTypeName[30:42]:       CompareEqual,
+	_ComparatorTypeLowerName[30:42]:  CompareEqual,
+	_ComparatorTypeName[42:57]:       CompareLessThan,
+	_ComparatorTypeLowerName[42:57]:  CompareLessThan,
+	_ComparatorTypeName[57:77]:       CompareLessThanEqual,
+	_ComparatorTypeLowerName[57:77]:  CompareLessThanEqual,
+	_ComparatorTypeName[77:95]:       CompareGreaterThan,
+	_ComparatorTypeLowerName[77:95]:  CompareGreaterThan,
+	_ComparatorTypeName[95:118]:      CompareGreaterThanEqual,
+	_ComparatorTypeLowerName[95:118]: CompareGreaterThanEqual,
 }
 
 var _ComparatorTypeNames = []string{
 	_ComparatorTypeName[0:14],
-	_ComparatorTypeName[14:27],
-	_ComparatorTypeName[27:42],
-	_ComparatorTypeName[42:62],
-	_ComparatorTypeName[62:80],
-	_ComparatorTypeName[80:103],
+	_ComparatorTypeName[14:30],
+	_ComparatorTypeName[30:42],
+	_ComparatorTypeName[42:57],
+	_ComparatorTypeName[57:77],
+	_ComparatorTypeName[77:95],
+	_ComparatorTypeName[95:118],
 }
 
 // ComparatorTypeString retrieves an enum value from the enum constants string name.

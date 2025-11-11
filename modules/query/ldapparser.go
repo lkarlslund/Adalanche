@@ -144,7 +144,7 @@ attributeloop:
 		s = s[1:]
 	}
 
-	comparator := CompareEquals
+	comparator := CompareEqual
 	switch comparatorstring {
 	case "<":
 		comparator = CompareLessThan
@@ -188,7 +188,8 @@ valueloop:
 	// Eat the )
 	s = s[1:]
 
-	valuenum, numok := strconv.ParseInt(value, 10, 64)
+	valuefloat, floatok := strconv.ParseFloat(value, 64)
+	valueint, intok := strconv.ParseInt(value, 10, 64)
 
 	if len(attributename) == 0 {
 		return nil, nil, errors.New("Empty attribute name detected")
@@ -217,20 +218,20 @@ valueloop:
 		// Magic attributes, uuuuuh ....
 		switch strings.ToLower(attributename) {
 		case "_id":
-			if numok != nil {
+			if floatok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for id comparison")
 			}
-			return s, &id{comparator, valuenum}, nil
+			return s, &id{comparator, valueint}, nil
 		case "_limit":
-			if numok != nil {
+			if floatok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for limit limiter")
 			}
-			return s, &Limit{valuenum}, nil
+			return s, &Limit{valueint}, nil
 		case "_random100":
-			if numok != nil {
+			if floatok != nil {
 				return nil, nil, errors.New("Could not convert value to integer for random100 limiter")
 			}
-			return s, &Random100{comparator, valuenum}, nil
+			return s, &Random100{comparator, valueint}, nil
 		case "_pwnable", "_canpwn", "out", "in":
 			edgename := value
 			var target NodeFilter
@@ -309,17 +310,17 @@ valueloop:
 	case "caseExactMatch":
 		casesensitive = true
 	case "count":
-		if numok != nil {
+		if floatok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(CountModifier{comparator, int(valuenum)})
+		result = genwrapper(CountModifier{comparator, int(valuefloat)})
 	case "len", "length":
-		if numok != nil {
+		if floatok != nil {
 			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
 		}
-		result = genwrapper(LengthModifier{comparator, int(valuenum)})
+		result = genwrapper(LengthModifier{comparator, int(valuefloat)})
 	case "since":
-		if numok != nil {
+		if floatok != nil {
 			// try to parse it as an duration
 			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
@@ -330,7 +331,7 @@ valueloop:
 				TimeSpan:   duration})
 			break
 		}
-		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
+		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuefloat))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
@@ -341,7 +342,7 @@ valueloop:
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, nil, errors.New("timediff modifier requires two attributes")
 		}
-		if numok != nil {
+		if floatok != nil {
 			// try to parse it as an duration
 			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
@@ -353,7 +354,7 @@ valueloop:
 				TimeSpan:   duration})
 			break
 		}
-		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuenum))
+		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuefloat))
 		if err != nil {
 			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
 		}
@@ -362,15 +363,21 @@ valueloop:
 			Comparator: comparator,
 			TimeSpan:   duration})
 	case "1.2.840.113556.1.4.803", "and":
-		if comparator != CompareEquals {
+		if comparator != CompareEqual {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
-		result = genwrapper(BinaryAndModifier{valuenum})
+		if intok != nil {
+			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+		}
+		result = genwrapper(BinaryAndModifier{valueint})
 	case "1.2.840.113556.1.4.804", "or":
-		if comparator != CompareEquals {
+		if comparator != CompareEqual {
 			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
-		result = genwrapper(BinaryOrModifier{valuenum})
+		if intok != nil {
+			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+		}
+		result = genwrapper(BinaryOrModifier{valueint})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
 		result = genwrapper(RecursiveDNmatcher{DN: value, AO: ao})
@@ -380,7 +387,7 @@ valueloop:
 
 	if result == nil {
 		// string comparison
-		if comparator == CompareEquals {
+		if comparator == CompareEqual {
 			if value == "*" {
 				result = genwrapper(HasAttr{})
 			} else if strings.HasPrefix(value, "/") && strings.HasSuffix(value, "/") {
@@ -422,12 +429,13 @@ valueloop:
 
 	if result == nil {
 		// the other comparators require numeric value
-		if numok != nil {
+		if floatok != nil {
 			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
 		}
-		result = genwrapper(TypedComparison[int64]{
+		result = genwrapper(AttributeComparison{
 			Comparator: comparator,
-			Value:      valuenum})
+			Value:      engine.NV(valuefloat),
+		})
 	}
 
 	if invert {

@@ -14,10 +14,10 @@ require (
 	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20230201052002-6c5833b989be
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/Velocidex/ordereddict v0.0.0-20250821063524-02dc06e46238
-	github.com/akyoto/cache v1.0.6
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/antchfx/xmlquery v1.4.4
 	github.com/bytedance/sonic v1.14.1
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/elastic/go-windows v1.0.2
 	github.com/felixge/fgprof v0.9.5
 	github.com/felixge/fgtrace v0.2.0
@@ -57,11 +57,9 @@ require (
 	golang.org/x/term v0.35.0
 	golang.org/x/text v0.29.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
-    github.com/cespare/xxhash/v2 v2.3.0
 )
 
 require (
-    github.com/bytedance/gopkg v0.1.3 // indirect
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
@@ -72,6 +70,7 @@ require (
 	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
+	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/containerd/console v1.0.5 // indirect

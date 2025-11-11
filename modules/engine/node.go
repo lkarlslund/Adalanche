@@ -420,7 +420,7 @@ func (o *Node) setFlex(flexinit ...any) {
 			ignoreblanks = true
 			continue
 		}
-		if i == nil {
+		if i == nil || (reflect.ValueOf(i).Kind() == reflect.Ptr && reflect.ValueOf(i).IsNil()) {
 			if ignoreblanks {
 				continue
 			}
@@ -471,9 +471,6 @@ func (o *Node) setFlex(flexinit ...any) {
 			data = data[:0]
 			attribute = v
 		default:
-			if i == nil && ignoreblanks {
-				continue
-			}
 			// deref pointers
 			if reflect.ValueOf(i).Kind() == reflect.Ptr {
 				i = reflect.ValueOf(i).Elem().Interface()
@@ -481,7 +478,10 @@ func (o *Node) setFlex(flexinit ...any) {
 
 			newvalue := NV(i)
 			if newvalue == nil || (ignoreblanks && newvalue.IsZero()) {
-				continue
+				if ignoreblanks {
+					continue
+				}
+				ui.Fatal().Msgf("Flex initialization with NIL value")
 			}
 			data = append(data, newvalue)
 		}

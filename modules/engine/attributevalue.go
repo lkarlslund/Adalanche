@@ -142,6 +142,10 @@ func NV(v any) AttributeValue {
 		}
 		existingValue, _ := uniqueValues.LoadOrStore(hash, attributeValueGUID(val))
 		return existingValue
+	case float32:
+		return attributeValueFloat(val)
+	case float64:
+		return attributeValueFloat(val)
 	case *Node:
 		return attributeValueNode{Node: val}
 	case *SecurityDescriptor:
@@ -254,6 +258,45 @@ func (as attributeValueInt) IsZero() bool {
 func (ab attributeValueInt) Compare(c AttributeValue) int {
 	if cb, ok := c.(attributeValueInt); ok {
 		return int(ab - cb)
+	}
+	if cb, ok := c.(attributeValueFloat); ok {
+		res := float64(ab) - float64(cb)
+		if res < 0 {
+			return -1
+		} else if res > 0 {
+			return 1
+		}
+		return 0
+	}
+	return strings.Compare(ab.String(), c.String())
+}
+
+type attributeValueFloat float64
+
+func (as attributeValueFloat) String() string {
+	return strconv.FormatFloat(float64(as), 'f', -1, 64)
+}
+
+func (as attributeValueFloat) Raw() any {
+	return float64(as)
+}
+
+func (as attributeValueFloat) IsZero() bool {
+	return float64(as) == 0
+}
+
+func (ab attributeValueFloat) Compare(c AttributeValue) int {
+	if cb, ok := c.(attributeValueFloat); ok {
+		return int(ab - cb)
+	}
+	if cb, ok := c.(attributeValueInt); ok {
+		res := float64(ab) - float64(cb)
+		if res < 0 {
+			return -1
+		} else if res > 0 {
+			return 1
+		}
+		return 0
 	}
 	return strings.Compare(ab.String(), c.String())
 }

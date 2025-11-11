@@ -44,6 +44,7 @@ type nodeTypeInfo struct {
 	Name           string
 	Lookup         string
 	DefaultEnabled bool
+	Icon           string
 }
 
 var nodeTypeNums = []nodeTypeInfo{
@@ -127,6 +128,13 @@ func (ot NodeType) Lookup() string {
 func (ot NodeType) SetDefault(enabled bool) NodeType {
 	nodeTypeMutex.Lock()
 	nodeTypeNums[ot].DefaultEnabled = enabled
+	nodeTypeMutex.Unlock()
+	return ot
+}
+
+func (ot NodeType) SetIcon(icon string) NodeType {
+	nodeTypeMutex.Lock()
+	nodeTypeNums[ot].Icon = icon
 	nodeTypeMutex.Unlock()
 	return ot
 }

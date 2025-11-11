@@ -113,7 +113,8 @@ type ComparatorType byte
 //go:generate go tool github.com/dmarkham/enumer --type=ComparatorType
 const (
 	CompareInvalid ComparatorType = iota
-	CompareEquals
+	CompareDifferent
+	CompareEqual
 	CompareLessThan
 	CompareLessThanEqual
 	CompareGreaterThan
@@ -124,7 +125,9 @@ type Comparator[t cmp.Ordered] ComparatorType
 
 func (c Comparator[t]) Compare(a, b t) bool {
 	switch ComparatorType(c) {
-	case CompareEquals:
+	case CompareDifferent:
+		return a != b
+	case CompareEqual:
 		return a == b
 	case CompareLessThan:
 		return a < b
@@ -402,24 +405,48 @@ func (om BinaryOrModifier) ToWhereClause(a string) string {
 	return a + " || " + strconv.FormatInt(om.Value, 10) + "=" + strconv.FormatInt(om.Value, 10)
 }
 
-type TypedComparison[t cmp.Ordered] struct {
-	Value      t
+type AttributeComparison struct {
+	Value      engine.AttributeValue
 	Comparator ComparatorType
 }
 
-func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Node) bool {
+func (tc AttributeComparison) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	val := o.Attr(a)
 	if val == nil {
 		return false
 	}
 	var matched bool
 	val.Iterate(func(thisVal engine.AttributeValue) bool {
-		realval, ok := thisVal.Raw().(t)
-		if !ok {
-			return false
+		comp := thisVal.Compare(tc.Value)
+		switch tc.Comparator {
+		case CompareDifferent:
+			if comp != 0 {
+				matched = true
+			}
+		case CompareEqual:
+			if comp == 0 {
+				matched = true
+			}
+		case CompareLessThan:
+			if comp < 0 {
+				matched = true
+			}
+		case CompareLessThanEqual:
+			if comp <= 0 {
+				matched = true
+			}
+		case CompareGreaterThan:
+			if comp > 0 {
+				matched = true
+			}
+		case CompareGreaterThanEqual:
+			if comp >= 0 {
+				matched = true
+			}
+		default:
+			panic("Unknown comparator")
 		}
-		if Comparator[t](tc.Comparator).Compare(realval, tc.Value) {
-			matched = true
+		if matched {
 			return false
 		}
 		return true
@@ -427,10 +454,10 @@ func (tc TypedComparison[t]) Evaluate(a engine.Attribute, o *engine.Node) bool {
 	return matched
 }
 
-func (tc TypedComparison[t]) ToLDAPFilter(a string) string {
+func (tc AttributeComparison) ToLDAPFilter(a string) string {
 	return a + tc.Comparator.String() + fmt.Sprintf("%v", tc.Value)
 }
-func (tc TypedComparison[t]) ToWhereClause(a string) string {
+func (tc AttributeComparison) ToWhereClause(a string) string {
 	return a + tc.Comparator.String() + fmt.Sprintf("%v", tc.Value)
 }
 
