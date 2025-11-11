@@ -22,9 +22,9 @@ type NodePair[NodeType GraphNodeInterface[NodeType]] struct {
 }
 
 type Edge[EdgeType GraphEdgeInterface[EdgeType]] struct {
+	Data map[string]any
 	Edge EdgeType
 	Flow int
-	Data map[string]any
 }
 
 type Graph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
@@ -660,9 +660,9 @@ func (pg Graph[NodeType, EdgeType]) Size() int {
 }
 
 type SCCDAG[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
-	Nodes     [][]NodeType         // Each SCC as a slice of nodes
-	Edges     map[int]map[int]bool // Edge from SCC i → SCC j
 	NodeToSCC map[NodeType]int     // Map each original node to its SCC index
+	Edges     map[int]map[int]bool // Edge from SCC i → SCC j
+	Nodes     [][]NodeType         // Each SCC as a slice of nodes
 }
 
 func CollapseSCCs[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](sccs [][]NodeType, g Graph[NodeType, EdgeType]) SCCDAG[NodeType, EdgeType] {

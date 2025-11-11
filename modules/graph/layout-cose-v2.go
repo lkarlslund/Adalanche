@@ -10,15 +10,15 @@ import (
 )
 
 type forceGridWork struct {
-	gridX, gridY int
-	gridSize     int
 	grid         [][]int
 	nodes        []layoutNode
+	gridX, gridY int
+	gridSize     int
 }
 
 type forceGridResult struct {
-	gridX, gridY int
 	forces       []placement
+	gridX, gridY int
 }
 
 type placement struct {
@@ -82,7 +82,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 	idealLineLength := settings.IdealEdgeLength * k
 
 	initialTemp := settings.Temperature * k
-	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %f", area, radius, totalNodeCount)
+	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %v", area, radius, totalNodeCount)
 	ui.Debug().Msgf("Calculated k: %f, initial temperature %f", k, initialTemp)
 
 	// Random placement with better distribution
