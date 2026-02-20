@@ -42,11 +42,23 @@ if ($env:SKIP_FRONTEND_VENDOR -ne "1") {
   if ((Test-Path $vendorSrc) -and (Get-Command "npm" -ErrorAction SilentlyContinue)) {
     Write-Output "Building frontend vendor bundles ..."
     Push-Location $vendorSrc
-    npm ci --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw "npm ci failed in $vendorSrc" }
-    npm run build
-    if ($LASTEXITCODE -ne 0) { throw "npm run build failed in $vendorSrc" }
-    Pop-Location
+    try {
+      $packageLock = Join-Path $vendorSrc "package-lock.json"
+      $shrinkwrap = Join-Path $vendorSrc "npm-shrinkwrap.json"
+      if ((Test-Path $packageLock) -or (Test-Path $shrinkwrap)) {
+        npm ci --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed in $vendorSrc" }
+      } else {
+        Write-Output "No npm lockfile found in $vendorSrc; running npm install instead of npm ci."
+        npm install --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "npm install failed in $vendorSrc" }
+      }
+
+      npm run build
+      if ($LASTEXITCODE -ne 0) { throw "npm run build failed in $vendorSrc" }
+    } finally {
+      Pop-Location
+    }
   } else {
     Write-Output "Skipping frontend vendor build (npm or vendor-src not available)."
   }
