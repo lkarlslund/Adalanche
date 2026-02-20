@@ -1,0 +1,5 @@
+{
+  "ui-core": "external/vendor/ui-core.bundle.js",
+  "graph-core": "external/vendor/graph-core.bundle.js",
+  "bootstrap": "external/vendor/bootstrap.bundle.js"
+}

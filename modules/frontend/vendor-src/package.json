@@ -1,0 +1,34 @@
+{
+  "name": "adalanche-frontend-vendor",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vendor bundle build workspace for Adalanche frontend",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "build:watch": "node ./scripts/build.mjs --watch",
+    "clean": "node ./scripts/build.mjs --clean",
+    "check": "node ./scripts/check.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.1"
+  },
+  "dependencies": {
+    "@alpinejs/persist": "^3.14.9",
+    "@ryangjchandler/alpine-tooltip": "^2.0.1",
+    "alpinejs": "^3.14.9",
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.3",
+    "bootstrap-icons": "^1.11.3",
+    "cytoscape": "^3.30.3",
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "cytoscape-context-menus": "^4.2.1",
+    "cytoscape-d3-force": "^1.1.4",
+    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-expand-collapse": "^4.1.1",
+    "cytoscape-fcose": "^2.2.0",
+    "d3-force-sampled": "^1.0.1",
+    "cytoscape-popper": "^4.0.1",
+    "dagre": "^0.8.5",
+    "tippy.js": "^6.3.7"
+  }
+}
