@@ -615,7 +615,7 @@ function getGraphlayout(choice) {
         break;
       default:
         // toast error
-        console.log("Unknown layout choice: " + choice);
+        console.warn("Unknown layout choice:", choice);
         break;
     }
 
@@ -1072,7 +1072,7 @@ function initgraph(data) {
             fetchJSONOrThrow("api/details/id/" + id)
                 .then(function (data) {
                     windowname = "details_" + id;
-                    if (getpref("ui.open.details.in.same.window")) {
+                    if (getpref("ui.open.details.in.same.window", true)) {
                       windowname = "node_details";
                     }
                     new_window(windowname, rendernode(data), renderdetails(data));
@@ -1087,7 +1087,7 @@ function initgraph(data) {
               fetchJSONOrThrow("api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1))
                 .then(function (data) {
                   windowname = "edge_" + evt.target.source().id() + "_to_" + evt.target.target().id();
-                  if (getpref("ui.open.details.in.same.window")) {
+                  if (getpref("ui.open.details.in.same.window", true)) {
                     windowname = "edge_details";
                   }
                   new_window(
@@ -1152,7 +1152,6 @@ function initgraph(data) {
       animate: true, // whether to animate on drawing changes you can specify a function too
       animationDuration: 1000, // when animate is true, the duration in milliseconds of the animation
       ready: function () {
-        console.log("collapse init");
       }, // callback when expand/collapse initialized
       undoable: true, // and if undoRedoExtension exists,
 
@@ -1292,7 +1291,6 @@ function findroute(source) {
     })
     if (dfs.path) {
       dfs.path.select();
-      console.log(dfs.distance);
       pathprobability = 1.0;
       dfs.path.forEach(function (ele) {
         if (ele.isEdge()) {

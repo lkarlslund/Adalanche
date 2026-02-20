@@ -14,13 +14,13 @@
     <link rel="icon" type="image/png" href="icons/adalanche-favicon.png" />
 
     <!-- <link rel="stylesheet" type="text/css" href="external/halfmoon-ui/halfmoon.css" /> -->
-    <link rel="stylesheet" type="text/css" href="external/bootstrap/css/bootstrap.css" />
-    <link rel="stylesheet" type="text/css" href="external/bootstrap-icons/bootstrap-icons.css" />
+    <link rel="stylesheet" type="text/css" href="external/vendor/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="external/vendor/bootstrap-icons/bootstrap-icons.css" />
 
     <link rel="stylesheet" type="text/css" href="external/toastify.min.css">
     <link rel="stylesheet" type="text/css" href="external/spinkit.css" />
     <link rel="stylesheet" type="text/css" href="external/graph/cytoscape-context-menus.css" />
-    <link rel="stylesheet" type="text/css" href="external/tippy.css" />
+    <link rel="stylesheet" type="text/css" href="external/vendor/tippy.css" />
 
     <!-- we put everything custom here, so we can override earlier variables -->
     <link rel="stylesheet" href="adalanche.css" />
@@ -28,38 +28,13 @@
       [x-cloak] { display: none !important; }
     </style>
 
-    <script defer src="external/alpinejs/persist.js"></script>
-    <script defer src="external/alpinejs/tooltip.js"></script>
-    <script defer src="external/alpinejs/alpine.js"></script>
+    <script src="preferences.js"></script>
+    <script type="module" src="external/vendor/bootstrap.bundle.js"></script>
 
     <script src="external/popper.min.js"></script>
 
-    <script src="external/graph/cytoscape.umd.js"></script>
-    <script src="external/graph/cytoscape-context-menus.js"></script>
-    <script src="external/graph/cytoscape-popper.js"></script>
-    <script src="external/graph/cytoscape-expand-collapse.js"></script>
 
-    <script src="external/graph/d3-dispatch.v3.js"></script>
-    <script src="external/graph/d3-quadtree.v3.js"></script>
-    <script src="external/graph/d3-timer.v3.js"></script>
-    <script src="external/graph/d3-force.v3.js"></script>
-    <script src="external/graph/d3-force-reuse.js"></script>
-    <script src="external/graph/d3-force-sampled.js"></script>
-    <script>
-      window["d3-force"] = d3;
-    </script>
-    {{/*
-    <script src="external/graph/cytoscape-d3-force.js"></script>
-    */}}
-    <script src="external/graph/cytoscape-d3-force-sampled.js"></script>
-
-    <!-- Cytoscape layout engines -->
-    <script src="external/graph/layout-base.js"></script>
-    <script src="external/graph/cose-base.js"></script>
-    <script src="external/graph/cytoscape-fcose.js"></script>
-    <script src="external/graph/cytoscape-cose-bilkent.js"></script>
-    <script src="external/graph/dagre.min.js"></script>
-    <script src="external/graph/cytoscape-dagre.js"></script>
+    <!-- Remaining non-vendored graph layout/runtime scripts -->
     <script src="cytoscape-remote-layout.js"></script>
 
     <script src="anonymizer.js"></script>
@@ -67,7 +42,6 @@
     <script src="extrafuncs.js"></script>
     <script src="details-layouts.js"></script>
     <script src="graph.js"></script>
-    <script src="preferences.js"></script> <!-- last to ensure prefs loading triggering changes are detected -->
 
     <script src="custom.js"></script>
 
@@ -133,11 +107,22 @@
 
     <div id="cy" class="fullscreen z-10"></div>
 
-    <div id="offlineblur" class="fullscreen z-40"></div>
+    <div id="offlineblur" class="fullscreen z-110"></div>
 
-    <div id="upperstatus" class="border bg-dark p-1 shadow pe-auto z-50">
+    <div id="upperstatus" class="border bg-dark p-1 shadow pe-auto z-120">
       <div id="backendstatus" class="text-center w-100 px-3">
         Loading UI ...
+      </div>
+      <div id="reconnecting" class="d-none text-center px-3 py-2">
+        <div class="pb-2">Reconnecting ...</div>
+        <div class="sk-center sk-chase" aria-hidden="true">
+          <div class="sk-chase-dot"></div>
+          <div class="sk-chase-dot"></div>
+          <div class="sk-chase-dot"></div>
+          <div class="sk-chase-dot"></div>
+          <div class="sk-chase-dot"></div>
+          <div class="sk-chase-dot"></div>
+        </div>
       </div>
       <div id="progressbars"></div>
     </div>
@@ -180,12 +165,18 @@
         </div>
         <div id="optionspanel" class="card overflow-y-auto pe-auto" x-show="open" x-transition>
           <div id="optionscontent" class="w-100">
-            <details x-data="{ open: $persist(false).as('ui.section.analysis.open').using(window.backendPersist) }">
-              <summary class="bg-primary text-dark p-1 border-bottom" @click="open = !open">
+            <details x-data="{ open: $persist(false).as('ui.section.analysis.open').using(window.backendPersist) }" :open="open">
+              <summary class="bg-primary text-dark p-1 border-bottom" @click.prevent="open = !open">
                 Analysis
               </summary>
               <div id="analysis" class="p-1">
-                <form id="analysisoptionsform">
+                <form id="analysisoptionsform" x-data="{
+                  nodeLimit: $persist(2000).as('analysis.node.limit').using(window.backendPersist),
+                  maxDepth: $persist(99).as('analysis.max.depth').using(window.backendPersist),
+                  minEdgeProbability: $persist(0).as('analysis.min.probability').using(window.backendPersist),
+                  minAccumulatedProbability: $persist(0).as('analysis.min.accumulated.probability').using(window.backendPersist),
+                  pruneIslands: $persist(false).as('analysis.prune.islands').using(window.backendPersist)
+                }">
                   <div class="row">
                     <div class="col">
                       <label
@@ -203,8 +194,7 @@
                         name="nodelimit"
                         min="100"
                         max="5000"
-                        value="2000"
-                        preference="analysis.node.limit"
+                        x-model.number="nodeLimit"
                         class="form-control text-end"
                       />
                     </div>
@@ -227,8 +217,7 @@
                         name="max_depth"
                         min="0"
                         max="99"
-                        value="99"
-                        preference="analysis.max.depth"
+                        x-model.number="maxDepth"
                         class="form-control text-end"
                       />
                     </div>
@@ -276,8 +265,7 @@
                         name="min_edge_probability"
                         min="0"
                         max="100"
-                        value="0"
-                        preference="analysis.min.probability"
+                        x-model.number="minEdgeProbability"
                         class="form-control text-end"
                       />
                     </div>
@@ -301,8 +289,7 @@
                         name="min_accumulated_probability"
                         min="0"
                         max="100"
-                        value="0"
-                        preference="analysis.min.accumulated.probability"
+                        x-model.number="minAccumulatedProbability"
                         class="form-control text-end"
                       />
                     </div>
@@ -314,9 +301,7 @@
                       id="prune_islands"
                       type="checkbox"
                       name="prune_islands"
-                      autocomplete="off"
-                      preference="analysis.prune.islands"
-                      defaultpref="false"
+                      x-model="pruneIslands"
                     />
                     <label
                       class="form-check-label"
@@ -348,8 +333,8 @@
                 </form>
               </div>
             </details>
-            <details x-data="{ open: $persist(false).as('ui.section.graph.open').using(window.backendPersist) }">
-              <summary class="bg-primary text-dark p-1 border-bottom" @click="open = !open">
+            <details x-data="{ open: $persist(false).as('ui.section.graph.open').using(window.backendPersist) }" :open="open">
+              <summary class="bg-primary text-dark p-1 border-bottom" @click.prevent="open = !open">
                 Graph Visualization
               </summary>
               <div class="p-1">
@@ -416,14 +401,12 @@
                 </div>
 
                 <div class="mb-1">
-                  <div class="form-check">
+                  <div class="form-check" x-data="{ showEdgeLabels: $persist(false).as('graph.edgelabels').using(window.backendPersist) }">
                     <input
                       class="form-check-input"
                       id="showedgelabels"
                       type="checkbox"
-                      autocomplete="off"
-                      preference="graph.edgelabels"
-                      defaultpref="false"
+                      x-model="showEdgeLabels"
                     />
                     <label class="form-check-label" for="showedgelabels"
                       >Show edge methods on mouse hover</label
@@ -441,8 +424,8 @@
             </select> -->
               </div>
             </details>
-            <details x-data="{ open: $persist(false).as('ui.section.settings.open').using(window.backendPersist) }">
-              <summary class="bg-primary text-dark p-1 border-bottom" @click="open = !open">
+            <details x-data="{ open: $persist(false).as('ui.section.settings.open').using(window.backendPersist) }" :open="open">
+              <summary class="bg-primary text-dark p-1 border-bottom" @click.prevent="open = !open">
                 UI Settings
               </summary>
               <div class="p-1">
@@ -508,44 +491,38 @@
                       >Hide options on analysis</label
                     >
                   </div>
-                  <div class="form-check">
+                  <div class="form-check" x-data="{ hideQueryOnAnalysis: $persist(false).as('ui.hide.query.on.analysis').using(window.backendPersist) }">
                     <input
                       class="form-check-input"
                       id="hidequeryonanalysis"
                       type="checkbox"
                       name="hidequeryonanalysis"
-                      autocomplete="off"
-                      preference="ui.hide.query.on.analysis"
-                      defaultpref="false"
+                      x-model="hideQueryOnAnalysis"
                     />
                     <label class="form-check-label" for="hidequeryonanalysis"
                       >Hide query panel on analysis</label
                     >
                   </div>
 
-                  <div class="form-check">
+                  <div class="form-check" x-data="{ runQueryOnStartup: $persist(true).as('ui.run.query.on.startup').using(window.backendPersist) }">
                     <input
                       class="form-check-input"
                       id="runqueryonstartup"
                       type="checkbox"
                       name="runqueryonstartup"
-                      autocomplete="off"
-                      preference="ui.run.query.on.startup"
-                      defaultpref="true"
+                      x-model="runQueryOnStartup"
                     />
                     <label class="form-check-label" for="runqueryonstartup"
                       >Run query on startup</label
                     >
                   </div>
-                  <div class="form-check">
+                  <div class="form-check" x-data="{ openDetailsInSameWindow: $persist(true).as('ui.open.details.in.same.window').using(window.backendPersist) }">
                     <input
                       class="form-check-input"
                       id="opendetailsinsamewindow"
                       type="checkbox"
                       name="opendetailsinsamewindow"
-                      autocomplete="off"
-                      preference="ui.open.details.in.same.window"
-                      defaultpref="true"
+                      x-model="openDetailsInSameWindow"
                     />
                     <label class="form-check-label" for="runqueryonstartup"
                       >Open details in same window</label
@@ -554,8 +531,8 @@
                 </div>
               </div>
             </details>
-            <details x-data="{ open: $persist(false).as('ui.section.tools.open').using(window.backendPersist) }">
-              <summary class="bg-primary text-dark p-1 border-bottom" @click="open = !open">
+            <details x-data="{ open: $persist(false).as('ui.section.tools.open').using(window.backendPersist) }" :open="open">
+              <summary class="bg-primary text-dark p-1 border-bottom" @click.prevent="open = !open">
                 Tools
               </summary>
               <div id="tools" class="p-1 toolbox" x-show="open" x-transition>
@@ -591,7 +568,7 @@
 
     <div id="status" class="border card p-2 shadow pe-auto z-40"></div>
 
-    <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-50" x-data="{ open: $persist(true).as('ui.query.open').using(window.backendPersist) }">
+    <div id="outerquery" class="card border mb-0 mt-0 p-0 pe-auto z-50" x-data="{ open: $persist(true).as('ui.query.open').using(window.backendPersist) }" @ui:set-query-open.window="open = !!$event.detail">
       <div id="togglequeryvisible" class="bg-primary text-dark p-1 border-bottom text-center" @click="open = !open">AQL Search <i class="bi-arrow-down-up"></i></div>
       <div id="querybox" class="mb-2 mx-2" x-show="open" x-transition>
             <form id="aqlqueryform" class="m-0" x-data="{
@@ -620,7 +597,6 @@
           this.queryText = query.query;
           this.lastQueryIndex = index;
           this.dropdownOpen = false;
-          console.log('Selected query:', this.queryText);
       },
       async deleteQuery(queryName) {
           if (!confirm(`Delete '${queryName}'?`)) return;
@@ -659,7 +635,6 @@
         }
       },
       analyze() {
-        console.log('Analyze');
       }
   }" x-init="load()" @keydown.escape.window="saveDialogOpen = false">
               <textarea
@@ -728,6 +703,5 @@
     </div>
   </body>
 
-  <script type="text/javascript" src="external/bootstrap/js/bootstrap.min.js"></script>
   <script type="text/javascript" src="external/toastify.js"></script>
 </html>

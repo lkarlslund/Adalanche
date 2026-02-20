@@ -36,6 +36,22 @@ function BuildVariants {
 
 Set-Location $PSScriptRoot
 
+# Build frontend vendored assets when tooling is available.
+if ($env:SKIP_FRONTEND_VENDOR -ne "1") {
+  $vendorSrc = Join-Path $PSScriptRoot "modules/frontend/vendor-src"
+  if ((Test-Path $vendorSrc) -and (Get-Command "npm" -ErrorAction SilentlyContinue)) {
+    Write-Output "Building frontend vendor bundles ..."
+    Push-Location $vendorSrc
+    npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed in $vendorSrc" }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw "npm run build failed in $vendorSrc" }
+    Pop-Location
+  } else {
+    Write-Output "Skipping frontend vendor build (npm or vendor-src not available)."
+  }
+}
+
 $COMMIT = git rev-parse --short HEAD
 $VERSION = git describe --tags --exclude latest --exclude devbuild
 $DIRTYFILES = git status --porcelain

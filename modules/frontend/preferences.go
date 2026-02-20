@@ -3,6 +3,7 @@ package frontend
 import (
 	"encoding/json"
 	"maps"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lkarlslund/adalanche/modules/persistence"
@@ -47,7 +48,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 			sb.Put(Preference{Name: key, Value: value})
 		}
 	})
-	preferences.GET(":key", func(c *gin.Context) {
+	preferences.GET("/:key", func(c *gin.Context) {
 		key := c.Param("key")
 		pref, found := sb.Get(key)
 		if !found {
@@ -56,9 +57,14 @@ func AddPreferencesEndpoints(ws *WebService) {
 		out, _ := json.Marshal(pref.Value)
 		c.Writer.Write(out)
 	})
-	preferences.GET(":key/:value", func(c *gin.Context) {
+	preferences.PUT("/:key", func(c *gin.Context) {
 		key := c.Param("key")
-		value := c.Param("value")
+		var value any
+		if err := c.ShouldBindJSON(&value); err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
 		sb.Put(Preference{Name: key, Value: value})
+		c.Status(http.StatusNoContent)
 	})
 }

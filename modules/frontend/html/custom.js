@@ -246,20 +246,25 @@ async function aqlanalyze(e) {
 
     new_window("results", "Query results", info);
 
-    const hideOptions = document.getElementById("hideoptionsonanalysis");
-    const optionsPanel = document.getElementById("optionspanel");
-    if (hideOptions && hideOptions.checked && optionsPanel) {
-      const isHidden = optionsPanel.style.display === "none";
-      if (!isHidden) {
-        optionsPanel.style.display = "none";
+    // Single Alpine state write collapses immediately; $persist+backend adapter
+    // handles saving state.
+    if (getpref("ui.hide.options.on.analysis", false)) {
+      if (window.Alpine && typeof window.Alpine.$data === "function") {
+        const optionsRoot = document.getElementById("options");
+        if (optionsRoot) {
+          const data = window.Alpine.$data(optionsRoot);
+          if (data && typeof data.open === "boolean") {
+            data.open = false;
+          }
+        }
       }
     }
-
-    const hideQuery = document.getElementById("hidequeryonanalysis");
-    const queryBox = document.getElementById("querybox");
-    if (hideQuery && hideQuery.checked && queryBox) {
-      const isHidden = queryBox.style.display === "none";
-      queryBox.style.display = isHidden ? "" : "none";
+    if (getpref("ui.hide.query.on.analysis", false)) {
+      window.dispatchEvent(
+        new CustomEvent("ui:set-query-open", {
+          detail: false,
+        })
+      );
     }
 
     new Promise((resolve) => {
@@ -278,6 +283,26 @@ async function aqlanalyze(e) {
 let lastwasidle;
 let progressSocket;
 
+function setOfflineStatusUI(isOffline) {
+  const upperStatus = document.getElementById("upperstatus");
+  const reconnecting = document.getElementById("reconnecting");
+  if (upperStatus) {
+    upperStatus.classList.toggle("upperstatus-offline", !!isOffline);
+  }
+  if (reconnecting) {
+    reconnecting.classList.toggle("d-none", !isOffline);
+  }
+}
+
+function showBackendOffline() {
+  setHTML("backendstatus", "Adalanche backend is offline");
+  setVisible("upperstatus", true);
+  clearElement("progressbars");
+  setVisible("progressbars", false);
+  setVisible("offlineblur", true);
+  setOfflineStatusUI(true);
+}
+
 function connectProgress() {
   if (location.origin.startsWith("https://")) {
     // Polled
@@ -287,11 +312,7 @@ function connectProgress() {
         setTimeout(connectProgress, 2000);
       })
       .catch(() => {
-        setHTML("backendstatus", "Adalanche backend is offline");
-        setVisible("upperstatus", true);
-        clearElement("progressbars");
-        setVisible("progressbars", false);
-        setVisible("offlineblur", true);
+        showBackendOffline();
 
         setTimeout(connectProgress, 10000);
       });
@@ -301,32 +322,16 @@ function connectProgress() {
       location.origin.replace(/^http/, "ws") + "/api/backend/ws-progress"
     );
 
-    progressSocket.onopen = function (event) {
-      console.log("Open event");  
-      console.log(event);
+    progressSocket.onopen = function () {
       lastwasidle = false;
     }
 
-    progressSocket.onerror = function (event) {
-      console.log("Error event");
-      console.log(event);
-
-      setHTML("backendstatus", "Adalanche backend is offline");
-      setVisible("upperstatus", true);
-      clearElement("progressbars");
-      setVisible("progressbars", false);
-      setVisible("offlineblur", true);
+    progressSocket.onerror = function () {
+      showBackendOffline();
     };
 
-    progressSocket.onclose = function (event) {
-      console.log("Close event");
-      console.log(event);
-
-      setHTML("backendstatus", "Adalanche backend is offline");
-      setVisible("upperstatus", true);
-      clearElement("progressbars");
-      setVisible("progressbars", false);
-      setVisible("offlineblur", true);
+    progressSocket.onclose = function () {
+      showBackendOffline();
       setTimeout(connectProgress, 3000);
     };
 
@@ -339,6 +344,7 @@ function connectProgress() {
 
 function handleProgressData(progress) {
   setVisible("offlineblur", false);
+  setOfflineStatusUI(false);
 
   if (progress.status == "Ready") {
     if (!data_loaded) {
@@ -524,42 +530,6 @@ async function updateQueries() {
 
 // When we´re ready ...
 document.addEventListener("DOMContentLoaded", function () {
-  // save and restore collapsible UI
-  document.querySelectorAll(".collapse").forEach((el) => {
-    el.addEventListener("shown.bs.collapse", function () {
-      localStorage.setItem("coll_" + this.id, true);
-    });
-    el.addEventListener("hidden.bs.collapse", function () {
-      localStorage.removeItem("coll_" + this.id);
-    });
-  });
-
-  document.querySelectorAll(".collapse").forEach((el) => {
-    const shouldShow = localStorage.getItem("coll_" + el.id) === "true";
-    if (el.classList.contains("collapse")) {
-      const collapse = bootstrap.Collapse.getOrCreateInstance(el, {
-        toggle: false,
-      });
-      if (shouldShow) {
-        collapse.show();
-      } else {
-        collapse.hide();
-      }
-    }
-  });
-
-  // Initial GUI setup
-  const optionToggle = document.getElementById("optionstogglevisibility");
-  if (optionToggle) {
-    optionToggle.addEventListener("click", function () {
-      const optionspanel = document.getElementById("optionspanel");
-      if (optionspanel) {
-        optionspanel.style.display =
-          optionspanel.style.display === "none" ? "" : "none";
-      }
-    });
-  }
-
   document.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => {
     new bootstrap.Tooltip(el);
   });
@@ -692,16 +662,6 @@ document.addEventListener("DOMContentLoaded", function () {
         .catch(function (err) {
           toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
         });
-    });
-  }
-
-  const toggleQueryVisible = document.getElementById("togglequeryvisible");
-  if (toggleQueryVisible) {
-    toggleQueryVisible.addEventListener("click", function () {
-      const querybox = document.getElementById("querybox");
-      if (querybox) {
-        querybox.style.display = querybox.style.display === "none" ? "" : "none";
-      }
     });
   }
 
@@ -853,13 +813,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   updateQueries();
 
-  const onPreferencesLoaded = function () {
-    settings_loaded = true;
-    autorun_query();
-  };
-  document.addEventListener("preferences.loaded", onPreferencesLoaded);
-
-  prefsinit();
+  ensurePrefsLoaded()
+    .then(() => {
+      settings_loaded = true;
+      autorun_query();
+    })
+    .catch((err) => {
+      console.error("Failed to load preferences", err);
+    });
 
 
   // End of on document loaded function
@@ -869,7 +830,7 @@ settings_loaded = false;
 data_loaded = false;
 initial_query_has_run = false;
 function autorun_query() {
-  if (initial_query_set && settings_loaded && data_loaded && getpref("ui.run.query.on.startup") && !initial_query_has_run) {
+  if (initial_query_set && settings_loaded && data_loaded && getpref("ui.run.query.on.startup", true) && !initial_query_has_run) {
     initial_query_has_run = true;
     aqlanalyze();
   }
@@ -893,7 +854,7 @@ function exploreTree() {
         const data = await fetchJSON("api/details/id/" + node.id);
         const details = renderdetails(data);
         let windowname = "details_" + node.id;
-        if (getpref("ui.open.details.in.same.window")) {
+        if (getpref("ui.open.details.in.same.window", true)) {
           windowname = "node_details";
         }
         new_window(windowname, "Item details", details);
