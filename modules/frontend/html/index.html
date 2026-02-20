@@ -52,7 +52,7 @@
     <div id="windows" class="fullscreen" x-data="windowManager()">
       <template x-for="win in windows" :key="win.id">
           <div
-              class="window bg-dark shadow border"
+              class="window bg-body shadow border"
               :id="`window_${win.id}`"
               :style="`
                   transform: translate(${win.x}px, ${win.y}px);
@@ -109,7 +109,7 @@
 
     <div id="offlineblur" class="fullscreen z-110"></div>
 
-    <div id="upperstatus" class="border bg-dark p-1 shadow pe-auto z-120">
+    <div id="upperstatus" class="border bg-body p-1 shadow pe-auto z-120">
       <div id="backendstatus" class="text-center w-100 px-3">
         Loading UI ...
       </div>
@@ -431,50 +431,19 @@
               <div class="p-1">
                 <div class="d-flex flex-column gap-2">
 
-                  <div
-                    x-data="{
-                      themeMode: $persist('auto').as('theme').using(window.backendPersist),
-                      systemDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
-                      applyTheme() {
-                        const activeTheme = this.themeMode === 'auto'
-                          ? (this.systemDark ? 'dark' : 'light')
-                          : this.themeMode;
-                        document.documentElement.setAttribute('data-bs-theme', activeTheme);
-                        if (window.cy) {
-                          cy.style(cytostyle);
-                          applyEdgeStyles(cy);
-                          applyNodeStyles(cy);
-                        }
-                      },
-                      setTheme(mode) {
-                        this.themeMode = mode;
-                        this.applyTheme();
-                      }
-                    }"
-                    x-init="
-                      const media = window.matchMedia('(prefers-color-scheme: dark)');
-                      const onChange = (e) => {
-                        systemDark = e.matches;
-                        if (themeMode === 'auto') applyTheme();
-                      };
-                      if (media.addEventListener) media.addEventListener('change', onChange);
-                      else if (media.addListener) media.addListener(onChange);
-                      applyTheme();
-                    "
-                    x-effect="applyTheme()"
-                  >
+                  <div x-data="{ themeMode: $persist('auto').as('theme').using(window.backendPersist) }" x-effect="window.applyPreferredTheme && window.applyPreferredTheme()">
                     <div class="d-flex align-items-center justify-content-between gap-2">
                       <label class="form-label mb-0">Theme (<span x-text="themeMode"></span>)</label>
                       <div class="btn-group ms-auto" role="group" aria-label="Theme mode">
                         <button type="button" class="btn"
                         :class="themeMode === 'auto' ? 'btn-primary btn-sm py-0 px-2' : 'btn-outline-primary btn-sm py-0 px-2'"
-                        @click="setTheme('auto')">Auto</button>
+                        @click="themeMode = 'auto'">Auto</button>
                         <button type="button" class="btn"
                         :class="themeMode === 'dark' ? 'btn-primary btn-sm py-0 px-2' : 'btn-outline-primary btn-sm py-0 px-2'"
-                        @click="setTheme('dark')">Dark</button>
+                        @click="themeMode = 'dark'">Dark</button>
                         <button type="button" class="btn"
                         :class="themeMode === 'light' ? 'btn-primary btn-sm py-0 px-2' : 'btn-outline-primary btn-sm py-0 px-2'"
-                        @click="setTheme('light')">Light</button>
+                        @click="themeMode = 'light'">Light</button>
                       </div>
                     </div>
                   </div>

@@ -17,11 +17,97 @@
     <!-- we put everything custom here, so we can override earlier variables -->
     <link rel="stylesheet" href="/adalanche.css" />
     <link rel="stylesheet" href="/adalanche-docs.css" />
+    <script>
+      function resolveTheme(mode) {
+        if (mode === "auto") {
+          return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        return mode;
+      }
+
+      function applyThemeMode(mode) {
+        const activeTheme = resolveTheme(mode);
+        document.documentElement.setAttribute("data-bs-theme", activeTheme);
+        const themeLabel = document.getElementById("docs-theme-mode");
+        if (themeLabel) {
+          themeLabel.textContent = mode;
+        }
+        document.querySelectorAll("[data-theme-value]").forEach((button) => {
+          const selected = button.getAttribute("data-theme-value") === mode;
+          button.classList.toggle("btn-primary", selected);
+          button.classList.toggle("btn-outline-primary", !selected);
+        });
+      }
+
+      async function saveThemeMode(mode) {
+        try {
+          await fetch("/api/preferences/theme", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(mode),
+          });
+        } catch (_) {
+          // Ignore persistence failures and keep the local theme applied.
+        }
+      }
+
+      async function initDocsTheme() {
+        let themeMode = "auto";
+        try {
+          const response = await fetch("/api/preferences");
+          if (response.ok) {
+            const prefs = await response.json();
+            if (typeof prefs.theme === "string" && prefs.theme !== "") {
+              themeMode = prefs.theme;
+            }
+          }
+        } catch (_) {
+          // Keep default "auto" if preferences cannot be loaded.
+        }
+
+        applyThemeMode(themeMode);
+
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const onSystemThemeChange = () => {
+          if (themeMode === "auto") {
+            applyThemeMode(themeMode);
+          }
+        };
+        if (media.addEventListener) {
+          media.addEventListener("change", onSystemThemeChange);
+        } else if (media.addListener) {
+          media.addListener(onSystemThemeChange);
+        }
+
+        document.querySelectorAll("[data-theme-value]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            themeMode = button.getAttribute("data-theme-value") || "auto";
+            applyThemeMode(themeMode);
+            await saveThemeMode(themeMode);
+          });
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", initDocsTheme);
+    </script>
   </head>
   <body>
     <div class="d-flex">
       <div>
         <nav class="sidebar d-flex flex-column flex-shrink-0 position-fixed no-print">
+          <div class="docs-theme card border p-2 mb-2">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+              <span class="small">Theme</span>
+              <span id="docs-theme-mode" class="small text-body-secondary">auto</span>
+            </div>
+            <div class="btn-group btn-group-sm w-100" role="group" aria-label="Theme mode">
+              <button type="button" class="btn btn-outline-primary" data-theme-value="auto">Auto</button>
+              <button type="button" class="btn btn-outline-primary" data-theme-value="dark">Dark</button>
+              <button type="button" class="btn btn-outline-primary" data-theme-value="light">Light</button>
+            </div>
+          </div>
           {{ .TOC }}
         </nav>
         <main class="main-content">

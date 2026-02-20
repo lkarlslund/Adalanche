@@ -335,7 +335,7 @@ func (ws *WebService) Start(bind string) error {
 
 			switch strings.ToLower(filepath.Ext(file)) {
 			case ".md":
-				ws.serveMarkDown(f, ctx)
+				ws.serveMarkDown(file, f, ctx)
 			case ".tmpl.html":
 				// ws.serveTemplate(f, ctx, nil)
 				ctx.AbortWithStatus(403)
@@ -390,7 +390,241 @@ func (ws *WebService) ServeTemplate(c *gin.Context, path string, data any) {
 	ws.serveTemplate(templatefile, c, data)
 }
 
-func (ws *WebService) serveMarkDown(r io.Reader, ctx *gin.Context) {
+type docsHeading struct {
+	Level int
+	Text  string
+	ID    string
+}
+
+type docsFile struct {
+	Path     string
+	Title    string
+	Headings []docsHeading
+}
+
+type docsNavItem struct {
+	Text string
+	Href string
+}
+
+type docsNavSection struct {
+	Title string
+	Items []docsNavItem
+}
+
+func extractHeadingText(node ast.Node) string {
+	var parts []string
+	ast.WalkFunc(node, func(n ast.Node, entering bool) ast.WalkStatus {
+		if !entering {
+			return ast.GoToNext
+		}
+		switch t := n.(type) {
+		case *ast.Text:
+			parts = append(parts, string(t.Literal))
+		case *ast.Code:
+			parts = append(parts, string(t.Literal))
+		}
+		return ast.GoToNext
+	})
+	return strings.TrimSpace(strings.Join(parts, ""))
+}
+
+func (ws *WebService) parseDocsIndexNavigation() []docsNavSection {
+	f, err := ws.UnionFS.Open("docs/index.md")
+	if err != nil {
+		return nil
+	}
+	rawmd, err := io.ReadAll(f)
+	f.Close()
+	if err != nil {
+		return nil
+	}
+
+	p := parser.NewWithExtensions(parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock)
+	doc := p.Parse(rawmd)
+
+	var sections []docsNavSection
+	currentSection := -1
+	inListItem := false
+
+	ast.WalkFunc(doc, func(n ast.Node, entering bool) ast.WalkStatus {
+		if h, ok := n.(*ast.Heading); ok && entering {
+			title := extractHeadingText(h)
+			if title == "" {
+				return ast.GoToNext
+			}
+			if h.Level == 2 {
+				sections = append(sections, docsNavSection{Title: title})
+				currentSection = len(sections) - 1
+				return ast.GoToNext
+			}
+		}
+
+		if _, ok := n.(*ast.ListItem); ok {
+			inListItem = entering
+			return ast.GoToNext
+		}
+
+		if link, ok := n.(*ast.Link); ok && entering && inListItem {
+			if currentSection < 0 {
+				sections = append(sections, docsNavSection{Title: "Documentation"})
+				currentSection = 0
+			}
+			href := strings.TrimSpace(string(link.Destination))
+			if href == "" {
+				return ast.GoToNext
+			}
+			sections[currentSection].Items = append(sections[currentSection].Items, docsNavItem{
+				Text: extractHeadingText(link),
+				Href: href,
+			})
+		}
+		return ast.GoToNext
+	})
+	return sections
+}
+
+func (ws *WebService) getDocMetadata(path string) (docsFile, bool) {
+	f, err := ws.UnionFS.Open(path)
+	if err != nil {
+		return docsFile{}, false
+	}
+	rawmd, err := io.ReadAll(f)
+	f.Close()
+	if err != nil {
+		return docsFile{}, false
+	}
+
+	p := parser.NewWithExtensions(parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock)
+	doc := p.Parse(rawmd)
+
+	entry := docsFile{
+		Path:  "/" + filepath.ToSlash(path),
+		Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
+	}
+
+	ast.WalkFunc(doc, func(n ast.Node, entering bool) ast.WalkStatus {
+		if !entering {
+			return ast.GoToNext
+		}
+		h, ok := n.(*ast.Heading)
+		if !ok || h.IsTitleblock {
+			return ast.GoToNext
+		}
+
+		text := extractHeadingText(h)
+		if text == "" {
+			return ast.GoToNext
+		}
+		if h.Level == 1 {
+			entry.Title = text
+		}
+		if h.Level >= 2 && h.Level <= 3 {
+			entry.Headings = append(entry.Headings, docsHeading{
+				Level: h.Level,
+				Text:  text,
+				ID:    h.HeadingID,
+			})
+		}
+		return ast.GoToNext
+	})
+	return entry, true
+}
+
+func (ws *WebService) buildDocsTOC(currentFile string) string {
+	sections := ws.parseDocsIndexNavigation()
+	if len(sections) == 0 {
+		return ""
+	}
+
+	docMeta := map[string]docsFile{}
+	for _, section := range sections {
+		for _, item := range section.Items {
+			if strings.HasPrefix(item.Href, "http://") || strings.HasPrefix(item.Href, "https://") {
+				continue
+			}
+			linkPath := strings.Split(item.Href, "#")[0]
+			if linkPath == "" || !strings.HasSuffix(strings.ToLower(linkPath), ".md") {
+				continue
+			}
+			docPath := filepath.Clean(filepath.Join("docs", linkPath))
+			if !strings.HasPrefix(docPath, "docs/") {
+				continue
+			}
+			if _, found := docMeta[docPath]; found {
+				continue
+			}
+			md, ok := ws.getDocMetadata(docPath)
+			if ok {
+				docMeta[docPath] = md
+			}
+		}
+	}
+
+	current := strings.TrimPrefix(filepath.ToSlash(currentFile), "/")
+	var b strings.Builder
+	b.WriteString("<nav>\n<ul>\n")
+	for _, section := range sections {
+		if section.Title != "" {
+			b.WriteString("<li>")
+			b.WriteString(template.HTMLEscapeString(section.Title))
+			b.WriteString("\n<ul>\n")
+		} else {
+			b.WriteString("<li>\n<ul>\n")
+		}
+
+		for _, item := range section.Items {
+			href := item.Href
+			if !strings.HasPrefix(href, "http://") && !strings.HasPrefix(href, "https://") && !strings.HasPrefix(href, "/") {
+				href = "/docs/" + strings.TrimPrefix(href, "./")
+			}
+			label := item.Text
+			if label == "" {
+				label = href
+			}
+			normalized := strings.TrimPrefix(strings.Split(strings.TrimPrefix(href, "/"), "#")[0], "/")
+			activeDoc := current == normalized
+			if activeDoc {
+				b.WriteString(`<li><strong><a href="`)
+			} else {
+				b.WriteString(`<li><a href="`)
+			}
+			b.WriteString(template.HTMLEscapeString(href))
+			b.WriteString(`">`)
+			b.WriteString(template.HTMLEscapeString(label))
+			b.WriteString(`</a>`)
+			if activeDoc {
+				b.WriteString(`</strong>`)
+			}
+
+			relPath := strings.Split(item.Href, "#")[0]
+			if relPath != "" {
+				docPath := filepath.Clean(filepath.Join("docs", relPath))
+				if meta, found := docMeta[docPath]; found && len(meta.Headings) > 0 {
+					b.WriteString("\n<ul>\n")
+					for _, h := range meta.Headings {
+						sectionHref := meta.Path
+						if h.ID != "" {
+							sectionHref += "#" + h.ID
+						}
+						b.WriteString(`<li><a href="`)
+						b.WriteString(template.HTMLEscapeString(sectionHref))
+						b.WriteString(`">`)
+						b.WriteString(template.HTMLEscapeString(h.Text))
+						b.WriteString("</a></li>\n")
+					}
+					b.WriteString("</ul>\n")
+				}
+			}
+			b.WriteString("</li>\n")
+		}
+		b.WriteString("</ul>\n</li>\n")
+	}
+	b.WriteString("</ul>\n</nav>\n")
+	return b.String()
+}
+
+func (ws *WebService) serveMarkDown(currentFile string, r io.Reader, ctx *gin.Context) {
 	rawmd, _ := io.ReadAll(r)
 
 	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
@@ -400,20 +634,10 @@ func (ws *WebService) serveMarkDown(r io.Reader, ctx *gin.Context) {
 	// create HTML renderer with extensions
 	ctx.Status(200)
 
-	var tocdone bool
-	toc := string(markdown.Render(doc, html.NewRenderer(
-		html.RendererOptions{
-			Flags: html.TOC,
-			RenderNodeHook: func(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus, bool) {
-				if !tocdone {
-					tocdone = true
-				}
-				if tocdone && node == doc {
-					return ast.Terminate, true
-				}
-				return ast.GoToNext, false
-			},
-		})))
+	toc := ws.buildDocsTOC(currentFile)
+	if toc == "" {
+		toc = "<nav><ul><li>No documentation index available</li></ul></nav>"
+	}
 	contents := string(markdown.Render(doc, html.NewRenderer(
 		html.RendererOptions{
 			Flags: html.CommonFlags,

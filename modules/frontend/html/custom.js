@@ -18,6 +18,24 @@ function setTheme(theme) {
   }
 }
 
+function applyPreferredTheme() {
+  const themeMode = getpref("theme", "auto");
+  setTheme(translateAutoTheme(themeMode));
+}
+
+document.addEventListener("preferences.loaded", applyPreferredTheme);
+document.addEventListener("preferences.updated", (event) => {
+  if (event?.detail?.key === "theme") {
+    applyPreferredTheme();
+  }
+});
+
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (getpref("theme", "auto") === "auto") {
+    applyPreferredTheme();
+  }
+});
+
 function set_query(query) {
   const queryEl = document.getElementById("aqlquerytext");
   if (queryEl) {

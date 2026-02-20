@@ -81,6 +81,24 @@ input[type="number"] {
   left: 0px;
 }
 
+[data-bs-theme="light"] body {
+  background-color: #eef1f4;
+}
+
+[data-bs-theme="light"] #cy {
+  background-color: #eef1f4;
+}
+
+[data-bs-theme="dark"] .window,
+[data-bs-theme="dark"] .window-content,
+[data-bs-theme="dark"] #upperstatus,
+[data-bs-theme="dark"] #optionstogglevisibility,
+[data-bs-theme="dark"] #optionspanel,
+[data-bs-theme="dark"] #outerquery,
+[data-bs-theme="dark"] #status {
+  background-color: #1f2329 !important;
+}
+
 .fullheight {
   height: 100vh;
 }
