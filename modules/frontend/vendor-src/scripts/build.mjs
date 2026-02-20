@@ -41,9 +41,14 @@ const shared = {
     {
       name: 'alias-d3-force-exact',
       setup(build) {
-        build.onResolve({ filter: /^d3-force$/ }, () => ({
-          path: path.resolve(root, 'src/vendor/d3-force-bridge.cjs'),
-        }));
+        const bridgePath = path.resolve(root, 'src/vendor/d3-force-bridge.cjs');
+        build.onResolve({ filter: /^d3-force$/ }, (args) => {
+          // Avoid alias recursion when the bridge itself imports d3-force.
+          if (path.resolve(args.importer) === bridgePath) {
+            return null;
+          }
+          return { path: bridgePath };
+        });
       },
     },
   ],

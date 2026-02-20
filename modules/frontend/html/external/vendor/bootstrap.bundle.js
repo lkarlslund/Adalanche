@@ -14097,6 +14097,990 @@ var require_cytoscape_cose_bilkent = __commonJS({
   }
 });
 
+// node_modules/d3-quadtree/dist/d3-quadtree.js
+var require_d3_quadtree = __commonJS({
+  "node_modules/d3-quadtree/dist/d3-quadtree.js"(exports, module) {
+    (function(global2, factory) {
+      typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = global2 || self, factory(global2.d3 = global2.d3 || {}));
+    })(exports, function(exports2) {
+      "use strict";
+      function tree_add(d) {
+        const x2 = +this._x.call(null, d), y2 = +this._y.call(null, d);
+        return add4(this.cover(x2, y2), x2, y2, d);
+      }
+      function add4(tree, x2, y2, d) {
+        if (isNaN(x2) || isNaN(y2)) return tree;
+        var parent4, node = tree._root, leaf = { data: d }, x0 = tree._x0, y0 = tree._y0, x1 = tree._x1, y1 = tree._y1, xm, ym, xp, yp, right2, bottom2, i, j;
+        if (!node) return tree._root = leaf, tree;
+        while (node.length) {
+          if (right2 = x2 >= (xm = (x0 + x1) / 2)) x0 = xm;
+          else x1 = xm;
+          if (bottom2 = y2 >= (ym = (y0 + y1) / 2)) y0 = ym;
+          else y1 = ym;
+          if (parent4 = node, !(node = node[i = bottom2 << 1 | right2])) return parent4[i] = leaf, tree;
+        }
+        xp = +tree._x.call(null, node.data);
+        yp = +tree._y.call(null, node.data);
+        if (x2 === xp && y2 === yp) return leaf.next = node, parent4 ? parent4[i] = leaf : tree._root = leaf, tree;
+        do {
+          parent4 = parent4 ? parent4[i] = new Array(4) : tree._root = new Array(4);
+          if (right2 = x2 >= (xm = (x0 + x1) / 2)) x0 = xm;
+          else x1 = xm;
+          if (bottom2 = y2 >= (ym = (y0 + y1) / 2)) y0 = ym;
+          else y1 = ym;
+        } while ((i = bottom2 << 1 | right2) === (j = (yp >= ym) << 1 | xp >= xm));
+        return parent4[j] = node, parent4[i] = leaf, tree;
+      }
+      function addAll(data5) {
+        var d, i, n = data5.length, x2, y2, xz = new Array(n), yz = new Array(n), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (i = 0; i < n; ++i) {
+          if (isNaN(x2 = +this._x.call(null, d = data5[i])) || isNaN(y2 = +this._y.call(null, d))) continue;
+          xz[i] = x2;
+          yz[i] = y2;
+          if (x2 < x0) x0 = x2;
+          if (x2 > x1) x1 = x2;
+          if (y2 < y0) y0 = y2;
+          if (y2 > y1) y1 = y2;
+        }
+        if (x0 > x1 || y0 > y1) return this;
+        this.cover(x0, y0).cover(x1, y1);
+        for (i = 0; i < n; ++i) {
+          add4(this, xz[i], yz[i], data5[i]);
+        }
+        return this;
+      }
+      function tree_cover(x2, y2) {
+        if (isNaN(x2 = +x2) || isNaN(y2 = +y2)) return this;
+        var x0 = this._x0, y0 = this._y0, x1 = this._x1, y1 = this._y1;
+        if (isNaN(x0)) {
+          x1 = (x0 = Math.floor(x2)) + 1;
+          y1 = (y0 = Math.floor(y2)) + 1;
+        } else {
+          var z = x1 - x0 || 1, node = this._root, parent4, i;
+          while (x0 > x2 || x2 >= x1 || y0 > y2 || y2 >= y1) {
+            i = (y2 < y0) << 1 | x2 < x0;
+            parent4 = new Array(4), parent4[i] = node, node = parent4, z *= 2;
+            switch (i) {
+              case 0:
+                x1 = x0 + z, y1 = y0 + z;
+                break;
+              case 1:
+                x0 = x1 - z, y1 = y0 + z;
+                break;
+              case 2:
+                x1 = x0 + z, y0 = y1 - z;
+                break;
+              case 3:
+                x0 = x1 - z, y0 = y1 - z;
+                break;
+            }
+          }
+          if (this._root && this._root.length) this._root = node;
+        }
+        this._x0 = x0;
+        this._y0 = y0;
+        this._x1 = x1;
+        this._y1 = y1;
+        return this;
+      }
+      function tree_data() {
+        var data5 = [];
+        this.visit(function(node) {
+          if (!node.length) do
+            data5.push(node.data);
+          while (node = node.next);
+        });
+        return data5;
+      }
+      function tree_extent(_) {
+        return arguments.length ? this.cover(+_[0][0], +_[0][1]).cover(+_[1][0], +_[1][1]) : isNaN(this._x0) ? void 0 : [[this._x0, this._y0], [this._x1, this._y1]];
+      }
+      function Quad(node, x0, y0, x1, y1) {
+        this.node = node;
+        this.x0 = x0;
+        this.y0 = y0;
+        this.x1 = x1;
+        this.y1 = y1;
+      }
+      function tree_find(x2, y2, radius2) {
+        var data5, x0 = this._x0, y0 = this._y0, x1, y1, x22, y22, x3 = this._x1, y3 = this._y1, quads = [], node = this._root, q, i;
+        if (node) quads.push(new Quad(node, x0, y0, x3, y3));
+        if (radius2 == null) radius2 = Infinity;
+        else {
+          x0 = x2 - radius2, y0 = y2 - radius2;
+          x3 = x2 + radius2, y3 = y2 + radius2;
+          radius2 *= radius2;
+        }
+        while (q = quads.pop()) {
+          if (!(node = q.node) || (x1 = q.x0) > x3 || (y1 = q.y0) > y3 || (x22 = q.x1) < x0 || (y22 = q.y1) < y0) continue;
+          if (node.length) {
+            var xm = (x1 + x22) / 2, ym = (y1 + y22) / 2;
+            quads.push(
+              new Quad(node[3], xm, ym, x22, y22),
+              new Quad(node[2], x1, ym, xm, y22),
+              new Quad(node[1], xm, y1, x22, ym),
+              new Quad(node[0], x1, y1, xm, ym)
+            );
+            if (i = (y2 >= ym) << 1 | x2 >= xm) {
+              q = quads[quads.length - 1];
+              quads[quads.length - 1] = quads[quads.length - 1 - i];
+              quads[quads.length - 1 - i] = q;
+            }
+          } else {
+            var dx = x2 - +this._x.call(null, node.data), dy = y2 - +this._y.call(null, node.data), d2 = dx * dx + dy * dy;
+            if (d2 < radius2) {
+              var d = Math.sqrt(radius2 = d2);
+              x0 = x2 - d, y0 = y2 - d;
+              x3 = x2 + d, y3 = y2 + d;
+              data5 = node.data;
+            }
+          }
+        }
+        return data5;
+      }
+      function tree_remove(d) {
+        if (isNaN(x2 = +this._x.call(null, d)) || isNaN(y2 = +this._y.call(null, d))) return this;
+        var parent4, node = this._root, retainer, previous, next2, x0 = this._x0, y0 = this._y0, x1 = this._x1, y1 = this._y1, x2, y2, xm, ym, right2, bottom2, i, j;
+        if (!node) return this;
+        if (node.length) while (true) {
+          if (right2 = x2 >= (xm = (x0 + x1) / 2)) x0 = xm;
+          else x1 = xm;
+          if (bottom2 = y2 >= (ym = (y0 + y1) / 2)) y0 = ym;
+          else y1 = ym;
+          if (!(parent4 = node, node = node[i = bottom2 << 1 | right2])) return this;
+          if (!node.length) break;
+          if (parent4[i + 1 & 3] || parent4[i + 2 & 3] || parent4[i + 3 & 3]) retainer = parent4, j = i;
+        }
+        while (node.data !== d) if (!(previous = node, node = node.next)) return this;
+        if (next2 = node.next) delete node.next;
+        if (previous) return next2 ? previous.next = next2 : delete previous.next, this;
+        if (!parent4) return this._root = next2, this;
+        next2 ? parent4[i] = next2 : delete parent4[i];
+        if ((node = parent4[0] || parent4[1] || parent4[2] || parent4[3]) && node === (parent4[3] || parent4[2] || parent4[1] || parent4[0]) && !node.length) {
+          if (retainer) retainer[j] = node;
+          else this._root = node;
+        }
+        return this;
+      }
+      function removeAll(data5) {
+        for (var i = 0, n = data5.length; i < n; ++i) this.remove(data5[i]);
+        return this;
+      }
+      function tree_root() {
+        return this._root;
+      }
+      function tree_size() {
+        var size4 = 0;
+        this.visit(function(node) {
+          if (!node.length) do
+            ++size4;
+          while (node = node.next);
+        });
+        return size4;
+      }
+      function tree_visit(callback) {
+        var quads = [], q, node = this._root, child, x0, y0, x1, y1;
+        if (node) quads.push(new Quad(node, this._x0, this._y0, this._x1, this._y1));
+        while (q = quads.pop()) {
+          if (!callback(node = q.node, x0 = q.x0, y0 = q.y0, x1 = q.x1, y1 = q.y1) && node.length) {
+            var xm = (x0 + x1) / 2, ym = (y0 + y1) / 2;
+            if (child = node[3]) quads.push(new Quad(child, xm, ym, x1, y1));
+            if (child = node[2]) quads.push(new Quad(child, x0, ym, xm, y1));
+            if (child = node[1]) quads.push(new Quad(child, xm, y0, x1, ym));
+            if (child = node[0]) quads.push(new Quad(child, x0, y0, xm, ym));
+          }
+        }
+        return this;
+      }
+      function tree_visitAfter(callback) {
+        var quads = [], next2 = [], q;
+        if (this._root) quads.push(new Quad(this._root, this._x0, this._y0, this._x1, this._y1));
+        while (q = quads.pop()) {
+          var node = q.node;
+          if (node.length) {
+            var child, x0 = q.x0, y0 = q.y0, x1 = q.x1, y1 = q.y1, xm = (x0 + x1) / 2, ym = (y0 + y1) / 2;
+            if (child = node[0]) quads.push(new Quad(child, x0, y0, xm, ym));
+            if (child = node[1]) quads.push(new Quad(child, xm, y0, x1, ym));
+            if (child = node[2]) quads.push(new Quad(child, x0, ym, xm, y1));
+            if (child = node[3]) quads.push(new Quad(child, xm, ym, x1, y1));
+          }
+          next2.push(q);
+        }
+        while (q = next2.pop()) {
+          callback(q.node, q.x0, q.y0, q.x1, q.y1);
+        }
+        return this;
+      }
+      function defaultX(d) {
+        return d[0];
+      }
+      function tree_x(_) {
+        return arguments.length ? (this._x = _, this) : this._x;
+      }
+      function defaultY(d) {
+        return d[1];
+      }
+      function tree_y(_) {
+        return arguments.length ? (this._y = _, this) : this._y;
+      }
+      function quadtree(nodes3, x2, y2) {
+        var tree = new Quadtree(x2 == null ? defaultX : x2, y2 == null ? defaultY : y2, NaN, NaN, NaN, NaN);
+        return nodes3 == null ? tree : tree.addAll(nodes3);
+      }
+      function Quadtree(x2, y2, x0, y0, x1, y1) {
+        this._x = x2;
+        this._y = y2;
+        this._x0 = x0;
+        this._y0 = y0;
+        this._x1 = x1;
+        this._y1 = y1;
+        this._root = void 0;
+      }
+      function leaf_copy(leaf) {
+        var copy3 = { data: leaf.data }, next2 = copy3;
+        while (leaf = leaf.next) next2 = next2.next = { data: leaf.data };
+        return copy3;
+      }
+      var treeProto = quadtree.prototype = Quadtree.prototype;
+      treeProto.copy = function() {
+        var copy3 = new Quadtree(this._x, this._y, this._x0, this._y0, this._x1, this._y1), node = this._root, nodes3, child;
+        if (!node) return copy3;
+        if (!node.length) return copy3._root = leaf_copy(node), copy3;
+        nodes3 = [{ source: node, target: copy3._root = new Array(4) }];
+        while (node = nodes3.pop()) {
+          for (var i = 0; i < 4; ++i) {
+            if (child = node.source[i]) {
+              if (child.length) nodes3.push({ source: child, target: node.target[i] = new Array(4) });
+              else node.target[i] = leaf_copy(child);
+            }
+          }
+        }
+        return copy3;
+      };
+      treeProto.add = tree_add;
+      treeProto.addAll = addAll;
+      treeProto.cover = tree_cover;
+      treeProto.data = tree_data;
+      treeProto.extent = tree_extent;
+      treeProto.find = tree_find;
+      treeProto.remove = tree_remove;
+      treeProto.removeAll = removeAll;
+      treeProto.root = tree_root;
+      treeProto.size = tree_size;
+      treeProto.visit = tree_visit;
+      treeProto.visitAfter = tree_visitAfter;
+      treeProto.x = tree_x;
+      treeProto.y = tree_y;
+      exports2.quadtree = quadtree;
+      Object.defineProperty(exports2, "__esModule", { value: true });
+    });
+  }
+});
+
+// node_modules/d3-dispatch/dist/d3-dispatch.js
+var require_d3_dispatch = __commonJS({
+  "node_modules/d3-dispatch/dist/d3-dispatch.js"(exports, module) {
+    (function(global2, factory) {
+      typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = global2 || self, factory(global2.d3 = global2.d3 || {}));
+    })(exports, function(exports2) {
+      "use strict";
+      var noop4 = { value: () => {
+      } };
+      function dispatch2() {
+        for (var i = 0, n = arguments.length, _ = {}, t; i < n; ++i) {
+          if (!(t = arguments[i] + "") || t in _ || /[\s.]/.test(t)) throw new Error("illegal type: " + t);
+          _[t] = [];
+        }
+        return new Dispatch(_);
+      }
+      function Dispatch(_) {
+        this._ = _;
+      }
+      function parseTypenames(typenames, types) {
+        return typenames.trim().split(/^|\s+/).map(function(t) {
+          var name = "", i = t.indexOf(".");
+          if (i >= 0) name = t.slice(i + 1), t = t.slice(0, i);
+          if (t && !types.hasOwnProperty(t)) throw new Error("unknown type: " + t);
+          return { type: t, name };
+        });
+      }
+      Dispatch.prototype = dispatch2.prototype = {
+        constructor: Dispatch,
+        on: function(typename, callback) {
+          var _ = this._, T = parseTypenames(typename + "", _), t, i = -1, n = T.length;
+          if (arguments.length < 2) {
+            while (++i < n) if ((t = (typename = T[i]).type) && (t = get3(_[t], typename.name))) return t;
+            return;
+          }
+          if (callback != null && typeof callback !== "function") throw new Error("invalid callback: " + callback);
+          while (++i < n) {
+            if (t = (typename = T[i]).type) _[t] = set3(_[t], typename.name, callback);
+            else if (callback == null) for (t in _) _[t] = set3(_[t], typename.name, null);
+          }
+          return this;
+        },
+        copy: function() {
+          var copy3 = {}, _ = this._;
+          for (var t in _) copy3[t] = _[t].slice();
+          return new Dispatch(copy3);
+        },
+        call: function(type, that) {
+          if ((n = arguments.length - 2) > 0) for (var args = new Array(n), i = 0, n, t; i < n; ++i) args[i] = arguments[i + 2];
+          if (!this._.hasOwnProperty(type)) throw new Error("unknown type: " + type);
+          for (t = this._[type], i = 0, n = t.length; i < n; ++i) t[i].value.apply(that, args);
+        },
+        apply: function(type, that, args) {
+          if (!this._.hasOwnProperty(type)) throw new Error("unknown type: " + type);
+          for (var t = this._[type], i = 0, n = t.length; i < n; ++i) t[i].value.apply(that, args);
+        }
+      };
+      function get3(type, name) {
+        for (var i = 0, n = type.length, c; i < n; ++i) {
+          if ((c = type[i]).name === name) {
+            return c.value;
+          }
+        }
+      }
+      function set3(type, name, callback) {
+        for (var i = 0, n = type.length; i < n; ++i) {
+          if (type[i].name === name) {
+            type[i] = noop4, type = type.slice(0, i).concat(type.slice(i + 1));
+            break;
+          }
+        }
+        if (callback != null) type.push({ name, value: callback });
+        return type;
+      }
+      exports2.dispatch = dispatch2;
+      Object.defineProperty(exports2, "__esModule", { value: true });
+    });
+  }
+});
+
+// node_modules/d3-timer/dist/d3-timer.js
+var require_d3_timer = __commonJS({
+  "node_modules/d3-timer/dist/d3-timer.js"(exports, module) {
+    (function(global2, factory) {
+      typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = global2 || self, factory(global2.d3 = global2.d3 || {}));
+    })(exports, function(exports2) {
+      "use strict";
+      var frame = 0, timeout = 0, interval = 0, pokeDelay = 1e3, taskHead, taskTail, clockLast = 0, clockNow = 0, clockSkew = 0, clock = typeof performance === "object" && performance.now ? performance : Date, setFrame = typeof window === "object" && window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : function(f) {
+        setTimeout(f, 17);
+      };
+      function now() {
+        return clockNow || (setFrame(clearNow), clockNow = clock.now() + clockSkew);
+      }
+      function clearNow() {
+        clockNow = 0;
+      }
+      function Timer() {
+        this._call = this._time = this._next = null;
+      }
+      Timer.prototype = timer.prototype = {
+        constructor: Timer,
+        restart: function(callback, delay2, time2) {
+          if (typeof callback !== "function") throw new TypeError("callback is not a function");
+          time2 = (time2 == null ? now() : +time2) + (delay2 == null ? 0 : +delay2);
+          if (!this._next && taskTail !== this) {
+            if (taskTail) taskTail._next = this;
+            else taskHead = this;
+            taskTail = this;
+          }
+          this._call = callback;
+          this._time = time2;
+          sleep();
+        },
+        stop: function() {
+          if (this._call) {
+            this._call = null;
+            this._time = Infinity;
+            sleep();
+          }
+        }
+      };
+      function timer(callback, delay2, time2) {
+        var t = new Timer();
+        t.restart(callback, delay2, time2);
+        return t;
+      }
+      function timerFlush() {
+        now();
+        ++frame;
+        var t = taskHead, e;
+        while (t) {
+          if ((e = clockNow - t._time) >= 0) t._call.call(null, e);
+          t = t._next;
+        }
+        --frame;
+      }
+      function wake() {
+        clockNow = (clockLast = clock.now()) + clockSkew;
+        frame = timeout = 0;
+        try {
+          timerFlush();
+        } finally {
+          frame = 0;
+          nap();
+          clockNow = 0;
+        }
+      }
+      function poke() {
+        var now2 = clock.now(), delay2 = now2 - clockLast;
+        if (delay2 > pokeDelay) clockSkew -= delay2, clockLast = now2;
+      }
+      function nap() {
+        var t0, t1 = taskHead, t2, time2 = Infinity;
+        while (t1) {
+          if (t1._call) {
+            if (time2 > t1._time) time2 = t1._time;
+            t0 = t1, t1 = t1._next;
+          } else {
+            t2 = t1._next, t1._next = null;
+            t1 = t0 ? t0._next = t2 : taskHead = t2;
+          }
+        }
+        taskTail = t0;
+        sleep(time2);
+      }
+      function sleep(time2) {
+        if (frame) return;
+        if (timeout) timeout = clearTimeout(timeout);
+        var delay2 = time2 - clockNow;
+        if (delay2 > 24) {
+          if (time2 < Infinity) timeout = setTimeout(wake, time2 - clock.now() - clockSkew);
+          if (interval) interval = clearInterval(interval);
+        } else {
+          if (!interval) clockLast = clock.now(), interval = setInterval(poke, pokeDelay);
+          frame = 1, setFrame(wake);
+        }
+      }
+      function timeout$1(callback, delay2, time2) {
+        var t = new Timer();
+        delay2 = delay2 == null ? 0 : +delay2;
+        t.restart((elapsed) => {
+          t.stop();
+          callback(elapsed + delay2);
+        }, delay2, time2);
+        return t;
+      }
+      function interval$1(callback, delay2, time2) {
+        var t = new Timer(), total = delay2;
+        if (delay2 == null) return t.restart(callback, delay2, time2), t;
+        t._restart = t.restart;
+        t.restart = function(callback2, delay3, time3) {
+          delay3 = +delay3, time3 = time3 == null ? now() : +time3;
+          t._restart(function tick(elapsed) {
+            elapsed += total;
+            t._restart(tick, total += delay3, time3);
+            callback2(elapsed);
+          }, delay3, time3);
+        };
+        t.restart(callback, delay2, time2);
+        return t;
+      }
+      exports2.interval = interval$1;
+      exports2.now = now;
+      exports2.timeout = timeout$1;
+      exports2.timer = timer;
+      exports2.timerFlush = timerFlush;
+      Object.defineProperty(exports2, "__esModule", { value: true });
+    });
+  }
+});
+
+// node_modules/d3-force/dist/d3-force.js
+var require_d3_force = __commonJS({
+  "node_modules/d3-force/dist/d3-force.js"(exports, module) {
+    (function(global2, factory) {
+      typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require_d3_quadtree(), require_d3_dispatch(), require_d3_timer()) : typeof define === "function" && define.amd ? define(["exports", "d3-quadtree", "d3-dispatch", "d3-timer"], factory) : (global2 = global2 || self, factory(global2.d3 = global2.d3 || {}, global2.d3, global2.d3, global2.d3));
+    })(exports, function(exports2, d3Quadtree, d3Dispatch, d3Timer) {
+      "use strict";
+      function center2(x3, y3) {
+        var nodes3, strength = 1;
+        if (x3 == null) x3 = 0;
+        if (y3 == null) y3 = 0;
+        function force() {
+          var i, n = nodes3.length, node, sx = 0, sy = 0;
+          for (i = 0; i < n; ++i) {
+            node = nodes3[i], sx += node.x, sy += node.y;
+          }
+          for (sx = (sx / n - x3) * strength, sy = (sy / n - y3) * strength, i = 0; i < n; ++i) {
+            node = nodes3[i], node.x -= sx, node.y -= sy;
+          }
+        }
+        force.initialize = function(_) {
+          nodes3 = _;
+        };
+        force.x = function(_) {
+          return arguments.length ? (x3 = +_, force) : x3;
+        };
+        force.y = function(_) {
+          return arguments.length ? (y3 = +_, force) : y3;
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = +_, force) : strength;
+        };
+        return force;
+      }
+      function constant(x3) {
+        return function() {
+          return x3;
+        };
+      }
+      function jiggle(random) {
+        return (random() - 0.5) * 1e-6;
+      }
+      function x2(d) {
+        return d.x + d.vx;
+      }
+      function y2(d) {
+        return d.y + d.vy;
+      }
+      function collide(radius2) {
+        var nodes3, radii, random, strength = 1, iterations = 1;
+        if (typeof radius2 !== "function") radius2 = constant(radius2 == null ? 1 : +radius2);
+        function force() {
+          var i, n = nodes3.length, tree, node, xi, yi, ri, ri2;
+          for (var k = 0; k < iterations; ++k) {
+            tree = d3Quadtree.quadtree(nodes3, x2, y2).visitAfter(prepare);
+            for (i = 0; i < n; ++i) {
+              node = nodes3[i];
+              ri = radii[node.index], ri2 = ri * ri;
+              xi = node.x + node.vx;
+              yi = node.y + node.vy;
+              tree.visit(apply2);
+            }
+          }
+          function apply2(quad, x0, y0, x1, y1) {
+            var data5 = quad.data, rj = quad.r, r = ri + rj;
+            if (data5) {
+              if (data5.index > node.index) {
+                var x3 = xi - data5.x - data5.vx, y3 = yi - data5.y - data5.vy, l = x3 * x3 + y3 * y3;
+                if (l < r * r) {
+                  if (x3 === 0) x3 = jiggle(random), l += x3 * x3;
+                  if (y3 === 0) y3 = jiggle(random), l += y3 * y3;
+                  l = (r - (l = Math.sqrt(l))) / l * strength;
+                  node.vx += (x3 *= l) * (r = (rj *= rj) / (ri2 + rj));
+                  node.vy += (y3 *= l) * r;
+                  data5.vx -= x3 * (r = 1 - r);
+                  data5.vy -= y3 * r;
+                }
+              }
+              return;
+            }
+            return x0 > xi + r || x1 < xi - r || y0 > yi + r || y1 < yi - r;
+          }
+        }
+        function prepare(quad) {
+          if (quad.data) return quad.r = radii[quad.data.index];
+          for (var i = quad.r = 0; i < 4; ++i) {
+            if (quad[i] && quad[i].r > quad.r) {
+              quad.r = quad[i].r;
+            }
+          }
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length, node;
+          radii = new Array(n);
+          for (i = 0; i < n; ++i) node = nodes3[i], radii[node.index] = +radius2(node, i, nodes3);
+        }
+        force.initialize = function(_nodes, _random) {
+          nodes3 = _nodes;
+          random = _random;
+          initialize();
+        };
+        force.iterations = function(_) {
+          return arguments.length ? (iterations = +_, force) : iterations;
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = +_, force) : strength;
+        };
+        force.radius = function(_) {
+          return arguments.length ? (radius2 = typeof _ === "function" ? _ : constant(+_), initialize(), force) : radius2;
+        };
+        return force;
+      }
+      function index(d) {
+        return d.index;
+      }
+      function find(nodeById, nodeId) {
+        var node = nodeById.get(nodeId);
+        if (!node) throw new Error("node not found: " + nodeId);
+        return node;
+      }
+      function link(links) {
+        var id2 = index, strength = defaultStrength, strengths, distance = constant(30), distances2, nodes3, count, bias, random, iterations = 1;
+        if (links == null) links = [];
+        function defaultStrength(link2) {
+          return 1 / Math.min(count[link2.source.index], count[link2.target.index]);
+        }
+        function force(alpha) {
+          for (var k = 0, n = links.length; k < iterations; ++k) {
+            for (var i = 0, link2, source, target, x3, y3, l, b; i < n; ++i) {
+              link2 = links[i], source = link2.source, target = link2.target;
+              x3 = target.x + target.vx - source.x - source.vx || jiggle(random);
+              y3 = target.y + target.vy - source.y - source.vy || jiggle(random);
+              l = Math.sqrt(x3 * x3 + y3 * y3);
+              l = (l - distances2[i]) / l * alpha * strengths[i];
+              x3 *= l, y3 *= l;
+              target.vx -= x3 * (b = bias[i]);
+              target.vy -= y3 * b;
+              source.vx += x3 * (b = 1 - b);
+              source.vy += y3 * b;
+            }
+          }
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length, m2 = links.length, nodeById = new Map(nodes3.map((d, i2) => [id2(d, i2, nodes3), d])), link2;
+          for (i = 0, count = new Array(n); i < m2; ++i) {
+            link2 = links[i], link2.index = i;
+            if (typeof link2.source !== "object") link2.source = find(nodeById, link2.source);
+            if (typeof link2.target !== "object") link2.target = find(nodeById, link2.target);
+            count[link2.source.index] = (count[link2.source.index] || 0) + 1;
+            count[link2.target.index] = (count[link2.target.index] || 0) + 1;
+          }
+          for (i = 0, bias = new Array(m2); i < m2; ++i) {
+            link2 = links[i], bias[i] = count[link2.source.index] / (count[link2.source.index] + count[link2.target.index]);
+          }
+          strengths = new Array(m2), initializeStrength();
+          distances2 = new Array(m2), initializeDistance();
+        }
+        function initializeStrength() {
+          if (!nodes3) return;
+          for (var i = 0, n = links.length; i < n; ++i) {
+            strengths[i] = +strength(links[i], i, links);
+          }
+        }
+        function initializeDistance() {
+          if (!nodes3) return;
+          for (var i = 0, n = links.length; i < n; ++i) {
+            distances2[i] = +distance(links[i], i, links);
+          }
+        }
+        force.initialize = function(_nodes, _random) {
+          nodes3 = _nodes;
+          random = _random;
+          initialize();
+        };
+        force.links = function(_) {
+          return arguments.length ? (links = _, initialize(), force) : links;
+        };
+        force.id = function(_) {
+          return arguments.length ? (id2 = _, force) : id2;
+        };
+        force.iterations = function(_) {
+          return arguments.length ? (iterations = +_, force) : iterations;
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = typeof _ === "function" ? _ : constant(+_), initializeStrength(), force) : strength;
+        };
+        force.distance = function(_) {
+          return arguments.length ? (distance = typeof _ === "function" ? _ : constant(+_), initializeDistance(), force) : distance;
+        };
+        return force;
+      }
+      const a = 1664525;
+      const c = 1013904223;
+      const m = 4294967296;
+      function lcg() {
+        let s = 1;
+        return () => (s = (a * s + c) % m) / m;
+      }
+      function x$1(d) {
+        return d.x;
+      }
+      function y$1(d) {
+        return d.y;
+      }
+      var initialRadius = 10, initialAngle = Math.PI * (3 - Math.sqrt(5));
+      function simulation(nodes3) {
+        var simulation2, alpha = 1, alphaMin = 1e-3, alphaDecay = 1 - Math.pow(alphaMin, 1 / 300), alphaTarget = 0, velocityDecay = 0.6, forces = /* @__PURE__ */ new Map(), stepper = d3Timer.timer(step3), event3 = d3Dispatch.dispatch("tick", "end"), random = lcg();
+        if (nodes3 == null) nodes3 = [];
+        function step3() {
+          tick();
+          event3.call("tick", simulation2);
+          if (alpha < alphaMin) {
+            stepper.stop();
+            event3.call("end", simulation2);
+          }
+        }
+        function tick(iterations) {
+          var i, n = nodes3.length, node;
+          if (iterations === void 0) iterations = 1;
+          for (var k = 0; k < iterations; ++k) {
+            alpha += (alphaTarget - alpha) * alphaDecay;
+            forces.forEach(function(force) {
+              force(alpha);
+            });
+            for (i = 0; i < n; ++i) {
+              node = nodes3[i];
+              if (node.fx == null) node.x += node.vx *= velocityDecay;
+              else node.x = node.fx, node.vx = 0;
+              if (node.fy == null) node.y += node.vy *= velocityDecay;
+              else node.y = node.fy, node.vy = 0;
+            }
+          }
+          return simulation2;
+        }
+        function initializeNodes() {
+          for (var i = 0, n = nodes3.length, node; i < n; ++i) {
+            node = nodes3[i], node.index = i;
+            if (node.fx != null) node.x = node.fx;
+            if (node.fy != null) node.y = node.fy;
+            if (isNaN(node.x) || isNaN(node.y)) {
+              var radius2 = initialRadius * Math.sqrt(0.5 + i), angle2 = i * initialAngle;
+              node.x = radius2 * Math.cos(angle2);
+              node.y = radius2 * Math.sin(angle2);
+            }
+            if (isNaN(node.vx) || isNaN(node.vy)) {
+              node.vx = node.vy = 0;
+            }
+          }
+        }
+        function initializeForce(force) {
+          if (force.initialize) force.initialize(nodes3, random);
+          return force;
+        }
+        initializeNodes();
+        return simulation2 = {
+          tick,
+          restart: function() {
+            return stepper.restart(step3), simulation2;
+          },
+          stop: function() {
+            return stepper.stop(), simulation2;
+          },
+          nodes: function(_) {
+            return arguments.length ? (nodes3 = _, initializeNodes(), forces.forEach(initializeForce), simulation2) : nodes3;
+          },
+          alpha: function(_) {
+            return arguments.length ? (alpha = +_, simulation2) : alpha;
+          },
+          alphaMin: function(_) {
+            return arguments.length ? (alphaMin = +_, simulation2) : alphaMin;
+          },
+          alphaDecay: function(_) {
+            return arguments.length ? (alphaDecay = +_, simulation2) : +alphaDecay;
+          },
+          alphaTarget: function(_) {
+            return arguments.length ? (alphaTarget = +_, simulation2) : alphaTarget;
+          },
+          velocityDecay: function(_) {
+            return arguments.length ? (velocityDecay = 1 - _, simulation2) : 1 - velocityDecay;
+          },
+          randomSource: function(_) {
+            return arguments.length ? (random = _, forces.forEach(initializeForce), simulation2) : random;
+          },
+          force: function(name, _) {
+            return arguments.length > 1 ? (_ == null ? forces.delete(name) : forces.set(name, initializeForce(_)), simulation2) : forces.get(name);
+          },
+          find: function(x3, y3, radius2) {
+            var i = 0, n = nodes3.length, dx, dy, d2, node, closest;
+            if (radius2 == null) radius2 = Infinity;
+            else radius2 *= radius2;
+            for (i = 0; i < n; ++i) {
+              node = nodes3[i];
+              dx = x3 - node.x;
+              dy = y3 - node.y;
+              d2 = dx * dx + dy * dy;
+              if (d2 < radius2) closest = node, radius2 = d2;
+            }
+            return closest;
+          },
+          on: function(name, _) {
+            return arguments.length > 1 ? (event3.on(name, _), simulation2) : event3.on(name);
+          }
+        };
+      }
+      function manyBody() {
+        var nodes3, node, random, alpha, strength = constant(-30), strengths, distanceMin2 = 1, distanceMax2 = Infinity, theta2 = 0.81;
+        function force(_) {
+          var i, n = nodes3.length, tree = d3Quadtree.quadtree(nodes3, x$1, y$1).visitAfter(accumulate);
+          for (alpha = _, i = 0; i < n; ++i) node = nodes3[i], tree.visit(apply2);
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length, node2;
+          strengths = new Array(n);
+          for (i = 0; i < n; ++i) node2 = nodes3[i], strengths[node2.index] = +strength(node2, i, nodes3);
+        }
+        function accumulate(quad) {
+          var strength2 = 0, q, c2, weight8 = 0, x3, y3, i;
+          if (quad.length) {
+            for (x3 = y3 = i = 0; i < 4; ++i) {
+              if ((q = quad[i]) && (c2 = Math.abs(q.value))) {
+                strength2 += q.value, weight8 += c2, x3 += c2 * q.x, y3 += c2 * q.y;
+              }
+            }
+            quad.x = x3 / weight8;
+            quad.y = y3 / weight8;
+          } else {
+            q = quad;
+            q.x = q.data.x;
+            q.y = q.data.y;
+            do
+              strength2 += strengths[q.data.index];
+            while (q = q.next);
+          }
+          quad.value = strength2;
+        }
+        function apply2(quad, x1, _, x22) {
+          if (!quad.value) return true;
+          var x3 = quad.x - node.x, y3 = quad.y - node.y, w = x22 - x1, l = x3 * x3 + y3 * y3;
+          if (w * w / theta2 < l) {
+            if (l < distanceMax2) {
+              if (x3 === 0) x3 = jiggle(random), l += x3 * x3;
+              if (y3 === 0) y3 = jiggle(random), l += y3 * y3;
+              if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+              node.vx += x3 * quad.value * alpha / l;
+              node.vy += y3 * quad.value * alpha / l;
+            }
+            return true;
+          } else if (quad.length || l >= distanceMax2) return;
+          if (quad.data !== node || quad.next) {
+            if (x3 === 0) x3 = jiggle(random), l += x3 * x3;
+            if (y3 === 0) y3 = jiggle(random), l += y3 * y3;
+            if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+          }
+          do
+            if (quad.data !== node) {
+              w = strengths[quad.data.index] * alpha / l;
+              node.vx += x3 * w;
+              node.vy += y3 * w;
+            }
+          while (quad = quad.next);
+        }
+        force.initialize = function(_nodes, _random) {
+          nodes3 = _nodes;
+          random = _random;
+          initialize();
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = typeof _ === "function" ? _ : constant(+_), initialize(), force) : strength;
+        };
+        force.distanceMin = function(_) {
+          return arguments.length ? (distanceMin2 = _ * _, force) : Math.sqrt(distanceMin2);
+        };
+        force.distanceMax = function(_) {
+          return arguments.length ? (distanceMax2 = _ * _, force) : Math.sqrt(distanceMax2);
+        };
+        force.theta = function(_) {
+          return arguments.length ? (theta2 = _ * _, force) : Math.sqrt(theta2);
+        };
+        return force;
+      }
+      function radial(radius2, x3, y3) {
+        var nodes3, strength = constant(0.1), strengths, radiuses;
+        if (typeof radius2 !== "function") radius2 = constant(+radius2);
+        if (x3 == null) x3 = 0;
+        if (y3 == null) y3 = 0;
+        function force(alpha) {
+          for (var i = 0, n = nodes3.length; i < n; ++i) {
+            var node = nodes3[i], dx = node.x - x3 || 1e-6, dy = node.y - y3 || 1e-6, r = Math.sqrt(dx * dx + dy * dy), k = (radiuses[i] - r) * strengths[i] * alpha / r;
+            node.vx += dx * k;
+            node.vy += dy * k;
+          }
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length;
+          strengths = new Array(n);
+          radiuses = new Array(n);
+          for (i = 0; i < n; ++i) {
+            radiuses[i] = +radius2(nodes3[i], i, nodes3);
+            strengths[i] = isNaN(radiuses[i]) ? 0 : +strength(nodes3[i], i, nodes3);
+          }
+        }
+        force.initialize = function(_) {
+          nodes3 = _, initialize();
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = typeof _ === "function" ? _ : constant(+_), initialize(), force) : strength;
+        };
+        force.radius = function(_) {
+          return arguments.length ? (radius2 = typeof _ === "function" ? _ : constant(+_), initialize(), force) : radius2;
+        };
+        force.x = function(_) {
+          return arguments.length ? (x3 = +_, force) : x3;
+        };
+        force.y = function(_) {
+          return arguments.length ? (y3 = +_, force) : y3;
+        };
+        return force;
+      }
+      function x$2(x3) {
+        var strength = constant(0.1), nodes3, strengths, xz;
+        if (typeof x3 !== "function") x3 = constant(x3 == null ? 0 : +x3);
+        function force(alpha) {
+          for (var i = 0, n = nodes3.length, node; i < n; ++i) {
+            node = nodes3[i], node.vx += (xz[i] - node.x) * strengths[i] * alpha;
+          }
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length;
+          strengths = new Array(n);
+          xz = new Array(n);
+          for (i = 0; i < n; ++i) {
+            strengths[i] = isNaN(xz[i] = +x3(nodes3[i], i, nodes3)) ? 0 : +strength(nodes3[i], i, nodes3);
+          }
+        }
+        force.initialize = function(_) {
+          nodes3 = _;
+          initialize();
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = typeof _ === "function" ? _ : constant(+_), initialize(), force) : strength;
+        };
+        force.x = function(_) {
+          return arguments.length ? (x3 = typeof _ === "function" ? _ : constant(+_), initialize(), force) : x3;
+        };
+        return force;
+      }
+      function y$2(y3) {
+        var strength = constant(0.1), nodes3, strengths, yz;
+        if (typeof y3 !== "function") y3 = constant(y3 == null ? 0 : +y3);
+        function force(alpha) {
+          for (var i = 0, n = nodes3.length, node; i < n; ++i) {
+            node = nodes3[i], node.vy += (yz[i] - node.y) * strengths[i] * alpha;
+          }
+        }
+        function initialize() {
+          if (!nodes3) return;
+          var i, n = nodes3.length;
+          strengths = new Array(n);
+          yz = new Array(n);
+          for (i = 0; i < n; ++i) {
+            strengths[i] = isNaN(yz[i] = +y3(nodes3[i], i, nodes3)) ? 0 : +strength(nodes3[i], i, nodes3);
+          }
+        }
+        force.initialize = function(_) {
+          nodes3 = _;
+          initialize();
+        };
+        force.strength = function(_) {
+          return arguments.length ? (strength = typeof _ === "function" ? _ : constant(+_), initialize(), force) : strength;
+        };
+        force.y = function(_) {
+          return arguments.length ? (y3 = typeof _ === "function" ? _ : constant(+_), initialize(), force) : y3;
+        };
+        return force;
+      }
+      exports2.forceCenter = center2;
+      exports2.forceCollide = collide;
+      exports2.forceLink = link;
+      exports2.forceManyBody = manyBody;
+      exports2.forceRadial = radial;
+      exports2.forceSimulation = simulation;
+      exports2.forceX = x$2;
+      exports2.forceY = y$2;
+      Object.defineProperty(exports2, "__esModule", { value: true });
+    });
+  }
+});
+
 // node_modules/d3-force-sampled/build/d3-force-sampled.js
 var require_d3_force_sampled = __commonJS({
   "node_modules/d3-force-sampled/build/d3-force-sampled.js"(exports, module) {
@@ -14255,12 +15239,26 @@ var require_d3_force_sampled = __commonJS({
 // src/vendor/d3-force-bridge.cjs
 var require_d3_force_bridge = __commonJS({
   "src/vendor/d3-force-bridge.cjs"(exports, module) {
-    var d3force = require_d3_force_bridge();
+    var d3force = require_d3_force();
     var sampled = require_d3_force_sampled();
     var forceManyBodySampled = sampled.forceManyBodySampled || sampled.default && sampled.default.forceManyBodySampled;
+    function forceManyBodyCompat() {
+      const force = forceManyBodySampled ? forceManyBodySampled() : d3force.forceManyBody();
+      if (typeof force.theta !== "function") {
+        let theta = 0.9;
+        force.theta = function(value) {
+          if (!arguments.length) {
+            return theta;
+          }
+          theta = +value;
+          return force;
+        };
+      }
+      return force;
+    }
     module.exports = {
       ...d3force,
-      forceManyBody: forceManyBodySampled || d3force.forceManyBody
+      forceManyBody: forceManyBodyCompat
     };
   }
 });

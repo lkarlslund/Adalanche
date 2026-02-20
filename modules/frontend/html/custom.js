@@ -800,35 +800,6 @@ document.addEventListener("DOMContentLoaded", function () {
       setVisible("status", true);
     });
 
-  const graphlayout = document.getElementById("graphlayout");
-  if (graphlayout) {
-    graphlayout.addEventListener("prefupdate", function (event) {
-      const layout = event.target.value;
-      if (cy) {
-        // render graph with new layout if there is one
-        getGraphlayout(layout).run();
-      }
-    });
-  }
-
-  const nodesizes = document.getElementById("nodesizes");
-  if (nodesizes) {
-    nodesizes.addEventListener("prefupdate", function () {
-      if (cy) {
-        applyNodeStyles(cy);
-      }
-    });
-  }
-
-  const nodelabels = document.getElementById("nodelabels");
-  if (nodelabels) {
-    nodelabels.addEventListener("prefupdate", function () {
-      if (cy) {
-        cy.style().update();
-      }
-    });
-  }
-
   updateQueries();
 
   ensurePrefsLoaded()

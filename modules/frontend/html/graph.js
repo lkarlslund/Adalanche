@@ -1210,8 +1210,8 @@ function applyEdgeStyles(cy) {
     });
 };
 
-function applyNodeStyles(cy) {
-    const nodestyle = getpref("graph.nodesize", "incoming");
+function applyNodeStyles(cy, nodestyleOverride) {
+    const nodestyle = nodestyleOverride || getpref("graph.nodesize", "incoming");
 
     if (nodestyle == "equal") {
         cy.nodes().each(function (ele) {

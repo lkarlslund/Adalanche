@@ -344,7 +344,7 @@
                     class="form-control"
                     id="graphlayout"
                     x-model="layout"
-                    x-on:change="if(window.cy) getGraphlayout(layout).run()"
+                    x-on:change="if (window.cy) getGraphlayout(layout).run()"
                   >
                     <option value="fcose">FCOSE</option>
                     <option value="d3force">D3 Force</option>
@@ -377,7 +377,7 @@
                     class="form-control"
                     id="nodelabels"
                     x-model="nodelabels"
-                    x-on:change="if(window.cy) cy.style().update()"
+                    x-on:change="if (window.cy) window.cy.style().update()"
                   >
                     <option value="normal">Normal</option>
                     <option value="off">Off</option>
@@ -392,7 +392,7 @@
                     class="form-control"
                     id="nodesizes"
                     x-model="nodesize"
-                    x-on:change="if(window.cy) applyNodeStyles(cy)"
+                    x-on:change="if (window.cy) applyNodeStyles(window.cy, nodesize)"
                   >
                     <option value="equal">All same size</option>
                     <option value="incoming">Incoming edges</option>
