@@ -1,15 +1,18 @@
 var cy
 var nodemenu
 
-var remoteLayout = {
-  name: "remote",
-  url: "/api/graph/layout",        // server endpoint (required)
-}
-
 var remoteLayoutv2 = {
   name: "remote",
   url: "/api/graph/layout",        // server endpoint (required)
   layout: "cosev2",
+  extra: {
+    k: 10.0,
+    spring_coeff: 0.19,
+    repulsion_coeff: 4.35,
+    gravity: 0.028,
+    node_distance: 12,
+    ideal_edge_length: 8,
+  },
 }
 
 // Configure
@@ -69,14 +72,14 @@ var d3forcelayout = {
 var coselayout = {
     name: 'cose',
     animate: true,
-    idealEdgeLength: 100,
+    idealEdgeLength: 62,
     nodeOverlap: 30,
     refresh: 20,
     fit: true,
     padding: 30,
     randomize: true,
-    componentSpacing: 120,
-    nodeRepulsion: 4400000,
+    componentSpacing: 52,
+    nodeRepulsion: 2000000,
     edgeElasticity: 100,
     nestingFactor: 5,
     gravity: 10,
@@ -147,16 +150,16 @@ var fcoselayout = {
     sampleSize: 100,
     // Separation amount between nodes
     // nodeSeparation: 125,
-    nodeSeparation: 125,
+    nodeSeparation: 190,
     // Power iteration tolerance
     piTol: 0.0000001,
 
     /* incremental layout options */
 
     // Node repulsion (non overlapping) multiplier
-    nodeRepulsion: 4500,
+    nodeRepulsion: 5600,
     // Ideal edge (non nested) length
-    idealEdgeLength: 100,
+    idealEdgeLength: 150,
     // Divisor to compute edge forces
     edgeElasticity: 0.45,
     // Nesting factor (multiplier) to compute ideal edge length for nested edges
@@ -166,9 +169,9 @@ var fcoselayout = {
     // For enabling tiling
     tile: true,
     // Represents the amount of the vertical space to put between the zero degree members during the tiling operation(can also be a function)
-    tilingPaddingVertical: 10,
+    tilingPaddingVertical: 26,
     // Represents the amount of the horizontal space to put between the zero degree members during the tiling operation(can also be a function)
-    tilingPaddingHorizontal: 10,
+    tilingPaddingHorizontal: 26,
     // Gravity force (constant)
     gravity: 0.25,
     // Gravity range (constant) for compounds
@@ -607,9 +610,6 @@ function getGraphlayout(choice) {
       case "cise":
         layouttemplate = ciselayout;
         break;
-      case "remote":
-        layouttemplate = remoteLayout;
-        break;
       case "remotev2":
         layouttemplate = remoteLayoutv2;
         break;
@@ -951,7 +951,7 @@ function initgraph(data) {
                         event.target.removeData('_canexpand')
 
                         // Apply layout again
-                        getGraphlayout(byIdValue("graphlayout", "fcose")).run()
+                        getGraphlayout(byIdValue("graphlayout", "remotev2")).run()
                       })
                       .catch(function (err) {
                         const statusEl = document.getElementById("status");
@@ -1171,7 +1171,7 @@ function initgraph(data) {
     applyEdgeStyles(cy);
     applyNodeStyles(cy);
 
-    getGraphlayout(byIdValue("graphlayout", "fcose")).run()
+    getGraphlayout(byIdValue("graphlayout", "remotev2")).run()
 }
 
 function getEdgeColor(ele) {

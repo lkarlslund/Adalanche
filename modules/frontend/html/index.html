@@ -338,7 +338,7 @@
                 Graph Visualization
               </summary>
               <div class="p-1">
-                <div x-data="{ layout: $persist('fcose').as('ui.graph.layout').using(window.backendPersist) }">
+                <div x-data="{ layout: $persist('remotev2').as('ui.graph.layout').using(window.backendPersist) }">
                   <label for="graphlayout">Graph layout engine</label>
                   <select
                     class="form-control"
@@ -346,11 +346,10 @@
                     x-model="layout"
                     x-on:change="if (window.cy) getGraphlayout(layout).run()"
                   >
+                    <option value="remotev2">Remote COSE v2</option>
                     <option value="fcose">FCOSE</option>
                     <option value="d3force">D3 Force</option>
                     <option value="cose">COSE</option>
-                    <option value="remote">Remote COSE</option>
-                    <option value="remotev2">Remote COSE v2</option>
                     <option value="cosebilkent">COSE Bilkent</option>
                     <option value="dagre">DAGRE</option>
                     <!-- <option value="cise">CISE</option> -->

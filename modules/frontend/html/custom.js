@@ -818,11 +818,31 @@ document.addEventListener("DOMContentLoaded", function () {
 settings_loaded = false;
 data_loaded = false;
 initial_query_has_run = false;
+let autorunRetryTimer = null;
+
+function hasReadyInitialQuery() {
+  const queryEl = document.getElementById("aqlquerytext");
+  return !!(queryEl && queryEl.value && queryEl.value.trim().length > 0);
+}
+
 function autorun_query() {
-  if (initial_query_set && settings_loaded && data_loaded && getpref("ui.run.query.on.startup", true) && !initial_query_has_run) {
-    initial_query_has_run = true;
-    aqlanalyze();
+  if (!initial_query_set || !settings_loaded || !data_loaded || !getpref("ui.run.query.on.startup", true) || initial_query_has_run) {
+    return;
   }
+
+  if (!hasReadyInitialQuery()) {
+    if (autorunRetryTimer) {
+      clearTimeout(autorunRetryTimer);
+    }
+    autorunRetryTimer = setTimeout(() => {
+      autorunRetryTimer = null;
+      autorun_query();
+    }, 150);
+    return;
+  }
+
+  initial_query_has_run = true;
+  aqlanalyze();
 }
 
 function exploreTree() {

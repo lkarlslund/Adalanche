@@ -1,14 +1,15 @@
 (function () {
   "use strict";
+  var registered = false;
 
   // registers the extension on a cytoscape lib ref
   var register = function (cytoscape) {
-    if (!cytoscape) return;
+    if (!cytoscape || registered) return;
 
     var defaults = {
       url: null,
       method: "POST",
-      layout: "cose",
+      layout: "cosev2",
       nodeMapper: (n) => ({
         id: n.id(),
         data: n.data(),
@@ -241,9 +242,34 @@
     };
 
     cytoscape("layout", "remote", RemoteLayout);
+    registered = true;
   };
 
-  if (typeof cytoscape !== "undefined") {
-    register(cytoscape);
+  function tryRegister() {
+    // Prefer global symbol set by graph vendor bootstrap.
+    if (typeof window !== "undefined" && window.cytoscape) {
+      register(window.cytoscape);
+      return registered;
+    }
+    // Fallback for direct global.
+    if (typeof cytoscape !== "undefined") {
+      register(cytoscape);
+      return registered;
+    }
+    return false;
+  }
+
+  if (!tryRegister()) {
+    var tries = 0;
+    var maxTries = 200; // ~10s at 50ms interval
+    var timer = setInterval(function () {
+      tries++;
+      if (tryRegister() || tries >= maxTries) {
+        clearInterval(timer);
+        if (!registered) {
+          console.warn("Remote Cytoscape layout plugin could not register (cytoscape unavailable)");
+        }
+      }
+    }, 50);
   }
 })();

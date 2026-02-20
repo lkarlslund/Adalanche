@@ -14,6 +14,7 @@ type forceGridWork struct {
 	nodes        []layoutNode
 	gridX, gridY int
 	gridSize     int
+	neighborSpan int
 }
 
 type forceGridResult struct {
@@ -111,9 +112,9 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 
 					thisNode := workItem.nodes[nodeIdx]
 
-					// Repulsion from other nodes
-					for dy := workItem.gridY - 1; dy <= workItem.gridY+1; dy++ {
-						for dx := workItem.gridX - 1; dx <= workItem.gridX+1; dx++ {
+					// Repulsion from nearby grid cells.
+					for dy := workItem.gridY - workItem.neighborSpan; dy <= workItem.gridY+workItem.neighborSpan; dy++ {
+						for dx := workItem.gridX - workItem.neighborSpan; dx <= workItem.gridX+workItem.neighborSpan; dx++ {
 							thisGridIdx := dy*workItem.gridSize + dx
 							if thisGridIdx < 0 || thisGridIdx >= len(workItem.grid) {
 								continue
@@ -129,8 +130,32 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 								distSq := dx*dx + dy*dy
 								dist := math.Max(math.Sqrt(distSq), 0.01)
 
-								// Use inverse square law for repulsion
-								force := settings.RepulsionCoeff * float64(k) * float64(k) / distSq
+								// Prevent coincident nodes from generating zero-direction forces.
+								if dx == 0 {
+									dx = (rand.Float64() - 0.5) * 1e-6
+									distSq += dx * dx
+								}
+								if dy == 0 {
+									dy = (rand.Float64() - 0.5) * 1e-6
+									distSq += dy * dy
+								}
+
+								// Enforce a minimum node distance like COSE v1 to reduce overlap.
+								minAllowedDist := settings.NodeDistance * k
+								effectiveDist := dist
+								if effectiveDist < minAllowedDist {
+									effectiveDist = minAllowedDist
+								}
+
+								// Use inverse square law for baseline repulsion.
+								force := settings.RepulsionCoeff * float64(k) * float64(k) / (effectiveDist * effectiveDist)
+
+								// Add a strong short-range push when nodes are inside minimum distance.
+								// This addresses dense clusters where nodes otherwise remain stacked.
+								if dist < minAllowedDist {
+									overlapRatio := (minAllowedDist - dist) / minAllowedDist
+									force += settings.RepulsionCoeff * float64(k) * 1.1 * overlapRatio
+								}
 
 								// Normalize and apply force
 								forces[i].x += (dx / dist) * force
@@ -169,12 +194,14 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 		currentGraph = graphs[len(graphs)-1]
 		graphs = graphs[:len(graphs)-1]
 
-		// Use spatial grid for repulsion forces (O(n) instead of O(n²))
-		gridSize := min(int(math.Sqrt(float64(currentGraph.Order())))/5+1, 25)
+		// Use spatial grid for repulsion forces (near O(n) behavior).
+		// Keep a reasonably fine grid to avoid over-clumping in dense regions.
+		gridSize := min(max(int(math.Sqrt(float64(currentGraph.Order())))/4+1, 8), 40)
 		grid := make([][]int, gridSize*gridSize)
 		for i := range grid {
 			grid[i] = make([]int, 0)
 		}
+		neighborSpan := 2
 
 		// apply dampening to nodes already placed
 		for _, layout := range currentNodeMap {
@@ -234,12 +261,17 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 
 		// Precompute edge list for better cache locality
 		edgesSlice := make([]struct{ src, dst int }, len(currentGraph.edges))
+		nodeDegree := make([]int, len(currentNodes))
 		i := 0
 		for edge, _ := range currentGraph.edges {
+			srcID := currentNodeMap[edge.Source].id
+			dstID := currentNodeMap[edge.Target].id
 			edgesSlice[i] = struct{ src, dst int }{
-				src: currentNodeMap[edge.Source].id,
-				dst: currentNodeMap[edge.Target].id,
+				src: srcID,
+				dst: dstID,
 			}
+			nodeDegree[srcID]++
+			nodeDegree[dstID]++
 			i++
 		}
 
@@ -251,15 +283,47 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 				grid[i] = grid[i][:0]
 			}
 
+			// Compute dynamic bounds to avoid clamping many nodes into edge cells
+			// when the layout expands beyond the initial radius estimate.
+			minX, maxX := math.Inf(1), math.Inf(-1)
+			minY, maxY := math.Inf(1), math.Inf(-1)
+			for _, node := range currentNodes {
+				if node.x < minX {
+					minX = node.x
+				}
+				if node.x > maxX {
+					maxX = node.x
+				}
+				if node.y < minY {
+					minY = node.y
+				}
+				if node.y > maxY {
+					maxY = node.y
+				}
+			}
+			padding := math.Max(idealLineLength, 1.0)
+			minX -= padding
+			maxX += padding
+			minY -= padding
+			maxY += padding
+			spanX := math.Max(maxX-minX, 1e-6)
+			spanY := math.Max(maxY-minY, 1e-6)
+
 			// Populate grid with nodes
 			for i, node := range currentNodes {
-				gridIdx := int((node.x+radius)/(2*radius)*float64(gridSize)) +
-					int((node.y+radius)/(2*radius)*float64(gridSize))*gridSize
-				if gridIdx < 0 {
-					gridIdx = 0
-				} else if gridIdx >= len(grid) {
-					gridIdx = len(grid) - 1
+				gridX := int((node.x - minX) / spanX * float64(gridSize))
+				gridY := int((node.y - minY) / spanY * float64(gridSize))
+				if gridX < 0 {
+					gridX = 0
+				} else if gridX >= gridSize {
+					gridX = gridSize - 1
 				}
+				if gridY < 0 {
+					gridY = 0
+				} else if gridY >= gridSize {
+					gridY = gridSize - 1
+				}
+				gridIdx := gridY*gridSize + gridX
 				grid[gridIdx] = append(grid[gridIdx], i)
 			}
 
@@ -273,6 +337,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 							gridSize: gridSize,
 							grid:     grid,
 							nodes:    currentNodes,
+							neighborSpan: neighborSpan,
 						}
 					}
 				}
@@ -297,8 +362,20 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 				dy := source.y - target.y
 				dist := math.Max(math.Sqrt(dx*dx+dy*dy), 0.01)
 
+				// Degree-aware ideal length: high-degree hubs get shorter preferred spokes
+				// to avoid giant radial "sunburst" rings around central nodes.
+				maxDeg := max(nodeDegree[edge.src], nodeDegree[edge.dst])
+				degScale := 1.0
+				if maxDeg > 1 {
+					degScale = 1.0 / (1.0 + 0.18*math.Log1p(float64(maxDeg-1)))
+				}
+				if degScale < 0.35 {
+					degScale = 0.35
+				}
+				edgeIdealLength := idealLineLength * degScale
+
 				// Spring force increases linearly with distance
-				force := settings.SpringCoeff * (dist - idealLineLength) / k
+				force := settings.SpringCoeff * (dist - edgeIdealLength) / k
 
 				// Apply force with distance limiting
 				dx *= force / dist
