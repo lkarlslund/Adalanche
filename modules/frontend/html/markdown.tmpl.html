@@ -13,7 +13,6 @@
     <link rel="stylesheet" type="text/css" href="/external/bootstrap/css/bootstrap.css" />
     <link rel="stylesheet" type="text/css" href="/external/bootstrap-icons/bootstrap-icons.css" />
     <link rel="stylesheet" type="text/css" href="/external/toastify.min.css">
-    <script src="/external/jquery-3.7.1.min.js"></script>
 
     <!-- we put everything custom here, so we can override earlier variables -->
     <link rel="stylesheet" href="/adalanche.css" />
@@ -27,7 +26,7 @@
         </nav>
         <main class="main-content">
           <div id="docs" class="container-fluid">
-            <button class="sidebar-toggle toggle-btn" onclick="toggleSidebar()">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">
               <i class="bi-arrow-left-right"></i>
             </button>
             {{ .Contents }}
@@ -40,8 +39,11 @@
           const sidebar = document.querySelector('.sidebar');
           sidebar.classList.toggle('collapsed');
       }
-      $(document).ready(function() {
-        $('.sidebar nav').addClass('hide-on-collapse');
+      document.addEventListener("DOMContentLoaded", function () {
+        const nav = document.querySelector(".sidebar nav");
+        if (nav) {
+          nav.classList.add("hide-on-collapse");
+        }
       });
     </script>
   </body>

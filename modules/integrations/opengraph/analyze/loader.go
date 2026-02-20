@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bytedance/sonic"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/opengraph"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/sugawarayuuta/sonnet"
 )
 
 const Loadername = "OpenGraph"
@@ -46,7 +46,7 @@ func (ld *OpenGraphLoader) Init() error {
 				}
 
 				var ogd opengraph.Model
-				var dec = sonic.ConfigDefault.NewDecoder(r)
+				var dec = sonnet.NewDecoder(r)
 				err = dec.Decode(&ogd)
 				if err != nil {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)

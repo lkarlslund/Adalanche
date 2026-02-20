@@ -1,196 +1,76 @@
 window.onpopstate = function (event) {
-  $("body").html(event.state);
+  document.body.innerHTML = event.state;
 };
 
-function set_query(query) {
-  $("#aqlquerytext").val(query);
+function translateAutoTheme(theme) {
+  if (theme === "auto") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return theme;
 }
 
-function dragMoveListener(event) {
-  var target = event.target,
-    // keep the dragged position in the data-x/data-y attributes
-    x = (parseFloat(target.getAttribute("data-x")) || 0) + event.dx,
-    y = (parseFloat(target.getAttribute("data-y")) || 0) + event.dy;
-
-  // translate the element
-  target.style.webkitTransform = target.style.transform =
-    "translate(" + x + "px, " + y + "px)";
-
-  // update the posiion attributes
-  target.setAttribute("data-x", x);
-  target.setAttribute("data-y", y);
-
-  if (!target.classList.contains("window-front")) {
-    console.log($(".window-front"));
-    $(".window-front").removeClass("window-front");
-    console.log($(".window-front"));
-    target.classList.add("window-front");
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-bs-theme", theme);
+  if (window.cy) {
+    cy.style(cytostyle);
+    applyEdgeStyles(cy);
+    applyNodeStyles(cy);
   }
+}
+
+function set_query(query) {
+  const queryEl = document.getElementById("aqlquerytext");
+  if (queryEl) {
+    queryEl.value = query;
+  }
+}
+
+function getWindowManager() {
+  const windowsRoot = document.getElementById("windows");
+  if (!windowsRoot || !window.Alpine || typeof window.Alpine.$data !== "function") {
+    return null;
+  }
+  return window.Alpine.$data(windowsRoot);
 }
 
 function get_window(id) {
-  return $("#windows > #window_" + id);
+  const wm = getWindowManager();
+  if (!wm) {
+    return document.querySelector("#windows > #window_" + id);
+  }
+  const win = wm.findWindow(id);
+  if (!win) {
+    return null;
+  }
+  return {
+    remove: () => wm.closeWindow(id),
+  };
 }
 
-function new_window(
-  id,
-  title,
-  content,
-  alignment = "topleft",
-  height = 0,
-  width = 0
-) {
-  // Other windows are not in front
-  $(".window-front").removeClass("window-front");
-
-  var mywindow = $(`#windows #window_${id}`);
-  var itsnew = true;
-
-  // Remove the old
-  if (mywindow.length != 0) {
-    interact(`#window_${id}`).unset();
-    mywindow.remove();
+function new_window(id, title, content, alignment = "topleft", height = 0, width = 0) {
+  const wm = getWindowManager();
+  if (!wm) {
+    return true;
   }
-
-  var maxheight = $(window).height() * 0.8;
-  var maxwidth = $(window).width() * 0.6;
-
-  offset = $(".window").length + 1; // count windows
-
-  xpos = offset * 24;
-  ypos = offset * 16;
-
-  switch (alignment) {
-    case "topleft":
-      // default
-      break;
-    case "center":
-      xpos = window.innerWidth / 2;
-      ypos = window.innerHeight / 2;
-      break;
-  }
-
-  // Create the new
-  mywindow = $(
-    `<div class="window bg-dark shadow border pointer-events-auto window-front" style="transform: translate(${xpos}px, ${ypos}px);" data-x=${xpos} data-y=${ypos} id="window_${id}">
-          <div id='header' class='window-header bg-primary text-dark p-1'>
-          <span id="title" class="col">${title}</span><span id="close" class="float-top float-end cursor-pointer bi-x-square"></span>
-          </div>
-          <div class="window-wrapper">
-          <div class="window-content p-1" id="contents">${content}</div>
-          </div>
-          </div>`
-  );
-  $("#windows").append(mywindow);
-
-  // closing
-  $("#close", mywindow).click(function (event) {
-    interact(`#window_${id}`).unset();
-    $(this).parents(".window").remove();
+  return wm.openWindow({
+    id,
+    title,
+    content,
+    alignment,
+    height,
+    width,
   });
-
-  ni = interact("#window_" + id)
-    // .origin('self')
-    .resizable({
-      edges: { left: true, right: true, bottom: true, top: true },
-      margin: 5,
-      origin: self,
-      listeners: {
-        move(event) {
-          console.log(event);
-
-          var target = event.target;
-          var x = parseFloat(target.getAttribute("data-x")) || 0;
-          var y = parseFloat(target.getAttribute("data-y")) || 0;
-
-          // update the element's style
-          target.style.width = event.rect.width + "px";
-          target.style.height = event.rect.height + "px";
-
-          if (!target.classList.contains("window-front")) {
-            $(".window-front").removeClass("window-front");
-            target.classList.add("window-front");
-          }
-
-          // translate when resizing from top or left edges
-          x += event.deltaRect.left;
-          y += event.deltaRect.top;
-
-          // Ensure window does not slip too far up or left
-          x = Math.max(0, x);
-          y = Math.max(0, y);
-
-          target.style.transform = "translate(" + x + "px," + y + "px)";
-
-          target.setAttribute("data-x", x);
-          target.setAttribute("data-y", y);
-        },
-      },
-      modifiers: [
-        // keep the edges inside the parent
-        interact.modifiers.restrictEdges({
-          outer: "parent",
-        }),
-
-        // min and max size
-        interact.modifiers.restrictSize({
-          min: { width: 200, height: 150 },
-          max: { width: maxwidth, height: maxheight },
-        }),
-      ],
-
-      inertia: true,
-    })
-    .draggable({
-      onmove: window.dragMoveListener,
-      modifiers: [
-        interact.modifiers.restrictRect({
-          restriction: "parent",
-          endOnly: false,
-        }),
-      ],
-      allowFrom: ".window-header",
-    });
-
-  // ni.fire({
-  //   type: "resizemove",
-  //   target: $("#window_" + id).get(0),
-  // });
-
-  if (height > 0) {
-    mywindow.height(height);
-  }
-  if (width > 0) {
-    mywindow.width(width);
-  }
-
-  if (mywindow.height() > maxheight) {
-    mywindow.height(maxheight);
-  }
-  if (mywindow.width() > maxwidth) {
-    mywindow.width(maxwidth);
-  }
-
-  mywindow.addClass("window-front");
-
-  // Bring to front on mouse down
-  mywindow.mousedown(function () {
-    var win = $(this);
-    if (!win.hasClass("window-front")) {
-      $("#windows div").removeClass("window-front");
-      win.addClass("window-front");
-    }
-  });
-
-  return itsnew;
 }
 
 function busystatus(busytext) {
-  $("#status")
-    .html(
-      `<div class="text-center pb-3">` +
-        busytext +
-        `</div>
+  const status = document.getElementById("status");
+  if (!status) {
+    return;
+  }
+  status.innerHTML =
+    `<div class="text-center pb-3">` +
+    busytext +
+    `</div>
             <div class="p-2">
         <div class="sk-center sk-chase">
   <div class="sk-chase-dot"></div>
@@ -200,112 +80,198 @@ function busystatus(busytext) {
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
 </div>
-            </div>`
-    )
-    .show();
+            </div>`;
+  status.style.display = "";
 }
 
 function encodeaqlquery() {
-  q = JSON.stringify(
-    $("#aqlqueryform, #analysisoptionsform")
-      .serializeArray()
-      .reduce(function (m, o) {
-        // is it a checked checkbox?
-        // console.log(o);
-        // console.log($("#" + o.name).prop("type"));
-        if ($("#" + o.name).is(":checked")) {
-          m[o.name] = true;
-        } else if ($("#" + o.name).prop("type") == "number") {
-          m[o.name] = Number(o.value);
-        } else {
-          m[o.name] = o.value;
-        }
-        return m;
-      }, {})
-  );
-
-  return q;
+  const forms = ["aqlqueryform", "analysisoptionsform"];
+  const payload = {};
+  forms.forEach((formId) => {
+    const form = document.getElementById(formId);
+    if (!form) {
+      return;
+    }
+    Array.from(form.elements).forEach((el) => {
+      if (!el.name || el.disabled) {
+        return;
+      }
+      if ((el.type === "checkbox" || el.type === "radio") && !el.checked) {
+        return;
+      }
+      if (el.type === "number") {
+        payload[el.name] = Number(el.value);
+      } else if (el.type === "checkbox") {
+        payload[el.name] = true;
+      } else {
+        payload[el.name] = el.value;
+      }
+    });
+  });
+  return JSON.stringify(payload);
 }
 
-function aqlanalyze(e) {
+function buildURL(url, params) {
+  if (!params) {
+    return url;
+  }
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      query.append(key, value);
+    }
+  });
+  const qs = query.toString();
+  return qs ? `${url}?${qs}` : url;
+}
+
+function getErrorText(err) {
+  if (err && typeof err === "object") {
+    if (err.text) {
+      return err.text;
+    }
+    if (err.message) {
+      return err.message;
+    }
+  }
+  return String(err);
+}
+
+async function fetchJSON(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      data = null;
+    }
+  }
+  if (!response.ok) {
+    throw {
+      status: response.status,
+      text: text || response.statusText,
+      data,
+    };
+  }
+  return data;
+}
+
+async function fetchJSONWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchJSON(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function setVisible(id, visible) {
+  const el = document.getElementById(id);
+  if (!el) {
+    return;
+  }
+  el.style.display = visible ? "" : "none";
+}
+
+function setHTML(id, html) {
+  const el = document.getElementById(id);
+  if (!el) {
+    return;
+  }
+  el.innerHTML = html;
+}
+
+function clearElement(id) {
+  const el = document.getElementById(id);
+  if (!el) {
+    return;
+  }
+  el.innerHTML = "";
+}
+
+async function aqlanalyze(e) {
   busystatus("Analyzing");
 
-  $.ajax({
-    type: "POST",
-    url: "/api/aql/analyze",
-    contentType: "charset=utf-8",
-    data: encodeaqlquery(),
-    dataType: "json",
-    success: function (data) {
-      if (data.total == 0) {
-        $("#status").html("No results").show();
-      } else {
-        // Remove all windows
-        $("#windows div").remove();
+  try {
+    const data = await fetchJSON("/api/aql/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: encodeaqlquery(),
+    });
 
-        var info = "";
-        if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
-          info +=
-            "Located " +
-            data.nodecounts["start"] +
-            " start nodes and " +
-            data.nodecounts["end"] +
-            " end nodes<hr/>";
-        }
+    if (data.total == 0) {
+      setHTML("status", "No results");
+      setVisible("status", true);
+      return;
+    }
 
-        info += '<table class="w-100">';
-        for (var objecttype in data.resulttypes) {
-          info +=
-            '<tr><td class="text-right pr-5">' +
-            data.resulttypes[objecttype] +
-            "</td><td>" +
-            objecttype +
-            "</td></tr>";
-        }
-        info +=
-          '<tr><td class="text-right pr-5">' +
-          data.total +
-          "</td><td>total nodes in analysis</td></tr>";
-        if (data.removed > 0) {
-          info +=
-            '<tr><td class="text-right pr-5"><b>' +
-            data.removed +
-            "</b></td><td><b>nodes were removed by node limiter</b></td></tr>";
-        }
-        info += "</table>";
+    // Remove all windows
+    document.querySelectorAll("#windows .window").forEach((el) => el.remove());
 
-        new_window("results", "Query results", info);
+    var info = "";
+    if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
+      info +=
+        "Located " +
+        data.nodecounts["start"] +
+        " start nodes and " +
+        data.nodecounts["end"] +
+        " end nodes<hr/>";
+    }
 
-        if ($("infowrap").prop("width") == 0) {
-          $("#infowrap").animate({ width: "toggle" }, 400);
-        }
+    info += "<table>";
+    for (var objecttype in data.resulttypes) {
+      info +=
+        '<tr><td class="text-end pe-3">' +
+        data.resulttypes[objecttype] +
+        "</td><td>" +
+        objecttype +
+        "</td></tr>";
+    }
+    info +=
+      '<tr><td class="text-end pe-3">' +
+      data.total +
+      "</td><td>total nodes in analysis</td></tr>";
+    if (data.removed > 0) {
+      info +=
+        '<tr><td class="text-end pe-3"><b>' +
+        data.removed +
+        "</b></td><td><b>nodes were removed by node limiter</b></td></tr>";
+    }
+    info += "</table>";
 
-        if (
-          $("#hideoptionsonanalysis").prop("checked") &&
-          $("#optionspanel").prop("width") != 0
-        ) {
-          $("#optionspanel").animate({ width: "toggle" }, 400);
-        }
+    new_window("results", "Query results", info);
 
-        if (
-          $("#hidequeryonanalysis").prop("checked") &&
-          $("#querybox").prop("height") != 0
-        ) {
-          $("#querybox").slideToggle("fast");
-        }
-
-        new Promise(resolve=>{
-          initgraph(data.elements);
-        });
-
-        history.pushState($("body").html(), "adalanche");
+    const hideOptions = document.getElementById("hideoptionsonanalysis");
+    const optionsPanel = document.getElementById("optionspanel");
+    if (hideOptions && hideOptions.checked && optionsPanel) {
+      const isHidden = optionsPanel.style.display === "none";
+      if (!isHidden) {
+        optionsPanel.style.display = "none";
       }
-    },
-    error: function (xhr, status, error) {
-      toast("Problem loading graph", xhr.responseText, "error");
-      $("#status").empty().hide();
-    },
-  });
+    }
+
+    const hideQuery = document.getElementById("hidequeryonanalysis");
+    const queryBox = document.getElementById("querybox");
+    if (hideQuery && hideQuery.checked && queryBox) {
+      const isHidden = queryBox.style.display === "none";
+      queryBox.style.display = isHidden ? "" : "none";
+    }
+
+    new Promise((resolve) => {
+      initgraph(data.elements);
+    });
+
+    history.pushState(document.body.innerHTML, "adalanche");
+  } catch (err) {
+    toast("Problem loading graph", getErrorText(err), "error");
+    clearElement("status");
+    setVisible("status", false);
+  }
 }
 
 
@@ -315,23 +281,20 @@ let progressSocket;
 function connectProgress() {
   if (location.origin.startsWith("https://")) {
     // Polled
-    $.ajax({
-      url: "/api/backend/progress",
-      dataType: "json",
-      timeout: 2000,
-      success: function (data) {
+    fetchJSONWithTimeout("/api/backend/progress", 2000)
+      .then((data) => {
         handleProgressData(data);
         setTimeout(connectProgress, 2000);
-      },
-      error: function (e) {
-        $("#backendstatus").html("Adalanche backend is offline");
-        $("#upperstatus").show();
-        $("#progressbars").empty().hide();
-        $("#offlineblur").show();
+      })
+      .catch(() => {
+        setHTML("backendstatus", "Adalanche backend is offline");
+        setVisible("upperstatus", true);
+        clearElement("progressbars");
+        setVisible("progressbars", false);
+        setVisible("offlineblur", true);
 
         setTimeout(connectProgress, 10000);
-      },
-    })
+      });
   } else {
     // Websocket
     progressSocket = new WebSocket(
@@ -348,32 +311,34 @@ function connectProgress() {
       console.log("Error event");
       console.log(event);
 
-      $("#backendstatus").html("Adalanche backend is offline");
-      $("#upperstatus").show();
-      $("#progressbars").empty().hide();
-      $("#offlineblur").show();
+      setHTML("backendstatus", "Adalanche backend is offline");
+      setVisible("upperstatus", true);
+      clearElement("progressbars");
+      setVisible("progressbars", false);
+      setVisible("offlineblur", true);
     };
 
     progressSocket.onclose = function (event) {
       console.log("Close event");
       console.log(event);
 
-      $("#backendstatus").html("Adalanche backend is offline");
-      $("#upperstatus").show();
-      $("#progressbars").empty().hide();
-      $("#offlineblur").show();
+      setHTML("backendstatus", "Adalanche backend is offline");
+      setVisible("upperstatus", true);
+      clearElement("progressbars");
+      setVisible("progressbars", false);
+      setVisible("offlineblur", true);
       setTimeout(connectProgress, 3000);
     };
 
     progressSocket.onmessage = function (message) {
-      progress = $.parseJSON(message.data);
+      progress = JSON.parse(message.data);
       handleProgressData(progress);
-    }
+    };
   }
 }
 
 function handleProgressData(progress) {
-  $("#offlineblur").hide();
+  setVisible("offlineblur", false);
 
   if (progress.status == "Ready") {
     if (!data_loaded) {
@@ -382,28 +347,32 @@ function handleProgressData(progress) {
     }
   }
 
-  progressbars = progress.progressbars;
+  const progressbars = progress.progressbars;
   if (progressbars.length > 0) {
     lastwasidle = false;
-    keepProgressbars = new Set();
-    for (i in progressbars) {
-      progressbar = progressbars[i];
+    const keepProgressbars = new Set();
+    const progressRoot = document.getElementById("progressbars");
+    for (let i in progressbars) {
+      const progressbar = progressbars[i];
       if (progressbar.Done) {
         continue;
       }
-      keepProgressbars.add(progressbar.ID);
+      keepProgressbars.add(String(progressbar.ID));
 
       // find progressbar
-      pb = $("#progressbar_" + progressbar.ID);
-      if (pb.length == 0 && !progressbar.Done) {
-        $("#progressbars").append(
+      let pb = document.getElementById("progressbar_" + progressbar.ID);
+      if (!pb && !progressbar.Done && progressRoot) {
+        progressRoot.insertAdjacentHTML(
+          "beforeend",
           `<div id="progressbar_` +
             progressbar.ID +
-            `" class="progress-group">
-            <div class="progress-group-label">` +
+            `" class="mb-1" data-progress-id="` +
+            progressbar.ID +
+            `">
+            <div class="small">` +
             progressbar.Title +
             `
-              <div id="pct" class="progress-group-label float-end">` +
+              <div id="pct" class="small float-end">` +
             progressbar.Percent.toFixed(2) +
             `%</div>
             </div>
@@ -412,33 +381,39 @@ function handleProgressData(progress) {
             </div>
           </div>`
         );
-        pb = $("#progressbar_" + progressbar.ID);
+        pb = document.getElementById("progressbar_" + progressbar.ID);
       }
 
       // Update progressbar
-      progbar = pb.find(".progress-bar")
-      progbar.attr("aria-valuenow", progressbar.Percent.toFixed(0));
-      progbar.css("width", progressbar.Percent.toFixed(0) + "%");
-      pb.find("#pct").html(progressbar.Percent.toFixed(2) + "%");
+      if (pb) {
+        const progbar = pb.querySelector(".progress-bar");
+        if (progbar) {
+          progbar.setAttribute("aria-valuenow", progressbar.Percent.toFixed(0));
+          progbar.style.width = progressbar.Percent.toFixed(0) + "%";
+        }
+        const pct = pb.querySelector("#pct");
+        if (pct) {
+          pct.innerHTML = progressbar.Percent.toFixed(2) + "%";
+        }
+      }
     }
     // remove old progressbars
-    $("#progressbars .progress-group").each(function (index) {
-      id = $(this).attr("id");
+    document.querySelectorAll("#progressbars [data-progress-id]").forEach((el) => {
+      const id = el.id;
       if (!keepProgressbars.has(id.substring(12))) {
-        $(this).slideUp("slow", function () {
-          $(this).remove();
-        });
+        el.remove();
       }
     });
 
-    $("#upperstatus").show();
-    $("#progressbars").show();
-    $("#backendstatus").html("Adalanche is processing");
+    setVisible("upperstatus", true);
+    setVisible("progressbars", true);
+    setHTML("backendstatus", "Adalanche is processing");
   } else {
     if (!lastwasidle) {
-      $("#progressbars").empty().hide();
-      $("#backendstatus").html("Adalanche backend is idle");
-      $("#upperstatus").fadeOut("slow");
+      clearElement("progressbars");
+      setVisible("progressbars", false);
+      setHTML("backendstatus", "Adalanche backend is idle");
+      setVisible("upperstatus", false);
     }
     lastwasidle = true;
   }
@@ -453,21 +428,8 @@ function toast(title, contents, toastclass) {
   }
   toastbody = contents;
   if (title) {
-    toastbody = "<span class='toast-title'>" + title + "</span><br>" + contents;
+    toastbody = "<span class='fw-bold'>" + title + "</span><br>" + contents;
   }
-  // switch (toastclass) {
-  //   case "info":
-  //     icon = "<i class='fas fa-info-circle'></i>";
-  //     break;
-  //   case "warning":
-  //     toastclass = "toastify-warning";
-  //     break;
-  //   case "error":
-  //     toastclass = "toastify-error";
-  //     break;
-  //     case "success":
-
-  // }
   Toastify({
     text: toastbody,
     duration: 1000000,
@@ -489,365 +451,413 @@ function toast(title, contents, toastclass) {
 }
 
 var initial_query_set = false;
-var queries;
-function updateQueries() {
-  $.ajax({
-    url: "/api/backend/queries",
-    dataType: "json",
-    success: function (querylist) {
-      queries = querylist;
-      dropdowncontent = $("#aqlqueries");
-      dropdowncontent.empty();
+var queries = [];
 
-      for (i in queries) {
-        query = queries[i];
-        item =
-          "<li " +
-          (query.default ? 'id="defaultquery"' : "") +
-          ' class="dropdown-item" querynum=' +
-          i +
-          " queryname='"+query.name+"'>" +
-          query.name +
-          (query.user_defined ? '<i class="float-end bi-eraser"></i>' : "") +
-          "</li>";
-        dropdowncontent.append(item);
-      }
+function renderQueriesDropdown() {
+  const dropdowncontent = document.getElementById("aqlqueries");
+  if (!dropdowncontent) {
+    return;
+  }
+  dropdowncontent.innerHTML = "";
 
-      // Predefined queries dropdown button
-      $("#aqlqueries li").on("click", "", function (event) {
-        if (event.target !== this) return; // not children, only the li
+  queries.forEach((query, i) => {
+    const li = document.createElement("li");
+    li.className = "dropdown-item";
+    li.setAttribute("querynum", String(i));
+    li.setAttribute("queryname", query.name);
+    if (query.default) {
+      li.id = "defaultquery";
+    }
+    li.append(document.createTextNode(query.name));
 
-        console.log("You clicked the drop downs", event.target);
+    if (query.user_defined) {
+      const eraseIcon = document.createElement("i");
+      eraseIcon.className = "float-end bi-eraser";
+      li.appendChild(eraseIcon);
+    }
 
-        set_query(queries[event.target.getAttribute("querynum")].query);
-        $("#queriesbutton").toggleClass("active");
-        $("#queriesdropdown").toggleClass("show");
+    li.addEventListener("click", function (event) {
+      if (event.target !== li) return; // not children, only the li
+      const queryIndex = Number(li.getAttribute("querynum"));
+      set_query(queries[queryIndex].query);
+    });
+
+    const icon = li.querySelector("i");
+    if (icon) {
+      icon.addEventListener("click", async function (event) {
+        event.stopPropagation();
+        const queryname = li.getAttribute("queryname");
+        try {
+          await fetchJSON("api/backend/queries/" + queryname, {
+            method: "DELETE",
+          });
+          toast("Query deleted successfully", "", "success");
+          updateQueries();
+        } catch (err) {
+          toast("Error deleting query", getErrorText(err), "error");
+        }
       });
+    }
 
-      // Delete user defined queries
-      $("#aqlqueries i").on("click", "", function (event) {
-        console.log(jQuery(this).parent().get(0));
-        queryname = $(this).parent().get(0).getAttribute("queryname");
-        $.ajax({
-          type: "DELETE",
-          url: "api/backend/queries/" + queryname,
-          error: function (xhr, status, error) {
-            toast("Error deleting query", error, "error");
-          },
-          success: function (data) {
-            toast("Query deleted successfully", "", "success");
-            updateQueries();
-          },
-        });
-        console.log(event);
-      });
-
-
-      if (!initial_query_set) {
-        console.log("Setting default query ...");
-        set_query(queries[$("#defaultquery").attr("querynum")].query);
-        initial_query_set = true;
-        autorun_query();
-      }
-    },
+    dropdowncontent.appendChild(li);
   });
 }
 
+async function updateQueries() {
+  try {
+    queries = await fetchJSON("/api/backend/queries");
+    renderQueriesDropdown();
+
+    if (!initial_query_set) {
+      const defaultQuery = document.getElementById("defaultquery");
+      if (defaultQuery) {
+        const querynum = Number(defaultQuery.getAttribute("querynum"));
+        set_query(queries[querynum].query);
+      }
+      initial_query_set = true;
+      autorun_query();
+    }
+  } catch (err) {
+    toast("Error loading queries", getErrorText(err), "error");
+  }
+}
+
 // When we´re ready ...
-$(function () {
+document.addEventListener("DOMContentLoaded", function () {
   // save and restore collapsible UI
-  $(".collapse, .collapse-panel").on("shown.bs.collapse", function () {
-    localStorage.setItem("coll_" + this.id, true);
+  document.querySelectorAll(".collapse").forEach((el) => {
+    el.addEventListener("shown.bs.collapse", function () {
+      localStorage.setItem("coll_" + this.id, true);
+    });
+    el.addEventListener("hidden.bs.collapse", function () {
+      localStorage.removeItem("coll_" + this.id);
+    });
   });
 
-  $(".collapse, .collapse-panel").on("hidden.bs.collapse", function () {
-    localStorage.removeItem("coll_" + this.id);
-  });
-
-  $(".collapse, .collapse-panel").each(function () {
-    if (localStorage.getItem("coll_" + this.id) === "true") {
-      $(this).collapse("show");
-    } else {
-      $(this).collapse("hide");
+  document.querySelectorAll(".collapse").forEach((el) => {
+    const shouldShow = localStorage.getItem("coll_" + el.id) === "true";
+    if (el.classList.contains("collapse")) {
+      const collapse = bootstrap.Collapse.getOrCreateInstance(el, {
+        toggle: false,
+      });
+      if (shouldShow) {
+        collapse.show();
+      } else {
+        collapse.hide();
+      }
     }
   });
 
   // Initial GUI setup
-  $("#infopop").on("click", function () {
-    $("#infowrap").animate({ width: "toggle" }, 400);
-  });
-
-  $("#optionstogglevisibility").on("click", function () {
-    $("#optionspanel").animate({ width: "toggle" }, 400);
-  });
-
-  $("[data-bs-toggle='tooltip']").each(function () {
-    new bootstrap.Tooltip($(this));
-  });
-
-  // autosize($('#querytext'));
-
-  $("#explore").on("click", function () {
-    new_window(
-      "explore",
-      "Explore objects",
-      "<div id='exploretree' class='jstree-default-dark'></div>"
-    );
-    $("#exploretree")
-      .jstree({
-        core: {
-          multiple: false,
-          data: {
-            url: "/api/tree",
-            dataType: "json",
-            data: function (node) {
-              return { id: node.id };
-            },
-          },
-        },
-        types: {
-          default: {
-            icon: "glyphicon glyphicon-flash",
-          },
-          demo: {
-            icon: "glyphicon glyphicon-ok",
-          },
-        },
-        state: { key: "adalanche_explore" },
-        plugins: ["sort", "types", "state", "wholerow"],
-      })
-      .on("select_node.jstree", function (e, d) {
-        if (d.event == undefined) {
-          return;
-        }
-        if (d.event.type == "click") {
-          $.ajax({
-            type: "GET",
-            url: "api/details/id/" + d.node.id, // n123 format -> 123
-            dataType: "json",
-            success: function (data) {
-              // details = rendernode(data)
-              var details = renderdetails(data);
-              windowname = "details_" + d.node.id
-              if (getpref("ui.open.details.in.same.window")) {
-                windowname="node_details"
-              }
-              new_window(windowname, "Item details", details);
-            },
-            // error: function (xhr, status, error) {
-            //     newwindow("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
-            // }
-          });
-        }
-      });
-  });
-
-  $("#node-info").on("click", function () {
-    /* get json data and show window on success */
-    $.ajax({
-      type: "GET",
-      url: "backend/nodes",
-      dataType: "json",
-      success: function (data) {
-        var details = renderdetails(data);
-        new_window("node_info", "Known Nodes", details);
-      },
-      error: function (xhr, status, error) {
-        toast("API Error", "Couldn't load details:" + xhr.responseText, "error");
-      },
+  const optionToggle = document.getElementById("optionstogglevisibility");
+  if (optionToggle) {
+    optionToggle.addEventListener("click", function () {
+      const optionspanel = document.getElementById("optionspanel");
+      if (optionspanel) {
+        optionspanel.style.display =
+          optionspanel.style.display === "none" ? "" : "none";
+      }
     });
+  }
+
+  document.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => {
+    new bootstrap.Tooltip(el);
   });
 
-  $("#edge-info").on("click", function () {
-    /* get json data and show window on success */
-    $.ajax({
-      type: "GET",
-      url: "backend/edges",
-      dataType: "json",
-      success: function (data) {
-        var details = renderdetails(data);
-        new_window("edge_info", "Known Edges", details);
-      },
-      error: function (xhr, status, error) {
-        toast("API Error", "Couldn't load details:" + xhr.responseText, "error");
-      },
-    });
-  });
-
-
-  $("#savequerybutton").on("click", function () {
-    // open new windows with the save dialog
-    new_window(
-      "save_query",
-      "Save query",
-      `Name: <input type='text' id='savequeryname'>
-<div><button id="savequerydialogbutton" class="float-end">Save</button></div>`,
-      "center"
-    );
-
-    // tie the button handler to the button
-    $("#savequerydialogbutton").on("click", function () {
-      // POST the encoded query using ajax and display results
-      $.ajax({
-        url: "/api/backend/queries/" + $("#savequeryname").val(),
-        method: "PUT",
-        dataType: "json",
-        data: encodeaqlquery(),
-        error: function (xhr, status, error) {
-          toast("Error saving query", error, "error");
-        },
-        success: function (data) {
-          toast("Query saved successfully", "", "success");
-          updateQueries(); // refresh the list
-        },
-        complete: function () {
-          get_window("save_query").remove();
-        },
-      });
-    });
-  });
-
-  // QUERY FORM
-  // $("#querydiv").slideUp("fast")
-  $("#togglequeryvisible").on("click", function () {
-    $("#querybox").slideToggle("fast");
-  });
-
-  $("#highlightbutton").on("click", function () {
-    if (
+  const exploreButton = document.getElementById("explore");
+  if (exploreButton) {
+    exploreButton.addEventListener("click", function () {
       new_window(
-        "highlight",
-        "Highlight nodes",
-        '<textarea id="highlighttext" class="w-100 mb-2" placeholder="(name=*admin*)"></textarea><div id="highlightqueryerror"></div><button id="searchandhighlight" class="btn btn-primary float-end">Highlight</button>'
-      )
-    ) {
-      var highlightchangetimer;
-      $("#highlighttext").on("input", function () {
-        clearTimeout(highlightchangetimer);
-        highlightchangetimer = setTimeout(function () {
-          // check query for errors when user has been idle for 200ms
-          $.ajax({
-            type: "GET",
-            url: "/api/backend/validatequery",
-            data: {
-              query: $("#highlighttext").val(),
-            },
-            success: function (data) {
-              console.log(data);
-              // $("#searchandhighlight").attr("disabled", false);
-              $("#highlightqueryerror").hide();
-            },
-            error: function (xhr, status, error) {
-              // $("#searchandhighlight").attr("disabled", true);
-              $("#highlightqueryerror")
-                .html(xhr.responseText +
-                    ", will use (*=" +
-                    $("#highlighttext").val()
-                   + ") as query").show();
-            },
-          });
-        }, 200);
-      });
+        "explore",
+        "Explore objects",
+        `<div id="exploretree" x-data="exploreTree()" x-init="init()" class="p-1">
+          <template x-for="node in nodes" :key="node.id">
+            <div x-data="exploreTreeNode(node, loadChildren, onNodeClick)">
+              <div class="d-flex align-items-center gap-1 py-1">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary py-0 px-1"
+                  x-show="node.children"
+                  @click="toggle()"
+                  x-text="open ? '-' : '+'"
+                ></button>
+                <span
+                  class="cursor-pointer"
+                  :class="selected ? 'fw-bold text-warning' : ''"
+                  @click="selectNode()"
+                  x-text="node.text"
+                ></span>
+              </div>
+              <div x-show="open" class="ps-3">
+                <div x-show="loading" class="small text-muted">Loading...</div>
+                <template x-for="child in children" :key="child.id">
+                  <div x-data="exploreTreeNode(child, loadChildren, onNodeClick)">
+                    <div class="d-flex align-items-center gap-1 py-1">
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary py-0 px-1"
+                        x-show="node.children"
+                        @click="toggle()"
+                        x-text="open ? '-' : '+'"
+                      ></button>
+                      <span
+                        class="cursor-pointer"
+                        :class="selected ? 'fw-bold text-warning' : ''"
+                        @click="selectNode()"
+                        x-text="node.text"
+                      ></span>
+                    </div>
+                    <div x-show="open" class="ps-3">
+                      <div x-show="loading" class="small text-muted">Loading...</div>
+                      <template x-for="child in children" :key="child.id">
+                        <div x-data="exploreTreeNode(child, loadChildren, onNodeClick)">
+                          <div class="d-flex align-items-center gap-1 py-1">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-secondary py-0 px-1"
+                              x-show="node.children"
+                              @click="toggle()"
+                              x-text="open ? '-' : '+'"
+                            ></button>
+                            <span
+                              class="cursor-pointer"
+                              :class="selected ? 'fw-bold text-warning' : ''"
+                              @click="selectNode()"
+                              x-text="node.text"
+                            ></span>
+                          </div>
+                          <div x-show="open" class="ps-3">
+                            <div x-show="loading" class="small text-muted">Loading...</div>
+                            <template x-for="child in children" :key="child.id">
+                              <div x-data="exploreTreeNode(child, loadChildren, onNodeClick)">
+                                <div class="d-flex align-items-center gap-1 py-1">
+                                  <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                    x-show="node.children"
+                                    @click="toggle()"
+                                    x-text="open ? '-' : '+'"
+                                  ></button>
+                                  <span
+                                    class="cursor-pointer"
+                                    :class="selected ? 'fw-bold text-warning' : ''"
+                                    @click="selectNode()"
+                                    x-text="node.text"
+                                  ></span>
+                                </div>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>`
+      );
+      const treeRoot = document.getElementById("exploretree");
+      if (treeRoot && window.Alpine && typeof window.Alpine.initTree === "function") {
+        window.Alpine.initTree(treeRoot);
+      }
+    });
+  }
 
-      $("#searchandhighlight").on("click", function () {
-        if (cy) {
-          $.ajax({
-            type: "GET",
-            url: "/api/search/get-ids?query=" + $("#highlighttext").val(),
-            contentType: "charset=utf-8",
-            data: {
-              query: $("#highlighttext").val(),
-            },
-            dataType: "json",
-            success: function (data) {
+  const nodeInfoButton = document.getElementById("node-info");
+  if (nodeInfoButton) {
+    nodeInfoButton.addEventListener("click", function () {
+      /* get json data and show window on success */
+      fetchJSON("backend/nodes")
+        .then(function (data) {
+          var details = renderdetails(data);
+          new_window("node_info", "Known Nodes", details);
+        })
+        .catch(function (err) {
+          toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
+        });
+    });
+  }
 
-              cy.$("*").unselect();
-              for (var id of data) {
-                cy.$("#" + id).select();
-              }
-            },
+  const edgeInfoButton = document.getElementById("edge-info");
+  if (edgeInfoButton) {
+    edgeInfoButton.addEventListener("click", function () {
+      /* get json data and show window on success */
+      fetchJSON("backend/edges")
+        .then(function (data) {
+          var details = renderdetails(data);
+          new_window("edge_info", "Known Edges", details);
+        })
+        .catch(function (err) {
+          toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
+        });
+    });
+  }
+
+  const toggleQueryVisible = document.getElementById("togglequeryvisible");
+  if (toggleQueryVisible) {
+    toggleQueryVisible.addEventListener("click", function () {
+      const querybox = document.getElementById("querybox");
+      if (querybox) {
+        querybox.style.display = querybox.style.display === "none" ? "" : "none";
+      }
+    });
+  }
+
+  const highlightButton = document.getElementById("highlightbutton");
+  if (highlightButton) {
+    highlightButton.addEventListener("click", function () {
+      if (
+        new_window(
+          "highlight",
+          "Highlight nodes",
+          '<textarea id="highlighttext" class="w-100 mb-2" placeholder="(name=*admin*)"></textarea><div id="highlightqueryerror"></div><button id="searchandhighlight" class="btn btn-primary float-end">Highlight</button>'
+        )
+      ) {
+        var highlightchangetimer;
+        const highlighttext = document.getElementById("highlighttext");
+        if (highlighttext) {
+          highlighttext.addEventListener("input", function () {
+            clearTimeout(highlightchangetimer);
+            highlightchangetimer = setTimeout(function () {
+              // check query for errors when user has been idle for 200ms
+              fetchJSON(
+                buildURL("/api/backend/validatequery", {
+                  query: highlighttext.value,
+                })
+              )
+                .then(function () {
+                  const highlightError = document.getElementById("highlightqueryerror");
+                  if (highlightError) {
+                    highlightError.style.display = "none";
+                  }
+                })
+                .catch(function (err) {
+                  const highlightError = document.getElementById("highlightqueryerror");
+                  if (highlightError) {
+                    highlightError.innerHTML =
+                      getErrorText(err) + ", will use (*=" + highlighttext.value + ") as query";
+                    highlightError.style.display = "";
+                  }
+                });
+            }, 200);
           });
         }
-      });
-    }
-  });
 
-  // $('[data-toggle="tooltip"]').tooltip()
+        const searchAndHighlight = document.getElementById("searchandhighlight");
+        if (searchAndHighlight) {
+          searchAndHighlight.addEventListener("click", function () {
+            if (cy && highlighttext) {
+              fetchJSON(
+                buildURL("/api/search/get-ids", {
+                  query: highlighttext.value,
+                })
+              ).then(function (data) {
+                cy.$("*").unselect();
+                for (var id of data) {
+                  cy.$("#" + id).select();
+                }
+              });
+            }
+          });
+        }
+      }
+    });
+  }
 
   let aqlchangetimer;
-  $("#aqlquerytext").on("input", function (e) {
-    clearTimeout(aqlchangetimer);
-    aqlchangetimer = setTimeout(function () {
-      // check query for errors when user has been idle for 200ms
-      $.ajax({
-        type: "GET",
-        url: "/api/aql/validatequery",
-        data: {
-          query: e.target.value,
-        },
-        success: function (data) {
-          console.log(data);
-          $("#aqlanalyzebutton").attr("disabled", false);
-          $("#aqlqueryerror").hide();
-        },
-        error: function (xhr, status, error) {
-          $("#aqlanalyzebutton").attr("disabled", true);
-          $("#aqlqueryerror").html(xhr.responseText).show();
-        },
-      });
-    }, 200);
-  });
+  const aqlquerytext = document.getElementById("aqlquerytext");
+  if (aqlquerytext) {
+    aqlquerytext.addEventListener("input", function (e) {
+      clearTimeout(aqlchangetimer);
+      aqlchangetimer = setTimeout(function () {
+        // check query for errors when user has been idle for 200ms
+        fetchJSON(
+          buildURL("/api/aql/validatequery", {
+            query: e.target.value,
+          })
+        )
+          .then(function () {
+            const analyzeButton = document.getElementById("aqlanalyzebutton");
+            const queryError = document.getElementById("aqlqueryerror");
+            if (analyzeButton) {
+              analyzeButton.disabled = false;
+            }
+            if (queryError) {
+              queryError.style.display = "none";
+            }
+          })
+          .catch(function (err) {
+            const analyzeButton = document.getElementById("aqlanalyzebutton");
+            const queryError = document.getElementById("aqlqueryerror");
+            if (analyzeButton) {
+              analyzeButton.disabled = true;
+            }
+            if (queryError) {
+              queryError.innerHTML = getErrorText(err);
+              queryError.style.display = "";
+            }
+          });
+      }, 200);
+    });
+  }
 
   // Display stats on screen
-  $.ajax({
-    url: "api/backend/statistics",
-    dataType: "json",
-    success: function (data) {
-      statustext =
-        "<div class='text-center pt-10'><img class='only-dark' height=128 src='icons/adalanche-logo.svg'><img class='only-light' height=128 src='icons/adalanche-logo-black.svg'></div><div class='text-center'><h2>" +
+  fetchJSON("api/backend/statistics")
+    .then(function (data) {
+      const statustext =
+        "<div class='text-center pt-2'><img class='only-dark' height=128 src='icons/adalanche-logo.svg'><img class='only-light' height=128 src='icons/adalanche-logo-black.svg'></div><div class='text-center'><h2>" +
         data.adalanche.program +
         "</h2><b>" +
         data.adalanche.shortversion +
         "</b></div>";
+      setHTML("status", statustext);
+      setVisible("status", true);
+      setTimeout(() => setVisible("status", false), 15000);
+      setHTML("programinfo", data.adalanche.program + " " + data.adalanche.shortversion);
+    })
+    .catch(function (err) {
+      setHTML("status", "guru meditation:<br>" + getErrorText(err));
+      setVisible("status", true);
+    });
 
-      $("#status").html(statustext).show().delay(15000).fadeOut(2000);
-      $("#programinfo").html(
-        data.adalanche.program + " " + data.adalanche.shortversion
-      );
-    },
-    error: function (xhr, status, error) {
-      $("#status")
-        .html("guru meditation:<br>" + xhr.responseText)
-        .show();
-    },
-  });
+  const graphlayout = document.getElementById("graphlayout");
+  if (graphlayout) {
+    graphlayout.addEventListener("prefupdate", function (event) {
+      const layout = event.target.value;
+      if (cy) {
+        // render graph with new layout if there is one
+        getGraphlayout(layout).run();
+      }
+    });
+  }
 
-  $("#graphlayout").on("prefupdate", function () {
-    layout = $(this).val();
-    if (cy) {
-      // render graph with new layout if there is one
-      getGraphlayout(layout).run();
-    }
-  });
+  const nodesizes = document.getElementById("nodesizes");
+  if (nodesizes) {
+    nodesizes.addEventListener("prefupdate", function () {
+      if (cy) {
+        applyNodeStyles(cy);
+      }
+    });
+  }
 
-  $("#nodesizes").on("prefupdate", function () {
-    if (cy) {
-      applyNodeStyles(cy);
-    }
-  });
-
-  $("#nodelabels").on("prefupdate", function () {
-    if (cy) {
-      cy.style().update();
-    }
-  });
+  const nodelabels = document.getElementById("nodelabels");
+  if (nodelabels) {
+    nodelabels.addEventListener("prefupdate", function () {
+      if (cy) {
+        cy.style().update();
+      }
+    });
+  }
 
   updateQueries();
 
-  $(document).on("preferences.loaded", function (evt) {
+  const onPreferencesLoaded = function () {
     settings_loaded = true;
     autorun_query();
-  });
+  };
+  document.addEventListener("preferences.loaded", onPreferencesLoaded);
 
   prefsinit();
 
@@ -863,4 +873,257 @@ function autorun_query() {
     initial_query_has_run = true;
     aqlanalyze();
   }
+}
+
+function exploreTree() {
+  return {
+    nodes: [],
+    async init() {
+      try {
+        this.nodes = await this.loadChildren("#");
+      } catch (err) {
+        toast("Error loading tree", getErrorText(err), "error");
+      }
+    },
+    async loadChildren(id) {
+      return await fetchJSON(buildURL("/api/tree", { id: String(id) }));
+    },
+    async onNodeClick(node) {
+      try {
+        const data = await fetchJSON("api/details/id/" + node.id);
+        const details = renderdetails(data);
+        let windowname = "details_" + node.id;
+        if (getpref("ui.open.details.in.same.window")) {
+          windowname = "node_details";
+        }
+        new_window(windowname, "Item details", details);
+      } catch (err) {
+        toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
+      }
+    },
+  };
+}
+
+function exploreTreeNode(node, loadChildren, onNodeClick) {
+  return {
+    node,
+    open: false,
+    loading: false,
+    loaded: false,
+    selected: false,
+    children: [],
+    async toggle() {
+      if (!this.node.children) {
+        return;
+      }
+      this.open = !this.open;
+      if (this.open && !this.loaded) {
+        this.loading = true;
+        try {
+          this.children = await loadChildren(this.node.id);
+          this.loaded = true;
+        } catch (err) {
+          toast("Error loading tree node", getErrorText(err), "error");
+        } finally {
+          this.loading = false;
+        }
+      }
+    },
+    async selectNode() {
+      this.selected = true;
+      await onNodeClick(this.node);
+    },
+  };
+}
+
+function windowManager() {
+  const MIN_WINDOW_WIDTH = 140;
+  const MIN_WINDOW_HEIGHT = 100;
+  const AUTO_MAX_WIDTH_RATIO = 0.5;
+  const AUTO_MAX_HEIGHT_RATIO = 0.7;
+
+  return {
+    windows: [],
+    nextZ: 200,
+    dragState: null,
+    resizeState: null,
+
+    init() {
+      const moveHandler = (event) => {
+        if (this.dragState) {
+          const win = this.findWindow(this.dragState.id);
+          if (!win) {
+            return;
+          }
+          win.x = Math.max(0, event.clientX - this.dragState.offsetX);
+          win.y = Math.max(0, event.clientY - this.dragState.offsetY);
+          return;
+        }
+        if (this.resizeState) {
+          const win = this.findWindow(this.resizeState.id);
+          if (!win) {
+            return;
+          }
+          const dx = event.clientX - this.resizeState.startX;
+          const dy = event.clientY - this.resizeState.startY;
+          const maxWidth = window.innerWidth * 0.6;
+          const maxHeight = window.innerHeight * 0.8;
+          if (this.resizeState.mode === "corner") {
+            win.w = Math.min(maxWidth, Math.max(MIN_WINDOW_WIDTH, this.resizeState.startW + dx));
+            win.h = Math.min(maxHeight, Math.max(MIN_WINDOW_HEIGHT, this.resizeState.startH + dy));
+            return;
+          }
+          if (this.resizeState.mode === "bottom") {
+            win.h = Math.min(maxHeight, Math.max(MIN_WINDOW_HEIGHT, this.resizeState.startH + dy));
+            return;
+          }
+          if (this.resizeState.mode === "right") {
+            win.w = Math.min(maxWidth, Math.max(MIN_WINDOW_WIDTH, this.resizeState.startW + dx));
+          }
+        }
+      };
+      const upHandler = () => {
+        this.dragState = null;
+        this.resizeState = null;
+      };
+      window.addEventListener("mousemove", moveHandler);
+      window.addEventListener("mouseup", upHandler);
+    },
+
+    findWindow(id) {
+      return this.windows.find((w) => String(w.id) === String(id));
+    },
+
+    bringToFront(win) {
+      this.nextZ += 1;
+      win.z = this.nextZ;
+    },
+
+    startDrag(event, win) {
+      this.bringToFront(win);
+      this.dragState = {
+        id: win.id,
+        offsetX: event.clientX - win.x,
+        offsetY: event.clientY - win.y,
+      };
+    },
+
+    startResize(event, win, mode = "corner") {
+      this.bringToFront(win);
+      this.resizeState = {
+        id: win.id,
+        mode,
+        startX: event.clientX,
+        startY: event.clientY,
+        startW: win.w,
+        startH: win.h,
+      };
+    },
+
+    closeWindow(id) {
+      this.windows = this.windows.filter((w) => String(w.id) !== String(id));
+    },
+
+    autoSizeWindow(win, autoWidth, autoHeight) {
+      if (!autoWidth && !autoHeight) {
+        return true;
+      }
+
+      const el = document.getElementById(`window_${win.id}`);
+      if (!el) {
+        return false;
+      }
+
+      const wrapper = el.querySelector(".window-wrapper");
+      const content = el.querySelector(".window-content");
+      if (!wrapper || !content) {
+        return false;
+      }
+
+      const maxHeight = window.innerHeight * AUTO_MAX_HEIGHT_RATIO;
+      const maxWidth = window.innerWidth * AUTO_MAX_WIDTH_RATIO;
+      const widthChrome = Math.max(0, el.offsetWidth - wrapper.clientWidth);
+      const heightChrome = Math.max(0, el.offsetHeight - wrapper.clientHeight);
+
+      if (autoWidth) {
+        const targetWidth = content.scrollWidth + widthChrome + 2;
+        win.w = Math.min(maxWidth, Math.max(MIN_WINDOW_WIDTH, targetWidth));
+      }
+
+      if (autoHeight) {
+        // Re-evaluate after width settles so wrapped content gets correct height.
+        requestAnimationFrame(() => {
+          const targetHeight = content.scrollHeight + heightChrome + 2;
+          win.h = Math.min(maxHeight, Math.max(MIN_WINDOW_HEIGHT, targetHeight));
+        });
+      }
+      return true;
+    },
+
+    queueAutoSize(winId, autoWidth, autoHeight) {
+      if (!autoWidth && !autoHeight) {
+        return;
+      }
+      let tries = 0;
+      const run = () => {
+        const liveWin = this.findWindow(winId);
+        if (!liveWin) {
+          return;
+        }
+        this.autoSizeWindow(liveWin, autoWidth, autoHeight);
+        if (tries >= 10) {
+          return;
+        }
+        tries += 1;
+        requestAnimationFrame(run);
+      };
+      requestAnimationFrame(run);
+    },
+
+    openWindow({ id, title, content, alignment = "topleft", height = 0, width = 0 }) {
+      const existing = this.findWindow(id);
+      const maxheight = window.innerHeight * 0.8;
+      const maxwidth = window.innerWidth * 0.6;
+      const autoWidth = !(width > 0);
+      const autoHeight = !(height > 0);
+
+      if (existing) {
+        existing.title = title;
+        existing.content = content;
+        existing.w = Math.min(
+          maxwidth,
+          Math.max(MIN_WINDOW_WIDTH, width > 0 ? width : autoWidth ? MIN_WINDOW_WIDTH : existing.w)
+        );
+        existing.h = Math.min(
+          maxheight,
+          Math.max(MIN_WINDOW_HEIGHT, height > 0 ? height : autoHeight ? MIN_WINDOW_HEIGHT : existing.h)
+        );
+        this.bringToFront(existing);
+        this.queueAutoSize(existing.id, autoWidth, autoHeight);
+        return false;
+      }
+
+      const offset = this.windows.length + 1;
+      let xpos = offset * 24;
+      let ypos = offset * 16;
+      if (alignment === "center") {
+        xpos = window.innerWidth / 2;
+        ypos = window.innerHeight / 2;
+      }
+
+      const win = {
+        id: String(id),
+        title,
+        content,
+        x: xpos,
+        y: ypos,
+        w: Math.min(maxwidth, Math.max(MIN_WINDOW_WIDTH, width > 0 ? width : MIN_WINDOW_WIDTH)),
+        h: Math.min(maxheight, Math.max(MIN_WINDOW_HEIGHT, height > 0 ? height : MIN_WINDOW_HEIGHT)),
+        z: ++this.nextZ,
+      };
+      this.windows.push(win);
+      this.queueAutoSize(win.id, autoWidth, autoHeight);
+      return true;
+    },
+  };
 }

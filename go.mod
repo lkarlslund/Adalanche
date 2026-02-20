@@ -16,7 +16,7 @@ require (
 	github.com/Velocidex/ordereddict v0.0.0-20250821063524-02dc06e46238
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/antchfx/xmlquery v1.4.4
-	github.com/bytedance/sonic v1.14.1
+	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/elastic/go-windows v1.0.2
 	github.com/felixge/fgprof v0.9.5
@@ -53,11 +53,13 @@ require (
 	github.com/tinylib/msgp v1.4.0
 	go.etcd.io/bbolt v1.4.3
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/sys v0.36.0
+	golang.org/x/sys v0.39.0
 	golang.org/x/term v0.35.0
 	golang.org/x/text v0.29.0
 	www.velocidex.com/golang/go-ese v0.2.1-0.20240919031656-49fc3c3f8373
 )
+
+require github.com/sugawarayuuta/sonnet v0.0.0-20231004000330-239c7b6e4ce8
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
@@ -71,7 +73,7 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.3.0 // indirect
+	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -102,7 +104,7 @@ require (
 	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae // indirect
@@ -138,7 +140,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/arch v0.17.0 // indirect
+	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.27.0 // indirect

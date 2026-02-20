@@ -336,8 +336,10 @@ func (ws *WebService) Start(bind string) error {
 			switch strings.ToLower(filepath.Ext(file)) {
 			case ".md":
 				ws.serveMarkDown(f, ctx)
-			case ".tmpl":
-				ws.serveTemplate(f, ctx, nil)
+			case ".tmpl.html":
+				// ws.serveTemplate(f, ctx, nil)
+				ctx.AbortWithStatus(403)
+				return
 			default:
 				// derive content type from extension
 				ct := mime.TypeByExtension(filepath.Ext(file))

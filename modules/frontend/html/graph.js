@@ -625,13 +625,52 @@ function getGraphlayout(choice) {
         busystatus("Running graph layout")
     })
     layout.on("layoutstop", function (event) {
-        $("#status").hide()
+        const statusEl = document.getElementById("status");
+        if (statusEl) {
+          statusEl.style.display = "none";
+        }
     })
     return layout
 }
 
+function byIdValue(id, def) {
+  const el = document.getElementById(id);
+  if (!el) {
+    return def;
+  }
+  return el.value;
+}
+
+function byIdChecked(id) {
+  const el = document.getElementById(id);
+  return !!(el && el.checked);
+}
+
+function serializeFormsToObject(selectors) {
+  const result = {};
+  selectors.split(",").forEach((selector) => {
+    const form = document.querySelector(selector.trim());
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+    new FormData(form).forEach((value, key) => {
+      result[key] = value;
+    });
+  });
+  return result;
+}
+
+async function fetchJSONOrThrow(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || res.statusText);
+  }
+  return await res.json();
+}
+
 function renderlabel(label) {
-    switch ($("#nodelabels").val()) {
+    switch (byIdValue("nodelabels", "normal")) {
         case "normal":
             return label;
         case "off":
@@ -645,7 +684,7 @@ function renderlabel(label) {
 }
 
 function edgelabel(ele) {
-    switch ($("#edgelabels").val()) {
+    switch (byIdValue("edgelabels", "normal")) {
         case "normal":
             return ele.data("methods").join('|');
         case "off":
@@ -794,7 +833,7 @@ function rendercard(data) {
         result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
         for (var i in attrvalues) {
-            if ($("#graphlabels").val() == "randomize") {
+            if (byIdValue("graphlabels", "normal") == "randomize") {
                 result += anonymizer.anonymize(attrvalues[i]) + "</br>";
             } else {
                 result += attrvalues[i] + "</br>";
@@ -808,12 +847,15 @@ function rendercard(data) {
 
 // Object with values from AD and possibly other places
 function renderdetails(data) {
+    if (window.DetailsLayouts && typeof window.DetailsLayouts.renderDetails === "function") {
+        return window.DetailsLayouts.renderDetails(data);
+    }
     var result = "<table>"
     for (var attr in data.attributes) {
         result += "<tr><td>" + attr + "</td><td>"
         attrvalues = data.attributes[attr]
         for (var i in attrvalues) {
-            if ($("#graphlabels").val() == "randomize") {
+            if (byIdValue("graphlabels", "normal") == "randomize") {
                 result += anonymizer.anonymize(attrvalues[i]) + "</br>";
             } else {
                 result += attrvalues[i] + "</br>";
@@ -892,30 +934,32 @@ function initgraph(data) {
                 // If the selector is not truthy no elements will have this menu item on cxttap
                 selector: 'node[_canexpand>0]',
                 onClickFunction: function (event) { // The function to be executed on click
-                    // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
-                    expanddata = $("#ldapqueryform, #optionsform").serializeArray()
-                    expanddata.push({ name: "expanddn", value: event.target.attr("distinguishedName") })
+                    const expanddata = serializeFormsToObject("#ldapqueryform, #optionsform");
+                    expanddata.expanddn = event.target.attr("distinguishedName");
 
-                    $.ajax({
-                        type: "POST",
-                        url: "cytograph.json",
-                        data: JSON.stringify(expanddata.reduce(function (m, o) { m[o.name] = o.value; return m; }, {})),
-                        dataType: "json",
-                        success: function (data) {
-                            neweles = cy.add(data.elements)
-                            replaceele = neweles.getElementById(event.target.attr("id"))
-                            cy.elements().merge(neweles) // merge adds what is missing
-                            cy.elements().add(replaceele) // then we forcibly update the old object
+                    fetchJSONOrThrow("cytograph.json", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json; charset=utf-8" },
+                      body: JSON.stringify(expanddata),
+                    })
+                      .then(function (data) {
+                        neweles = cy.add(data.elements)
+                        replaceele = neweles.getElementById(event.target.attr("id"))
+                        cy.elements().merge(neweles) // merge adds what is missing
+                        cy.elements().add(replaceele) // then we forcibly update the old object
 
-                            event.target.removeData('_canexpand')
+                        event.target.removeData('_canexpand')
 
-                            // Apply layout again
-                            getGraphlayout($("#graphlayout").val()).run()
-                        },
-                        error: function (xhr, status, error) {
-                            $("#status").html("Problem loading graph:<br>" + xhr.responseText).show()
+                        // Apply layout again
+                        getGraphlayout(byIdValue("graphlayout", "fcose")).run()
+                      })
+                      .catch(function (err) {
+                        const statusEl = document.getElementById("status");
+                        if (statusEl) {
+                          statusEl.innerHTML = "Problem loading graph:<br>" + err.message;
+                          statusEl.style.display = "";
                         }
-                    });
+                      });
 
 
                 },
@@ -927,11 +971,8 @@ function initgraph(data) {
                 tooltipText: 'Does reverse search on this node (clears graph)',
                 selector: 'node',
                 onClickFunction: function (evt) {
-                    $.ajax({
-                        type: "GET",
-                        url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
-                        dataType: "json",
-                        success: function (data) {
+                    fetchJSONOrThrow("api/details/id/" + evt.target.id().substring(1))
+                        .then(function (data) {
                             if (data.attributes["distinguishedName"]) {
                                 set_query(
                                   "start:(distinguishedname=" +
@@ -959,11 +1000,10 @@ function initgraph(data) {
                             }
 
                             aqlanalyze();
-                        },
-                        error: function (xhr, status, error) {
+                        })
+                        .catch(function () {
                             toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
-                        }
-                    })
+                        });
                 }
             },
             {
@@ -972,11 +1012,8 @@ function initgraph(data) {
                 tooltipText: 'Does incoming search for this node (clears graph)',
                 selector: 'node',
                 onClickFunction: function (evt) {
-                    $.ajax({
-                        type: "GET",
-                        url: "api/details/id/" + evt.target.id().substring(1), // n123 format -> 123
-                        dataType: "json",
-                        success: function (data) {
+                    fetchJSONOrThrow("api/details/id/" + evt.target.id().substring(1))
+                        .then(function (data) {
                             if (data.attributes["distinguishedName"]) {
                                 set_query(
                                   "start:(distinguishedname=" +
@@ -1004,11 +1041,10 @@ function initgraph(data) {
                             }
 
                             aqlanalyze();
-                        },
-                        error: function (xhr, status, error) {
+                        })
+                        .catch(function () {
                             toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
-                        }
-                    })
+                        });
                 },
             }
             ],
@@ -1033,28 +1069,23 @@ function initgraph(data) {
             }
 
             id = evt.target.id().substring(1);
-            $.ajax({
-                type: "GET",
-                url: "api/details/id/" + id, // n123 format -> 123
-                dataType: "json",
-                success: function (data) {
+            fetchJSONOrThrow("api/details/id/" + id)
+                .then(function (data) {
                     windowname = "details_" + id;
                     if (getpref("ui.open.details.in.same.window")) {
                       windowname = "node_details";
                     }
                     new_window(windowname, rendernode(data), renderdetails(data));
-                },
-                error: function (xhr, status, error) {
-                    new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + xhr.responseText + "</div>");
-                }
-            });
+                })
+                .catch(function (err) {
+                    new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + err.message + "</div>");
+                });
         });
 
         cy.on('click', 'edge', function (evt) {
             // console.log('clicked edge ' + this.id());
-              $.get({
-                url: "api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1),
-                success: function (data) {
+              fetchJSONOrThrow("api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1))
+                .then(function (data) {
                   windowname = "edge_" + evt.target.source().id() + "_to_" + evt.target.target().id();
                   if (getpref("ui.open.details.in.same.window")) {
                     windowname = "edge_details";
@@ -1066,16 +1097,15 @@ function initgraph(data) {
                     renderedges(data[0].edges) + "<br>" + 
                     rendernode(data[0].to)
                   );
-                },
-                error: function (xhr, status, error) {
-                    toast("Error loading edge details" + xhr.responseText);
-                    new_window("details", "Edge details", "<div>Couldn't load details:" + xhr.responseText + "</div>");
-                }
-            });
+                })
+                .catch(function (err) {
+                    toast("Error loading edge details" + err.message);
+                    new_window("details", "Edge details", "<div>Couldn't load details:" + err.message + "</div>");
+                });
         })
 
         cy.on('mouseover', 'edge', function (event) {
-            if ($("#showedgelabels").prop("checked")) {
+            if (byIdChecked("showedgelabels")) {
                 this.css({
                     content: this.data("methods").sort().join('\n'),
                 });
@@ -1142,7 +1172,7 @@ function initgraph(data) {
     applyEdgeStyles(cy);
     applyNodeStyles(cy);
 
-    getGraphlayout($("#graphlayout").val()).run()
+    getGraphlayout(byIdValue("graphlayout", "fcose")).run()
 }
 
 function getEdgeColor(ele) {
@@ -1175,32 +1205,46 @@ function applyEdgeStyles(cy) {
       color = getEdgeColor(ele);
       ele.style('target-arrow-color', color);
       ele.style('line-color', color);
-      ele.style('width', 1+Math.log(ele.data("flow")));
+      const flow = Number(ele.data("flow"));
+      const edgeWidth = Number.isFinite(flow) && flow > 0 ? 1 + Math.log(flow) : 1;
+      ele.style('width', edgeWidth);
     });
 };
 
 function applyNodeStyles(cy) {
-    nodestyle = getpref("graph.nodesize", "incoming")
+    const nodestyle = getpref("graph.nodesize", "incoming");
 
     if (nodestyle == "equal") {
         cy.nodes().each(function (ele) {
-            ele.style("width", 40)
-            ele.style("height", 40)
+            ele.style("width", 40);
+            ele.style("height", 40);
         });
     } else {
-        var scale
+        let scale;
         switch (nodestyle) {
             case "incoming":
                 scale = cy.nodes().maxIndegree(false);
                 break;
             case "outgoing":
-                scale = cy.nodes().maxOutdegree(false)
+                scale = cy.nodes().maxOutdegree(false);
                 break;
+            default:
+                scale = cy.nodes().maxIndegree(false);
+                break;
+        }
+
+        // Guard for empty/sparse graphs where scale can be 0/undefined.
+        if (!Number.isFinite(scale) || scale <= 0) {
+          cy.nodes().each(function (ele) {
+            ele.style("width", 40);
+            ele.style("height", 40);
+          });
+          return;
         }
 
         // Apply node styles
         cy.nodes().each(function (ele) {
-            var size
+            let size;
             switch (nodestyle) {
                 case "incoming":
                     size = ele.indegree();
@@ -1208,10 +1252,18 @@ function applyNodeStyles(cy) {
                 case "outgoing":
                     size = ele.outdegree();
                     break;
+                default:
+                    size = ele.indegree();
+                    break;
             }
 
-            ele.style("width", normalize(size, 0, scale, 40, 100))
-            ele.style("height", normalize(size, 0, scale, 40, 100))
+            const numericSize = Number(size);
+            const normalized = Number.isFinite(numericSize)
+              ? normalize(numericSize, 0, scale, 40, 100)
+              : 40;
+            const safeSize = Number.isFinite(normalized) ? normalized : 40;
+            ele.style("width", safeSize);
+            ele.style("height", safeSize);
         });
     }
 }
@@ -1265,9 +1317,8 @@ function findroute(source) {
       });
 
       output = "";
-      $.get(
-        "/api/edges/id/"+routecontents,
-        function (data) {
+      fetchJSONOrThrow("/api/edges/id/" + routecontents)
+        .then(function (data) {
           output += "";
           for (var i = 0; i < data.length; i++) {
             // render node
@@ -1292,12 +1343,12 @@ function findroute(source) {
               `% probability`,
             output
           );
-        },
-        "json"
-      );
+        })
+        .catch(function (err) {
+          toast("Error loading route details", err.message, "error");
+        });
 
     } else {
         toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets. You might also have chosen the source and target in the wrong direction?", "warning");
     }
 }
-

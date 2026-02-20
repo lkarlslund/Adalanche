@@ -1,116 +1,264 @@
 let prefs = {};
+let alpinePrefsStore = null;
+let prefsLoadPromise = null;
+let backendPersistCache = {};
+
+window.backendPersist = {
+  getItem(key) {
+    return Object.prototype.hasOwnProperty.call(backendPersistCache, key)
+      ? backendPersistCache[key]
+      : null;
+  },
+  setItem(key, value) {
+    backendPersistCache[key] = String(value);
+    try {
+      const parsed = JSON.parse(value);
+      setpref(key, parsed);
+    } catch {
+      setpref(key, value);
+    }
+  },
+  removeItem(key) {
+    delete backendPersistCache[key];
+  },
+};
+
+function parsePreferenceValue(value) {
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  if (value !== "" && !isNaN(value)) {
+    return Number(value);
+  }
+  return value;
+}
+
+function syncBackendPersistCache() {
+  const cache = {};
+  for (const key in prefs) {
+    cache[key] = JSON.stringify(prefs[key]);
+  }
+  backendPersistCache = cache;
+}
 
 function loadprefs() {
-    return $.ajax({
-        url: "/api/preferences",
-        dataType: "json",
-        success: function (data) {
-            // convert all values with text "true" to boolean true, "false" to boolean false, and integers and floats to their respective types
-            for (let key in data) {
-                let value = data[key];
-                if (value === "true") {
-                    data[key] = true;
-                } else if (value === "false") {
-                    data[key] = false;
-                } else if (!isNaN(value)) {
-                    data[key] = Number(value);
-                }
-            }
+  return fetch("/api/preferences")
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error(res.statusText);
+      }
+      return res.json();
+    })
+    .then((data) => {
+      for (const key in data) {
+        data[key] = parsePreferenceValue(data[key]);
+      }
 
-            prefs = data;
-            // Apply all preferences
-            $("[preference]").each(function () {
-                updatecontrol($(this))
-            })
-            $(document).trigger("preferences.loaded")
-        },
+      prefs = data;
+      syncBackendPersistCache();
+      syncAlpinePrefsStore();
+      document.querySelectorAll("[preference]").forEach((el) => updatecontrol(el));
+      document.dispatchEvent(new Event("preferences.loaded"));
     });
+}
+
+function ensurePrefsLoaded() {
+  if (!prefsLoadPromise) {
+    prefsLoadPromise = loadprefs();
+  }
+  return prefsLoadPromise;
+}
+
+function dispatchPrefUpdate(ele) {
+  ele.dispatchEvent(new Event("prefupdate", { bubbles: true }));
 }
 
 function updatecontrol(ele) {
-    defaultval = $('input[name="'+ele.attr("name")+'"][defaultpref]').attr("defaultpref");
-    val = getpref(ele.attr("preference"), defaultval);
-    triggerevent = true;
-    if (val != null) {
-        if (ele.attr("type") == "checkbox") {
-            if (val === "false") {
-                val = false;
-            }
-            ele.prop("checked", val)
-        } else if (ele.attr("type") == "radio") {
-            $('[type=radio][name="'+ele.attr("name")+'"]').each(function (index, radioitem) {
-                $(this).prop("checked", $(this).attr("value") == val);
-                if ($(this).attr("value") == val) {
-                    ele.trigger("prefupdate");
-                }
-            });
-        } else {
-            ele.val(val)
-            ele.trigger("prefupdate");
-        }
-        console.log("Triggering change event for element with preference "+ele.attr("preference")+" with value "+val);
+  const name = ele.getAttribute("name");
+  const defaultEle = name
+    ? document.querySelector(`input[name="${CSS.escape(name)}"][defaultpref]`)
+    : null;
+  const defaultval = defaultEle ? defaultEle.getAttribute("defaultpref") : undefined;
+  let val = getpref(ele.getAttribute("preference"), defaultval);
+  if (val == null) {
+    return;
+  }
+
+  if (ele.type === "checkbox") {
+    if (val === "false") {
+      val = false;
     }
+    ele.checked = Boolean(val);
+    dispatchPrefUpdate(ele);
+  } else if (ele.type === "radio") {
+    if (!name) {
+      return;
+    }
+    document.querySelectorAll(`input[type="radio"][name="${CSS.escape(name)}"]`).forEach((radio) => {
+      radio.checked = radio.value == val;
+      if (radio.checked) {
+        dispatchPrefUpdate(radio);
+      }
+    });
+  } else {
+    ele.value = val;
+    dispatchPrefUpdate(ele);
+  }
+
+  console.log(
+    "Triggering change event for element with preference " +
+      ele.getAttribute("preference") +
+      " with value " +
+      val
+  );
 }
 
 function onUIPreferenceChange(ele) {
-    if (ele.attr("type") == "checkbox") {
-        setpref(ele.attr("preference"), ele.prop("checked"))
-        ele.trigger("prefupdate");
-    } else if (ele.attr("type") == "radio") {
-        $('input[name="'+ele.attr("name")+'"]:checked').each(function( index, checkedele ) {
-            setpref(ele.attr("preference"), $(this).val());
-            $(this).trigger("prefupdate");
-        });
-    } else {
-        setpref(ele.attr("preference"), ele.val())
-        ele.trigger("prefupdate");
+  const prefKey = ele.getAttribute("preference");
+  if (!prefKey) {
+    return;
+  }
+
+  if (ele.type === "checkbox") {
+    setpref(prefKey, ele.checked);
+    dispatchPrefUpdate(ele);
+    return;
+  }
+
+  if (ele.type === "radio") {
+    const name = ele.getAttribute("name");
+    if (!name) {
+      return;
     }
+    const checked = document.querySelector(`input[name="${CSS.escape(name)}"]:checked`);
+    if (checked) {
+      setpref(prefKey, checked.value);
+      dispatchPrefUpdate(checked);
+    }
+    return;
+  }
+
+  setpref(prefKey, ele.value);
+  dispatchPrefUpdate(ele);
 }
 
 function getpref(key, defvalue) {
-    var value = prefs[key];
-    if (value != null) {
-        return value;
-    }
-    uidefvalue = $("[preference='" + key + "'][defaultpref]").data("defaultpref");
-    if (uidefvalue !== undefined) {
-        return uidefvalue;
-    }
-    return defvalue;
+  const value = prefs[key];
+  if (value != null) {
+    return value;
+  }
+
+  const uiDefault = document.querySelector(`[preference="${CSS.escape(key)}"][defaultpref]`);
+  if (uiDefault && uiDefault.dataset.defaultpref !== undefined) {
+    return uiDefault.dataset.defaultpref;
+  }
+  return defvalue;
 }
 
 function setpref(key, value) {
-    prefs[key] = value;
-    $.ajax({
-        method: "GET",
-        url: `/api/preferences/${key}/${value}`,
-    });
+  prefs[key] = value;
+  backendPersistCache[key] = JSON.stringify(value);
+  syncAlpinePrefsStore();
+  document.dispatchEvent(
+    new CustomEvent("preferences.updated", {
+      detail: { key, value },
+    })
+  );
+  fetch(`/api/preferences/${key}/${value}`).catch(() => {});
 }
 
+function syncAlpinePrefsStore() {
+  if (!alpinePrefsStore) {
+    return;
+  }
+  alpinePrefsStore.data = { ...prefs };
+  alpinePrefsStore.ready = true;
+}
+
+function toBoolean(raw, defvalue) {
+  if (raw === true || raw === false) {
+    return raw;
+  }
+  if (raw === "true") {
+    return true;
+  }
+  if (raw === "false") {
+    return false;
+  }
+  if (raw == null) {
+    return Boolean(defvalue);
+  }
+  return Boolean(raw);
+}
+
+function initAlpinePrefsBridge() {
+  if (!window.Alpine || typeof window.Alpine.store !== "function") {
+    return;
+  }
+  if (!alpinePrefsStore) {
+    alpinePrefsStore = {
+      ready: false,
+      data: {},
+      get(key, defvalue) {
+        return getpref(key, defvalue);
+      },
+      set(key, value) {
+        setpref(key, value);
+        return value;
+      },
+      bool(key, defvalue = false) {
+        return toBoolean(this.get(key, defvalue), defvalue);
+      },
+      number(key, defvalue = 0) {
+        const n = Number(this.get(key, defvalue));
+        return Number.isFinite(n) ? n : defvalue;
+      },
+      has(key) {
+        return prefs[key] != null;
+      },
+    };
+    window.Alpine.store("prefs", alpinePrefsStore);
+    if (typeof window.Alpine.magic === "function") {
+      window.Alpine.magic("pref", () => (key, defvalue) => getpref(key, defvalue));
+      window.Alpine.magic("setpref", () => (key, value) => setpref(key, value));
+    }
+  }
+  syncAlpinePrefsStore();
+}
+
+document.addEventListener("alpine:init", initAlpinePrefsBridge);
+
 function prefsinit() {
-    // Load preferences
-    loadprefs();
+  initAlpinePrefsBridge();
+  ensurePrefsLoaded().catch((err) => {
+    console.error("Failed to load preferences", err);
+  });
 
-    // Create an observer instance.
-    var prefobserver = new MutationObserver(function (mutations) {
-        mutations.forEach(function (mutation) {
-            ele = $(mutation.target)
-            console.log(ele)
-            if (ele.attr("preference") != null) {
-                updatecontrol(ele)
-            }
-        })
+  const prefobserver = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      const ele = mutation.target;
+      if (ele && ele.getAttribute && ele.getAttribute("preference") != null) {
+        updatecontrol(ele);
+      }
     });
+  });
 
-    // Pass in monitoring for everything
-    $('[preference]').each(function () {
-        prefobserver.observe(this, {
-            childList: true,
-        })
-    });
+  document.querySelectorAll("[preference]").forEach((el) => {
+    prefobserver.observe(el, { childList: true });
+  });
 
-    // Dynamically save preferences
-    $('[preference]').change(function () {
-        onUIPreferenceChange($(this));
+  document.querySelectorAll("[preference]").forEach((el) => {
+    el.addEventListener("change", function () {
+      onUIPreferenceChange(el);
     });
-};
+  });
+}
+
+// Kick off preference loading immediately so Alpine Persist adapters
+// can read cached backend values as early as possible.
+ensurePrefsLoaded().catch((err) => {
+  console.error("Failed to preload preferences", err);
+});

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bytedance/sonic"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
+	"github.com/sugawarayuuta/sonnet"
 )
 
 const Loadername = "Local Machine"
@@ -48,7 +48,7 @@ func (ld *LocalMachineLoader) Init() error {
 				}
 
 				var cinfo localmachine.Info
-				var dec = sonic.ConfigDefault.NewDecoder(r)
+				var dec = sonnet.NewDecoder(r)
 				err = dec.Decode(&cinfo)
 				if err != nil {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)

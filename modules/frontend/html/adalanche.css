@@ -140,7 +140,7 @@ input[type="number"] {
   display: inline-flex;
   flex-direction: column;
   max-width: 80vw;
-  max-height: 98vw;
+  max-height: 98vh;
   z-index: 30;
 }
 
@@ -155,6 +155,30 @@ input[type="number"] {
 
 .window-front {
   z-index: 31;
+}
+
+.window-resize-bottom {
+  position: absolute;
+  left: 0;
+  right: 18px;
+  bottom: 0;
+  height: 8px;
+}
+
+.window-resize-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 18px;
+  width: 8px;
+}
+
+.window-resize-corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
 }
 
 /* show only when body data-bs-theme is dark */
@@ -232,6 +256,22 @@ input[type="number"] {
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+.cursor-move {
+  cursor: move;
+}
+
+.cursor-se-resize {
+  cursor: nwse-resize;
+}
+
+.cursor-s-resize {
+  cursor: ns-resize;
+}
+
+.cursor-e-resize {
+  cursor: ew-resize;
 }
 
 .checkbox-button input[type='checkbox'],
