@@ -40,11 +40,11 @@ This workspace is active.
 
 - `html/index.html` loads `external/vendor/bootstrap.bundle.js` as a module.
 - `bootstrap` initializes graph dependencies first, waits for `ensurePrefsLoaded()`, then starts Alpine UI.
-- Legacy direct script includes for Alpine/Cytoscape core/layout/d3-force sampled chain have been removed.
+- Legacy direct script includes for Alpine/Cytoscape core/layout dependencies have been removed.
 
-## d3-force sampled bridge
+## d3-force bridge
 
-The graph bundle uses `cytoscape-d3-force` together with `d3-force-sampled`.
+The graph bundle uses `cytoscape-d3-force` with the standard `d3-force` package.
 
 - Bridge file: `src/vendor/d3-force-bridge.cjs`
 - Build wiring: `scripts/build.mjs` plugin `alias-d3-force-exact`
@@ -52,9 +52,9 @@ The graph bundle uses `cytoscape-d3-force` together with `d3-force-sampled`.
 Behavior:
 
 - Only imports that are exactly `d3-force` are redirected to the bridge.
-- The bridge exports normal `d3-force` API, but overrides `forceManyBody` with sampled implementation (`forceManyBodySampled`) when available.
+- The bridge exports the normal `d3-force` API.
 
 Why:
 
-- Keeps graph runtime behavior close to prior sampled setup.
-- Avoids broad aliasing that can accidentally rewrite imports like `d3-force-sampled` itself.
+- Keeps graph runtime behavior explicit and dependency graph small.
+- Avoids broad aliasing side effects.

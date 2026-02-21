@@ -26,7 +26,7 @@
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-expand-collapse": "^4.1.1",
     "cytoscape-fcose": "^2.2.0",
-    "d3-force-sampled": "^1.0.1",
+    "d3-force": "^3.0.0",
     "cytoscape-popper": "^4.0.1",
     "dagre": "^0.8.5",
     "tippy.js": "^6.3.7"
