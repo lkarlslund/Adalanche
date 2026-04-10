@@ -79,7 +79,7 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 		case "SIMPLE":
 			result.Mode = Simple // Allow cycles, but no node in working graph may be visited twice
 		default:
-			return nil, fmt.Errorf("Unknown query mode: %v", ts.Token().Value)
+			return nil, fmt.Errorf("unknown query mode: %v", ts.Token().Value)
 		}
 		ts.Next()
 	}
@@ -108,7 +108,7 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 	}
 
 	if !ts.EOF() {
-		return nil, fmt.Errorf("Expected end of query but found: %v", ts.Token().Value)
+		return nil, fmt.Errorf("expected end of query but found: %v", ts.Token().Value)
 	}
 	return result, nil
 }
@@ -123,7 +123,7 @@ func parseNodeFilter(ts *TokenStream, ao *engine.IndexedGraph) (NodeQuery, error
 	}
 
 	if !ts.NextIfIs(LParan) {
-		return NodeQuery{}, errors.New("Expecting ( as start of node query")
+		return NodeQuery{}, errors.New("expecting ( as start of node query")
 	}
 
 	// If RParan there is no selector, just select everything
@@ -135,7 +135,7 @@ func parseNodeFilter(ts *TokenStream, ao *engine.IndexedGraph) (NodeQuery, error
 		result.Selector = where
 
 		if !ts.NextIfIs(RParan) {
-			return NodeQuery{}, errors.New("Expecting ) at end of LDAP filter")
+			return NodeQuery{}, errors.New("expecting ) at end of LDAP filter")
 		}
 
 	}
@@ -151,12 +151,12 @@ func parseNodeFilter(ts *TokenStream, ao *engine.IndexedGraph) (NodeQuery, error
 	if ts.NextIfIs(Skip) || ts.NextIfIs(Offset) {
 		skip := ts.Token()
 		if skip.Type != Integer {
-			return result, fmt.Errorf("SKIP value expects Integer, but I got %v (%v)", skip.Type, skip.Value)
+			return result, fmt.Errorf("skip value expects integer, but got %v (%v)", skip.Type, skip.Value)
 		}
 
 		result.Skip = int(skip.Native.(int64))
 		if result.Skip == 0 {
-			return result, fmt.Errorf("SKIP value expects Integer > 0 or Integer < 0, but I got %v", skip.Value)
+			return result, fmt.Errorf("skip value expects integer > 0 or integer < 0, but got %v", skip.Value)
 		}
 
 		ts.Next()
@@ -165,11 +165,11 @@ func parseNodeFilter(ts *TokenStream, ao *engine.IndexedGraph) (NodeQuery, error
 	if ts.NextIfIs(Limit) {
 		limit := ts.Token()
 		if limit.Type != Integer {
-			return result, fmt.Errorf("LIMIT value expects Integer, but I got %v", limit.Type)
+			return result, fmt.Errorf("limit value expects integer, but got %v", limit.Type)
 		}
 		result.Limit = int(limit.Native.(int64))
 		if result.Limit == 0 {
-			return result, fmt.Errorf("LIMIT value expects Integer > 0 or Integer < 0, but I got %v", limit.Value)
+			return result, fmt.Errorf("limit value expects integer > 0 or integer < 0, but got %v", limit.Value)
 		}
 
 		ts.Next()
@@ -187,13 +187,13 @@ func parseNodeSorter(ts *TokenStream, ao *engine.IndexedGraph) (NodeSorter, erro
 
 	// possible alias for results
 	if ts.Token().Type != Identifier {
-		return nil, fmt.Errorf("ORDER BY should be followed by identifier, we found %v", ts.Token().Value)
+		return nil, fmt.Errorf("order by should be followed by identifier, found %v", ts.Token().Value)
 	}
 
 	// Store name
 	a := engine.LookupAttribute(ts.Token().Value)
 	if a == engine.NonExistingAttribute {
-		return nil, fmt.Errorf("ORDER BY clause contains non existing attribute %v", ts.Token().Value)
+		return nil, fmt.Errorf("order by clause contains non-existing attribute %v", ts.Token().Value)
 	}
 	result.Attr = a
 	ts.Next()
@@ -207,7 +207,7 @@ func parseNodeSorter(ts *TokenStream, ao *engine.IndexedGraph) (NodeSorter, erro
 
 func parseLDAPFilter(ts *TokenStream, ao *engine.IndexedGraph) (query.NodeFilter, error) {
 	if ts.Token().Type != LParan {
-		return nil, errors.New("Expecting (")
+		return nil, errors.New("expecting (")
 	}
 	ts.Next()
 	result, err := parseLDAPFilterUnwrapped(ts, ao)
@@ -215,7 +215,7 @@ func parseLDAPFilter(ts *TokenStream, ao *engine.IndexedGraph) (query.NodeFilter
 		return nil, err
 	}
 	if ts.Token().Type != RParan {
-		return nil, errors.New("Expecting )")
+		return nil, errors.New("expecting )")
 	}
 	ts.Next()
 	return result, nil
@@ -256,7 +256,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		case BinaryOr:
 			result = query.OrQuery{Subitems: subqueries}
 		default:
-			return nil, fmt.Errorf("Unknown LDAP operator, expected & or |, got %v", operator.Value)
+			return nil, fmt.Errorf("unknown LDAP operator, expected & or |, got %v", operator.Value)
 		}
 		if invert {
 			result = query.NotQuery{Subitem: result}
@@ -272,7 +272,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 
 	// Attribute name
 	if ts.Token().Type != Identifier {
-		return nil, errors.New("Expected identifier")
+		return nil, errors.New("expected identifier")
 	}
 	attributename = ts.Token().Value
 	ts.Next()
@@ -290,7 +290,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		attributename2 = ts.Token().Value
 		ts.Next()
 		if ts.Token().Type != RParan {
-			return nil, fmt.Errorf("Expected ) we got %v", ts.Token().Value)
+			return nil, fmt.Errorf("expected ), got %v", ts.Token().Value)
 		}
 		ts.Next()
 	}
@@ -298,7 +298,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	// Comparator
 	if ts.Token().Type == Tilde {
 		if ts.PeekNextToken().Type != Equals {
-			return nil, errors.New("Tilde operator MUST be followed by EQUALS")
+			return nil, errors.New("tilde operator must be followed by equals")
 		}
 		// Microsoft LDAP does not distinguish between ~= and =, so we don't care either
 		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/0bb88bda-ed8d-4af7-9f7b-813291772990
@@ -319,12 +319,12 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	case Equals:
 		comparator = query.CompareEqual
 	default:
-		return nil, errors.New("Expected comparator, got " + ts.Token().Value)
+		return nil, errors.New("expected comparator, got " + ts.Token().Value)
 	}
 	ts.Next()
 
 	if len(attributename) == 0 {
-		return nil, errors.New("Empty attribute name detected")
+		return nil, errors.New("empty attribute name detected")
 	}
 
 	var attributes []engine.Attribute
@@ -335,7 +335,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		} else {
 			gm, err := glob.Compile(attributename)
 			if err != nil {
-				return nil, fmt.Errorf("Invalid attribute glob match pattern '%v': %s", attributename, err)
+				return nil, fmt.Errorf("invalid attribute glob match pattern %q: %s", attributename, err)
 			}
 			for _, attr := range engine.Attributes() {
 				if gm.Match(attr.String()) {
@@ -343,7 +343,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 				}
 			}
 			if len(attributes) == 0 {
-				return nil, fmt.Errorf("No attributes matched pattern '%v'", attributename)
+				return nil, fmt.Errorf("no attributes matched pattern %q", attributename)
 			}
 		}
 	} else {
@@ -358,7 +358,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			i, err := strconv.ParseInt(value.String(), 10, 64)
 			// i, ok := value.Raw().(int64)
 			if err != nil {
-				return nil, fmt.Errorf("Could not convert value to integer for id comparison: %v", err)
+				return nil, fmt.Errorf("could not convert value to integer for id comparison: %v", err)
 			}
 			return &id{comparator, i}, nil
 		case "out", "in":
@@ -368,7 +368,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			if ts.NextIfIs(Comma) {
 				target, err = parseLDAPFilter(ts, ao)
 				if err != nil {
-					return nil, fmt.Errorf("Could not parse sub-query: %v", err)
+					return nil, fmt.Errorf("could not parse sub-query: %v", err)
 				}
 			}
 			var edge engine.Edge
@@ -377,7 +377,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			} else {
 				edge = engine.LookupEdge(edgename)
 				if edge == engine.NonExistingEdge {
-					return nil, fmt.Errorf("Could not convert value %v to edge", edgename)
+					return nil, fmt.Errorf("could not convert value %v to edge", edgename)
 				}
 			}
 			direction := engine.Out
@@ -392,7 +392,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
-				return nil, fmt.Errorf("Unknown attribute %v", attributename)
+				return nil, fmt.Errorf("unknown attribute %v", attributename)
 			}
 			attributes = []engine.Attribute{attribute}
 		}
@@ -402,7 +402,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	if attributename2 != "" {
 		attribute2 = engine.A(attributename2)
 		if attribute2 == engine.NonExistingAttribute {
-			return nil, fmt.Errorf("Unknown attribute %v", attributename2)
+			return nil, fmt.Errorf("unknown attribute %v", attributename2)
 		}
 	}
 
@@ -436,7 +436,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		casesensitive = true
 	case "count":
 		if !ts.Token().Is(Integer) {
-			return nil, fmt.Errorf("Modifier count requires an integer, we got %v", ts.Token())
+			return nil, fmt.Errorf("modifier count requires an integer, got %v", ts.Token())
 		}
 
 		i := ts.Token().Native.(int64)
@@ -445,7 +445,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		result = genwrapper(query.CountModifier{Comparator: comparator, Value: int(i)})
 	case "len", "length":
 		if !ts.Token().Is(Integer) {
-			return nil, fmt.Errorf("Modifier length requires an integer, we got %v", ts.Token())
+			return nil, fmt.Errorf("modifier length requires an integer, got %v", ts.Token())
 		}
 
 		i := ts.Token().Native.(int64)
@@ -461,13 +461,12 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 
 		duration, err := timespan.ParseTimespan(value.String())
 		if err != nil {
-			return nil, errors.New("Could not parse value as a duration (5h2m)")
+			return nil, errors.New("could not parse value as a duration (5h2m)")
 		}
 
 		result = genwrapper(query.SinceModifier{
 			Comparator: comparator,
 			TimeSpan:   duration})
-		break
 	case "timediff":
 		if attribute2 == engine.NonExistingAttribute {
 			return nil, errors.New("timediff modifier requires two attributes")
@@ -482,20 +481,19 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		// try to parse it as an duration
 		duration, err := timespan.ParseTimespan(value.String())
 		if err != nil {
-			return nil, errors.New("Could not parse value as a duration (5h2m)")
+			return nil, errors.New("could not parse value as a duration (5h2m)")
 		}
 		result = genwrapper(query.TimediffModifier{
 			Attribute2: attribute2,
 			Comparator: comparator,
 			TimeSpan:   duration})
-		break
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != query.CompareEqual {
-			return nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
+			return nil, errors.New("modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
 
 		if !ts.Token().Is(Integer) {
-			return nil, fmt.Errorf("Modifier 'and' requires an integer, we got %v", ts.Token())
+			return nil, fmt.Errorf("modifier 'and' requires an integer, got %v", ts.Token())
 		}
 
 		i := ts.Token().Native.(int64)
@@ -504,10 +502,10 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		result = genwrapper(query.BinaryAndModifier{Value: i})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != query.CompareEqual {
-			return nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
+			return nil, errors.New("modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
 		if !ts.Token().Is(Integer) {
-			return nil, fmt.Errorf("Modifier 'or' requires an integer, we got %v", ts.Token())
+			return nil, fmt.Errorf("modifier 'or' requires an integer, got %v", ts.Token())
 		}
 
 		i := ts.Token().Native.(int64)
@@ -525,7 +523,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 			DN: value.String(),
 			AO: ao})
 	default:
-		return nil, errors.New("Unknown modifier " + modifier)
+		return nil, errors.New("unknown modifier " + modifier)
 	}
 
 	value, err := parseRelaxedValue(ts, ao)
@@ -580,7 +578,7 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		// the other comparators require numeric value
 		i, err := strconv.ParseInt(value.String(), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("Could not convert value to integer for numeric comparison: %v", err)
+			return nil, fmt.Errorf("could not convert value to integer for numeric comparison: %v", err)
 		}
 		result = genwrapper(query.AttributeComparison{
 			Comparator: comparator,
@@ -661,11 +659,11 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 	} else if ts.NextIfIs(EdgeIn) {
 		es.Direction = engine.In
 	} else {
-		return EdgeSearcher{}, errors.New("Expecting edge indicator at start of edge query")
+		return EdgeSearcher{}, errors.New("expecting edge indicator at start of edge query")
 	}
 
 	if !ts.NextIfIs(LBracket) {
-		return EdgeSearcher{}, errors.New("Expecting [ at start of edge query")
+		return EdgeSearcher{}, errors.New("expecting [ at start of edge query")
 	}
 
 	if !ts.NextIfIs(RBracket) {
@@ -674,7 +672,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 			if !first {
 				// need a seperator
 				if !ts.NextIfIs(Comma) {
-					return es, errors.New("Expecting comma between edges in edge query")
+					return es, errors.New("expecting comma between edges in edge query")
 				}
 			} else {
 				first = false
@@ -682,27 +680,27 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 
 			if ts.Token().Is(LParan) {
 				if es.PathNodeRequirement != nil {
-					return es, errors.New("Only one path node requirement is supported in edge query")
+					return es, errors.New("only one path node requirement is supported in edge query")
 				}
 				// Node requirement filter LDAP style
 				requirement, err := parseNodeFilter(ts, ao)
 				if err != nil {
-					return es, fmt.Errorf("Expected node requirement in edge query, but got %v", err)
+					return es, fmt.Errorf("expected node requirement in edge query, but got %v", err)
 				}
 				es.PathNodeRequirement = &requirement
 			} else {
 				if ts.Token().Type != Identifier {
-					return EdgeSearcher{}, fmt.Errorf("Expecting identifier in edge matcher, but we got %v (%v)", ts.Token().Value, ts.Token().Type)
+					return EdgeSearcher{}, fmt.Errorf("expecting identifier in edge matcher, but got %v (%v)", ts.Token().Value, ts.Token().Type)
 				}
 				if strings.EqualFold(ts.Token().Value, "probability") {
 					ts.Next()
 					comparator, err := GetComparator(ts)
 					if err != nil {
-						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 
 					if ts.Token().Type != Integer {
-						return es, fmt.Errorf("Expected probability in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected probability in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					probability := ts.Token().Native.(int64)
 					ts.Next()
@@ -713,13 +711,13 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					ts.Next() // eat tag identifier
 					comparator, err := GetComparator(ts)
 					if err != nil {
-						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					if comparator != query.CompareEqual {
-						return es, fmt.Errorf("Tag requires equals, but we got %v (%v)", comparator, ts.Token().Value)
+						return es, fmt.Errorf("tag requires equals, but got %v (%v)", comparator, ts.Token().Value)
 					}
 					if ts.Token().Type != Identifier {
-						return es, fmt.Errorf("Expected tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					tagname := ts.Token().Value
 					ts.Next()
@@ -735,13 +733,13 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					ts.Next() // eat tag identifier
 					comparator, err := GetComparator(ts)
 					if err != nil {
-						return es, fmt.Errorf("Expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected comparator in edge query, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					if comparator != query.CompareEqual {
-						return es, fmt.Errorf("Tag requires equals, but we got %v (%v)", comparator, ts.Token().Value)
+						return es, fmt.Errorf("tag requires equals, but got %v (%v)", comparator, ts.Token().Value)
 					}
 					if ts.Token().Type != Identifier {
-						return es, fmt.Errorf("Expected tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					tagname := ts.Token().Value
 					ts.Next()
@@ -757,10 +755,10 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					ts.Next() // eat tag identifier
 					comparator, err := GetComparator(ts)
 					if err != nil {
-						return es, fmt.Errorf("Expected comparator in edge query 'match' or 'notmatch' restrictions, %v", err)
+						return es, fmt.Errorf("expected comparator in edge query 'match' or 'notmatch' restrictions, %v", err)
 					}
 					if !ts.Token().Is(Integer) {
-						return es, fmt.Errorf("Expected integer in edge query 'match' or 'notmatch' restrictions, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+						return es, fmt.Errorf("expected integer in edge query 'match' or 'notmatch' restrictions, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 					}
 					count := ts.Token().Native.(int64)
 					if isNotMatch {
@@ -777,7 +775,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					// It has to be an attribute
 					edge := engine.LookupEdge(ts.Token().Value)
 					if edge == engine.NonExistingEdge {
-						return es, fmt.Errorf("Unknown edge %v references in negative edge requirement", ts.Token().Value)
+						return es, fmt.Errorf("unknown edge %v referenced in negative edge requirement", ts.Token().Value)
 					}
 					es.FilterEdges.NegativeBitmap = es.FilterEdges.NegativeBitmap.Set(edge) // Add it
 					if es.FilterEdges.NegativeComparator == query.CompareInvalid {
@@ -789,7 +787,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 					// It has to be an attribute
 					edge := engine.LookupEdge(ts.Token().Value)
 					if edge == engine.NonExistingEdge {
-						return es, fmt.Errorf("Unknown edge %v references in edge requirement", ts.Token().Value)
+						return es, fmt.Errorf("unknown edge %v referenced in edge requirement", ts.Token().Value)
 					}
 					es.FilterEdges.Bitmap = es.FilterEdges.Bitmap.Set(edge) // Add it
 					if es.FilterEdges.Comparator == query.CompareInvalid {
@@ -807,7 +805,7 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 
 	if ts.NextIfIs(LBrace) {
 		if !ts.Token().Is(Integer) {
-			return EdgeSearcher{}, fmt.Errorf("Expected integer in iteration count, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+			return EdgeSearcher{}, fmt.Errorf("expected integer in iteration count, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 		}
 		es.MinIterations = int(ts.Token().Native.(int64))
 		es.MaxIterations = es.MinIterations
@@ -815,25 +813,25 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 
 		if ts.NextIfIs(Comma) {
 			if !ts.Token().Is(Integer) {
-				return EdgeSearcher{}, fmt.Errorf("Expected integer in iteration count, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+				return EdgeSearcher{}, fmt.Errorf("expected integer in iteration count, but got %v (%v)", ts.Token().Type, ts.Token().Value)
 			}
 			es.MaxIterations = int(ts.Token().Native.(int64))
 			ts.Next()
 		}
 
 		if !ts.NextIfIs(RBrace) {
-			return EdgeSearcher{}, errors.New("Expecting } after min/max iterations in edge query")
+			return EdgeSearcher{}, errors.New("expecting } after min/max iterations in edge query")
 		}
 	}
 
 	// End of edge query, any indicator of direction?
 	if ts.NextIfIs(EdgeOut) {
 		if es.Direction != engine.Any {
-			return EdgeSearcher{}, errors.New("Only one direction indicator allowed in edge query")
+			return EdgeSearcher{}, errors.New("only one direction indicator allowed in edge query")
 		}
 		es.Direction = engine.Out
 	} else if !ts.NextIfIs(EdgeAnyDirection) {
-		return es, errors.New("Expecting edge indicator at end of edge query")
+		return es, errors.New("expecting edge indicator at end of edge query")
 	}
 
 	// Blank to default edges
@@ -862,7 +860,7 @@ func GetComparator(ts *TokenStream) (query.ComparatorType, error) {
 	case LessThanEquals:
 		result = query.CompareLessThanEqual
 	default:
-		return result, errors.New("Unknown comparator")
+		return result, errors.New("unknown comparator")
 	}
 	ts.Next()
 	return result, nil

@@ -101,7 +101,7 @@ func (pg *Graph[NodeType, EdgeType]) autoCleanupEdges() {
 	if !pg.cleanupEdgesNeeded {
 		return
 	}
-	for pair, _ := range pg.edges {
+	for pair := range pg.edges {
 		if !pg.HasNode(pair.Source) || !pg.HasNode(pair.Target) {
 			delete(pg.edges, pair)
 		}
@@ -213,14 +213,14 @@ func (pg Graph[NodeType, EdgeType]) SCCKosaraju() [][]NodeType {
 	offsetToNode := make([]NodeType, len(pg.nodes))
 
 	var i int
-	for nodeid, _ := range pg.nodes {
+	for nodeid := range pg.nodes {
 		nodeToOffset[nodeid] = i
 		offsetToNode[i] = nodeid
 		i++
 	}
 
 	neighbours := make([][]int, len(pg.nodes))
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		node := nodeToOffset[connection.Source]
 		neighbours[node] = append(neighbours[node], nodeToOffset[connection.Target])
 	}
@@ -392,7 +392,7 @@ func (pg Graph[NodeType, EdgeType]) FloydWarshall() (map[NodeType]map[NodeType]i
 	}
 
 	// Set initial edge weights
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		// Use edge.Flow as weight, minimum 1
 		weight := 1
 		if weight >= INF {
@@ -499,12 +499,12 @@ func (pg Graph[NodeType, EdgeType]) AdjacencyMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	adjacencyMap := make(map[NodeType][]NodeType)
 	// Ensure everything is in there
-	for id, _ := range pg.nodes {
+	for id := range pg.nodes {
 		adjacencyMap[id] = nil
 	}
 
 	// Add every connection
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		adjacencyMap[connection.Source] = append(adjacencyMap[connection.Source], connection.Target)
 	}
 	return adjacencyMap
@@ -515,12 +515,12 @@ func (pg Graph[NodeType, EdgeType]) PredecessorMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	predecessorMap := make(map[NodeType][]NodeType)
 	// Ensure everything is in there
-	for id, _ := range pg.nodes {
+	for id := range pg.nodes {
 		predecessorMap[id] = nil
 	}
 
 	// Add every connection
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		predecessorMap[connection.Target] = append(predecessorMap[connection.Target], connection.Source)
 	}
 	return predecessorMap
@@ -610,7 +610,7 @@ func (pg Graph[NodeType, EdgeType]) outerNodes(reverse bool) []NodeType {
 	pg.autoCleanupEdges()
 	pointedTo := make(map[NodeType]struct{})
 
-	for pair, _ := range pg.edges {
+	for pair := range pg.edges {
 		if reverse {
 			pointedTo[pair.Source] = struct{}{}
 		} else {
@@ -633,7 +633,7 @@ func (pg Graph[NodeType, EdgeType]) Islands() []NodeType {
 	pg.autoCleanupEdges()
 	pointedToOrFrom := make(map[NodeType]struct{})
 
-	for connections, _ := range pg.edges {
+	for connections := range pg.edges {
 		pointedToOrFrom[connections.Source] = struct{}{}
 		pointedToOrFrom[connections.Target] = struct{}{}
 	}

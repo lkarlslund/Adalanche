@@ -166,10 +166,6 @@ func (g *IndexedGraph) EdgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
 	return g.edgeCombos[ue]
 }
 
-func (g *IndexedGraph) edgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
-	return g.edgeCombos[ue]
-}
-
 type CompressedEdgeSubSlice []byte
 
 // Register that this object can pwn another object using the given method

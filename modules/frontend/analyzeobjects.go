@@ -6,9 +6,7 @@ import (
 )
 
 type GraphNode struct {
-	CanExpand              int
-	processRound           int
-	accumulatedprobability float32 // 0-1
+	CanExpand int
 }
 
 type PostProcessorFunc func(pg graph.Graph[*engine.Node, engine.EdgeBitmap]) graph.Graph[*engine.Node, engine.EdgeBitmap]

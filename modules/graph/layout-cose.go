@@ -98,7 +98,7 @@ func (pg *Graph[NodeType, EdgeType]) COSELayoutV1(settings COSELayoutOptions) ma
 	idealLineLength := settings.IdealEdgeLength * k
 
 	currentTemp := settings.Temperature * k
-	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %f", area, radius, nodeCount)
+	ui.Debug().Msgf("Initial layout area: %f, radius: %f, nodes: %d", area, radius, nodeCount)
 	ui.Debug().Msgf("Calculated k: %f, temperature %f", k, currentTemp)
 
 	// random placement

@@ -736,15 +736,6 @@ func (o *Node) ChildOf(parent *Node) {
 	parent.unlock()
 }
 
-func (o *Node) childOf(parent *Node) {
-	if o.parent != nil {
-		ui.Debug().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
-		return
-	}
-	o.parent = parent
-	parent.children.Add(o)
-}
-
 func (o *Node) Adopt(child *Node) {
 	o.lock()
 	if o.hasChild(child) {
@@ -762,18 +753,6 @@ func (o *Node) Adopt(child *Node) {
 	}
 	child.parent = o
 	child.unlock()
-}
-
-func (o *Node) adopt(child *Node) {
-	if child.parent == nil {
-		panic("can't adopt same child twice")
-	}
-	o.children.Add(child)
-
-	if child.parent != nil {
-		child.parent.removeChild(child)
-	}
-	child.parent = o
 }
 
 func (o *Node) hasChild(child *Node) bool {

@@ -36,11 +36,6 @@ func CompareAttributeValuesInt(a, b AttributeValue) int {
 	return a.Compare(b)
 }
 
-type AttributeAndValues struct {
-	values    AttributeValues
-	attribute Attribute
-}
-
 // AttributeValues can contain one or more values
 type AttributeValues []AttributeValue
 
@@ -232,7 +227,7 @@ func (ab attributeValueBool) Compare(c AttributeValue) int {
 		if ab == cb {
 			return 0
 		}
-		if ab == false {
+		if !ab {
 			return -1
 		}
 		return 1

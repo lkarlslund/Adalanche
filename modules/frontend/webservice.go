@@ -70,7 +70,6 @@ func (ufs UnionFS) OpenDir(name string) ([]fs.DirEntry, error) {
 	return nil, os.ErrNotExist
 }
 
-type handlerfunc func(*engine.IndexedGraph, http.ResponseWriter, *http.Request)
 type optionsetter func(ws *WebService) error
 type WebService struct {
 	quit       chan bool
