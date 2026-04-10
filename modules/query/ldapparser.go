@@ -16,7 +16,7 @@ import (
 func ParseLDAPQueryStrict(s string, ao *engine.IndexedGraph) (NodeFilter, error) {
 	s, query, err := ParseLDAPQuery(s, ao)
 	if err == nil && s != "" {
-		return nil, fmt.Errorf("Extra data after query parsing: %v", s)
+		return nil, fmt.Errorf("extra data after query parsing: %v", s)
 	}
 	return query, err
 }
@@ -28,10 +28,10 @@ func ParseLDAPQuery(s string, ao *engine.IndexedGraph) (string, NodeFilter, erro
 
 func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, error) {
 	if len(s) < 5 {
-		return nil, nil, errors.New("Query string too short")
+		return nil, nil, errors.New("query string too short")
 	}
 	if !runes.HasPrefix(s, []rune("(")) || !runes.HasSuffix(s, []rune(")")) {
-		return nil, nil, errors.New("Query must start with ( and end with )")
+		return nil, nil, errors.New("query must start with ( and end with )")
 	}
 	// Strip (
 	s = s[1:]
@@ -54,7 +54,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, 
 			return nil, nil, err
 		}
 		if len(s) == 0 {
-			return nil, nil, errors.New("Missing closing ) in query")
+			return nil, nil, errors.New("missing closing ) in query")
 		}
 		// Strip )
 		s = s[1:]
@@ -72,7 +72,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, 
 			return nil, nil, err
 		}
 		if len(s) == 0 {
-			return nil, nil, errors.New("Query should end with )")
+			return nil, nil, errors.New("query should end with )")
 		}
 		// Strip )
 		s = s[1:]
@@ -94,7 +94,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, 
 attributeloop:
 	for {
 		if len(s) == 0 {
-			return nil, nil, errors.New("Incompete query attribute name detected")
+			return nil, nil, errors.New("incomplete query attribute name detected")
 		}
 		switch s[0] {
 		case '\\': // Escaping
@@ -104,7 +104,7 @@ attributeloop:
 			// Modifier
 			nextcolon := runes.Index(s[1:], []rune(":"))
 			if nextcolon == -1 {
-				return nil, nil, errors.New("Incomplete query string detected (only one colon modifier)")
+				return nil, nil, errors.New("incomplete query string detected (only one colon modifier)")
 			}
 			modifier = string(s[1 : nextcolon+1])
 			s = s[nextcolon+2:]
@@ -118,7 +118,7 @@ attributeloop:
 
 			break attributeloop
 		case ')':
-			return nil, nil, errors.New("Unexpected closing parantesis")
+			return nil, nil, errors.New("unexpected closing paranthesis")
 		case '~', '=', '<', '>':
 			break attributeloop
 		default:
@@ -131,7 +131,7 @@ attributeloop:
 	comparatorstring := string(s[0])
 	if s[0] == '~' {
 		if s[1] != '=' {
-			return nil, nil, errors.New("Tilde operator MUST be followed by EQUALS")
+			return nil, nil, errors.New("tilde operator must be followed by equals")
 		}
 		// Microsoft LDAP does not distinguish between ~= and =, so we don't care either
 		// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/0bb88bda-ed8d-4af7-9f7b-813291772990
@@ -162,7 +162,7 @@ attributeloop:
 valueloop:
 	for {
 		if len(s) == 0 {
-			return nil, nil, errors.New("Incomplete query value detected")
+			return nil, nil, errors.New("incomplete query value detected")
 		}
 		switch s[0] {
 		case '\\': // Escaping
@@ -192,7 +192,7 @@ valueloop:
 	valueint, intok := strconv.ParseInt(value, 10, 64)
 
 	if len(attributename) == 0 {
-		return nil, nil, errors.New("Empty attribute name detected")
+		return nil, nil, errors.New("empty attribute name detected")
 	}
 
 	var attributes []engine.Attribute
@@ -203,7 +203,7 @@ valueloop:
 		} else {
 			gm, err := glob.Compile(attributename)
 			if err != nil {
-				return nil, nil, fmt.Errorf("Invalid attribute glob match pattern '%v': %s", attributename, err)
+				return nil, nil, fmt.Errorf("invalid attribute glob match pattern %q: %s", attributename, err)
 			}
 			for _, attr := range engine.Attributes() {
 				if gm.Match(attr.String()) {
@@ -211,7 +211,7 @@ valueloop:
 				}
 			}
 			if len(attributes) == 0 {
-				return nil, nil, fmt.Errorf("No attributes matched pattern '%v'", attributename)
+				return nil, nil, fmt.Errorf("no attributes matched pattern %q", attributename)
 			}
 		}
 	} else {
@@ -219,17 +219,17 @@ valueloop:
 		switch strings.ToLower(attributename) {
 		case "_id":
 			if floatok != nil {
-				return nil, nil, errors.New("Could not convert value to integer for id comparison")
+				return nil, nil, errors.New("could not convert value to integer for id comparison")
 			}
 			return s, &id{comparator, valueint}, nil
 		case "_limit":
 			if floatok != nil {
-				return nil, nil, errors.New("Could not convert value to integer for limit limiter")
+				return nil, nil, errors.New("could not convert value to integer for limit limiter")
 			}
 			return s, &Limit{valueint}, nil
 		case "_random100":
 			if floatok != nil {
-				return nil, nil, errors.New("Could not convert value to integer for random100 limiter")
+				return nil, nil, errors.New("could not convert value to integer for random100 limiter")
 			}
 			return s, &Random100{comparator, valueint}, nil
 		case "_pwnable", "_canpwn", "out", "in":
@@ -240,7 +240,7 @@ valueloop:
 				edgename = value[:commapos]
 				target, err = ParseLDAPQueryStrict(value[commapos+1:], ao)
 				if err != nil {
-					return nil, nil, fmt.Errorf("Could not parse sub-query: %v", err)
+					return nil, nil, fmt.Errorf("could not parse sub-query: %v", err)
 				}
 			}
 			var edge engine.Edge
@@ -249,7 +249,7 @@ valueloop:
 			} else {
 				edge = engine.LookupEdge(edgename)
 				if edge == engine.NonExistingEdge {
-					return nil, nil, fmt.Errorf("Could not convert value %v to edge", edgename)
+					return nil, nil, fmt.Errorf("could not convert value %v to edge", edgename)
 				}
 			}
 			direction := engine.Out
@@ -264,7 +264,7 @@ valueloop:
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
-				return nil, nil, fmt.Errorf("Unknown attribute %v", attributename)
+				return nil, nil, fmt.Errorf("unknown attribute %v", attributename)
 			}
 			attributes = []engine.Attribute{attribute}
 		}
@@ -274,7 +274,7 @@ valueloop:
 	if attributename2 != "" {
 		attribute2 = engine.A(attributename2)
 		if attribute2 == engine.NonExistingAttribute {
-			return nil, nil, fmt.Errorf("Unknown attribute %v", attributename2)
+			return nil, nil, fmt.Errorf("unknown attribute %v", attributename2)
 		}
 	}
 
@@ -311,12 +311,12 @@ valueloop:
 		casesensitive = true
 	case "count":
 		if floatok != nil {
-			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("could not convert value to integer for modifier comparison")
 		}
 		result = genwrapper(CountModifier{comparator, int(valuefloat)})
 	case "len", "length":
 		if floatok != nil {
-			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("could not convert value to integer for modifier comparison")
 		}
 		result = genwrapper(LengthModifier{comparator, int(valuefloat)})
 	case "since":
@@ -324,7 +324,7 @@ valueloop:
 			// try to parse it as an duration
 			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
-				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
+				return nil, nil, errors.New("could not parse value as a duration (5h2m)")
 			}
 			result = genwrapper(SinceModifier{
 				Comparator: comparator,
@@ -333,7 +333,7 @@ valueloop:
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuefloat))
 		if err != nil {
-			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
+			return nil, nil, errors.New("could not parse value as a duration of seconds (5h2m)")
 		}
 		result = genwrapper(SinceModifier{
 			Comparator: comparator,
@@ -346,7 +346,7 @@ valueloop:
 			// try to parse it as an duration
 			duration, err := timespan.ParseTimespan(value)
 			if err != nil {
-				return nil, nil, errors.New("Could not parse value as a duration (5h2m)")
+				return nil, nil, errors.New("could not parse value as a duration (5h2m)")
 			}
 			result = genwrapper(TimediffModifier{
 				Attribute2: attribute2,
@@ -356,7 +356,7 @@ valueloop:
 		}
 		duration, err := timespan.ParseTimespan(fmt.Sprintf("%vs", valuefloat))
 		if err != nil {
-			return nil, nil, errors.New("Could not parse value as a duration of seconds (5h2m)")
+			return nil, nil, errors.New("could not parse value as a duration of seconds (5h2m)")
 		}
 		result = genwrapper(TimediffModifier{
 			Attribute2: attribute2,
@@ -364,25 +364,25 @@ valueloop:
 			TimeSpan:   duration})
 	case "1.2.840.113556.1.4.803", "and":
 		if comparator != CompareEqual {
-			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.803 requires equality comparator")
+			return nil, nil, errors.New("modifier 1.2.840.113556.1.4.803 requires equality comparator")
 		}
 		if intok != nil {
-			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("could not convert value to integer for modifier comparison")
 		}
 		result = genwrapper(BinaryAndModifier{valueint})
 	case "1.2.840.113556.1.4.804", "or":
 		if comparator != CompareEqual {
-			return nil, nil, errors.New("Modifier 1.2.840.113556.1.4.804 requires equality comparator")
+			return nil, nil, errors.New("modifier 1.2.840.113556.1.4.804 requires equality comparator")
 		}
 		if intok != nil {
-			return nil, nil, errors.New("Could not convert value to integer for modifier comparison")
+			return nil, nil, errors.New("could not convert value to integer for modifier comparison")
 		}
 		result = genwrapper(BinaryOrModifier{valueint})
 	case "1.2.840.113556.1.4.1941", "dnchain":
 		// Matching rule in chain
 		result = genwrapper(RecursiveDNmatcher{DN: value, AO: ao})
 	default:
-		return nil, nil, errors.New("Unknown modifier " + modifier)
+		return nil, nil, errors.New("unknown modifier " + modifier)
 	}
 
 	if result == nil {
@@ -430,7 +430,7 @@ valueloop:
 	if result == nil {
 		// the other comparators require numeric value
 		if floatok != nil {
-			return nil, nil, fmt.Errorf("Could not convert value %v to integer for numeric comparison", value)
+			return nil, nil, fmt.Errorf("could not convert value %v to integer for numeric comparison", value)
 		}
 		result = genwrapper(AttributeComparison{
 			Comparator: comparator,
@@ -457,7 +457,7 @@ func parseMultipleLDAPRuneQueries(s []rune, ao *engine.IndexedGraph) ([]rune, []
 		result = append(result, query)
 	}
 	if len(s) == 0 || s[0] != ')' {
-		return nil, nil, fmt.Errorf("Expecting ) at end of group of queries, but had '%v'", string(s))
+		return nil, nil, fmt.Errorf("expecting ) at end of group of queries, but had %q", string(s))
 	}
 	return s, result, nil
 }
