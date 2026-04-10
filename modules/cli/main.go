@@ -210,7 +210,7 @@ func init() {
 			pproffile := filepath.Join(*Datapath, "adalanche-cpuprofile-"+time.Now().Format("06010215040506")+".pprof")
 			f, err := os.Create(pproffile)
 			if err != nil {
-				return fmt.Errorf("Could not set up CPU profiling in file %v: %v", pproffile, err)
+				return fmt.Errorf("could not set up CPU profiling in file %v: %v", pproffile, err)
 			}
 			pprof.StartCPUProfile(f)
 
@@ -234,7 +234,7 @@ func init() {
 			pproffile := filepath.Join(*Datapath, "adalanche-memprofile-"+time.Now().Format("06010215040506")+".pprof")
 			f, err := os.Create(pproffile)
 			if err != nil {
-				return fmt.Errorf("Could not set up CPU profiling in file %v: %v", pproffile, err)
+				return fmt.Errorf("could not set up CPU profiling in file %v: %v", pproffile, err)
 			}
 
 			profilewriters.Add(1)
@@ -257,13 +257,13 @@ func init() {
 		if _, err := os.Stat(*Datapath); os.IsNotExist(err) {
 			err = os.MkdirAll(*Datapath, 0711)
 			if err != nil {
-				return fmt.Errorf("Could not create data folder %v: %v", Datapath, err)
+				return fmt.Errorf("could not create data folder %v: %v", Datapath, err)
 			}
 		}
 		for _, prerunhook := range prerunhooks {
 			err := prerunhook(cmd, args)
 			if err != nil {
-				return fmt.Errorf("Prerun hook failed: %v", err)
+				return fmt.Errorf("prerun hook failed: %v", err)
 			}
 		}
 

@@ -15,7 +15,7 @@ import (
 const Loadername = "OpenGraph"
 
 var (
-	loader = engine.AddLoader(func() engine.Loader { return &OpenGraphLoader{} })
+	_ = engine.AddLoader(func() engine.Loader { return &OpenGraphLoader{} })
 )
 
 type loaderQueueItem struct {

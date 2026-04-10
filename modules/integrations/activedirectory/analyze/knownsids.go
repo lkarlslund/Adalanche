@@ -48,7 +48,7 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 	if sid, found := nameTranslationTable[strings.ToLower(name)]; found {
 		return sid, nil
 	}
-	return windowssecurity.SID(""), errors.New("Localized group name not found")
+	return windowssecurity.SID(""), errors.New("localized group name not found")
 }
 
 func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
@@ -63,14 +63,14 @@ func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix 
 func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {
-		err = errors.New("No domain info found in collection")
+		err = errors.New("no domain info found in collection")
 		return
 	}
 
 	domaindns.Iterate(func(curdomain *engine.Node) bool {
 		if curdomain.HasAttr(engine.ObjectSid) {
 			if domain != nil {
-				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+				err = errors.New("found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 				return true
 			}
 			domain = curdomain
@@ -79,7 +79,7 @@ func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 	})
 
 	if domain == nil {
-		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		err = errors.New("could not find domainDNS in object shard collection, giving up")
 		return
 	}
 	return
@@ -88,7 +88,7 @@ func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	if domain.HasAttr(engine.ObjectSid) {
 		if domaincontext != "" {
-			err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+			err = errors.New("found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 			return
 		}
 		domaincontext = domain.OneAttrString(engine.DistinguishedName)
@@ -96,7 +96,7 @@ func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext,
 	}
 
 	if domaincontext == "" {
-		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		err = errors.New("could not find domainDNS in object shard collection, giving up")
 		return
 	}
 
@@ -106,7 +106,7 @@ func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext,
 		NCName, engine.NV(domaincontext),
 	)
 	if !found {
-		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)
+		err = fmt.Errorf("could not find crossRef object for %v", domaincontext)
 		return
 	}
 

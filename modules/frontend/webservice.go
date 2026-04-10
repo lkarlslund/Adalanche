@@ -258,7 +258,7 @@ func (ws *WebService) Init(r gin.IRoutes) {
 // Analyze analyzes paths for some purpose, though its implementation is missing in the provided code.
 func (ws *WebService) Analyze(paths ...string) error {
 	if ws.status != NoData && ws.status != Ready {
-		return errors.New("Adalanche is already busy loading data")
+		return errors.New("adalanche is already busy loading data")
 	}
 
 	ws.status = Analyzing

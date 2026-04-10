@@ -30,7 +30,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	err := os.MkdirAll(datapath, 0600)
 	if err != nil {
-		return fmt.Errorf("Problem accessing output folder: %v", err)
+		return fmt.Errorf("problem accessing output folder: %v", err)
 	}
 
 	info, err := Collect()
@@ -44,13 +44,13 @@ func Execute(cmd *cobra.Command, args []string) error {
 	}
 	output, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		return fmt.Errorf("Problem marshalling JSON: %v", err)
+		return fmt.Errorf("problem marshalling JSON: %v", err)
 	}
 
 	outputfile := filepath.Join(datapath, targetname)
 	err = os.WriteFile(outputfile, output, 0600)
 	if err != nil {
-		return fmt.Errorf("Problem writing to file %v: %v", outputfile, err)
+		return fmt.Errorf("problem writing to file %v: %v", outputfile, err)
 	}
 	ui.Info().Msgf("Information collected to file %v", outputfile)
 	return nil

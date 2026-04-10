@@ -170,7 +170,7 @@ func loadWithLoaders(loaders []Loader, paths []string, cb ProgressCallbackFunc) 
 	}
 	ui.Info().Msgf("Loaded a total of %v nodes", totalNodes)
 	if totalNodes == 0 {
-		globalerr = errors.New("No nodes loaded")
+		globalerr = errors.New("no nodes loaded")
 	}
 
 	return aos, globalerr

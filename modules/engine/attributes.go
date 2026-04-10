@@ -202,8 +202,8 @@ func (a Attribute) HasFlag(flag AttributeFlag) bool {
 	return (attributeinfos[a].flags & flag) != 0
 }
 
-var ErrDontMerge = errors.New("Dont merge objects using any methods")
-var ErrMergeOnThis = errors.New("Merge on this attribute")
+var ErrDontMerge = errors.New("don't merge objects using any methods")
+var ErrMergeOnThis = errors.New("merge on this attribute")
 
 type mergefunc func(a, b *Node) (*Node, error)
 

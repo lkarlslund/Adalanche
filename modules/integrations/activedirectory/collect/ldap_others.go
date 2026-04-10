@@ -9,5 +9,5 @@ import (
 )
 
 func GetSSPIClient() (ldap.GSSAPIClient, error) {
-	return nil, errors.New("This is only supported on Windows")
+	return nil, errors.New("this is only supported on Windows")
 }

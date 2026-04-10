@@ -8,5 +8,5 @@ import (
 )
 
 func GetOwnerAndDACL(objectName string, objectType SE_OBJECT_TYPE) (SID, []byte, error) {
-	return "", nil, errors.New("Unsupported on this platform")
+	return "", nil, errors.New("unsupported on this platform")
 }

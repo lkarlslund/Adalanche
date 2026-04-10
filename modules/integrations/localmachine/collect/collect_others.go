@@ -10,5 +10,5 @@ import (
 )
 
 func Collect() (localmachine.Info, error) {
-	return localmachine.Info{}, errors.New("This is not supported on this platform")
+	return localmachine.Info{}, errors.New("this is not supported on this platform")
 }

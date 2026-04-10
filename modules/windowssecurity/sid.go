@@ -33,7 +33,7 @@ var sidDeduplicator gsync.MapOf[SID, SID]
 
 func BytesToSID(data []byte) (SID, []byte, error) {
 	if len(data) == 0 {
-		return "", data, errors.New("No data supplied")
+		return "", data, errors.New("no data supplied")
 	}
 	if data[0] != 0x01 {
 		if len(data) > 32 {
@@ -63,7 +63,7 @@ func ParseStringSID(input string) (SID, error) {
 	}
 	subauthoritycount := strings.Count(input, "-") - 2
 	if subauthoritycount < 0 {
-		return "", errors.New("Less than one subauthority found")
+		return "", errors.New("less than one subauthority found")
 	}
 	if input[0] != 'S' {
 		return "", errors.New("SID must start with S")

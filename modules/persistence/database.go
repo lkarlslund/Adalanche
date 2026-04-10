@@ -30,7 +30,7 @@ var (
 		Use:   "restore",
 		Short: "Restores the persistence database from JSON",
 	}
-	input = restoreCmd.Flags().String("input", "persistence-dump.json", "Input file to restore")
+	_ = restoreCmd.Flags().String("input", "persistence-dump.json", "Input file to restore")
 )
 
 func init() {
@@ -187,12 +187,12 @@ func (s Store[p]) List() ([]p, error) {
 func dump(cmd *cobra.Command, args []string) error {
 	db, err := getDB()
 	if err != nil {
-		return fmt.Errorf("Could not open database: %v", err)
+		return fmt.Errorf("could not open database: %v", err)
 	}
 	// Open output file for writing
 	jsonfile, err := os.Create(*output)
 	if err != nil {
-		return fmt.Errorf("Could not open output file: %v", err)
+		return fmt.Errorf("could not open output file: %v", err)
 	}
 	fmt.Fprintln(jsonfile, "[")
 	// Iterate over all buckets, and dump all the data

@@ -29,8 +29,7 @@ var (
 
 	adsource = engine.NV("Active Directory")
 	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
-
-	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
+	_        = engine.NewAttribute("defaultNamingContext")
 )
 
 type convertqueueitem struct {
@@ -52,16 +51,10 @@ type ADLoader struct {
 
 	done sync.WaitGroup
 
-	importmutex    sync.Mutex
 	importcnf      bool // Import CNF (conflict) objects (experimental)
 	importdel      bool // Import deleted objects (experimental)
 	warnhardened   bool // Warn about hardened objects
 	importhardened bool // Import hardened objects
-}
-
-type domaininfo struct {
-	suffix      string
-	netbiosname string
 }
 
 func (ld *ADLoader) Name() string {
@@ -148,7 +141,7 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 
 		cachefile, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("Problem opening domain cache file: %v", err)
+			return fmt.Errorf("problem opening domain cache file: %v", err)
 		}
 		defer cachefile.Close()
 
@@ -185,7 +178,7 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 			} else if msgp.Cause(err) == io.EOF {
 				return nil
 			} else {
-				return fmt.Errorf("Problem decoding object: %v", err)
+				return fmt.Errorf("problem decoding object: %v", err)
 			}
 		}
 	} else if strings.HasSuffix(path, ".usernames.txt") {

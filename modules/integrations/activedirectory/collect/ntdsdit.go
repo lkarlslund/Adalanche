@@ -518,9 +518,3 @@ func hexUint64(hexstring string) (uint64, error) {
 	}
 	return binary.LittleEndian.Uint64(data), nil
 }
-func verifyTimeStamp(ts uint64) (uint64, error) {
-	if ts < 120000000000000000 || ts >= 9223372036854775807 || ts == 0 {
-		return 0, fmt.Errorf("invalid timestamp %v", ts)
-	}
-	return ts, nil
-}

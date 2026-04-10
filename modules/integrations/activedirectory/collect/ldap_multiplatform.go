@@ -39,7 +39,7 @@ func (ad *AD) Connect() error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("Problem connecting to any server: %v", err)
+		return fmt.Errorf("problem connecting to any server: %v", err)
 	}
 	ad.conn.Debug.Enable(ad.Debug)
 	var gerr error
