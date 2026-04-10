@@ -1,0 +1,42 @@
+name: Reusable Go Verify
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        required: true
+        type: string
+
+jobs:
+  verify:
+    name: Verify Go
+    runs-on: ${{ inputs.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install verification tools
+        shell: bash
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        shell: bash
+        run: "$(go env GOPATH)"/bin/staticcheck ./...
+
+      - name: Run govulncheck
+        shell: bash
+        run: "$(go env GOPATH)"/bin/govulncheck ./...

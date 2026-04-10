@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify-ci:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify successful CI run for this commit
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const headSha = context.sha;
+            const { owner, repo } = context.repo;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+              owner,
+              repo,
+              head_sha: headSha,
+              per_page: 100
+            });
+
+            const ciRun = runs.find((run) =>
+              run.name === "CI" &&
+              run.status === "completed" &&
+              run.conclusion === "success"
+            );
+
+            if (!ciRun) {
+              core.setFailed(`No successful CI run found for commit ${headSha}. Wait for CI before tagging a release.`);
+            }
+
+  publish:
+    name: Publish Release
+    needs: verify-ci
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install release prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends powershell curl unzip
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: modules/frontend/vendor-src/package-lock.json
+
+      - name: Build release artifacts
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" binaries/* --clobber
+          else
+            gh release create "$tag" binaries/* --title "$tag"
+          fi
