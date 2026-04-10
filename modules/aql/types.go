@@ -12,18 +12,12 @@ type AQLresolver interface {
 	Resolve(ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error)
 }
 
-type IndexLookup struct {
-	v engine.AttributeValue
-	a engine.Attribute
-}
-
 type NodeQuery struct {
-	IndexLookup IndexLookup      // Possible start of search, quickly narrows it down
-	Selector    query.NodeFilter // Where style boolean approval filter for objects
-	OrderBy     NodeSorter       // Sorting
-	Reference   string           // For cross result reference
-	Skip        int              // Skipping
-	Limit       int              // Limiting
+	Selector  query.NodeFilter // Where style boolean approval filter for objects
+	OrderBy   NodeSorter       // Sorting
+	Reference string           // For cross result reference
+	Skip      int              // Skipping
+	Limit     int              // Limiting
 }
 
 func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {

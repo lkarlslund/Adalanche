@@ -5,40 +5,15 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/lkarlslund/adalanche/modules/ui"
-
 	"github.com/gofrs/uuid"
 	"github.com/lkarlslund/stringsplus"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 )
-
-var legalMatch = regexp.MustCompile("[[:alnum:] _.=,-]") // dash must be LAST! doh
-
-func cleanfilename(input string) string {
-	normalized, _, _ := transform.String(transform.Chain(norm.NFD, transform.RemoveFunc(func(r rune) bool {
-		return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
-	}), norm.NFC), input)
-
-	var output string
-
-	for _, chr := range normalized {
-		if legalMatch.MatchString(string(chr)) {
-			if chr == '*' || chr == '/' {
-				ui.Fatal().Msgf("This isn't working")
-			}
-			output += string(chr)
-		}
-	}
-	return output
-}
 
 func SwapUUIDEndianess(u uuid.UUID) uuid.UUID {
 	var r uuid.UUID
@@ -201,7 +176,7 @@ func ExePath() (string, error) {
 		if !fi.Mode().IsDir() {
 			return p, nil
 		}
-		err = fmt.Errorf("%s is directory", p)
+		return "", fmt.Errorf("%s is directory", p)
 	}
 	if filepath.Ext(p) == "" {
 		p += ".exe"
@@ -210,7 +185,7 @@ func ExePath() (string, error) {
 			if !fi.Mode().IsDir() {
 				return p, nil
 			}
-			err = fmt.Errorf("%s is directory", p)
+			return "", fmt.Errorf("%s is directory", p)
 		}
 	}
 	return "", err

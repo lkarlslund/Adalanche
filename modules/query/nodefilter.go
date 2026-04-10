@@ -446,10 +446,7 @@ func (tc AttributeComparison) Evaluate(a engine.Attribute, o *engine.Node) bool 
 		default:
 			panic("Unknown comparator")
 		}
-		if matched {
-			return false
-		}
-		return true
+		return !matched
 	})
 	return matched
 }

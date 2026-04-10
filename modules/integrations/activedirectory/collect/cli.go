@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -260,10 +259,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		ad.Disconnect()
 	} else {
 		// Active Directory dump directly from AD controller
-		var ad LDAPDumper
-
 		// Find usable DC from list of servers
-		ad = CreateDumper(options)
+		ad := CreateDumper(options)
 
 		err := ad.Connect()
 		if err != nil {
@@ -528,7 +525,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 						if !d.IsDir() {
 							filescollected++
 
-							rawfile, err := ioutil.ReadFile(curpath)
+							rawfile, err := os.ReadFile(curpath)
 							if err == nil {
 								fileinfo.Contents = rawfile
 							} else {

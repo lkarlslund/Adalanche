@@ -67,20 +67,8 @@ const (
 )
 
 func ParseSDDL(sddl string) (ACL, error) {
-	var result ACL
-	if strings.HasPrefix(sddl, "O:") {
-		// Handle owner
-	}
-	if strings.HasPrefix(sddl, "G:") {
-		// Handle group
-	}
-	if strings.HasPrefix(sddl, "D:") {
-		// Handle DACL
-	}
-	if strings.HasPrefix(sddl, "S:") {
-		// Handle SACL
-	}
-	return result, nil
+	_ = sddl
+	return ACL{}, nil
 }
 
 /*
@@ -1205,7 +1193,7 @@ func parseCompositeLiteral(blob []byte, pos *int) (exprNode, error) {
 		default:
 			// fallback: represent rest as hex
 			remain := sub[i-1:]
-			hexStr := fmt.Sprintf("0x")
+			hexStr := "0x"
 			for _, bb := range remain {
 				hexStr += fmt.Sprintf("%02X", bb)
 			}

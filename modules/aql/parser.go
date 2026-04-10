@@ -624,40 +624,6 @@ func parseValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue
 	return value, nil
 }
 
-func parseIndexLookup(ts *TokenStream, ao *engine.IndexedGraph) (IndexLookup, error) {
-	var result IndexLookup
-	attr, err := parseAttribute(ts, ao)
-	if err != nil {
-		return result, err
-	}
-	result.a = attr
-
-	if ts.Token().Type != Colon {
-		return result, errors.New("Expecting colon after index lookup attribute")
-	}
-	ts.Next()
-
-	val, err := parseValue(ts, ao)
-	if err != nil {
-		return result, err
-	}
-	result.v = val
-
-	return result, nil
-}
-
-func parseAttribute(ts *TokenStream, ao *engine.IndexedGraph) (engine.Attribute, error) {
-	if ts.Token().Type != Identifier {
-		return engine.NonExistingAttribute, errors.New("Expecting index lookup attribute")
-	}
-	attr := engine.LookupAttribute(ts.Token().Value)
-	if attr == engine.NonExistingAttribute {
-		return engine.NonExistingAttribute, fmt.Errorf("Unknown attribute %v references in index lookup", ts.Token().Value)
-	}
-	ts.Next()
-	return attr, nil
-}
-
 // func parseWhere(ts *TokenStream, ao *engine.Objects) (query.NodeFilter, error) {
 // 	if ts.Token().Type != Where {
 // 		return nil, errors.New("WHERE expected")

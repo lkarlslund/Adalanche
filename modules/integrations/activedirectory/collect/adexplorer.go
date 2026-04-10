@@ -5,10 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -356,15 +354,11 @@ func (wsl *WStringLength) BinaryDecode(r binstruct.Reader) error {
 		data = data[:len(data)-1]
 	}
 
-	// Get the slice header
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&data))
+	if len(data)%2 != 0 {
+		return fmt.Errorf("wstring payload has odd byte length %d", len(data))
+	}
 
-	// The length and capacity of the slice are different.
-	header.Len /= 2
-	header.Cap /= 2
-
-	// Convert slice header to an []int32
-	udata := *(*[]uint16)(unsafe.Pointer(&header))
+	udata := unsafe.Slice((*uint16)(unsafe.Pointer(unsafe.SliceData(data))), len(data)/2)
 
 	result := WStringLength(string(utf16.Decode(udata)))
 	*wsl = result
@@ -458,7 +452,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		dec = binstruct.NewReader(adex.rawfile, binary.LittleEndian, false)
 	} else {
 		ui.Info().Msg("Loading raw AD Explorer snapshot into memory")
-		adexplorerbytes, err := ioutil.ReadAll(adex.rawfile)
+		adexplorerbytes, err := io.ReadAll(adex.rawfile)
 		if err != nil {
 			return nil, fmt.Errorf("error reading ADExplorer file: %v", err)
 		}

@@ -104,7 +104,8 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		if processed != 0 {
-			pWPPool.Put(currentState.workingGraph)
+			currentState.workingGraph.Reset()
+			pWPPool.Put(&currentState.workingGraph)
 		}
 		processed++
 
@@ -276,6 +277,6 @@ var pWPPool sync.Pool
 
 func init() {
 	pWPPool.New = func() any {
-		return probableWorkingPath{}
+		return &probableWorkingPath{}
 	}
 }

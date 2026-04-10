@@ -13,7 +13,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/util"
 )
 
 var (
@@ -52,26 +51,26 @@ func (ld *GPOLoader) Init() error {
 					continue
 				}
 				g := ld.getShard(path)
-				netbios := ginfo.DomainNetbios
-				if netbios == "" {
-					// Fallback to extracting from the domain DN
-					netbios = util.ExtractNetbiosFromBase(ginfo.DomainDN)
-				}
-				if netbios == "" {
-					// Fallback to using path
-					parts := strings.Split(ginfo.Path, "\\")
-					sysvol := -1
-					for i, part := range parts {
-						if strings.EqualFold(part, "sysvol") {
-							sysvol = i
-							break
-						}
-					}
-					if sysvol != -1 && len(parts) > sysvol+2 && strings.EqualFold(parts[sysvol+2], "policies") {
-						netbios, _, _ = strings.Cut(parts[sysvol+1], ".")
-					}
-				}
-				/*				if netbios != "" {
+				/*				netbios := ginfo.DomainNetbios
+								if netbios == "" {
+									// Fallback to extracting from the domain DN
+									netbios = util.ExtractNetbiosFromBase(ginfo.DomainDN)
+								}
+								if netbios == "" {
+									// Fallback to using path
+									parts := strings.Split(ginfo.Path, "\\")
+									sysvol := -1
+									for i, part := range parts {
+										if strings.EqualFold(part, "sysvol") {
+											sysvol = i
+											break
+										}
+									}
+									if sysvol != -1 && len(parts) > sysvol+2 && strings.EqualFold(parts[sysvol+2], "policies") {
+										netbios, _, _ = strings.Cut(parts[sysvol+1], ".")
+									}
+								}
+								if netbios != "" {
 									g.AddDefaultFlex(
 										engine.DataSource, engine.NV(netbios),
 									)

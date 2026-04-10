@@ -223,11 +223,6 @@ func getLexer() (*lexmachine.Lexer, error) {
 	return lexer, nil
 }
 
-// a lexmachine.Action function which skips the match.
-func skip(*lexmachine.Scanner, *machines.Match) (any, error) {
-	return nil, nil
-}
-
 // a lexmachine.Action function with constructs a Token of the given token type by
 // the token type's id.
 func tokenid(id TokenID) lexmachine.Action {

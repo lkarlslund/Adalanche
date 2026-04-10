@@ -55,7 +55,7 @@ func (ntds *NTDSDumper) DebugDump() error {
 	for _, t := range tables {
 		count := 0
 		fmt.Fprintln(bufout, "-----------------------------", t, "----------------------------")
-		err = catalog.DumpTable(t, func(row *ordereddict.Dict) error {
+		if err := catalog.DumpTable(t, func(row *ordereddict.Dict) error {
 			serialized, err := json.Marshal(row)
 			if err != nil {
 				return err
@@ -63,7 +63,9 @@ func (ntds *NTDSDumper) DebugDump() error {
 			count++
 			fmt.Fprintf(bufout, "%v\n", string(serialized))
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
 	}
 	bufout.Flush()
 	output.Close()

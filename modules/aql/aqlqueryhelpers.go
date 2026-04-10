@@ -154,10 +154,10 @@ type probableWorkingPath struct {
 }
 
 func (pWP probableWorkingPath) Clone() probableWorkingPath {
-	clone := pWPPool.Get().(probableWorkingPath)
+	clone := pWPPool.Get().(*probableWorkingPath)
 	clone.filter = pWP.filter
 	clone.path = append(clone.path[:0], pWP.path...)
-	return clone
+	return *clone
 }
 
 func (pWP probableWorkingPath) HasNode(node engine.NodeID) bool {
@@ -196,6 +196,11 @@ func (pWP *probableWorkingPath) Add(node engine.NodeID, direction engine.EdgeDir
 		reference: reference,
 		combo:     ec,
 	})
+}
+
+func (pWP *probableWorkingPath) Reset() {
+	pWP.filter = bloom{}
+	pWP.path = pWP.path[:0]
 }
 
 func (pWP *probableWorkingPath) CommitToGraph(ao *engine.IndexedGraph, g graph.Graph[*engine.Node, engine.EdgeBitmap], references []NodeQuery) {
