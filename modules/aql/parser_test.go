@@ -9,6 +9,7 @@ import (
 func init() {
 	engine.NewAttribute("MockAttribute")
 	engine.NewAttribute("msPKI-Template-Schema-Version")
+	engine.NewAttribute("msDS-SupportedEncryptionTypes")
 	engine.NewEdge("MemberOf")
 	engine.NewEdge("MachineAccount")
 	engine.NewEdge("MemberOfIndirect")
@@ -17,7 +18,7 @@ func init() {
 func TestParseTestAQLQueries(t *testing.T) {
 	// this runs on a mixture of luck and talent
 	queries := []string{
-		`(source:objectClass="*" ORDER BY MockAttribute DESC SKIP 5 LIMIT 100)-[MemberOf,Probability=100]->(target:&(objectSid=S-1-5-21-*-519))`,
+		`source:(objectClass="*") ORDER BY MockAttribute DESC SKIP 5 LIMIT 100-[MemberOf,Probability=100]->target:(&(objectSid=S-1-5-21-*-519))`,
 		`(objectClass="*")-[MemberOf,MemberOfIndirect,(objectClass=*)]->(type="Person")`,
 		`(objectClass="*")-[tag=AD]->(type="Person")`,
 		`()-[]->()`,      // any-to-any

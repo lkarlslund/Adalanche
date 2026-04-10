@@ -87,7 +87,7 @@ var (
 		},
 		{
 			Name:     "What can accounts that have a password older than 5 years reach?",
-			Query:    "ACYCLIC start:(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))-[]{1,6}->end:()",
+			Query:    "ACYCLIC start:(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:< -5Y)(!(userAccountControl:and:=2)))-[]{1,6}->end:()",
 			Category: "Active Directory",
 		},
 		{
