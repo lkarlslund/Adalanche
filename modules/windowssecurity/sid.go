@@ -209,15 +209,17 @@ func (sid SID) AddComponent(component uint32) SID {
 	return SID(newsid)
 }
 
-func SIDFromPtr(data uintptr) (SID, error) {
-	bytes := (*[1024]byte)(unsafe.Pointer(data))
-	if bytes[0] != 0x01 {
-		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", bytes[0:32])
+func SIDFromPtr(data unsafe.Pointer) (SID, error) {
+	header := unsafe.Slice((*byte)(data), 8)
+	if header[0] != 0x01 {
+		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", header)
 	}
-	subauthoritycount := int(bytes[1])
-	var sid = make([]byte, 6+4*subauthoritycount)
+	subauthoritycount := int(header[1])
+	sidEnd := 8 + 4*subauthoritycount
+	raw := unsafe.Slice((*byte)(data), sidEnd)
+	sid := make([]byte, sidEnd-2)
 
-	copy(sid, bytes[2:len(sid)])
+	copy(sid, raw[2:sidEnd])
 	return SID(sid), nil
 }
 

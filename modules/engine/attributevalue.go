@@ -153,7 +153,6 @@ func NV(v any) AttributeValue {
 	default:
 		panic("unsupported attribute value type")
 	}
-	return nil
 }
 
 type AttributeValuePair struct {

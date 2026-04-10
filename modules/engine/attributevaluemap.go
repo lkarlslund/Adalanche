@@ -82,6 +82,13 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 	return &merged
 }
 
+func (avm *AttributesAndValues) Replace(other *AttributesAndValues) {
+	avm.mu.Lock()
+	avm.attributes = other.attributes
+	avm.values = other.values
+	avm.mu.Unlock()
+}
+
 func (avm *AttributesAndValues) Get(a Attribute) (av AttributeValues, found bool) {
 	avm.mu.Lock()
 	defer avm.mu.Unlock()

@@ -93,7 +93,7 @@ func (target *Node) AbsorbEx(source *Node, fast bool) {
 	}
 
 	newvalues := target.values.Merge(&source.values)
-	target.values = *newvalues
+	target.values.Replace(newvalues)
 }
 
 func mergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -149,13 +149,13 @@ func (s StringMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	tokens := []xml.Token{start}
 
 	for key, values := range s {
-		t := xml.StartElement{Name: xml.Name{"", key}}
+		t := xml.StartElement{Name: xml.Name{Space: "", Local: key}}
 		for _, value := range values {
-			tokens = append(tokens, t, xml.CharData(value), xml.EndElement{t.Name})
+			tokens = append(tokens, t, xml.CharData(value), xml.EndElement{Name: t.Name})
 		}
 	}
 
-	tokens = append(tokens, xml.EndElement{start.Name})
+	tokens = append(tokens, xml.EndElement{Name: start.Name})
 
 	for _, t := range tokens {
 		err := e.EncodeToken(t)
