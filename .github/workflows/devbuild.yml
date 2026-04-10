@@ -1,0 +1,90 @@
+name: Devbuild
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-devbuild:
+    name: Publish Devbuild
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'master'
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-win7 toolchain
+        shell: bash
+        run: |
+          sudo chmod 777 /opt
+          mkdir -p /opt/go-win7
+          curl -L https://github.com/XTLS/go-win7/releases/download/patched-1.26.0.2026.02.14/go-for-win7-linux-amd64.zip -o go-win7.zip
+          unzip -qq go-win7.zip -d /opt/go-win7
+          sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
+
+      - name: Install CycloneDX gomod
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+
+      - name: Install release prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends powershell curl unzip
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: modules/frontend/vendor-src/package-lock.json
+
+      - name: Build devbuild artifacts
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Refresh devbuild tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release delete devbuild --cleanup-tag >/dev/null 2>&1 || true
+          git tag -f devbuild
+          git push origin refs/tags/devbuild --force
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view devbuild >/dev/null 2>&1; then
+            gh release upload devbuild binaries/* --clobber
+          else
+            gh release create devbuild binaries/* \
+              --title "devbuild" \
+              --prerelease \
+              --notes "Latest development build from master."
+          fi
