@@ -134,15 +134,15 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			secs := nss / 10000000
 			var period string
 			if (secs%31536000) == 0 && (secs/31536000) > 1 {
-				period = fmt.Sprintf("v% years", secs/31536000)
+				period = fmt.Sprintf("%v years", secs/31536000)
 			} else if (secs%2592000) == 0 && (secs/2592000) > 1 {
-				period = fmt.Sprintf("v% months", secs/2592000)
+				period = fmt.Sprintf("%v months", secs/2592000)
 			} else if (secs%604800) == 0 && (secs/604800) > 1 {
-				period = fmt.Sprintf("v% weeks", secs/604800)
+				period = fmt.Sprintf("%v weeks", secs/604800)
 			} else if (secs%86400) == 0 && (secs/86400) > 1 {
-				period = fmt.Sprintf("v% days", secs/86400)
+				period = fmt.Sprintf("%v days", secs/86400)
 			} else if (secs%3600) == 0 && (secs/3600) > 1 {
-				period = fmt.Sprintf("v% hours", secs/3600)
+				period = fmt.Sprintf("%v hours", secs/3600)
 			}
 			if period != "" {
 				attributevalue = engine.NV(period)

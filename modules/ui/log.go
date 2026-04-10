@@ -149,7 +149,7 @@ func (t Logger) Msgf(format string, args ...any) {
 }
 
 func (t Logger) Msg(msg string) Logger {
-	t.Msgf(msg)
+	t.Msgf("%s", msg)
 	return t
 }
 
