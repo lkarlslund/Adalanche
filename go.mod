@@ -15,7 +15,7 @@ require (
 	github.com/Showmax/go-fqdn v1.0.0
 	github.com/Velocidex/ordereddict v0.0.0-20250821063524-02dc06e46238
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
-	github.com/antchfx/xmlquery v1.4.4
+	github.com/antchfx/xmlquery v1.5.1
 	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/elastic/go-windows v1.0.2
@@ -71,7 +71,7 @@ require (
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
 	github.com/Velocidex/yaml/v2 v2.2.8 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
-	github.com/antchfx/xpath v1.3.3 // indirect
+	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect

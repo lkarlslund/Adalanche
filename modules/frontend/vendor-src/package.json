@@ -12,6 +12,9 @@
   "devDependencies": {
     "esbuild": "^0.25.1"
   },
+  "overrides": {
+    "lodash": "^4.18.1"
+  },
   "dependencies": {
     "@alpinejs/persist": "^3.14.9",
     "@ryangjchandler/alpine-tooltip": "^2.0.1",
