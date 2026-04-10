@@ -61,6 +61,12 @@ func Execute(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	for _, hook := range analyzeHooks {
+		if err := hook(ws); err != nil {
+			return err
+		}
+	}
+
 	// Launch browser
 	if !*noBrowser {
 		var err error

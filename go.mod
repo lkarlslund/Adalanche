@@ -61,6 +61,8 @@ require (
 
 require github.com/sugawarayuuta/sonnet v0.0.0-20231004000330-239c7b6e4ce8
 
+require github.com/modelcontextprotocol/go-sdk v1.1.0
+
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
