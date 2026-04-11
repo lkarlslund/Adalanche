@@ -184,6 +184,7 @@
       graph.dragState = null;
       event.preventDefault();
       if (typeof event.stopPropagation === "function") event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
       if (!moved) {
         graph.suppressNextClick = true;
         graph.notify("nodeclick", {
@@ -195,6 +196,7 @@
         });
         return;
       }
+      graph.suppressNextClick = true;
       graph.notify("nodedragend", {
         nodeId,
         originalEvent: event,

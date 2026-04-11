@@ -935,309 +935,688 @@ fn path_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, P
     out
 }
 
-fn circle_positions_for_indices(indices: &[usize], boxes: &[Vec2], radius_hint: f64) -> HashMap<usize, Vec2> {
-    let mut out = HashMap::new();
-    if indices.is_empty() {
-        return out;
+#[derive(Clone)]
+struct ClusterPlacement {
+    id: usize,
+    members: Vec<usize>,
+    radius: f64,
+    center: Vec2,
+}
+
+#[derive(Clone)]
+struct ConnectedComponent {
+    nodes: Vec<usize>,
+    edges: Vec<Edge>,
+}
+
+#[derive(Clone)]
+struct ClusterNodePlacement {
+    idx: usize,
+    degree: usize,
+    external: usize,
+    internal: usize,
+    preferred: Vec2,
+}
+
+fn max_usize(a: usize, b: usize) -> usize {
+    if a > b { a } else { b }
+}
+
+fn clamp_f64(v: f64, lo: f64, hi: f64) -> f64 {
+    if v < lo {
+        return lo;
     }
-    let count = indices.len();
-    let total_width: f64 = indices.iter().map(|&idx| boxes[idx].x.max(24.0)).sum();
-    let radius = radius_hint.max(total_width / (2.0 * std::f64::consts::PI)).max(60.0);
-    for (order, &idx) in indices.iter().enumerate() {
-        let angle = (-std::f64::consts::FRAC_PI_2)
-            + ((2.0 * std::f64::consts::PI * order as f64) / count as f64);
-        out.insert(
-            idx,
-            Vec2 {
+    if v > hi {
+        return hi;
+    }
+    v
+}
+
+fn blend_angle(base: f64, target: f64, amount: f64) -> f64 {
+    if amount <= 0.0 {
+        return base;
+    }
+    if amount >= 1.0 {
+        return target;
+    }
+    let delta = (target - base + std::f64::consts::PI).rem_euclid(std::f64::consts::PI * 2.0)
+        - std::f64::consts::PI;
+    base + (delta * amount)
+}
+
+fn min_member_id(ids: &[String], members: &[usize]) -> String {
+    let mut out = ids[members[0]].clone();
+    for idx in members.iter().skip(1) {
+        if ids[*idx] < out {
+            out = ids[*idx].clone();
+        }
+    }
+    out
+}
+
+fn node_visual_gap(node: &Node, inter_node_spacing: f64) -> f64 {
+    let size = node.render_size.max(0.0);
+    (size * 2.8).max(inter_node_spacing * 0.6)
+}
+
+fn positions_are_finite(positions: &HashMap<String, Position>) -> bool {
+    !positions.is_empty()
+        && positions
+            .values()
+            .all(|pos| pos.x.is_finite() && pos.y.is_finite())
+}
+
+fn phyllotaxis_layout(graph: &Graph, spacing: f64) -> HashMap<String, Position> {
+    let mut positions = HashMap::with_capacity(graph.nodes.len());
+    let golden_angle = std::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+    for (index, node) in graph.nodes.iter().enumerate() {
+        let base_gap = node_visual_gap(node, spacing.max(12.0));
+        let radius = base_gap * (index as f64 + 1.0).sqrt();
+        let angle = index as f64 * golden_angle;
+        positions.insert(
+            node.id.clone(),
+            Position {
                 x: angle.cos() * radius,
                 y: angle.sin() * radius,
             },
         );
     }
-    out
+    positions
 }
 
-fn grid_positions_for_indices(indices: &[usize], boxes: &[Vec2], gap: f64) -> HashMap<usize, Vec2> {
-    let mut out = HashMap::new();
-    if indices.is_empty() {
-        return out;
-    }
-    let cols = (indices.len() as f64).sqrt().ceil().max(1.0) as usize;
-    let mut col_widths = vec![0.0_f64; cols];
-    let rows = (indices.len() as f64 / cols as f64).ceil().max(1.0) as usize;
-    let mut row_heights = vec![0.0_f64; rows];
-    for (order, &idx) in indices.iter().enumerate() {
-        let row = order / cols;
-        let col = order % cols;
-        col_widths[col] = col_widths[col].max(boxes[idx].x);
-        row_heights[row] = row_heights[row].max(boxes[idx].y);
-    }
-    let total_width = col_widths.iter().sum::<f64>() + gap * (cols.saturating_sub(1)) as f64;
-    let total_height = row_heights.iter().sum::<f64>() + gap * (rows.saturating_sub(1)) as f64;
-
-    let mut y = -(total_height / 2.0);
-    for row in 0..rows {
-        let row_height = row_heights[row];
-        let mut x = -(total_width / 2.0);
-        for col in 0..cols {
-            let order = row * cols + col;
-            if order >= indices.len() {
-                break;
-            }
-            let idx = indices[order];
-            let col_width = col_widths[col];
-            out.insert(
-                idx,
-                Vec2 {
-                    x: x + (col_width / 2.0),
-                    y: y + (row_height / 2.0),
-                },
-            );
-            x += col_width + gap;
+fn build_edge_weights(adj: &[Vec<usize>]) -> Vec<HashMap<usize, f64>> {
+    let n = adj.len();
+    let mut neighbor_sets: Vec<HashSet<usize>> = Vec::with_capacity(n);
+    for neighbors in adj {
+        let mut set = HashSet::with_capacity(neighbors.len());
+        for nb in neighbors {
+            set.insert(*nb);
         }
-        y += row_height + gap;
+        neighbor_sets.push(set);
     }
-    out
+    let mut weights: Vec<HashMap<usize, f64>> = (0..n).map(|_| HashMap::new()).collect();
+    for i in 0..n {
+        for nb in &adj[i] {
+            if weights[i].contains_key(nb) {
+                continue;
+            }
+            let (small, large) = if adj[i].len() <= adj[*nb].len() {
+                (i, *nb)
+            } else {
+                (*nb, i)
+            };
+            let mut common = 0usize;
+            for candidate in &adj[small] {
+                if *candidate == large {
+                    continue;
+                }
+                if neighbor_sets[large].contains(candidate) {
+                    common += 1;
+                }
+            }
+            let weight = 1.0 + (2.0 * common as f64);
+            weights[i].insert(*nb, weight);
+            weights[*nb].insert(i, weight);
+        }
+    }
+    weights
 }
 
-fn cluster_local_layout(indices: &[usize], boxes: &[Vec2], gap: f64) -> HashMap<usize, Vec2> {
-    if indices.len() <= 10 {
-        return circle_positions_for_indices(indices, boxes, gap * indices.len() as f64 * 0.35);
+fn detect_communities(
+    ids: &[String],
+    adj: &[Vec<usize>],
+    edge_weights: &[HashMap<usize, f64>],
+    degrees: &[usize],
+) -> Vec<usize> {
+    let n = ids.len();
+    let mut labels: Vec<usize> = (0..n).collect();
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|left, right| {
+        let dl = degrees[*left];
+        let dr = degrees[*right];
+        dr.cmp(&dl).then_with(|| ids[*left].cmp(&ids[*right]))
+    });
+    for _ in 0..12 {
+        let mut changed = false;
+        for idx in &order {
+            if adj[*idx].is_empty() {
+                continue;
+            }
+            let mut scores: HashMap<usize, f64> = HashMap::new();
+            for nb in &adj[*idx] {
+                let entry = scores.entry(labels[*nb]).or_insert(0.0);
+                let weight = edge_weights[*idx].get(nb).copied().unwrap_or(1.0);
+                *entry += weight + (0.15 * (max_usize(1, degrees[*nb]) as f64).sqrt());
+            }
+            let mut best_label = labels[*idx];
+            let mut best_score = -1.0f64;
+            for (label, score) in scores {
+                if score > best_score || ((score - best_score).abs() < 1e-9 && label < best_label) {
+                    best_label = label;
+                    best_score = score;
+                }
+            }
+            if best_label != labels[*idx] {
+                labels[*idx] = best_label;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
     }
-    grid_positions_for_indices(indices, boxes, gap)
+    labels
 }
 
-fn cluster_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
+fn connected_components(graph: &Graph) -> Vec<ConnectedComponent> {
+    let n = graph.nodes.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut id_to_idx: HashMap<&str, usize> = HashMap::with_capacity(n);
+    for (idx, node) in graph.nodes.iter().enumerate() {
+        id_to_idx.insert(node.id.as_str(), idx);
+    }
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for edge in &graph.edges {
+        if let (Some(&a), Some(&b)) = (
+            id_to_idx.get(edge.source.as_str()),
+            id_to_idx.get(edge.target.as_str()),
+        ) {
+            if a == b {
+                continue;
+            }
+            adj[a].push(b);
+            adj[b].push(a);
+        }
+    }
+
+    let mut seen = vec![false; n];
+    let mut components = Vec::new();
+    for start in 0..n {
+        if seen[start] {
+            continue;
+        }
+        let mut queue = VecDeque::new();
+        let mut nodes = Vec::new();
+        let mut node_set = HashSet::new();
+        seen[start] = true;
+        queue.push_back(start);
+        while let Some(idx) = queue.pop_front() {
+            nodes.push(idx);
+            node_set.insert(idx);
+            for &nb in &adj[idx] {
+                if !seen[nb] {
+                    seen[nb] = true;
+                    queue.push_back(nb);
+                }
+            }
+        }
+        let mut edges = Vec::new();
+        for edge in &graph.edges {
+            if let (Some(&a), Some(&b)) = (
+                id_to_idx.get(edge.source.as_str()),
+                id_to_idx.get(edge.target.as_str()),
+            ) {
+                if node_set.contains(&a) && node_set.contains(&b) {
+                    edges.push(edge.clone());
+                }
+            }
+        }
+        components.push(ConnectedComponent { nodes, edges });
+    }
+    components.sort_by(|left, right| {
+        right.nodes.len().cmp(&left.nodes.len()).then_with(|| {
+            let left_min = left
+                .nodes
+                .iter()
+                .map(|idx| graph.nodes[*idx].id.as_str())
+                .min()
+                .unwrap_or("");
+            let right_min = right
+                .nodes
+                .iter()
+                .map(|idx| graph.nodes[*idx].id.as_str())
+                .min()
+                .unwrap_or("");
+            left_min.cmp(right_min)
+        })
+    });
+    components
+}
+
+fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
     let n = graph.nodes.len();
     if n == 0 {
         return HashMap::new();
     }
 
-    let connector_factor = option_f64(options, "connector_factor", 2.2).clamp(1.2, 6.0);
-    let cluster_gap = option_f64(options, "cluster_gap", 420.0).max(80.0);
-    let intra_gap = option_f64(options, "intra_gap", 60.0).max(10.0);
+    let cluster_padding = option_f64(options, "cluster_padding", 180.0).max(20.0);
+    let intra_spacing = option_f64(options, "intra_cluster_spacing", 46.0).max(8.0);
+    let inter_node_spacing = option_f64(options, "inter_node_spacing", 180.0).max(8.0);
+    let bridge_pull = clamp_f64(option_f64(options, "bridge_pull", 0.7), 0.0, 2.0);
+    let iterations = option_f64(options, "iterations", 220.0).max(20.0).round() as usize;
+    let seed = option_f64(options, "seed", 42.0).max(1.0).round();
+    let seed_angle = (seed * 0.618_033_988_75).rem_euclid(360.0) * (std::f64::consts::PI / 180.0);
 
-    let mut id_to_idx = HashMap::with_capacity(n);
-    for (i, node) in graph.nodes.iter().enumerate() {
-        id_to_idx.insert(node.id.clone(), i);
+    let ids: Vec<String> = graph.nodes.iter().map(|node| node.id.clone()).collect();
+    let mut id_to_idx: HashMap<String, usize> = HashMap::with_capacity(n);
+    for (idx, id) in ids.iter().enumerate() {
+        id_to_idx.insert(id.clone(), idx);
     }
-
-    let mut undirected = vec![Vec::new(); n];
-    let mut degrees = vec![0usize; n];
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut degrees: Vec<usize> = vec![0; n];
     for edge in &graph.edges {
         if let (Some(&a), Some(&b)) = (id_to_idx.get(&edge.source), id_to_idx.get(&edge.target)) {
             if a == b {
                 continue;
             }
-            undirected[a].push(b);
-            undirected[b].push(a);
+            adj[a].push(b);
+            adj[b].push(a);
             degrees[a] += 1;
             degrees[b] += 1;
         }
     }
+    for neighbors in &mut adj {
+        neighbors.sort_by(|left, right| ids[*left].cmp(&ids[*right]));
+    }
+    let edge_weights = build_edge_weights(&adj);
+    let labels = detect_communities(&ids, &adj, &edge_weights, &degrees);
+    let mut label_members: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (idx, label) in labels.iter().enumerate() {
+        label_members.entry(*label).or_default().push(idx);
+    }
 
-    let avg_degree = if n > 0 {
-        degrees.iter().sum::<usize>() as f64 / n as f64
-    } else {
-        0.0
-    };
-    let connector_threshold = ((avg_degree * connector_factor).ceil() as usize).max(6);
-    let connectors: Vec<bool> = degrees.iter().map(|&degree| degree >= connector_threshold).collect();
-
-    let mut cluster_id_of = vec![usize::MAX; n];
-    let mut clusters: Vec<Vec<usize>> = Vec::new();
-    let mut queue = VecDeque::new();
-
-    for start in 0..n {
-        if connectors[start] || cluster_id_of[start] != usize::MAX {
-            continue;
-        }
-        let cluster_id = clusters.len();
-        clusters.push(Vec::new());
-        cluster_id_of[start] = cluster_id;
-        queue.push_back(start);
-        while let Some(current) = queue.pop_front() {
-            clusters[cluster_id].push(current);
-            for &next in &undirected[current] {
-                if connectors[next] || cluster_id_of[next] != usize::MAX {
-                    continue;
-                }
-                cluster_id_of[next] = cluster_id;
-                queue.push_back(next);
+    let mut clusters: Vec<ClusterPlacement> = label_members
+        .into_iter()
+        .map(|(_label, members)| {
+            let member_gap = members
+                .iter()
+                .map(|member| node_visual_gap(&graph.nodes[*member], inter_node_spacing))
+                .fold(intra_spacing, f64::max);
+            ClusterPlacement {
+                id: 0,
+                radius: ((intra_spacing * 0.9 + member_gap * 0.35)
+                    * ((members.len() as f64).sqrt() + 1.75))
+                    .max(member_gap * 2.6),
+                members,
+                center: Vec2::default(),
             }
+        })
+        .collect();
+    clusters.sort_by(|left, right| {
+        right.members.len().cmp(&left.members.len()).then_with(|| {
+            min_member_id(&ids, &left.members).cmp(&min_member_id(&ids, &right.members))
+        })
+    });
+
+    let mut cluster_index_by_node = vec![0usize; n];
+    for (cluster_id, cluster) in clusters.iter_mut().enumerate() {
+        cluster.id = cluster_id;
+        for member in &cluster.members {
+            cluster_index_by_node[*member] = cluster_id;
         }
     }
 
-    for idx in 0..n {
-        if cluster_id_of[idx] != usize::MAX {
-            continue;
-        }
-        let mut neighbor_counts: HashMap<usize, usize> = HashMap::new();
-        for &next in &undirected[idx] {
-            let cluster_id = cluster_id_of[next];
-            if cluster_id != usize::MAX {
-                *neighbor_counts.entry(cluster_id).or_insert(0) += 1;
-            }
-        }
-        let cluster_id = neighbor_counts
-            .into_iter()
-            .max_by_key(|(_, count)| *count)
-            .map(|(cluster_id, _)| cluster_id)
-            .unwrap_or_else(|| {
-                let next_cluster = clusters.len();
-                clusters.push(Vec::new());
-                next_cluster
-            });
-        cluster_id_of[idx] = cluster_id;
-        clusters[cluster_id].push(idx);
-    }
-
-    let boxes: Vec<Vec2> = graph.nodes.iter().map(node_box_size).collect();
-    let mut cluster_widths = Vec::with_capacity(clusters.len());
-    let mut cluster_heights = Vec::with_capacity(clusters.len());
-    let mut local_positions: Vec<HashMap<usize, Vec2>> = Vec::with_capacity(clusters.len());
-    for cluster in &clusters {
-        let positions = cluster_local_layout(cluster, &boxes, intra_gap);
-        let mut min_x = 0.0;
-        let mut max_x = 0.0;
-        let mut min_y = 0.0;
-        let mut max_y = 0.0;
-        let mut first = true;
-        for &idx in cluster {
-            let pos = positions.get(&idx).copied().unwrap_or_default();
-            let half_w = boxes[idx].x / 2.0;
-            let half_h = boxes[idx].y / 2.0;
-            let x1 = pos.x - half_w;
-            let x2 = pos.x + half_w;
-            let y1 = pos.y - half_h;
-            let y2 = pos.y + half_h;
-            if first {
-                min_x = x1;
-                max_x = x2;
-                min_y = y1;
-                max_y = y2;
-                first = false;
-            } else {
-                min_x = min_x.min(x1);
-                max_x = max_x.max(x2);
-                min_y = min_y.min(y1);
-                max_y = max_y.max(y2);
-            }
-        }
-        cluster_widths.push((max_x - min_x).max(80.0));
-        cluster_heights.push((max_y - min_y).max(80.0));
-        local_positions.push(positions);
-    }
-
-    let mut meta_edges = HashSet::new();
+    let mut meta_weights: HashMap<(usize, usize), f64> = HashMap::new();
+    let total_radius: f64 = clusters.iter().map(|cluster| cluster.radius).sum();
     for edge in &graph.edges {
         if let (Some(&a), Some(&b)) = (id_to_idx.get(&edge.source), id_to_idx.get(&edge.target)) {
-            let ca = cluster_id_of[a];
-            let cb = cluster_id_of[b];
-            if ca != cb {
-                let edge_key = if ca < cb { (ca, cb) } else { (cb, ca) };
-                meta_edges.insert(edge_key);
+            let mut ca = cluster_index_by_node[a];
+            let mut cb = cluster_index_by_node[b];
+            if ca == cb {
+                continue;
             }
+            if ca > cb {
+                std::mem::swap(&mut ca, &mut cb);
+            }
+            *meta_weights.entry((ca, cb)).or_insert(0.0) += 1.0;
         }
     }
 
-    let meta_graph = Graph {
-        nodes: clusters
+    let cluster_ring_radius =
+        (total_radius / (std::f64::consts::PI * 1.2)).max(cluster_padding * 1.5);
+    let cluster_count = max_usize(1, clusters.len());
+    for (idx, cluster) in clusters.iter_mut().enumerate() {
+        let angle = seed_angle + ((2.0 * std::f64::consts::PI * idx as f64) / cluster_count as f64);
+        cluster.center = Vec2 {
+            x: angle.cos() * cluster_ring_radius,
+            y: angle.sin() * cluster_ring_radius,
+        };
+    }
+
+    for step in 0..iterations {
+        let mut acc = vec![Vec2::default(); clusters.len()];
+        for i in 0..clusters.len() {
+            for j in (i + 1)..clusters.len() {
+                let dx = clusters[j].center.x - clusters[i].center.x;
+                let dy = clusters[j].center.y - clusters[i].center.y;
+                let mut dist2 = (dx * dx) + (dy * dy);
+                if dist2 < 0.01 {
+                    dist2 = 0.01;
+                }
+                let dist = dist2.sqrt();
+                let min_dist = clusters[i].radius + clusters[j].radius + cluster_padding;
+                let repulse = (min_dist * min_dist * 0.18) / dist2;
+                let fx = (dx / dist) * repulse;
+                let fy = (dy / dist) * repulse;
+                acc[i].x -= fx;
+                acc[i].y -= fy;
+                acc[j].x += fx;
+                acc[j].y += fy;
+                if let Some(weight) = meta_weights.get(&(i, j)) {
+                    let ideal = clusters[i].radius + clusters[j].radius + (cluster_padding * 0.45);
+                    let delta = dist - ideal;
+                    let pull = 0.0028 * weight * delta;
+                    let px = (dx / dist) * pull;
+                    let py = (dy / dist) * pull;
+                    acc[i].x += px;
+                    acc[i].y += py;
+                    acc[j].x -= px;
+                    acc[j].y -= py;
+                }
+            }
+        }
+        let cooling = 1.0 - (step as f64 / (iterations as f64 + 1.0));
+        for (idx, cluster) in clusters.iter_mut().enumerate() {
+            acc[idx].x += -cluster.center.x * 0.0016;
+            acc[idx].y += -cluster.center.y * 0.0016;
+            cluster.center.x += acc[idx].x * cooling;
+            cluster.center.y += acc[idx].y * cooling;
+        }
+    }
+
+    let golden_angle = 2.399_963_229_728_653;
+    let mut positions = HashMap::with_capacity(n);
+    for cluster in &clusters {
+        let max_degree = cluster
+            .members
             .iter()
-            .enumerate()
-            .map(|(idx, cluster)| Node {
-                id: format!("cluster-{idx}"),
-                x: 0.0,
-                y: 0.0,
-                render_size: (cluster.len() as f64).sqrt() * 18.0,
-                label: format!("cluster-{idx}"),
-                is_start: false,
-                is_end: false,
-            })
-            .collect(),
-        edges: meta_edges
-            .into_iter()
-            .map(|(a, b)| Edge {
-                source: format!("cluster-{a}"),
-                target: format!("cluster-{b}"),
-            })
-            .collect(),
-    };
-
-    let mut meta_options = Map::new();
-    meta_options.insert("iterations".to_string(), json!(500.0));
-    meta_options.insert("repulsion".to_string(), json!(36000.0));
-    meta_options.insert("spring_length".to_string(), json!(cluster_gap));
-    meta_options.insert("spring_stiffness".to_string(), json!(0.06));
-    meta_options.insert("center_gravity".to_string(), json!(0.001));
-    meta_options.insert("damping".to_string(), json!(0.88));
-    meta_options.insert("theta".to_string(), json!(1.0));
-    meta_options.insert("seed".to_string(), json!(42.0));
-    let mut meta_positions = ForceStepper::new(&meta_graph, &meta_options).run_to_completion();
-
-    let mut ordered_meta = meta_graph
-        .nodes
-        .iter()
-        .map(|node| {
-            meta_positions
-                .remove(&node.id)
-                .map(|pos| Vec2 { x: pos.x, y: pos.y })
-                .unwrap_or_default()
-        })
-        .collect::<Vec<_>>();
-
-    let meta_box_graph = Graph {
-        nodes: meta_graph
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| Node {
-                id: node.id.clone(),
-                x: 0.0,
-                y: 0.0,
-                render_size: cluster_widths[idx].max(cluster_heights[idx]) / 2.0,
-                label: String::new(),
-                is_start: false,
-                is_end: false,
-            })
-            .collect(),
-        edges: Vec::new(),
-    };
-    let mut declump_meta_options = Map::new();
-    declump_meta_options.insert("declump_iterations".to_string(), json!(32.0));
-    declump_meta_options.insert("declump_padding".to_string(), json!(cluster_gap * 0.2));
-    declump_meta_options.insert("declump_max_step".to_string(), json!(cluster_gap * 0.2));
-    declump_positions(&meta_box_graph, &mut ordered_meta, &declump_meta_options);
-
-    let mut out = HashMap::with_capacity(n);
-    for (cluster_id, cluster) in clusters.iter().enumerate() {
-        let center = ordered_meta.get(cluster_id).copied().unwrap_or_default();
-        for &idx in cluster {
-            let local = local_positions[cluster_id].get(&idx).copied().unwrap_or_default();
-            out.insert(
-                graph.nodes[idx].id.clone(),
+            .map(|member| degrees[*member])
+            .max()
+            .unwrap_or(1)
+            .max(1);
+        let mut placements: Vec<ClusterNodePlacement> = Vec::with_capacity(cluster.members.len());
+        for member in &cluster.members {
+            let mut preferred = Vec2::default();
+            let mut external = 0usize;
+            for nb in &adj[*member] {
+                let nb_cluster = cluster_index_by_node[*nb];
+                if nb_cluster == cluster.id {
+                    continue;
+                }
+                external += 1;
+                preferred.x += clusters[nb_cluster].center.x - cluster.center.x;
+                preferred.y += clusters[nb_cluster].center.y - cluster.center.y;
+            }
+            placements.push(ClusterNodePlacement {
+                idx: *member,
+                degree: degrees[*member],
+                external,
+                internal: degrees[*member].saturating_sub(external),
+                preferred,
+            });
+        }
+        placements.sort_by(|left, right| {
+            right
+                .internal
+                .cmp(&left.internal)
+                .then_with(|| left.external.cmp(&right.external))
+                .then_with(|| right.degree.cmp(&left.degree))
+                .then_with(|| ids[left.idx].cmp(&ids[right.idx]))
+        });
+        for (order, placement) in placements.iter().enumerate() {
+            let id = ids[placement.idx].clone();
+            if order == 0 {
+                positions.insert(
+                    id,
+                    Position {
+                        x: cluster.center.x,
+                        y: cluster.center.y,
+                    },
+                );
+                continue;
+            }
+            let node_gap = node_visual_gap(&graph.nodes[placement.idx], inter_node_spacing);
+            let mut radius = (inter_node_spacing * (order as f64).sqrt())
+                .max(node_gap * (1.05 + 0.38 * ((order - 1) as f64).sqrt()));
+            let center_bias = 1.0 - (0.24 * (placement.degree as f64 / max_degree as f64));
+            radius *= clamp_f64(center_bias, 0.72, 1.0);
+            if placement.external > 0 {
+                radius *=
+                    1.0 + clamp_f64(bridge_pull * 0.09 * placement.external as f64, 0.0, 0.22);
+                radius = radius
+                    .max(cluster.radius * (0.56 + (0.05 * (placement.external.min(2) as f64))));
+            }
+            let mut angle = seed_angle + golden_angle * order as f64;
+            if placement.external > 0
+                && (placement.preferred.x != 0.0 || placement.preferred.y != 0.0)
+            {
+                let target = placement.preferred.y.atan2(placement.preferred.x);
+                let blend = clamp_f64(
+                    (placement.external as f64 / (placement.external as f64 + 2.0)) * bridge_pull,
+                    0.0,
+                    0.9,
+                );
+                angle = blend_angle(angle, target, blend);
+            }
+            positions.insert(
+                id,
                 Position {
-                    x: center.x + local.x,
-                    y: center.y + local.y,
+                    x: cluster.center.x + (angle.cos() * radius),
+                    y: cluster.center.y + (angle.sin() * radius),
                 },
             );
         }
     }
+    if positions_are_finite(&positions) {
+        positions
+    } else {
+        phyllotaxis_layout(graph, inter_node_spacing)
+    }
+}
 
-    out
+fn packed_cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
+    let components = connected_components(graph);
+    if components.is_empty() {
+        return HashMap::new();
+    }
+    if components.len() == 1 {
+        return cluster_visibility_layout(graph, options);
+    }
+
+    let component_padding = option_f64(options, "component_padding", 320.0).max(20.0);
+    let intra_spacing = option_f64(options, "intra_cluster_spacing", 46.0).max(8.0);
+    let seed = option_f64(options, "seed", 42.0).max(1.0).round();
+    let seed_angle = (seed * 0.618_033_988_75).rem_euclid(360.0) * (std::f64::consts::PI / 180.0);
+    let mut component_layouts: Vec<(HashMap<String, Position>, f64, f64, f64)> =
+        Vec::with_capacity(components.len());
+
+    for (component_index, component) in components.iter().enumerate() {
+        let subgraph = Graph {
+            nodes: component
+                .nodes
+                .iter()
+                .map(|idx| graph.nodes[*idx].clone())
+                .collect(),
+            edges: component.edges.clone(),
+        };
+        let mut positions = if component.nodes.len() <= 4 {
+            let ids: Vec<String> = subgraph.nodes.iter().map(|node| node.id.clone()).collect();
+            let mut out = HashMap::with_capacity(ids.len());
+            if ids.len() == 1 {
+                out.insert(ids[0].clone(), Position { x: 0.0, y: 0.0 });
+            } else {
+                let radius =
+                    (intra_spacing * 2.2).max(44.0 + (intra_spacing * ids.len() as f64 * 0.15));
+                for (idx, id) in ids.iter().enumerate() {
+                    let angle = seed_angle
+                        + (component_index as f64 * 0.173)
+                        + ((2.0 * std::f64::consts::PI * idx as f64) / ids.len() as f64);
+                    out.insert(
+                        id.clone(),
+                        Position {
+                            x: angle.cos() * radius,
+                            y: angle.sin() * radius,
+                        },
+                    );
+                }
+            }
+            out
+        } else {
+            cluster_visibility_layout(&subgraph, options)
+        };
+        if positions.is_empty() {
+            continue;
+        }
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for pos in positions.values() {
+            min_x = min_x.min(pos.x);
+            max_x = max_x.max(pos.x);
+            min_y = min_y.min(pos.y);
+            max_y = max_y.max(pos.y);
+        }
+        let center_x = (min_x + max_x) * 0.5;
+        let center_y = (min_y + max_y) * 0.5;
+        for pos in positions.values_mut() {
+            pos.x -= center_x;
+            pos.y -= center_y;
+        }
+        let width = (max_x - min_x).max(intra_spacing * 2.8);
+        let height = (max_y - min_y).max(intra_spacing * 2.8);
+        let diagonal_radius = ((width * 0.5).powi(2) + (height * 0.5).powi(2)).sqrt();
+        let major_axis_radius = (width.max(height) * 0.5) + (intra_spacing * 0.4);
+        let radius = diagonal_radius
+            .mul_add(0.82, 0.0)
+            .max(major_axis_radius)
+            .max(intra_spacing * 1.8);
+        component_layouts.push((positions, width, height, radius));
+    }
+
+    if component_layouts.is_empty() {
+        return HashMap::new();
+    }
+
+    let mut packed = HashMap::new();
+    let mut packed_min_x = f64::INFINITY;
+    let mut packed_max_x = f64::NEG_INFINITY;
+    let mut packed_min_y = f64::INFINITY;
+    let mut packed_max_y = f64::NEG_INFINITY;
+    let mut placed: Vec<(f64, f64, f64)> = Vec::new();
+
+    component_layouts.sort_by(|left, right| {
+        right
+            .3
+            .partial_cmp(&left.3)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                right
+                    .1
+                    .partial_cmp(&left.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
+
+    for (idx, (positions, _width, _height, radius)) in component_layouts.into_iter().enumerate() {
+        let (offset_x, offset_y) = if idx == 0 {
+            (0.0, 0.0)
+        } else {
+            let mut chosen = None;
+            let placed_radius = placed.iter().map(|(_, _, pr)| *pr).fold(0.0, f64::max);
+            let base_ring = (placed_radius + radius + component_padding * 0.35)
+                .max(radius + component_padding * 0.2);
+            'search: for ring in 0..64 {
+                let ring_radius =
+                    base_ring + (ring as f64 * (component_padding * 0.55 + radius * 0.35));
+                let sample_count = max_usize(
+                    18,
+                    ((2.0 * std::f64::consts::PI * ring_radius)
+                        / (component_padding * 0.45 + radius * 0.65))
+                        .round() as usize,
+                );
+                for sample in 0..sample_count {
+                    let angle = seed_angle
+                        + (ring as f64 * 0.37)
+                        + ((2.0 * std::f64::consts::PI * sample as f64) / sample_count as f64);
+                    let x = angle.cos() * ring_radius;
+                    let y = angle.sin() * ring_radius;
+                    let mut collides = false;
+                    for (px, py, pr) in &placed {
+                        let dx = x - *px;
+                        let dy = y - *py;
+                        let min_dist = radius + *pr + component_padding;
+                        if (dx * dx) + (dy * dy) < (min_dist * min_dist) {
+                            collides = true;
+                            break;
+                        }
+                    }
+                    if !collides {
+                        chosen = Some((x, y));
+                        break 'search;
+                    }
+                }
+            }
+            chosen.unwrap_or((0.0, (idx as f64) * (radius * 2.0 + component_padding)))
+        };
+        placed.push((offset_x, offset_y, radius));
+        for (id, pos) in positions {
+            let next = Position {
+                x: pos.x + offset_x,
+                y: pos.y + offset_y,
+            };
+            packed_min_x = packed_min_x.min(next.x);
+            packed_max_x = packed_max_x.max(next.x);
+            packed_min_y = packed_min_y.min(next.y);
+            packed_max_y = packed_max_y.max(next.y);
+            packed.insert(id, next);
+        }
+    }
+
+    let shift_x = (packed_min_x + packed_max_x) * 0.5;
+    let shift_y = (packed_min_y + packed_max_y) * 0.5;
+    for pos in packed.values_mut() {
+        pos.x -= shift_x;
+        pos.y -= shift_y;
+    }
+    if positions_are_finite(&packed) {
+        packed
+    } else {
+        phyllotaxis_layout(graph, intra_spacing)
+    }
 }
 
 fn definitions() -> Vec<Definition> {
     vec![
         Definition {
-            key: "wasm.cluster".to_string(),
-            label: "Cluster".to_string(),
-            description: "Distributed cluster layout with connector-aware separation.".to_string(),
+            key: "wasm.cluster_visibility".to_string(),
+            label: "Cluster Visibility".to_string(),
+            description: "Cluster-aware overview layout with separated communities and bridge-biased node placement.".to_string(),
             supports_animation: false,
             options: vec![
-                OptionDefinition { key: "connector_factor".to_string(), label: "Connector Bias".to_string(), r#type: "range".to_string(), default: json!(2.2), description: "How aggressively high-degree nodes get treated as connectors between clusters.".to_string(), unit: "x".to_string(), min: Some(1.2), max: Some(6.0), step: Some(0.1) },
-                OptionDefinition { key: "cluster_gap".to_string(), label: "Cluster Gap".to_string(), r#type: "range".to_string(), default: json!(420.0), description: "Preferred spacing between distributed clusters.".to_string(), unit: "px".to_string(), min: Some(80.0), max: Some(1400.0), step: Some(20.0) },
-                OptionDefinition { key: "intra_gap".to_string(), label: "Intra Gap".to_string(), r#type: "range".to_string(), default: json!(60.0), description: "Spacing between nodes within each cluster.".to_string(), unit: "px".to_string(), min: Some(10.0), max: Some(240.0), step: Some(2.0) },
+                OptionDefinition { key: "cluster_padding".to_string(), label: "Cluster Padding".to_string(), r#type: "range".to_string(), default: json!(180.0), description: "Spacing between detected communities.".to_string(), unit: "px".to_string(), min: Some(40.0), max: Some(1600.0), step: Some(10.0) },
+                OptionDefinition { key: "intra_cluster_spacing".to_string(), label: "Cluster Spread".to_string(), r#type: "range".to_string(), default: json!(46.0), description: "Overall spread of nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(8.0), max: Some(240.0), step: Some(2.0) },
+                OptionDefinition { key: "inter_node_spacing".to_string(), label: "Inter-node Spacing".to_string(), r#type: "range".to_string(), default: json!(180.0), description: "Spacing between rendered nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(20.0), max: Some(800.0), step: Some(10.0) },
+                OptionDefinition { key: "bridge_pull".to_string(), label: "Bridge Pull".to_string(), r#type: "range".to_string(), default: json!(0.7), description: "Bias bridge nodes toward neighboring communities.".to_string(), unit: String::new(), min: Some(0.0), max: Some(2.0), step: Some(0.05) },
+                OptionDefinition { key: "iterations".to_string(), label: "Cluster Iterations".to_string(), r#type: "range".to_string(), default: json!(220.0), description: "Iterations for community-center separation.".to_string(), unit: String::new(), min: Some(20.0), max: Some(2000.0), step: Some(20.0) },
+                OptionDefinition { key: "seed".to_string(), label: "Seed".to_string(), r#type: "number".to_string(), default: json!(42.0), description: "Random seed for deterministic placement.".to_string(), unit: String::new(), min: Some(1.0), max: Some(1_000_000.0), step: Some(1.0) },
+            ],
+        },
+        Definition {
+            key: "wasm.packed_cluster_visibility".to_string(),
+            label: "Packed Cluster Visibility".to_string(),
+            description: "Cluster-aware overview layout that also separates disconnected visible components deterministically.".to_string(),
+            supports_animation: false,
+            options: vec![
+                OptionDefinition { key: "cluster_padding".to_string(), label: "Cluster Padding".to_string(), r#type: "range".to_string(), default: json!(180.0), description: "Spacing between detected communities.".to_string(), unit: "px".to_string(), min: Some(40.0), max: Some(1600.0), step: Some(10.0) },
+                OptionDefinition { key: "component_padding".to_string(), label: "Component Padding".to_string(), r#type: "range".to_string(), default: json!(320.0), description: "Spacing between disconnected visible components.".to_string(), unit: "px".to_string(), min: Some(40.0), max: Some(3200.0), step: Some(10.0) },
+                OptionDefinition { key: "intra_cluster_spacing".to_string(), label: "Cluster Spread".to_string(), r#type: "range".to_string(), default: json!(46.0), description: "Overall spread of nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(8.0), max: Some(240.0), step: Some(2.0) },
+                OptionDefinition { key: "inter_node_spacing".to_string(), label: "Inter-node Spacing".to_string(), r#type: "range".to_string(), default: json!(180.0), description: "Spacing between rendered nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(20.0), max: Some(800.0), step: Some(10.0) },
+                OptionDefinition { key: "bridge_pull".to_string(), label: "Bridge Pull".to_string(), r#type: "range".to_string(), default: json!(0.7), description: "Bias bridge nodes toward neighboring communities.".to_string(), unit: String::new(), min: Some(0.0), max: Some(2.0), step: Some(0.05) },
+                OptionDefinition { key: "iterations".to_string(), label: "Cluster Iterations".to_string(), r#type: "range".to_string(), default: json!(220.0), description: "Iterations for community-center separation.".to_string(), unit: String::new(), min: Some(20.0), max: Some(2000.0), step: Some(20.0) },
+                OptionDefinition { key: "seed".to_string(), label: "Seed".to_string(), r#type: "number".to_string(), default: json!(42.0), description: "Random seed for deterministic placement.".to_string(), unit: String::new(), min: Some(1.0), max: Some(1_000_000.0), step: Some(1.0) },
             ],
         },
         Definition {
@@ -1328,7 +1707,10 @@ pub fn adalanche_layout_run(request_json: String) -> String {
     };
 
     let positions = match req.layout.as_str() {
-        "wasm.cluster" => cluster_layout(&req.graph, &req.options),
+        "wasm.cluster_visibility" => cluster_visibility_layout(&req.graph, &req.options),
+        "wasm.packed_cluster_visibility" | "wasm.cluster" => {
+            packed_cluster_visibility_layout(&req.graph, &req.options)
+        }
         "wasm.path" => path_layout(&req.graph, &req.options),
         "wasm.circle" => circle_layout(&req.graph, &req.options),
         "wasm.force" => {
@@ -1540,5 +1922,93 @@ mod tests {
         }
         assert!((max_x - min_x) > 100.0, "expected x spread, got {}", max_x - min_x);
         assert!((max_y - min_y) > 100.0, "expected y spread, got {}", max_y - min_y);
+    }
+
+    fn sample_cluster_graph() -> Graph {
+        let mut nodes = Vec::new();
+        for i in 0..12 {
+            nodes.push(Node {
+                id: format!("a{i}"),
+                x: 0.0,
+                y: 0.0,
+                render_size: 10.0,
+                label: format!("a-{i}"),
+                is_start: false,
+                is_end: false,
+            });
+        }
+        for i in 0..12 {
+            nodes.push(Node {
+                id: format!("b{i}"),
+                x: 0.0,
+                y: 0.0,
+                render_size: 10.0,
+                label: format!("b-{i}"),
+                is_start: false,
+                is_end: false,
+            });
+        }
+
+        let mut edges = Vec::new();
+        for i in 1..12 {
+            edges.push(Edge {
+                source: "a0".to_string(),
+                target: format!("a{i}"),
+            });
+            edges.push(Edge {
+                source: "b0".to_string(),
+                target: format!("b{i}"),
+            });
+        }
+        edges.push(Edge {
+            source: "a0".to_string(),
+            target: "b0".to_string(),
+        });
+
+        Graph { nodes, edges }
+    }
+
+    fn assert_positions_are_spread(positions: &HashMap<String, Position>, expected: usize) {
+        assert_eq!(positions.len(), expected);
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        let mut non_zero = 0usize;
+        for pos in positions.values() {
+            assert!(pos.x.is_finite());
+            assert!(pos.y.is_finite());
+            min_x = min_x.min(pos.x);
+            max_x = max_x.max(pos.x);
+            min_y = min_y.min(pos.y);
+            max_y = max_y.max(pos.y);
+            if pos.x.abs() > 0.001 || pos.y.abs() > 0.001 {
+                non_zero += 1;
+            }
+        }
+        assert!(non_zero > expected / 2, "expected most positions to be non-zero, got {non_zero}/{expected}");
+        assert!((max_x - min_x) > 50.0, "expected x spread, got {}", max_x - min_x);
+        assert!((max_y - min_y) > 50.0, "expected y spread, got {}", max_y - min_y);
+    }
+
+    #[test]
+    fn phyllotaxis_layout_produces_finite_positions() {
+        let graph = sample_cluster_graph();
+        let positions = phyllotaxis_layout(&graph, 32.0);
+        assert_positions_are_spread(&positions, graph.nodes.len());
+    }
+
+    #[test]
+    fn cluster_visibility_layout_spreads_nodes() {
+        let graph = sample_cluster_graph();
+        let positions = cluster_visibility_layout(&graph, &Map::new());
+        assert_positions_are_spread(&positions, graph.nodes.len());
+    }
+
+    #[test]
+    fn packed_cluster_visibility_layout_spreads_nodes() {
+        let graph = sample_cluster_graph();
+        let positions = packed_cluster_visibility_layout(&graph, &Map::new());
+        assert_positions_are_spread(&positions, graph.nodes.len());
     }
 }

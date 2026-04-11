@@ -52,56 +52,6 @@ function createAdalancheLayoutConnector(config) {
     };
   }
 
-  function connectedComponents(graph) {
-    const ids = graph.nodes.map((node) => node.id);
-    const index = new Map(ids.map((id, idx) => [id, idx]));
-    const parent = ids.map((_, idx) => idx);
-
-    function find(nodeIndex) {
-      let cursor = nodeIndex;
-      while (parent[cursor] !== cursor) {
-        parent[cursor] = parent[parent[cursor]];
-        cursor = parent[cursor];
-      }
-      return cursor;
-    }
-
-    function union(a, b) {
-      const rootA = find(a);
-      const rootB = find(b);
-      if (rootA !== rootB) {
-        parent[rootB] = rootA;
-      }
-    }
-
-    for (const edge of graph.edges) {
-      const source = index.get(edge.source);
-      const target = index.get(edge.target);
-      if (typeof source === "number" && typeof target === "number") {
-        union(source, target);
-      }
-    }
-
-    const groups = new Map();
-    for (let idx = 0; idx < ids.length; idx += 1) {
-      const root = find(idx);
-      if (!groups.has(root)) {
-        groups.set(root, []);
-      }
-      groups.get(root).push(idx);
-    }
-
-    const components = [];
-    for (const indices of groups.values()) {
-      const nodeIDs = new Set(indices.map((idx) => graph.nodes[idx].id));
-      components.push({
-        nodes: indices.map((idx) => graph.nodes[idx]),
-        edges: graph.edges.filter((edge) => nodeIDs.has(edge.source) && nodeIDs.has(edge.target)),
-      });
-    }
-    return components;
-  }
-
   return {
     async init() {
       if (workers.length > 0) {
@@ -138,29 +88,19 @@ function createAdalancheLayoutConnector(config) {
       }
 
       const graph = toGraphPayload(graphView);
-      const components = connectedComponents(graph);
-      if (components.length === 0) {
+      if (!graph.nodes.length) {
         return { positions: {} };
       }
-
-      const results = await Promise.all(components.map((component, idx) => request(
-        workers[idx % workers.length],
+      const result = await request(
+        workers[0],
         "run",
-        { layout: layoutKey, graph: component, options: options || {} }
-      )));
+        { layout: layoutKey, graph, options: options || {} }
+      );
 
       if (signal && signal.aborted) {
         throw new Error("layout aborted");
       }
-
-      const merged = { positions: {} };
-      for (const result of results) {
-        const positions = result && result.positions ? result.positions : {};
-        for (const [id, pos] of Object.entries(positions)) {
-          merged.positions[id] = pos;
-        }
-      }
-      return merged;
+      return { positions: result && result.positions ? result.positions : {} };
     },
     async animate(graphView, layoutKey, options, animationConfig, signal, onFrame) {
       if (!graphView) {

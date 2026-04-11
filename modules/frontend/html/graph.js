@@ -11,11 +11,87 @@ const graphState = {
   layoutDefinitions: {},
   activeLayoutAbort: null,
   layoutRerunTimer: null,
+  layoutRunToken: 0,
+  layoutPending: false,
 };
 
-const DEFAULT_GRAPH_LAYOUT = "wasm.cluster";
+const DEFAULT_GRAPH_LAYOUT = "wasm.packed_cluster_visibility";
 const GRAPH_LAYOUT_PREF = "ui.graph.layout";
 const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
+const LAYOUT_ASSET_VERSION = "20260411-1";
+
+function graphDebugLog(event, details) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const debugEnabled = (() => {
+    if (window.__graphDebugEnabled === true || window.__graphDebugEnabled === false) {
+      return window.__graphDebugEnabled;
+    }
+    let enabled = false;
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : "");
+      enabled = params.get("graphdebug") === "1";
+      if (!enabled && window.localStorage) {
+        enabled = window.localStorage.getItem("graphdebug") === "1";
+      }
+    } catch (_err) {}
+    window.__graphDebugEnabled = enabled;
+    return enabled;
+  })();
+  if (!debugEnabled) {
+    return;
+  }
+  if (!window.__graphDebug) {
+    window.__graphDebug = [];
+  }
+  const entry = {
+    ts: Date.now(),
+    event: String(event || ""),
+    details: details || {},
+  };
+  window.__graphDebug.push(entry);
+  if (window.__graphDebug.length > 500) {
+    window.__graphDebug.splice(0, window.__graphDebug.length - 500);
+  }
+  try {
+    console.debug("[graph-debug]", entry.event, entry.details);
+  } catch (_err) {}
+}
+
+function graphPositionSummary(positions) {
+  const entries = Object.entries(positions || {});
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let nonZero = 0;
+  for (const [, pos] of entries) {
+    const x = Number(pos && pos.x);
+    const y = Number(pos && pos.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    if (x !== 0 || y !== 0) {
+      nonZero += 1;
+    }
+  }
+  if (!entries.length) {
+    minX = maxX = minY = maxY = 0;
+  }
+  return {
+    count: entries.length,
+    nonZero,
+    minX,
+    maxX,
+    minY,
+    maxY,
+  };
+}
 
 const iconMap = new Map([
   ["Person", "icons/person-fill.svg"],
@@ -924,6 +1000,11 @@ function createAdalancheGraph(elements) {
     iconMinScreenSize: 12,
     theme: graphTheme(),
   });
+  graphDebugLog("create-graph", {
+    elementCount: Array.isArray(elements) ? elements.length : 0,
+    nodeCount: typeof graph.nodeIds === "function" ? graph.nodeIds().length : 0,
+    edgeCount: typeof graph.edgeIds === "function" ? graph.edgeIds().length : 0,
+  });
   bindGraphEvents();
   refreshGraphTheme();
   return graph;
@@ -969,7 +1050,9 @@ function updateGraphLayoutChoices() {
     return;
   }
   const firstLayout = Object.keys(definitions)[0] || DEFAULT_GRAPH_LAYOUT;
-  select.value = definitions[DEFAULT_GRAPH_LAYOUT] ? DEFAULT_GRAPH_LAYOUT : firstLayout;
+  const fallback = definitions[DEFAULT_GRAPH_LAYOUT] ? DEFAULT_GRAPH_LAYOUT : firstLayout;
+  select.value = fallback;
+  setpref(GRAPH_LAYOUT_PREF, fallback);
 }
 
 function layoutOptionDisplayValue(option, value) {
@@ -1108,6 +1191,10 @@ function setGraphLayoutDefinitions(layouts) {
 }
 
 function applyLayoutPositions(targetGraph, positions, fitGraph) {
+  graphDebugLog("apply-layout-positions:start", {
+    fitGraph: !!fitGraph,
+    summary: graphPositionSummary(positions),
+  });
   if (typeof targetGraph.clearCustomBBox === "function") {
     targetGraph.clearCustomBBox();
   }
@@ -1116,8 +1203,56 @@ function applyLayoutPositions(targetGraph, positions, fitGraph) {
       targetGraph.setNodePosition(id, pos, { markDirty: false });
     });
   });
+  if (typeof targetGraph.rebuildGraph === "function") {
+    targetGraph.rebuildGraph();
+  }
   targetGraph.refresh();
   if (fitGraph) {
+    targetGraph.fit(undefined, 30);
+  }
+  graphDebugLog("apply-layout-positions:end", {
+    bbox: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+    customBBox: targetGraph.customBBox || null,
+  });
+}
+
+function graphNeedsSeedLayout(targetGraph) {
+  if (!targetGraph || typeof targetGraph.boundingBox !== "function") {
+    return false;
+  }
+  const bbox = targetGraph.boundingBox();
+  return !!bbox && bbox.w === 0 && bbox.h === 0;
+}
+
+function seedGraphLayout(targetGraph) {
+  if (!targetGraph || typeof targetGraph.nodeIds !== "function") {
+    return;
+  }
+  const ids = targetGraph.nodeIds();
+  if (!ids.length) {
+    return;
+  }
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const spacing = ids.length > 5000 ? 18 : 24;
+  targetGraph.batch(function () {
+    ids.forEach(function (id, index) {
+      const radius = spacing * Math.sqrt(index + 1);
+      const angle = index * goldenAngle;
+      targetGraph.setNodePosition(id, {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      }, { markDirty: false });
+    });
+  });
+  graphDebugLog("seed-layout", {
+    nodeCount: ids.length,
+    bboxAfterSeed: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+  });
+  if (typeof targetGraph.rebuildGraph === "function") {
+    targetGraph.rebuildGraph();
+  }
+  targetGraph.refresh();
+  if (typeof targetGraph.fit === "function") {
     targetGraph.fit(undefined, 30);
   }
 }
@@ -1131,7 +1266,15 @@ function stopActiveGraphLayout() {
 
 async function runWasmLayout(targetGraph, layoutKey) {
   if (!graphState.layoutConnector || !graphState.layoutConnectorReady) {
+    graphDebugLog("run-wasm-layout:connector-missing", {
+      layoutKey,
+      hasConnector: !!graphState.layoutConnector,
+      ready: !!graphState.layoutConnectorReady,
+    });
     throw new Error("WASM layout connector is not available");
+  }
+  if (graphNeedsSeedLayout(targetGraph)) {
+    seedGraphLayout(targetGraph);
   }
   const options = layoutOptionsForLayout(layoutKey);
   const controller = new AbortController();
@@ -1139,6 +1282,13 @@ async function runWasmLayout(targetGraph, layoutKey) {
   try {
     const definition = graphLayoutDefinition(layoutKey);
     const supportsAnimation = !!(definition && definition.supports_animation);
+    graphDebugLog("run-wasm-layout:start", {
+      layoutKey,
+      supportsAnimation,
+      nodeCount: typeof targetGraph.nodeIds === "function" ? targetGraph.nodeIds().length : 0,
+      edgeCount: typeof targetGraph.edgeIds === "function" ? targetGraph.edgeIds().length : 0,
+      bbox: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+    });
     if (supportsAnimation) {
       const finalFrame = await graphState.layoutConnector.animate(
         targetGraph,
@@ -1149,10 +1299,18 @@ async function runWasmLayout(targetGraph, layoutKey) {
         (frame) => applyLayoutPositions(targetGraph, frame.positions, false)
       );
       applyLayoutPositions(targetGraph, finalFrame.positions, true);
+      graphDebugLog("run-wasm-layout:done", {
+        layoutKey,
+        summary: graphPositionSummary(finalFrame.positions),
+      });
       return;
     }
     const result = await graphState.layoutConnector.run(targetGraph, layoutKey, options, controller.signal);
     applyLayoutPositions(targetGraph, result.positions, true);
+    graphDebugLog("run-wasm-layout:done", {
+      layoutKey,
+      summary: graphPositionSummary(result.positions),
+    });
   } finally {
     if (graphState.activeLayoutAbort === controller) {
       graphState.activeLayoutAbort = null;
@@ -1164,8 +1322,17 @@ async function runSelectedGraphLayout() {
   if (!graph) {
     return;
   }
+  graphState.layoutRunToken += 1;
+  const runToken = graphState.layoutRunToken;
   const layoutKey = selectedGraphLayout();
   stopActiveGraphLayout();
+  graphState.layoutPending = false;
+  graphDebugLog("run-selected-layout:start", {
+    runToken,
+    layoutKey,
+    connectorReady: !!graphState.layoutConnectorReady,
+    hasConnector: !!graphState.layoutConnector,
+  });
   busystatus("Running graph layout");
   try {
     if (!isWasmLayout(layoutKey)) {
@@ -1173,11 +1340,24 @@ async function runSelectedGraphLayout() {
     }
     await runWasmLayout(graph, layoutKey);
   } catch (err) {
+    graphDebugLog("run-selected-layout:error", {
+      runToken,
+      layoutKey,
+      error: err && err.message ? err.message : String(err),
+    });
     toast("Graph layout failed", err && err.message ? err.message : String(err), "error");
   } finally {
-    const statusEl = document.getElementById("status");
-    if (statusEl) {
-      statusEl.style.display = "none";
+    graphDebugLog("run-selected-layout:finish", {
+      runToken,
+      layoutKey,
+      bbox: typeof graph?.boundingBox === "function" ? graph.boundingBox() : null,
+      pending: !!graphState.layoutPending,
+    });
+    if (graphState.layoutRunToken === runToken) {
+      const statusEl = document.getElementById("status");
+      if (statusEl) {
+        statusEl.style.display = "none";
+      }
     }
   }
 }
@@ -1205,7 +1385,7 @@ function initGraphLayoutUI() {
 
   const workerCount = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
   graphState.layoutConnector = window.createAdalancheLayoutConnector({
-    workerURL: "sigma/layout-worker.js",
+    workerURL: `sigma/layout-worker.js?v=${encodeURIComponent(LAYOUT_ASSET_VERSION)}`,
     workerCount,
   });
 
@@ -1213,14 +1393,25 @@ function initGraphLayoutUI() {
     .then((payload) => {
       graphState.layoutConnectorReady = true;
       setGraphLayoutDefinitions(payload && payload.layouts ? payload.layouts : []);
+      graphDebugLog("layout-connector:ready", {
+        layoutCount: Object.keys(graphLayoutDefinitions()).length,
+        pending: !!graphState.layoutPending,
+        hasGraph: !!graph,
+      });
       const currentLayout = selectedGraphLayout();
       if (!graphLayoutDefinition(currentLayout)) {
         syncGraphLayoutSelection(DEFAULT_GRAPH_LAYOUT);
         renderGraphLayoutOptions();
       }
+      if (graph && (graphState.layoutPending || graphNeedsSeedLayout(graph))) {
+        runSelectedGraphLayout();
+      }
     })
     .catch((err) => {
       graphState.layoutConnectorReady = false;
+      graphDebugLog("layout-connector:error", {
+        error: err && err.message ? err.message : String(err),
+      });
       toast(
         "Graph layouts unavailable",
         err && err.message ? err.message : String(err),
@@ -1231,6 +1422,19 @@ function initGraphLayoutUI() {
 
 function initgraph(data) {
   createAdalancheGraph(data);
+  graphDebugLog("initgraph", {
+    connectorReady: !!graphState.layoutConnectorReady,
+    hasConnector: !!graphState.layoutConnector,
+  });
+  if (!graphState.layoutConnectorReady) {
+    graphState.layoutPending = true;
+    busystatus("Running graph layout");
+    seedGraphLayout(graph);
+    graphDebugLog("initgraph:seed-pending", {
+      bbox: typeof graph.boundingBox === "function" ? graph.boundingBox() : null,
+    });
+    return;
+  }
   runSelectedGraphLayout();
 }
 

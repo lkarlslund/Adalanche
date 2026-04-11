@@ -10,7 +10,9 @@ async function ensureWasmReady() {
   if (wasmReady) return;
   if (!wasmInitPromise) {
     wasmInitPromise = (async () => {
-      const bindingURL = new URL("../wasm/layout-engine-rust.js", self.location.href).href;
+      const assetVersion = new URL(self.location.href).searchParams.get("v");
+      const cacheSuffix = assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : "";
+      const bindingURL = new URL(`../wasm/layout-engine-rust.js${cacheSuffix}`, self.location.href).href;
       importScripts(bindingURL);
       const bindgen = (typeof wasm_bindgen === "function")
         ? wasm_bindgen
@@ -18,7 +20,7 @@ async function ensureWasmReady() {
       if (typeof bindgen !== "function") {
         throw new Error("rust wasm bindgen loader missing");
       }
-      const wasmURL = new URL("../wasm/layout-engine-rust_bg.wasm", self.location.href).href;
+      const wasmURL = new URL(`../wasm/layout-engine-rust_bg.wasm${cacheSuffix}`, self.location.href).href;
       await bindgen({ module_or_path: wasmURL });
       layoutDescribe = bindgen.adalancheLayoutDescribe || bindgen.investig8rLayoutDescribe || self.adalancheLayoutDescribe || self.investig8rLayoutDescribe;
       layoutRun = bindgen.adalancheLayoutRun || bindgen.investig8rLayoutRun || self.adalancheLayoutRun || self.investig8rLayoutRun;

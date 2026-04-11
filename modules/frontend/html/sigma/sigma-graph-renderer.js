@@ -64,7 +64,7 @@
           const label = hovered && hoveredEdgeTheme.label ? (data.label || id) : "";
           graph.graph.mergeEdgeAttributes(id, {
             label,
-            color: edgeTheme.lineColor || data.color || "#6c757d",
+            color: data.color || edgeTheme.lineColor || "#6c757d",
             size: Number(data.width || edgeTheme.width || 2),
             type: edgeType,
             forceLabel: hovered,

@@ -369,6 +369,14 @@
       });
     }
 
+    rebuildGraph() {
+      if (this.graph && typeof this.graph.clear === "function") {
+        this.graph.clear();
+      }
+      this.graphStructureDirty = true;
+      this.queueRefresh();
+    }
+
     removeElement(id) {
       if (this.edgeData.has(id)) {
         this.edgeData.delete(id);
@@ -630,6 +638,7 @@
         notify: this.notify.bind(this),
         refresh: this.refresh.bind(this),
         batch: this.batch.bind(this),
+        rebuildGraph: this.rebuildGraph.bind(this),
         nodeIds: this.nodeIds.bind(this),
         edgeIds: this.edgeIds.bind(this),
         nodePosition: this.nodePosition.bind(this),
