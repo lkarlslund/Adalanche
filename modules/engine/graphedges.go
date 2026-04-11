@@ -19,7 +19,6 @@ func (g *IndexedGraph) processIncomingEdges(queuesize int) {
 		select {
 		case ep, ok := <-g.incomingEdges:
 			if !ok {
-				g.bulkloading = false
 				if len(bulkProcessBuffer) > 0 {
 					g.processBulkEdges(bulkProcessBuffer)
 				}

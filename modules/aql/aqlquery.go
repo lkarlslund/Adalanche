@@ -122,9 +122,6 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		nextTargets := aqlq.sourceCache[currentState.currentSearchIndex+1]
 
 		nextEdgeTargets := thisEdgeSearcher.pathNodeRequirementCache
-		if nextEdgeTargets == nil {
-			nextEdgeTargets = nextTargets
-		}
 
 		var directions []engine.EdgeDirection
 		switch thisEdgeSearcher.Direction {

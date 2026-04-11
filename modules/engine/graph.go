@@ -2,6 +2,7 @@ package engine
 
 import (
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -134,15 +135,26 @@ func (os *IndexedGraph) GetIndex(attribute Attribute) *Index {
 		os.indexlock.RUnlock()
 
 		os.indexlock.Lock()
-		// Someone might have beaten us to it
+		if len(os.indexes) <= int(attribute) {
+			newindexes := make([]*Index, attribute+1)
+			copy(newindexes, os.indexes)
+			os.indexes = newindexes
+		}
 		index = os.indexes[attribute]
-		if index == nil {
-			index = &Index{}
+		os.indexlock.Unlock()
+		if index != nil {
+			return index
+		}
 
-			// Initialize index and add existing stuff
-			os.refreshIndex(attribute, index)
+		index = &Index{}
+		os.refreshIndex(attribute, index)
 
+		os.indexlock.Lock()
+		existing := os.indexes[attribute]
+		if existing == nil {
 			os.indexes[attribute] = index
+		} else {
+			index = existing
 		}
 		os.indexlock.Unlock()
 		return index
@@ -181,14 +193,18 @@ func (os *IndexedGraph) GetMultiIndex(attribute, attribute2 Attribute) *MultiInd
 		os.indexlock.Unlock()
 		return index
 	}
+	os.indexlock.Unlock()
 
 	index = &MultiIndex{}
-
-	// Initialize index and add existing stuff
 	os.refreshMultiIndex(attribute, attribute2, index)
 
-	os.multiindexes[indexkey] = index
-
+	os.indexlock.Lock()
+	existing, found := os.multiindexes[indexkey]
+	if found {
+		index = existing
+	} else {
+		os.multiindexes[indexkey] = index
+	}
 	os.indexlock.Unlock()
 
 	return index
@@ -557,7 +573,11 @@ func (os *IndexedGraph) Size() int {
 }
 
 func (os *IndexedGraph) Iterate(each func(o *Node) bool) {
-	for _, n := range os.nodes {
+	os.nodeMutex.RLock()
+	nodes := slices.Clone(os.nodes)
+	os.nodeMutex.RUnlock()
+
+	for _, n := range nodes {
 		if !each(n) {
 			return
 		}
@@ -568,6 +588,10 @@ func (os *IndexedGraph) IterateParallel(each func(o *Node) bool, parallelFuncs i
 	if parallelFuncs == 0 {
 		parallelFuncs = runtime.NumCPU()
 	}
+	os.nodeMutex.RLock()
+	nodes := slices.Clone(os.nodes)
+	os.nodeMutex.RUnlock()
+
 	queue := make(chan *Node, parallelFuncs*2)
 	var wg sync.WaitGroup
 
@@ -586,15 +610,14 @@ func (os *IndexedGraph) IterateParallel(each func(o *Node) bool, parallelFuncs i
 	}
 
 	var i int
-	os.Iterate(func(o *Node) bool {
+	for _, o := range nodes {
 		if i&0x3ff == 0 && stop.Load() {
 			ui.Debug().Msg("Aborting parallel iterator for Objects")
-			return false
+			break
 		}
 		queue <- o
 		i++
-		return true
-	})
+	}
 
 	close(queue)
 	wg.Wait()
@@ -687,18 +710,26 @@ func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeVa
 	}
 
 	// Add if not found
+	var singleIndex *Index
+	var multiIndex *MultiIndex
+	if attribute2 == NonExistingAttribute {
+		singleIndex = os.GetIndex(attribute)
+	} else {
+		multiIndex = os.GetMultiIndex(attribute, attribute2)
+	}
+
 	os.nodeMutex.Lock() // Prevent anyone from adding to objects while we're searching
 
 	if attribute2 == NonExistingAttribute {
 		// Lookup by one attribute
-		matches, found := os.GetIndex(attribute).Lookup(AttributeValueToIndex(value))
+		matches, found := singleIndex.Lookup(AttributeValueToIndex(value))
 		if found {
 			os.nodeMutex.Unlock()
 			return matches, found
 		}
 	} else {
 		// Lookup by two attributes
-		matches, found := os.GetMultiIndex(attribute, attribute2).Lookup(value, value2)
+		matches, found := multiIndex.Lookup(value, value2)
 		if found {
 			os.nodeMutex.Unlock()
 			return matches, found
