@@ -1,0 +1,14 @@
+/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/deps/serde-9856cd4aa791741f.d: /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/build/serde-252a9bbeccb60cd9/out/private.rs
+
+/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/deps/libserde-9856cd4aa791741f.rlib: /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/build/serde-252a9bbeccb60cd9/out/private.rs
+
+/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/deps/libserde-9856cd4aa791741f.rmeta: /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/build/serde-252a9bbeccb60cd9/out/private.rs
+
+/home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/lak/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/build/serde-252a9bbeccb60cd9/out/private.rs:
+
+# env-dep:OUT_DIR=/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/target/debug/build/serde-252a9bbeccb60cd9/out

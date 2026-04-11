@@ -1,24 +1,20 @@
 var graph;
 
-const REMOTE_LAYOUT_V2 = {
-  layout: "cosev2",
-  extra: {
-    k: 10.0,
-    spring_coeff: 0.19,
-    repulsion_coeff: 4.35,
-    gravity: 0.028,
-    node_distance: 12,
-    ideal_edge_length: 8,
-  },
-};
-
 const graphState = {
   targetNodeId: "",
   selectedNodeIds: [],
   selectedEdgeId: "",
   highlightedEdgeIds: new Set(),
   contextMenu: null,
+  layoutConnector: null,
+  layoutConnectorReady: false,
+  layoutDefinitions: {},
+  activeLayoutAbort: null,
 };
+
+const DEFAULT_GRAPH_LAYOUT = "wasm.force";
+const GRAPH_LAYOUT_PREF = "ui.graph.layout";
+const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
 
 const iconMap = new Map([
   ["Person", "icons/person-fill.svg"],
@@ -53,6 +49,94 @@ function byIdValue(id, def) {
 function byIdChecked(id) {
   const el = document.getElementById(id);
   return !!(el && el.checked);
+}
+
+function graphLayoutSelect() {
+  return document.getElementById("graphlayout");
+}
+
+function graphLayoutOptionsRoot() {
+  return document.getElementById("graphlayoutoptions");
+}
+
+function graphLayoutDefinitions() {
+  return { ...(graphState.layoutDefinitions || {}) };
+}
+
+function graphLayoutDefinition(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  return key ? (graphLayoutDefinitions()[key] || null) : null;
+}
+
+function isWasmLayout(layoutKey) {
+  return String(layoutKey || "").trim().startsWith("wasm.");
+}
+
+function graphLayoutOptionValues() {
+  const raw = getpref(GRAPH_LAYOUT_OPTIONS_PREF, {});
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw;
+  }
+  return {};
+}
+
+function persistGraphLayoutOptionValues(values) {
+  setpref(GRAPH_LAYOUT_OPTIONS_PREF, values);
+}
+
+function coerceLayoutOptionValue(option, rawValue) {
+  if (!option || !option.key) {
+    return rawValue;
+  }
+  if (option.type === "boolean") {
+    return rawValue === true || rawValue === "true" || rawValue === "on" || rawValue === 1;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    const fallback = option.default;
+    return typeof fallback === "number" ? fallback : Number(fallback || 0);
+  }
+  return parsed;
+}
+
+function ensureLayoutOptionDefaults(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  if (!key) {
+    return {};
+  }
+  const definition = graphLayoutDefinition(key);
+  const allValues = graphLayoutOptionValues();
+  const currentValues = allValues[key] && typeof allValues[key] === "object" ? { ...allValues[key] } : {};
+  let changed = false;
+  if (definition && Array.isArray(definition.options)) {
+    definition.options.forEach((option) => {
+      if (!option || !option.key) {
+        return;
+      }
+      if (typeof currentValues[option.key] === "undefined") {
+        currentValues[option.key] = option.default;
+        changed = true;
+      }
+    });
+  }
+  if (changed || allValues[key] !== currentValues) {
+    allValues[key] = currentValues;
+    persistGraphLayoutOptionValues(allValues);
+  }
+  return currentValues;
+}
+
+function layoutOptionsForLayout(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  const values = ensureLayoutOptionDefaults(key);
+  return { ...values };
+}
+
+function installTooltip(el) {
+  if (!el || typeof bootstrap === "undefined" || !bootstrap || typeof bootstrap.Tooltip !== "function") {
+    return;
+  }
+  bootstrap.Tooltip.getOrCreateInstance(el);
 }
 
 function serializeFormsToObject(selectors) {
@@ -275,14 +359,14 @@ function computeNodeVisualPatch(nodeData) {
   };
 
   if (nodeData && nodeData._canexpand) {
-    patch.color = "yellow";
+    patch.color = "#fde047";
   }
   if (nodeData && (nodeData.reference === "start" || nodeData._querysource)) {
-    patch.borderColor = "red";
+    patch.borderColor = "#ef4444";
     patch.borderWidth = 0.18;
   }
   if (nodeData && (nodeData.reference === "end" || nodeData._querytarget)) {
-    patch.borderColor = "blue";
+    patch.borderColor = "#2563eb";
     patch.borderWidth = 0.18;
   }
   if (graphState.targetNodeId && nodeData.id === graphState.targetNodeId) {
@@ -830,146 +914,320 @@ function createAdalancheGraph(elements) {
   return graph;
 }
 
-function remoteLayout(targetGraph) {
-  return {
-    run: async function () {
-      busystatus("Running graph layout");
-      try {
-        const nodes = targetGraph.nodeIds().map((id) => {
-          const data = targetGraph.nodeData.get(id) || {};
-          const position = targetGraph.nodePosition(id);
-          return {
-            id,
-            data,
-            width: Math.max(20, Number(data.renderSize || 10) * 2),
-            height: Math.max(20, Number(data.renderSize || 10) * 2),
-            position,
-          };
-        });
-        const edges = targetGraph.edgeIds().map((id) => {
-          const data = targetGraph.edgeData.get(id) || {};
-          return {
-            id,
-            from: data.source,
-            to: data.target,
-            data,
-          };
-        });
-        const response = await fetchJSONOrThrow("/api/graph/layout", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            graph: { nodes, edges },
-            layout: REMOTE_LAYOUT_V2.layout,
-            options: REMOTE_LAYOUT_V2.extra,
-          }),
-        });
-        let positions = response && response.positions ? response.positions : response;
-        if (Array.isArray(positions)) {
-          positions = positions.reduce(function (acc, item) {
-            if (item && item.id) {
-              acc[item.id] = { x: item.x, y: item.y };
-            }
-            return acc;
-          }, {});
-        }
-        targetGraph.batch(function () {
-          Object.entries(positions || {}).forEach(([id, pos]) => {
-            targetGraph.setNodePosition(id, pos, { markDirty: false });
-          });
-        });
-        targetGraph.fit(undefined, 30);
-      } catch (err) {
-        toast("Graph layout failed", err.message, "error");
-      } finally {
-        const statusEl = document.getElementById("status");
-        if (statusEl) {
-          statusEl.style.display = "none";
-        }
-      }
-    },
-  };
+function selectedGraphLayout() {
+  const preferred = String(getpref(GRAPH_LAYOUT_PREF, DEFAULT_GRAPH_LAYOUT) || "").trim();
+  const select = graphLayoutSelect();
+  if (preferred) {
+    return preferred;
+  }
+  if (select && select.value) {
+    return select.value;
+  }
+  return preferred || DEFAULT_GRAPH_LAYOUT;
 }
 
-function randomLayout(targetGraph) {
-  return {
-    run: function () {
-      busystatus("Running graph layout");
-      targetGraph.batch(function () {
-        targetGraph.nodeIds().forEach((nodeId) => {
-          targetGraph.setNodePosition(nodeId, {
-            x: Math.round((Math.random() - 0.5) * 1000),
-            y: Math.round((Math.random() - 0.5) * 1000),
-          });
-        });
+function syncGraphLayoutSelection(layoutKey) {
+  const key = String(layoutKey || "").trim() || DEFAULT_GRAPH_LAYOUT;
+  const select = graphLayoutSelect();
+  if (select && select.value !== key) {
+    select.value = key;
+  }
+  setpref(GRAPH_LAYOUT_PREF, key);
+}
+
+function updateGraphLayoutChoices() {
+  const select = graphLayoutSelect();
+  if (!select) {
+    return;
+  }
+  const currentValue = String(selectedGraphLayout() || DEFAULT_GRAPH_LAYOUT);
+  const definitions = graphLayoutDefinitions();
+  select.innerHTML = "";
+  Object.values(definitions).forEach((definition) => {
+    const option = document.createElement("option");
+    option.value = definition.key;
+    option.textContent = definition.label || definition.key;
+    select.appendChild(option);
+  });
+  if (definitions[currentValue]) {
+    select.value = currentValue;
+    return;
+  }
+  const firstLayout = Object.keys(definitions)[0] || DEFAULT_GRAPH_LAYOUT;
+  select.value = definitions[DEFAULT_GRAPH_LAYOUT] ? DEFAULT_GRAPH_LAYOUT : firstLayout;
+}
+
+function layoutOptionDisplayValue(option, value) {
+  if (option.type === "boolean") {
+    return value ? "On" : "Off";
+  }
+  if (!Number.isFinite(Number(value))) {
+    return "";
+  }
+  const numericValue = Number(value);
+  if (option.unit) {
+    return `${numericValue}${option.unit}`;
+  }
+  return `${numericValue}`;
+}
+
+function renderGraphLayoutOptions() {
+  const root = graphLayoutOptionsRoot();
+  if (!root) {
+    return;
+  }
+  const layoutKey = selectedGraphLayout();
+  const definition = graphLayoutDefinition(layoutKey);
+  root.innerHTML = "";
+  if (!definition) {
+    return;
+  }
+
+  if (definition.description) {
+    const description = document.createElement("div");
+    description.className = "form-text mb-2";
+    description.textContent = definition.description;
+    root.appendChild(description);
+  }
+
+  if (!Array.isArray(definition.options) || definition.options.length === 0) {
+    return;
+  }
+
+  const values = ensureLayoutOptionDefaults(layoutKey);
+  definition.options.forEach((option) => {
+    if (!option || !option.key) {
+      return;
+    }
+    const wrapper = document.createElement("div");
+    wrapper.className = "d-flex align-items-center gap-2 mb-2";
+
+    const label = document.createElement("label");
+    label.className = "form-label mb-0 text-truncate flex-shrink-0";
+    label.style.width = "7rem";
+    label.htmlFor = `graphlayoutoption_${layoutKey}_${option.key}`;
+    label.textContent = option.label || option.key;
+    if (option.description) {
+      label.setAttribute("data-bs-toggle", "tooltip");
+      label.setAttribute("data-bs-placement", "top");
+      label.setAttribute("data-bs-title", option.description);
+      label.style.cursor = "help";
+    }
+    wrapper.appendChild(label);
+
+    if (option.type === "boolean") {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "form-check-input";
+      input.id = `graphlayoutoption_${layoutKey}_${option.key}`;
+      input.checked = !!values[option.key];
+      input.addEventListener("change", () => {
+        const allValues = graphLayoutOptionValues();
+        const layoutValues = ensureLayoutOptionDefaults(layoutKey);
+        layoutValues[option.key] = input.checked;
+        allValues[layoutKey] = layoutValues;
+        persistGraphLayoutOptionValues(allValues);
       });
-      targetGraph.fit(undefined, 30);
-      const statusEl = document.getElementById("status");
-      if (statusEl) {
-        statusEl.style.display = "none";
-      }
-    },
-  };
-}
+      wrapper.appendChild(input);
+      const valueEl = document.createElement("span");
+      valueEl.className = "small text-body-secondary ms-auto flex-shrink-0";
+      valueEl.textContent = layoutOptionDisplayValue(option, input.checked);
+      wrapper.appendChild(valueEl);
+      input.addEventListener("change", () => {
+        valueEl.textContent = layoutOptionDisplayValue(option, input.checked);
+      });
+      installTooltip(label);
+      root.appendChild(wrapper);
+      return;
+    }
 
-function fixedLayout(targetGraph) {
-  return {
-    run: function () {
-      targetGraph.fit(undefined, 30);
-      const statusEl = document.getElementById("status");
-      if (statusEl) {
-        statusEl.style.display = "none";
-      }
-    },
-  };
-}
+    const input = document.createElement("input");
+    input.type = option.type === "range" ? "range" : "number";
+    input.className = option.type === "range" ? "form-range flex-grow-1 mb-0" : "form-control flex-grow-1";
+    input.id = `graphlayoutoption_${layoutKey}_${option.key}`;
+    if (typeof option.min === "number") {
+      input.min = String(option.min);
+    }
+    if (typeof option.max === "number") {
+      input.max = String(option.max);
+    }
+    if (typeof option.step === "number") {
+      input.step = String(option.step);
+    }
+    input.value = String(values[option.key]);
+    wrapper.appendChild(input);
 
-function forceAtlasLayout(targetGraph) {
-  return targetGraph.layout({
-    name: "forceatlas2",
-    iterations: 400,
-    iterationsPerFrame: 8,
-    refreshIntervalMs: 16,
-    declump: true,
-    declumpIterations: 10,
-    declumpPadding: 6,
-    settings: {
-      gravity: 1,
-      scalingRatio: 10,
-      strongGravityMode: false,
-      slowDown: 8,
-      barnesHutOptimize: true,
-    },
+    const valueEl = document.createElement("span");
+    valueEl.className = "small text-body-secondary text-end flex-shrink-0";
+    valueEl.style.minWidth = "3.5rem";
+    valueEl.textContent = layoutOptionDisplayValue(option, values[option.key]);
+    wrapper.appendChild(valueEl);
+
+    input.addEventListener("input", () => {
+      const allValues = graphLayoutOptionValues();
+      const layoutValues = ensureLayoutOptionDefaults(layoutKey);
+      const nextValue = coerceLayoutOptionValue(option, input.value);
+      layoutValues[option.key] = nextValue;
+      allValues[layoutKey] = layoutValues;
+      persistGraphLayoutOptionValues(allValues);
+      valueEl.textContent = layoutOptionDisplayValue(option, nextValue);
+    });
+    installTooltip(label);
+    root.appendChild(wrapper);
   });
 }
 
-function getGraphlayout(choice) {
-  const selected = String(choice || "");
-  switch (selected) {
-    case "random":
-      return randomLayout(graph);
-    case "fixed":
-      return fixedLayout(graph);
-    case "forceatlas2":
-      return forceAtlasLayout(graph);
-    case "remotev2":
-    default:
-      return remoteLayout(graph);
+function setGraphLayoutDefinitions(layouts) {
+  graphState.layoutDefinitions = {};
+  (Array.isArray(layouts) ? layouts : []).forEach((layout) => {
+    if (!layout || !layout.key) {
+      return;
+    }
+    graphState.layoutDefinitions[layout.key] = layout;
+    ensureLayoutOptionDefaults(layout.key);
+  });
+  updateGraphLayoutChoices();
+  renderGraphLayoutOptions();
+}
+
+function applyLayoutPositions(targetGraph, positions, fitGraph) {
+  targetGraph.batch(function () {
+    Object.entries(positions || {}).forEach(([id, pos]) => {
+      targetGraph.setNodePosition(id, pos, { markDirty: false });
+    });
+  });
+  targetGraph.refresh();
+  if (fitGraph) {
+    targetGraph.fit(undefined, 30);
   }
 }
 
-function runSelectedGraphLayout() {
+function stopActiveGraphLayout() {
+  if (graphState.activeLayoutAbort) {
+    graphState.activeLayoutAbort.abort();
+    graphState.activeLayoutAbort = null;
+  }
+}
+
+async function runWasmLayout(targetGraph, layoutKey) {
+  if (!graphState.layoutConnector || !graphState.layoutConnectorReady) {
+    throw new Error("WASM layout connector is not available");
+  }
+  const options = layoutOptionsForLayout(layoutKey);
+  const controller = new AbortController();
+  graphState.activeLayoutAbort = controller;
+  try {
+    const definition = graphLayoutDefinition(layoutKey);
+    const supportsAnimation = !!(definition && definition.supports_animation);
+    if (supportsAnimation) {
+      const finalFrame = await graphState.layoutConnector.animate(
+        targetGraph,
+        layoutKey,
+        options,
+        { intervalMs: 80, stepsPerFrame: 16 },
+        controller.signal,
+        (frame) => applyLayoutPositions(targetGraph, frame.positions, false)
+      );
+      applyLayoutPositions(targetGraph, finalFrame.positions, true);
+      return;
+    }
+    const result = await graphState.layoutConnector.run(targetGraph, layoutKey, options, controller.signal);
+    applyLayoutPositions(targetGraph, result.positions, true);
+  } finally {
+    if (graphState.activeLayoutAbort === controller) {
+      graphState.activeLayoutAbort = null;
+    }
+  }
+}
+
+async function runSelectedGraphLayout() {
   if (!graph) {
     return;
   }
-  getGraphlayout(byIdValue("graphlayout", "remotev2")).run();
+  const layoutKey = selectedGraphLayout();
+  stopActiveGraphLayout();
+  busystatus("Running graph layout");
+  try {
+    if (!isWasmLayout(layoutKey)) {
+      throw new Error(`Unsupported layout: ${layoutKey}`);
+    }
+    await runWasmLayout(graph, layoutKey);
+  } catch (err) {
+    toast("Graph layout failed", err && err.message ? err.message : String(err), "error");
+  } finally {
+    const statusEl = document.getElementById("status");
+    if (statusEl) {
+      statusEl.style.display = "none";
+    }
+  }
+}
+
+function initGraphLayoutUI() {
+  updateGraphLayoutChoices();
+  syncGraphLayoutSelection(selectedGraphLayout());
+  renderGraphLayoutOptions();
+
+  const select = graphLayoutSelect();
+  if (select) {
+    select.addEventListener("change", () => {
+      syncGraphLayoutSelection(select.value);
+      renderGraphLayoutOptions();
+      if (window.graph) {
+        runSelectedGraphLayout();
+      }
+    });
+  }
+
+  if (typeof window.createAdalancheLayoutConnector !== "function") {
+    setGraphLayoutStatus("WASM layout connector script is not available.", true);
+    return;
+  }
+
+  const workerCount = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+  graphState.layoutConnector = window.createAdalancheLayoutConnector({
+    workerURL: "sigma/layout-worker.js",
+    workerCount,
+  });
+
+  graphState.layoutConnector.init()
+    .then((payload) => {
+      graphState.layoutConnectorReady = true;
+      setGraphLayoutDefinitions(payload && payload.layouts ? payload.layouts : []);
+      const currentLayout = selectedGraphLayout();
+      if (!graphLayoutDefinition(currentLayout)) {
+        syncGraphLayoutSelection(DEFAULT_GRAPH_LAYOUT);
+        renderGraphLayoutOptions();
+      }
+    })
+    .catch((err) => {
+      graphState.layoutConnectorReady = false;
+      toast(
+        "Graph layouts unavailable",
+        err && err.message ? err.message : String(err),
+        "error"
+      );
+    });
 }
 
 function initgraph(data) {
   createAdalancheGraph(data);
   runSelectedGraphLayout();
+}
+
+function initGraphLayoutUIWhenReady() {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGraphLayoutUI, { once: true });
+    return;
+  }
+  initGraphLayoutUI();
+}
+
+if (typeof window.ensurePrefsLoaded === "function") {
+  window.ensurePrefsLoaded()
+    .catch(function () {})
+    .finally(initGraphLayoutUIWhenReady);
+} else {
+  initGraphLayoutUIWhenReady();
 }
 
 window.addEventListener("click", function (event) {

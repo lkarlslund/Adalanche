@@ -1,0 +1,1 @@
+/home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/target/wasm32-unknown-unknown/release/adalanche_layout_engine_rust.wasm: /home/lak/github-repos/adalanche-workspace/adalanche/modules/layout/wasm-rust/src/lib.rs
