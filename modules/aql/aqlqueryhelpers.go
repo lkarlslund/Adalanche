@@ -1,6 +1,8 @@
 package aql
 
 import (
+	"slices"
+
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -154,10 +156,10 @@ type probableWorkingPath struct {
 }
 
 func (pWP probableWorkingPath) Clone() probableWorkingPath {
-	clone := pWPPool.Get().(*probableWorkingPath)
-	clone.filter = pWP.filter
-	clone.path = append(clone.path[:0], pWP.path...)
-	return *clone
+	return probableWorkingPath{
+		path:   slices.Clone(pWP.path),
+		filter: pWP.filter,
+	}
 }
 
 func (pWP probableWorkingPath) HasNode(node engine.NodeID) bool {

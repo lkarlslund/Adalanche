@@ -89,6 +89,37 @@ input[type="number"] {
   background-color: #eef1f4;
 }
 
+.workspace-sigma-selection-layer {
+  border: 1px dashed rgba(59, 130, 246, 0.95);
+  background: rgba(59, 130, 246, 0.12);
+  border-radius: 0.35rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.graph-context-menu {
+  position: fixed;
+  z-index: 4000;
+  min-width: 14rem;
+  padding: 0.35rem 0;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+}
+
+.graph-context-menu .dropdown-item {
+  background: transparent;
+  border: 0;
+  color: var(--bs-body-color);
+  display: block;
+  padding: 0.4rem 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+
+.graph-context-menu .dropdown-item:hover {
+  background: rgba(var(--bs-primary-rgb), 0.14);
+}
+
 [data-bs-theme="dark"] .window,
 [data-bs-theme="dark"] .window-content,
 [data-bs-theme="dark"] #upperstatus,

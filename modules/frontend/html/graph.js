@@ -1,637 +1,119 @@
-var cy
-var nodemenu
+var graph;
 
-var remoteLayoutv2 = {
-  name: "remote",
-  url: "/api/graph/layout",        // server endpoint (required)
-  layout: "cosev2",
-  extra: {
-    k: 10.0,
-    spring_coeff: 0.19,
-    repulsion_coeff: 4.35,
-    gravity: 0.028,
-    node_distance: 12,
-    ideal_edge_length: 8,
-  },
-}
-
-// Configure
-var d3forcelayout = {
-    name: "d3-force",
-    animate: true, // whether to show the layout as it's running; special 'end' value makes the layout animate like a discrete layout
-    maxIterations: 0, // max iterations before the layout will bail out
-    maxSimulationTime: 10000, // max length in ms to run the layout
-    ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
-    fixedAfterDragging: false, // fixed node after dragging
-    fit: true, // on every layout reposition of nodes, fit the viewport
-    padding: 30, // padding around the simulation
-    boundingBox: undefined, // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
-    /**d3-force API**/
-    alpha: 0.4, // sets the current alpha to the specified number in the range [0,1]
-    alphaMin: 0.001, // sets the minimum alpha to the specified number in the range [0,1]
-    alphaDecay: 0.2,
-    // alphaDecay: 1 - Math.pow(0.001, 1 / 200), // sets the alpha decay rate to the specified number in the range [0,1]
-    alphaTarget: 0, // sets the current target alpha to the specified number in the range [0,1]
-    velocityDecay: 0.1, // sets the velocity decay factor to the specified number in the range [0,1]
-    collideRadius: 180, // sets the radius accessor to the specified number or function
-    collideStrength: 0.7, // sets the force strength to the specified number in the range [0,1]
-    collideIterations: 1, // sets the number of iterations per application to the specified number
-    linkId: function id(d) {
-        // return d.index;
-        return d.id;
-    }, // sets the node id accessor to the specified function
-    // linkDistance: 10, // sets the distance accessor to the specified number or function
-    linkStrength: function strength(link) {
-        // return 1 / Math.min(count(link.source), count(link.target));
-        return 8 / link._maxprob;
-    }, // sets the strength accessor to the specified number or function
-    linkIterations: 25, // sets the number of iterations per application to the specified number
-    manyBodyStrength: -1500, // sets the strength accessor to the specified number or function
-    manyBodyTheta: 0.5, // sets the Barnes–Hut approximation criterion to the specified number
-    manyBodyDistanceMin: 10, // sets the minimum distance between nodes over which this force is considered
-    manyBodyDistanceMax: Infinity, // sets the maximum distance between nodes over which this force is considered
-    xStrength: 0.1, // sets the strength accessor to the specified number or function
-    xX: 0, // sets the x-coordinate accessor to the specified number or function
-    yStrength: 0.1, // sets the strength accessor to the specified number or function
-    yY: 0, // sets the y-coordinate accessor to the specified number or function
-    radialStrength: 0.05, // sets the strength accessor to the specified number or function
-    radialRadius: 5, // sets the circle radius to the specified number or function
-    radialX: 0, // sets the x-coordinate of the circle center to the specified number
-    radialY: 0, // sets the y-coordinate of the circle center to the specified number
-    // layout event callbacks
-    // ready: function () { }, // on layoutready
-    // stop: function () { }, // on layoutstop
-    tick: function (progress) { }, // on every iteration
-    // positioning options
-    randomize: true, // use random node positions at beginning of layout
-    // infinite layout options
-    infinite: false // overrides all other options for a forces-all-the-time mode
-}
-
-// Our layout options
-var coselayout = {
-    name: 'cose',
-    animate: true,
-    idealEdgeLength: 62,
-    nodeOverlap: 30,
-    refresh: 20,
-    fit: true,
-    padding: 30,
-    randomize: true,
-    componentSpacing: 52,
-    nodeRepulsion: 2000000,
-    edgeElasticity: 100,
-    nestingFactor: 5,
-    gravity: 10,
-    numIter: 2000,
-    initialTemp: 600,
-    coolingFactor: 0.95,
-    minTemp: 1.0
-}
-
-var dagrelayout = {
-    name: 'dagre',
-    animate: true,
-    // dagre algo options, uses default value on undefined
-    nodeSep: undefined, // the separation between adjacent nodes in the same rank
-    edgeSep: undefined, // the separation between adjacent edges in the same rank
-    rankSep: 50, // the separation between each rank in the layout
-    rankDir: 'LR', // 'TB' for top to bottom flow, 'LR' for left to right,
-    ranker: 'longest-path', // Type of algorithm to assign a rank to each node in the input graph. Possible values: 'network-simplex', 'tight-tree' or 'longest-path'
-    minLen: function (edge) { return 1; }, // number of ranks to keep between the source and target of the edge
-    edgeWeight: function (edge) { return 1; }, // higher weight edges are generally made shorter and straighter than lower weight edges
-
-    // general layout options
-    fit: true, // whether to fit to viewport
-    padding: 15, // fit padding
-    spacingFactor: 2, // Applies a multiplicative factor (>0) to expand or compress the overall area that the nodes take up
-    nodeDimensionsIncludeLabels: true, // whether labels should be included in determining the space used by a node
-    animateFilter: function (node, i) { return true; }, // whether to animate specific nodes when animation is on; non-animated nodes immediately go to their final positions
-    animationDuration: 500, // duration of animation in ms if enabled
-    animationEasing: undefined, // easing of animation if enabled
-    boundingBox: undefined, // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
-    transform: function (node, pos) { return pos; }, // a function that applies a transform to the final node position
-    ready: function () { }, // on layoutready
-    stop: function () { } // on layoutstop
-}
-
-var fcoselayout = {
-    name: 'fcose',
-    // 'draft', 'default' or 'proof' 
-    // - "draft" only applies spectral layout 
-    // - "default" improves the quality with incremental layout (fast cooling rate)
-    // - "proof" improves the quality with incremental layout (slow cooling rate) 
-    quality: "default",
-    // Use random node positions at beginning of layout
-    // if this is set to false, then quality option must be "proof"
-    randomize: true,
-    // Whether or not to animate the layout
-    animate: false,
-    // Duration of animation in ms, if enabled
-    animationDuration: 5000,
-    // Easing of animation, if enabled
-    animationEasing: undefined,
-    // Fit the viewport to the repositioned nodes
-    fit: true,
-    // Padding around layout
-    padding: 30,
-    // Whether to include labels in node dimensions. Valid in "proof" quality
-    nodeDimensionsIncludeLabels: true,
-    // Whether or not simple nodes (non-compound nodes) are of uniform dimensions
-    uniformNodeDimensions: true,
-    // Whether to pack disconnected components - valid only if randomize: true
-    packComponents: true,
-
-    /* spectral layout options */
-
-    // False for random, true for greedy sampling
-    samplingType: false,
-    // Sample size to construct distance matrix
-    sampleSize: 100,
-    // Separation amount between nodes
-    // nodeSeparation: 125,
-    nodeSeparation: 190,
-    // Power iteration tolerance
-    piTol: 0.0000001,
-
-    /* incremental layout options */
-
-    // Node repulsion (non overlapping) multiplier
-    nodeRepulsion: 5600,
-    // Ideal edge (non nested) length
-    idealEdgeLength: 150,
-    // Divisor to compute edge forces
-    edgeElasticity: 0.45,
-    // Nesting factor (multiplier) to compute ideal edge length for nested edges
-    nestingFactor: 0.5,
-    // Maximum number of iterations to perform
-    numIter: 2500,
-    // For enabling tiling
-    tile: true,
-    // Represents the amount of the vertical space to put between the zero degree members during the tiling operation(can also be a function)
-    tilingPaddingVertical: 26,
-    // Represents the amount of the horizontal space to put between the zero degree members during the tiling operation(can also be a function)
-    tilingPaddingHorizontal: 26,
-    // Gravity force (constant)
-    gravity: 0.25,
-    // Gravity range (constant) for compounds
-    gravityRangeCompound: 1.5,
-    // Gravity force (constant) for compounds
-    gravityCompound: 1.0,
-    // Gravity range (constant)
-    gravityRange: 3.8,
-    // Initial cooling factor for incremental layout  
-    initialEnergyOnIncremental: 0.3,
-
-    /* layout event callbacks */
-    ready: () => { }, // on layoutready
-    stop: () => { } // on layoutstop
-}
-
-var ciselayout = {
-    name: 'cise',
-
-    // ClusterInfo can be a 2D array contaning node id's or a function that returns cluster ids. 
-    // For the 2D array option, the index of the array indicates the cluster ID for all elements in 
-    // the collection at that index. Unclustered nodes must NOT be present in this array of clusters.
-    // 
-    // For the function, it would be given a Cytoscape node and it is expected to return a cluster id  
-    // corresponding to that node. Returning negative numbers, null or undefined is fine for unclustered
-    // nodes.  
-    // e.g
-    // Array:                                     OR          function(node){
-    //  [ ['n1','n2','n3'],                                       ...
-    //    ['n5','n6']                                         }
-    //    ['n7', 'n8', 'n9', 'n10'] ]                         
-    // clusters: clusterInfo,
-    animate: true,
-    refresh: 10,
-    animationDuration: undefined,
-    animationEasing: undefined,
-    fit: true,
-    padding: 30,
-    nodeSeparation: 12.5,
-    idealInterClusterEdgeLengthCoefficient: 1.4,
-    allowNodesInsideCircle: false,
-    maxRatioOfNodesInsideCircle: 0.1,
-    springCoeff: 0.45,
-    nodeRepulsion: 4500,
-    gravity: 0.25,
-    gravityRange: 3.8,
-    // Layout event callbacks; equivalent to `layout.one('layoutready', callback)` for example
-    ready: function () { }, // on layoutready
-    stop: function () { }, // on layoutstop
-}
-
-var cosebilkentlayout = {
-    name: 'cose-bilkent',
-    // Called on `layoutready`
-    ready: function () {
-    },
-    // Called on `layoutstop`
-    stop: function () {
-    },
-    // 'draft', 'default' or 'proof" 
-    // - 'draft' fast cooling rate 
-    // - 'default' moderate cooling rate 
-    // - "proof" slow cooling rate
-    quality: 'default',
-    // Whether to include labels in node dimensions. Useful for avoiding label overlap
-    nodeDimensionsIncludeLabels: true,
-    // number of ticks per frame; higher is faster but more jerky
-    refresh: 10,
-    // Whether to fit the network view after when done
-    fit: true,
-    // Padding on fit
-    padding: 10,
-    // Whether to enable incremental mode
-    randomize: true,
-    // Node repulsion (non overlapping) multiplier
-    nodeRepulsion: 4500,
-    // Ideal (intra-graph) edge length
-    idealEdgeLength: 50,
-    // Divisor to compute edge forces
-    edgeElasticity: 0.45,
-    // Nesting factor (multiplier) to compute ideal edge length for inter-graph edges
-    nestingFactor: 2.0,
-    // Gravity force (constant)
-    gravity: 0.15,
-    // Maximum number of iterations to perform
-    numIter: 2500,
-    // Whether to tile disconnected nodes
-    tile: true,
-    // Type of layout animation. The option set is {'during', 'end', false}
-    animate: 'end',
-    // Duration for animate:end
-    animationDuration: 500,
-    // Amount of vertical space to put between degree zero nodes during tiling (can also be a function)
-    tilingPaddingVertical: 50,
-    // Amount of horizontal space to put between degree zero nodes during tiling (can also be a function)
-    tilingPaddingHorizontal: 50,
-    // Gravity range (constant) for compounds
-    gravityRangeCompound: 1.5,
-    // Gravity force (constant) for compounds
-    gravityCompound: 1.0,
-    // Gravity range (constant)
-    gravityRange: 3.8,
-    // Initial cooling factor for incremental layout
-    initialEnergyOnIncremental: 0.5
+const graphState = {
+  targetNodeId: "",
+  selectedNodeIds: [],
+  selectedEdgeId: "",
+  highlightedEdgeIds: new Set(),
+  contextMenu: null,
+  layoutConnector: null,
+  layoutConnectorReady: false,
+  layoutDefinitions: {},
+  activeLayoutAbort: null,
+  layoutRerunTimer: null,
+  layoutRunToken: 0,
+  layoutPending: false,
 };
 
-var randomlayout = {
-    name: 'random'
-}
+const DEFAULT_GRAPH_LAYOUT = "wasm.packed_separated_cluster_visibility";
+const GRAPH_LAYOUT_PREF = "ui.graph.layout";
+const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
+const LAYOUT_ASSET_VERSION = "20260411-1";
 
-var fixedlayout = {
-    name: 'preset'
-}
-
-var cytostyle = [
-  {
-    selector: "node, edge",
-    style: {
-      "min-zoomed-font-size": 12,
-      "font-family": "oswald",
-    },
-  },
-  {
-    selector: "node",
-    style: {
-      label: function (ele) {
-        return renderlabel(ele.data("label"));
-      },
-      color: function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
-      },
-      "background-width": "80%",
-      "background-height": "80%",
-    },
-  },
-  {
-    selector: "node.target",
-    style: {
-      "border-color": function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
-      },
-      "border-width": 3,
-    },
-  },
-  {
-    selector: "node.source",
-    style: {
-      "border-color": "green",
-      "border-width": 3,
-    },
-  },
-  {
-    selector: 'node[type="Group"]',
-    style: {
-      shape: "cut-rectangle",
-      "background-image": "icons/people-fill.svg",
-      "background-color": "orange",
-    },
-  },
-  {
-    selector: 'node[type="Person"]',
-    style: {
-      "background-image": "icons/person-fill.svg",
-      "background-color": "green",
-    },
-  },
-  {
-    selector: "node[account_inactive]",
-    style: {
-      "background-image": "icons/no_accounts_black_48dp.svg",
-    },
-  },
-  {
-    selector: 'node[type="ms-DS-Managed-Service-Account"]',
-    style: {
-      "background-image": "icons/manage_accounts_black_24dp.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="ms-DS-Group-Managed-ServiceAccount"]',
-    style: {
-      "background-image": "icons/manage_accounts_black_24dp.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="Foreign-Security-Principal"]',
-    style: {
-      "background-image": "icons/badge_black_24dp.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="Service"]',
-    style: {
-      shape: "diamond",
-      "background-image": "icons/service.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="CallableService"]',
-    style: {
-      "background-image": "icons/service.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="Directory"]',
-    style: {
-      shape: "diamond",
-      "background-image": "icons/source_black_24dp.svg",
-      "background-color": "lightblue",
-    },
-  },
-  {
-    selector: 'node[type="File"]',
-    style: {
-      shape: "diamond",
-      "background-image": "icons/article_black_24dp.svg",
-      "background-color": "lightblue",
-    },
-  },
-  {
-    selector: 'node[type="Executable"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/binary-code.svg",
-      "background-color": "lightgreen",
-    },
-  },
-
-  {
-    selector: 'node[type="Group-Policy-Container"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/gpo.svg",
-      "background-color": "purple",
-    },
-  },
-  {
-    selector: 'node[type="Organizational-Unit"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/source_black_24dp.svg",
-      "background-color": "lightgray",
-    },
-  },
-  {
-    selector: 'node[type="Container"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/folder_black_24dp.svg",
-      "background-color": "lightgray",
-    },
-  },
-  {
-    selector: 'node[type="PKI-Certificate-Template"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/certificate.svg",
-      "background-color": "pink",
-    },
-  },
-  {
-    selector: 'node[type="DNS-Node"]',
-    style: {
-      shape: "rectangle",
-      "background-image": "icons/dns.svg",
-    },
-  },
-  {
-    selector: 'node[type="Computer"]',
-    style: {
-      shape: "round-octagon",
-      "background-image": "icons/tv-fill.svg",
-      "background-color": "lightgreen",
-    },
-  },
-  {
-    selector: 'node[type="Machine"]',
-    style: {
-      shape: "round-octagon",
-      "background-image": "icons/tv-fill.svg",
-      "background-color": "teal",
-    },
-  },
-  {
-    selector: "node[?_canexpand]",
-    style: {
-      "font-style": "italic",
-      color: "yellow",
-      "background-color": "yellow",
-    },
-  },
-  {
-    selector: 'node[reference="start"]',
-    style: {
-      "border-color": "red",
-      "border-width": 3,
-    },
-  },
-  {
-    selector: 'node[reference="end"]',
-    style: {
-      "border-color": "blue",
-      "border-width": 3,
-    },
-  },
-  {
-    selector: "edge",
-    style: {
-      // "label": function (ele) { return edgelabel(ele); },
-      "text-wrap": "wrap",
-      // "text-rotation": "autorotate",
-      "text-justification": "center",
-      color: function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
-      },
-      "curve-style": "straight",
-      "target-arrow-shape": "triangle",
-    },
-  },
-  {
-    selector: "edge[_maxprob<=90]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [9, 1],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=80]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [8, 2],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=70]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [7, 3],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=60]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [6, 4],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=50]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [5, 5],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=40]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [4, 6],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=30]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [3, 7],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=20]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [2, 8],
-    },
-  },
-  {
-    selector: "edge[_maxprob<=10]",
-    style: {
-      "line-style": "dashed",
-      "line-dash-pattern": [1, 9],
-    },
-  },
-  {
-    selector: "node:selected",
-    style: {
-      "background-color": function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "grey";
-      },
-    },
-  },
-  {
-    selector: "edge:selected",
-    style: {
-      "target-arrow-color": function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark"
-          ? "white"
-          : "black";
-      },
-      "line-color": function (ele) {
-        return translateAutoTheme(getpref("theme", "auto")) == "dark" ? "white" : "black";
-      },
-      width: 8,
-    },
-  },
-];
-
-function getGraphlayout(choice) {
-    var layouttemplate = fcoselayout
-    switch (choice) {
-      case "cose":
-        layouttemplate = coselayout;
-        break;
-      case "cosebilkent":
-        layouttemplate = cosebilkentlayout;
-        break;
-      case "dagre":
-        layouttemplate = dagrelayout;
-        break;
-      case "fcose":
-        layouttemplate = fcoselayout;
-        break;
-      case "d3force":
-        layouttemplate = d3forcelayout;
-        break;
-      case "random":
-        layouttemplate = randomlayout;
-        break;
-      case "fixed":
-        layouttemplate = fixedlayout;
-        break;
-      case "cise":
-        layouttemplate = ciselayout;
-        break;
-      case "remotev2":
-        layouttemplate = remoteLayoutv2;
-        break;
-      default:
-        // toast error
-        console.warn("Unknown layout choice:", choice);
-        break;
+function graphDebugLog(event, details) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const debugEnabled = (() => {
+    if (window.__graphDebugEnabled === true || window.__graphDebugEnabled === false) {
+      return window.__graphDebugEnabled;
     }
-
-    var layout = cy.layout(layouttemplate)
-
-    layout.on("layoutstart", function (event) {
-        busystatus("Running graph layout")
-    })
-    layout.on("layoutstop", function (event) {
-        const statusEl = document.getElementById("status");
-        if (statusEl) {
-          statusEl.style.display = "none";
-        }
-    })
-    return layout
+    let enabled = false;
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : "");
+      enabled = params.get("graphdebug") === "1";
+      if (!enabled && window.localStorage) {
+        enabled = window.localStorage.getItem("graphdebug") === "1";
+      }
+    } catch (_err) {}
+    window.__graphDebugEnabled = enabled;
+    return enabled;
+  })();
+  if (!debugEnabled) {
+    return;
+  }
+  if (!window.__graphDebug) {
+    window.__graphDebug = [];
+  }
+  const entry = {
+    ts: Date.now(),
+    event: String(event || ""),
+    details: details || {},
+  };
+  window.__graphDebug.push(entry);
+  if (window.__graphDebug.length > 500) {
+    window.__graphDebug.splice(0, window.__graphDebug.length - 500);
+  }
+  try {
+    console.debug("[graph-debug]", entry.event, entry.details);
+  } catch (_err) {}
 }
+
+function graphPositionSummary(positions) {
+  const entries = Object.entries(positions || {});
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let nonZero = 0;
+  for (const [, pos] of entries) {
+    const x = Number(pos && pos.x);
+    const y = Number(pos && pos.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    if (x !== 0 || y !== 0) {
+      nonZero += 1;
+    }
+  }
+  if (!entries.length) {
+    minX = maxX = minY = maxY = 0;
+  }
+  return {
+    count: entries.length,
+    nonZero,
+    minX,
+    maxX,
+    minY,
+    maxY,
+  };
+}
+
+const iconMap = new Map([
+  ["Person", "icons/person-fill.svg"],
+  ["Group", "icons/people-fill.svg"],
+  ["Computer", "icons/tv-fill.svg"],
+  ["Machine", "icons/tv-fill.svg"],
+  ["ms-DS-Managed-Service-Account", "icons/manage_accounts_black_24dp.svg"],
+  ["ms-DS-Group-Managed-ServiceAccount", "icons/manage_accounts_black_24dp.svg"],
+  ["ms-DS-Group-Managed-Service-Account", "icons/manage_accounts_black_24dp.svg"],
+  ["Foreign-Security-Principal", "icons/badge_black_24dp.svg"],
+  ["Service", "icons/service.svg"],
+  ["CallableService", "icons/service.svg"],
+  ["Directory", "icons/source_black_24dp.svg"],
+  ["File", "icons/article_black_24dp.svg"],
+  ["Executable", "icons/binary-code.svg"],
+  ["Group-Policy-Container", "icons/gpo.svg"],
+  ["Organizational-Unit", "icons/source_black_24dp.svg"],
+  ["Container", "icons/folder_black_24dp.svg"],
+  ["PKI-Certificate-Template", "icons/certificate.svg"],
+  ["MS-PKI-Certificate-Template", "icons/certificate.svg"],
+  ["DNS-Node", "icons/dns.svg"],
+]);
 
 function byIdValue(id, def) {
   const el = document.getElementById(id);
@@ -644,6 +126,108 @@ function byIdValue(id, def) {
 function byIdChecked(id) {
   const el = document.getElementById(id);
   return !!(el && el.checked);
+}
+
+function graphLayoutSelect() {
+  return document.getElementById("graphlayout");
+}
+
+function graphLayoutOptionsRoot() {
+  return document.getElementById("graphlayoutoptions");
+}
+
+function graphLayoutDefinitions() {
+  return { ...(graphState.layoutDefinitions || {}) };
+}
+
+function graphLayoutDefinition(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  return key ? (graphLayoutDefinitions()[key] || null) : null;
+}
+
+function isWasmLayout(layoutKey) {
+  return String(layoutKey || "").trim().startsWith("wasm.");
+}
+
+function graphLayoutOptionValues() {
+  const raw = getpref(GRAPH_LAYOUT_OPTIONS_PREF, {});
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw;
+  }
+  return {};
+}
+
+function persistGraphLayoutOptionValues(values) {
+  setpref(GRAPH_LAYOUT_OPTIONS_PREF, values);
+}
+
+function coerceLayoutOptionValue(option, rawValue) {
+  if (!option || !option.key) {
+    return rawValue;
+  }
+  if (option.type === "boolean") {
+    return rawValue === true || rawValue === "true" || rawValue === "on" || rawValue === 1;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    const fallback = option.default;
+    return typeof fallback === "number" ? fallback : Number(fallback || 0);
+  }
+  return parsed;
+}
+
+function ensureLayoutOptionDefaults(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  if (!key) {
+    return {};
+  }
+  const definition = graphLayoutDefinition(key);
+  const allValues = graphLayoutOptionValues();
+  const currentValues = allValues[key] && typeof allValues[key] === "object" ? { ...allValues[key] } : {};
+  let changed = false;
+  if (definition && Array.isArray(definition.options)) {
+    definition.options.forEach((option) => {
+      if (!option || !option.key) {
+        return;
+      }
+      if (typeof currentValues[option.key] === "undefined") {
+        currentValues[option.key] = option.default;
+        changed = true;
+      }
+    });
+  }
+  if (changed || allValues[key] !== currentValues) {
+    allValues[key] = currentValues;
+    persistGraphLayoutOptionValues(allValues);
+  }
+  return currentValues;
+}
+
+function layoutOptionsForLayout(layoutKey) {
+  const key = String(layoutKey || "").trim();
+  const values = ensureLayoutOptionDefaults(key);
+  return { ...values };
+}
+
+function scheduleLayoutRerun(delayMs) {
+  if (!graph) {
+    return;
+  }
+  if (graphState.layoutRerunTimer) {
+    clearTimeout(graphState.layoutRerunTimer);
+    graphState.layoutRerunTimer = null;
+  }
+  graphState.layoutRerunTimer = setTimeout(() => {
+    graphState.layoutRerunTimer = null;
+    runSelectedGraphLayout();
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
+function installTooltip(el) {
+  if (!el || typeof bootstrap === "undefined" || !bootstrap || typeof bootstrap.Tooltip !== "function") {
+    return;
+  }
+  bootstrap.Tooltip.getOrCreateInstance(el);
 }
 
 function serializeFormsToObject(selectors) {
@@ -670,683 +254,1213 @@ async function fetchJSONOrThrow(url, options) {
 }
 
 function renderlabel(label) {
-    switch (byIdValue("nodelabels", "normal")) {
-        case "normal":
-            return label;
-        case "off":
-            return "";
-        case "randomize":
-            return anonymizer.anonymize(label);
-        case "checksum":
-            return hashFnv32a(label, true, undefined);
-    }
-    return "label error";
+  switch (byIdValue("nodelabels", "normal")) {
+    case "normal":
+      return label;
+    case "off":
+      return "";
+    case "randomize":
+      return anonymizer.anonymize(label);
+    case "checksum":
+      return hashFnv32a(label, true, undefined);
+    default:
+      return label;
+  }
 }
 
-function edgelabel(ele) {
-    switch (byIdValue("edgelabels", "normal")) {
-        case "normal":
-            return ele.data("methods").join('|');
-        case "off":
-            return "";
-        case "randomize":
-            return anonymizer.anonymize(data("methods").join('|'));
-        case "checksum":
-            return hashFnv32a(data("methods").join('|'), true, undefined);
-    }
-    return "edge error";
+function edgelabel(data) {
+  const methods = Array.isArray(data && data.methods) ? data.methods : [];
+  return methods.sort().join("\n");
 }
 
 var anonymizer = new DataAnonymizer();
 
 function hashFnv32a(str, asString, seed) {
-    /*jshint bitwise:false */
-    var i, l,
-        hval = (seed === undefined) ? 0x811c9dc5 : seed;
+  var i;
+  var l;
+  var hval = seed === undefined ? 0x811c9dc5 : seed;
 
-    for (i = 0, l = str.length; i < l; i++) {
-        hval ^= str.charCodeAt(i);
-        hval += (hval << 1) + (hval << 4) + (hval << 7) + (hval << 8) + (hval << 24);
-    }
-    if (asString) {
-        // Convert to 8 digit hex string
-        return ("0000000" + (hval >>> 0).toString(16)).substr(-8);
-    }
-    return hval >>> 0;
+  for (i = 0, l = str.length; i < l; i++) {
+    hval ^= str.charCodeAt(i);
+    hval += (hval << 1) + (hval << 4) + (hval << 7) + (hval << 8) + (hval << 24);
+  }
+  if (asString) {
+    return ("0000000" + (hval >>> 0).toString(16)).substr(-8);
+  }
+  return hval >>> 0;
 }
 
 function probabilityToRGB(value) {
-  value = Math.max(0, Math.min(100, value)); // Clamp between 0-100
+  value = Math.max(0, Math.min(100, value));
   let r = value < 50 ? 255 : Math.round(255 - (value - 50) * 5.1);
   let g = value > 50 ? 255 : Math.round(value * 5.1);
   return `rgb(${r},${g},0)`;
 }
 
-
-function renderedges(methodmap) {
-  maxprob = -1;
-
-    edgeoutput = Object.entries(methodmap)
-      .sort()
-      .map(function ([name, prob]) {
-        if (prob > maxprob) {
-          maxprob = prob;
-        }
-        return '<span class="badge text-dark" style="background-color: '+probabilityToRGB(prob)+'">' + name + " (" + prob + "%)</span>";
-      })
-      .join("");
-
-    var s = '<span class="badge text-dark" style="background-color: '+probabilityToRGB(maxprob)+
-    '">Edge ' + maxprob + '%</span>' + edgeoutput;
-
-    return s
+function normalize(value, min, max, outMin, outMax) {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return outMin;
+  }
+  const ratio = (value - min) / (max - min);
+  return outMin + ratio * (outMax - outMin);
 }
 
-icons = new Map([
-  [
-    "Person",
-    "<img src='icons/person-fill.svg' width='24' height='24'>",
-  ],
-  [
-    "Group",
-    "<img src='icons/people-fill.svg' width='24' height='24'>",
-  ],
-  [
-    "Computer",
-    "<img src='icons/computer-fill.svg' width='24' height='24'>",
-  ],
-  [
-    "Machine",
-    "<img src='icons/tv-fill.svg' width='24' height='24'>",
-  ],
-  [
-    "ms-DS-Managed-Service-Account",
-    "<img src='icons/manage_accounts_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "ms-DS-Group-Managed-Service-Account",
-    "<img src='icons/manage_accounts_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "Foreign-Security-Principal",
-    "<img src='icons/badge_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "Service",
-    "<img src='icons/service.svg' width='24' height='24'>",
-  ],
-  [
-    "Directory",
-    "<img src='icons/source_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "File",
-    "<img src='icons/article_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "Executable",
-    "<img src='icons/binary-code.svg' width='24' height='24'>",
-  ],
-  [
-    "Group-Policy-Container",
-    "<img src='icons/gpo.svg' width='24' height='24'>",
-  ],
-  [
-    "Organizational-Unit",
-    "<img src='icons/source_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "Container",
-    "<img src='icons/folder_black_24dp.svg' width='24' height='24'>",
-  ],
-  [
-    "MS-PKI-Certificate-Template",
-    "<img src='icons/certificate.svg' width='24' height='24'>",
-  ],
-  [
-    "DNS-Node",
-    "<img src='icons/dns.svg' width='24' height='24'>",
-  ],
-]);
+function renderedges(methodmap) {
+  let maxprob = -1;
 
-function rendericon(type) {
-    result = icons.get(type);
-    if (!result) {
-      result="<img src='icons/unknown.svg' width='24' height='24'>";
-    }
-    return result;
+  const edgeoutput = Object.entries(methodmap || {})
+    .sort()
+    .map(function ([name, prob]) {
+      if (prob > maxprob) {
+        maxprob = prob;
+      }
+      return '<span class="badge text-dark" style="background-color: ' + probabilityToRGB(prob) + '">' + name + " (" + prob + "%)</span>";
+    })
+    .join("");
+
+  return '<span class="badge text-dark" style="background-color: ' + probabilityToRGB(maxprob) + '">Edge ' + maxprob + "%</span>" + edgeoutput;
+}
+
+function iconPathForType(type, nodeData) {
+  const normalizedType = Array.isArray(type) ? String(type[0] || "") : String(type || "");
+  if (nodeData && nodeData.account_inactive) {
+    return "icons/no_accounts_black_48dp.svg";
+  }
+  return iconMap.get(normalizedType) || "icons/adalanche-logo.svg";
+}
+
+function rendericon(type, nodeData) {
+  const path = iconPathForType(type, nodeData);
+  return "<img src='" + path + "' width='24' height='24'>";
 }
 
 function rendernode(ele) {
-    s = rendericon(ele.attributes['type'][0]);
-    s += " " + renderlabel(ele.label);
-    return s
+  const type = Array.isArray(ele.attributes && ele.attributes.type) ? ele.attributes.type[0] : ele.type;
+  return rendericon(type, ele.attributes) + " " + renderlabel(ele.label || "");
 }
 
-// Object with values from AD and possibly other places
-function rendercard(data) {
-    var result = "<div>"
-    if (data.attributes["type"]) {
-        
-    }
-    for (var attr in data.attributes) {
-        result += "<tr><td>" + attr + "</td><td>"
-        attrvalues = data.attributes[attr]
-        for (var i in attrvalues) {
-            if (byIdValue("graphlabels", "normal") == "randomize") {
-                result += anonymizer.anonymize(attrvalues[i]) + "</br>";
-            } else {
-                result += attrvalues[i] + "</br>";
-            }
-        }
-        result += "</td></tr>"
-    }
-    result += "</table>"
-    return result
-}
-
-// Object with values from AD and possibly other places
 function renderdetails(data) {
-    if (window.DetailsLayouts && typeof window.DetailsLayouts.renderDetails === "function") {
-        return window.DetailsLayouts.renderDetails(data);
+  if (window.DetailsLayouts && typeof window.DetailsLayouts.renderDetails === "function") {
+    return window.DetailsLayouts.renderDetails(data);
+  }
+  var result = "<table>";
+  for (var attr in data.attributes) {
+    result += "<tr><td>" + attr + "</td><td>";
+    var attrvalues = data.attributes[attr];
+    for (var i in attrvalues) {
+      if (byIdValue("graphlabels", "normal") == "randomize") {
+        result += anonymizer.anonymize(attrvalues[i]) + "</br>";
+      } else {
+        result += attrvalues[i] + "</br>";
+      }
     }
-    var result = "<table>"
-    for (var attr in data.attributes) {
-        result += "<tr><td>" + attr + "</td><td>"
-        attrvalues = data.attributes[attr]
-        for (var i in attrvalues) {
-            if (byIdValue("graphlabels", "normal") == "randomize") {
-                result += anonymizer.anonymize(attrvalues[i]) + "</br>";
-            } else {
-                result += attrvalues[i] + "</br>";
-            }
-        }
-        result += "</td></tr>"
-    }
-    result += "</table>"
-    return result
+    result += "</td></tr>";
+  }
+  result += "</table>";
+  return result;
 }
 
-function edgeprobability(ele) {
-    if (ele.data("_maxprob")) {
-        return (ele.data("_maxprob"))
+function getNodeType(nodeData) {
+  return String(nodeData && nodeData.type ? nodeData.type : "");
+}
+
+function getNodeBaseColor(nodeData) {
+  const type = getNodeType(nodeData);
+  switch (type) {
+    case "Group":
+      return "#f59e0b";
+    case "Person":
+      return "#16a34a";
+    case "ms-DS-Managed-Service-Account":
+    case "ms-DS-Group-Managed-ServiceAccount":
+    case "ms-DS-Group-Managed-Service-Account":
+    case "Foreign-Security-Principal":
+    case "Service":
+    case "CallableService":
+    case "Executable":
+    case "Computer":
+      return "#90ee90";
+    case "Machine":
+      return "#0f766e";
+    case "Directory":
+    case "File":
+      return "#93c5fd";
+    case "Group-Policy-Container":
+      return "#9333ea";
+    case "Organizational-Unit":
+    case "Container":
+      return "#d1d5db";
+    case "PKI-Certificate-Template":
+    case "MS-PKI-Certificate-Template":
+      return "#f9a8d4";
+    default:
+      return translateAutoTheme(getpref("theme", "auto")) === "dark" ? "#6c757d" : "#8b949e";
+  }
+}
+
+function nodeThemeTextColor() {
+  return translateAutoTheme(getpref("theme", "auto")) === "dark" ? "white" : "black";
+}
+
+function graphTheme() {
+  const dark = translateAutoTheme(getpref("theme", "auto")) === "dark";
+  return {
+    node: {
+      label: byIdValue("nodelabels", "normal") !== "off",
+      backgroundImage: "data(iconFull)",
+      backgroundImageOpacity: 0.95,
+      color: dark ? "#f8f9fa" : "#0f172a",
+      fontSize: 11,
+      minZoomedFontSize: 6,
+      textHAlign: "center",
+      textVAlign: "top",
+      backgroundColor: dark ? "#6c757d" : "#94a3b8",
+    },
+    selectedNode: {
+      borderColor: dark ? "#f8f9fa" : "#111827",
+      shadowColor: "#0d6efd",
+    },
+    edge: {
+      width: 2,
+      lineColor: dark ? "#f8f9fa" : "#111827",
+      targetArrowColor: dark ? "#f8f9fa" : "#111827",
+      targetArrowShape: "triangle",
+      curveStyle: "straight",
+    },
+    hoveredEdge: {
+      label: byIdChecked("showedgelabels"),
+      color: dark ? "#e9ecef" : "#111827",
+      fontSize: 12,
+      textBackgroundColor: dark ? "#0f1216" : "#ffffff",
+      textBackgroundOpacity: 0.9,
+      textBackgroundPadding: 2,
+    },
+  };
+}
+
+function computeNodeVisualPatch(nodeData) {
+  const dark = translateAutoTheme(getpref("theme", "auto")) === "dark";
+  const patch = {
+    label: renderlabel(String(nodeData.label || "")),
+    color: getNodeBaseColor(nodeData),
+    iconFull: iconPathForType(getNodeType(nodeData), nodeData),
+    borderColor: "rgba(0,0,0,0)",
+    borderWidth: 0,
+    textColor: nodeThemeTextColor(),
+  };
+
+  if (nodeData && nodeData._canexpand) {
+    patch.color = "#fde047";
+  }
+  if (nodeData && (nodeData.reference === "start" || nodeData._querysource)) {
+    patch.borderColor = "#ef4444";
+    patch.borderWidth = 0.05;
+  }
+  if (nodeData && (nodeData.reference === "end" || nodeData._querytarget)) {
+    patch.borderColor = "#2563eb";
+    patch.borderWidth = 0.05;
+  }
+  if (graphState.targetNodeId && nodeData.id === graphState.targetNodeId) {
+    patch.borderColor = dark ? "#f8f9fa" : "#111827";
+    patch.borderWidth = 0.06;
+  }
+
+  return patch;
+}
+
+function getEdgeColor(data) {
+  var color = translateAutoTheme(getpref("theme", "auto")) === "dark" ? "#ffffff" : "#000000";
+  const methods = Array.isArray(data && data.methods) ? data.methods : [];
+  if (methods.includes("MemberOfGroup")) {
+    color = "#f59e0b";
+  } else if (methods.includes("MemberOfGroupIndirect")) {
+    color = "#f97316";
+  } else if (methods.includes("ForeignIdentity")) {
+    color = "#90ee90";
+  } else if (methods.includes("ResetPassword")) {
+    color = "#ef4444";
+  } else if (methods.includes("AddMember")) {
+    color = "#fde047";
+  } else if (methods.includes("TakeOwnership") || methods.includes("WriteDACL")) {
+    color = "#93c5fd";
+  } else if (methods.includes("Owns")) {
+    color = "#2563eb";
+  }
+  return color;
+}
+
+function clearHighlightedEdges() {
+  if (!graph) {
+    return;
+  }
+  for (const edgeId of graphState.highlightedEdgeIds.values()) {
+    const edgeData = graph.edgeData.get(edgeId);
+    if (!edgeData) {
+      continue;
     }
-    return -1
+    graph.updateEdgeData(edgeId, {
+      color: edgeData.baseColor || getEdgeColor(edgeData),
+      width: edgeData.baseWidth || 2,
+    });
+  }
+  graphState.highlightedEdgeIds.clear();
+}
+
+function applyEdgeStyles(targetGraph) {
+  if (!targetGraph) {
+    return;
+  }
+  targetGraph.batch(function () {
+    targetGraph.edgeIds().forEach(function (edgeId) {
+      const data = targetGraph.edgeData.get(edgeId);
+      if (!data) {
+        return;
+      }
+      const flow = Number(data.flow);
+      const edgeWidth = Number.isFinite(flow) && flow > 0 ? 1 + Math.log(flow) : 1;
+      const baseColor = getEdgeColor(data);
+      data.baseColor = baseColor;
+      data.baseWidth = edgeWidth;
+      targetGraph.updateEdgeData(edgeId, {
+        label: edgelabel(data),
+        color: baseColor,
+        width: edgeWidth,
+      });
+    });
+  });
+}
+
+function nodeDegreeMaps(targetGraph) {
+  const incoming = new Map();
+  const outgoing = new Map();
+  targetGraph.edgeIds().forEach((edgeId) => {
+    const endpoints = targetGraph.edgeEndpoints(edgeId);
+    incoming.set(endpoints.target, (incoming.get(endpoints.target) || 0) + 1);
+    outgoing.set(endpoints.source, (outgoing.get(endpoints.source) || 0) + 1);
+  });
+  return { incoming, outgoing };
+}
+
+function applyNodeStyles(targetGraph, nodestyleOverride) {
+  if (!targetGraph) {
+    return;
+  }
+  const nodestyle = nodestyleOverride || getpref("graph.nodesize", "incoming");
+  const degreeMaps = nodeDegreeMaps(targetGraph);
+  const counts = targetGraph.nodeIds().map((nodeId) => {
+    if (nodestyle === "outgoing") {
+      return degreeMaps.outgoing.get(nodeId) || 0;
+    }
+    if (nodestyle === "equal") {
+      return 0;
+    }
+    return degreeMaps.incoming.get(nodeId) || 0;
+  });
+  const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
+
+  targetGraph.batch(function () {
+    targetGraph.nodeIds().forEach(function (nodeId) {
+      const data = targetGraph.nodeData.get(nodeId);
+      if (!data) {
+        return;
+      }
+      const patch = computeNodeVisualPatch(data);
+      let size = 10;
+      if (nodestyle === "equal" || maxCount <= 0) {
+        size = 10;
+      } else {
+        const value = nodestyle === "outgoing" ? (degreeMaps.outgoing.get(nodeId) || 0) : (degreeMaps.incoming.get(nodeId) || 0);
+        size = normalize(value, 0, maxCount, 10, 24);
+      }
+      patch.renderSize = size;
+      targetGraph.updateNodeData(nodeId, patch);
+    });
+  });
+}
+
+function refreshGraphTheme() {
+  if (!graph) {
+    return;
+  }
+  graph.setThemeConfig(graphTheme());
+  applyNodeStyles(graph, byIdValue("nodesizes", getpref("graph.nodesize", "incoming")));
+  applyEdgeStyles(graph);
+  if (!byIdChecked("showedgelabels")) {
+    graph.clearHoveredEdges();
+  }
+}
+
+function hideGraphContextMenu() {
+  if (!graphState.contextMenu) {
+    return;
+  }
+  graphState.contextMenu.style.display = "none";
+  graphState.contextMenu.innerHTML = "";
+}
+
+function ensureGraphContextMenu() {
+  if (graphState.contextMenu) {
+    return graphState.contextMenu;
+  }
+  const menu = document.createElement("div");
+  menu.id = "graph-context-menu";
+  menu.className = "graph-context-menu card";
+  menu.style.display = "none";
+  document.body.appendChild(menu);
+  graphState.contextMenu = menu;
+  return menu;
+}
+
+function openGraphContextMenu(items, x, y) {
+  const menu = ensureGraphContextMenu();
+  menu.innerHTML = "";
+  items.forEach((item) => {
+    if (!item.show) {
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "dropdown-item";
+    button.textContent = item.label;
+    button.addEventListener("click", function () {
+      hideGraphContextMenu();
+      item.onClick();
+    });
+    menu.appendChild(button);
+  });
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.style.display = "";
+}
+
+function graphNodeData(nodeId) {
+  return graph && graph.nodeData ? graph.nodeData.get(String(nodeId || "")) : null;
+}
+
+function graphEdgeData(edgeId) {
+  return graph && graph.edgeData ? graph.edgeData.get(String(edgeId || "")) : null;
+}
+
+function graphNodeHtml(nodeId, fallbackLabel) {
+  const nodeData = graphNodeData(nodeId) || {};
+  return rendericon(getNodeType(nodeData), nodeData) + " " + renderlabel(String(nodeData.label || fallbackLabel || nodeId));
+}
+
+function showNodeDetails(nodeId) {
+  fetchJSONOrThrow("api/details/id/" + String(nodeId).substring(1))
+    .then(function (data) {
+      let windowname = "details_" + nodeId;
+      if (getpref("ui.open.details.in.same.window", true)) {
+        windowname = "node_details";
+      }
+      new_window(windowname, rendernode(data), renderdetails(data));
+    })
+    .catch(function (err) {
+      new_window("details", "Node details", graphNodeHtml(nodeId, nodeId) + "<div>Couldn't load details:" + err.message + "</div>");
+    });
+}
+
+function showEdgeDetails(edgeId) {
+  const edgeData = graphEdgeData(edgeId);
+  if (!edgeData) {
+    return;
+  }
+  fetchJSONOrThrow("api/edges/id/" + String(edgeData.source).substring(1) + "," + String(edgeData.target).substring(1))
+    .then(function (data) {
+      let windowname = "edge_" + edgeData.source + "_to_" + edgeData.target;
+      if (getpref("ui.open.details.in.same.window", true)) {
+        windowname = "edge_details";
+      }
+      new_window(
+        windowname,
+        "Edge from " + renderlabel(data[0].from.label) + " to " + renderlabel(data[0].to.label),
+        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges) + "<br>" + rendernode(data[0].to)
+      );
+    })
+    .catch(function (err) {
+      toast("Error loading edge details", err.message, "error");
+    });
+}
+
+function setRouteTarget(nodeId) {
+  graphState.targetNodeId = String(nodeId || "");
+  refreshGraphTheme();
+}
+
+function probabilityWeight(edgeData) {
+  const maxprobability = Number(edgeData && edgeData._maxprob);
+  if (Number.isFinite(maxprobability) && maxprobability > 0) {
+    return 101 - maxprobability;
+  }
+  return 1;
+}
+
+function shortestPath(sourceId, targetId) {
+  if (!graph) {
+    return null;
+  }
+
+  const distances = new Map();
+  const previousNode = new Map();
+  const previousEdge = new Map();
+  const queue = new Set(graph.nodeIds());
+  graph.nodeIds().forEach((nodeId) => distances.set(nodeId, Number.POSITIVE_INFINITY));
+  distances.set(sourceId, 0);
+
+  while (queue.size > 0) {
+    let current = "";
+    let bestDistance = Number.POSITIVE_INFINITY;
+    queue.forEach((nodeId) => {
+      const distance = distances.get(nodeId);
+      if (distance < bestDistance) {
+        current = nodeId;
+        bestDistance = distance;
+      }
+    });
+    if (!current) {
+      break;
+    }
+    queue.delete(current);
+    if (current === targetId) {
+      break;
+    }
+
+    graph.edgeIds().forEach((edgeId) => {
+      const edgeData = graphEdgeData(edgeId);
+      if (!edgeData || edgeData.source !== current || !queue.has(edgeData.target)) {
+        return;
+      }
+      const nextDistance = bestDistance + probabilityWeight(edgeData);
+      if (nextDistance < (distances.get(edgeData.target) || Number.POSITIVE_INFINITY)) {
+        distances.set(edgeData.target, nextDistance);
+        previousNode.set(edgeData.target, current);
+        previousEdge.set(edgeData.target, edgeId);
+      }
+    });
+  }
+
+  if (!previousNode.has(targetId)) {
+    return null;
+  }
+
+  const pathNodes = [targetId];
+  const pathEdges = [];
+  let cursor = targetId;
+  while (cursor !== sourceId) {
+    pathEdges.unshift(previousEdge.get(cursor));
+    cursor = previousNode.get(cursor);
+    pathNodes.unshift(cursor);
+  }
+  return { pathNodes, pathEdges };
+}
+
+function selectGraphNodes(nodeIds) {
+  clearHighlightedEdges();
+  graphState.selectedNodeIds = Array.isArray(nodeIds) ? nodeIds.filter(Boolean) : [];
+  if (graph) {
+    graph.setSelectedNodeIDs(graphState.selectedNodeIds);
+  }
+}
+
+function highlightGraphRoute(pathEdges) {
+  clearHighlightedEdges();
+  pathEdges.forEach((edgeId) => {
+    const edgeData = graphEdgeData(edgeId);
+    if (!edgeData) {
+      return;
+    }
+    graph.updateEdgeData(edgeId, {
+      color: "#0d6efd",
+      width: Math.max(Number(edgeData.baseWidth || 2), 4),
+    });
+    graphState.highlightedEdgeIds.add(edgeId);
+  });
+}
+
+function findroute(sourceId) {
+  if (!graphState.targetNodeId) {
+    toast("No target node found", "error");
+    return;
+  }
+
+  const result = shortestPath(String(sourceId || ""), graphState.targetNodeId);
+  if (!result) {
+    toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets. You might also have chosen the source and target in the wrong direction?", "warning");
+    return;
+  }
+
+  selectGraphNodes(result.pathNodes);
+  highlightGraphRoute(result.pathEdges);
+
+  let pathprobability = 1.0;
+  result.pathEdges.forEach((edgeId) => {
+    const edgeData = graphEdgeData(edgeId);
+    if (edgeData && edgeData._maxprob) {
+      pathprobability *= Number(edgeData._maxprob) / 100;
+    }
+  });
+  pathprobability *= 100;
+
+  const routecontents = result.pathNodes.map((nodeId) => String(nodeId).substring(1)).join(",");
+  fetchJSONOrThrow("/api/edges/id/" + routecontents)
+    .then(function (data) {
+      let output = "";
+      for (var i = 0; i < data.length; i++) {
+        output += rendericon(data[i].from.attributes["type"], data[i].from.attributes) + renderlabel(data[i].from.label) + "<br>";
+        output += renderedges(data[i].edges) + "<br>";
+        if (i == data.length - 1) {
+          output += rendericon(data[i].to.attributes["type"], data[i].to.attributes) + renderlabel(data[i].to.label);
+        }
+      }
+
+      new_window(
+        "route_" + sourceId + "_" + graphState.targetNodeId,
+        "Route from " + renderlabel(data[0].from.label) + " to " + renderlabel(data[data.length - 1].to.label) + " - " + pathprobability.toFixed(2) + "% probability",
+        output
+      );
+    })
+    .catch(function (err) {
+      toast("Error loading route details", err.message, "error");
+    });
+}
+
+function openNodeContextMenu(nodeId, clientX, clientY) {
+  const nodeData = graphNodeData(nodeId) || {};
+  openGraphContextMenu(
+    [
+      {
+        label: "Set as route target",
+        show: true,
+        onClick: function () {
+          setRouteTarget(nodeId);
+        },
+      },
+      {
+        label: "Plot route to target",
+        show: true,
+        onClick: function () {
+          findroute(nodeId);
+        },
+      },
+      {
+        label: "Expand node",
+        show: Number(nodeData._canexpand) > 0,
+        onClick: function () {
+          expandNode(nodeId);
+        },
+      },
+      {
+        label: "What can this node reach?",
+        show: true,
+        onClick: function () {
+          runReachabilityQuery(nodeId, "outbound");
+        },
+      },
+      {
+        label: "Who can reach this node?",
+        show: true,
+        onClick: function () {
+          runReachabilityQuery(nodeId, "inbound");
+        },
+      },
+    ],
+    clientX,
+    clientY
+  );
+}
+
+function runReachabilityQuery(nodeId, direction) {
+  fetchJSONOrThrow("api/details/id/" + String(nodeId).substring(1))
+    .then(function (data) {
+      if (data.attributes["distinguishedName"]) {
+        set_query(direction === "outbound" ? "start:(distinguishedname=" + data.attributes["distinguishedName"] + ")-[]{1,3}->end:()" : "start:(distinguishedname=" + data.attributes["distinguishedName"] + ")<-[]{1,3}-end:()");
+      } else if (data.attributes["objectSid"]) {
+        set_query(direction === "outbound" ? "start:(objectSid=" + data.attributes["objectSid"] + ")-[]{1,3}->end:()" : "start:(objectSid=" + data.attributes["objectSid"] + ")<-[]{1,3}-end:()");
+      } else if (data.attributes["objectGuid"]) {
+        set_query(direction === "outbound" ? "start:(objectGuid=" + data.attributes["objectGuid"] + ")-[]{1,3}->end:()" : "start:(objectGuid=" + data.attributes["objectGuid"] + ")<-[]{1,3}-end:()");
+      } else {
+        set_query(direction === "outbound" ? "start:(_id=" + String(nodeId).substring(1) + ")-[]{1,3}->end:()" : "start:(_id=" + String(nodeId).substring(1) + ")<-[]{1,3}-end:()");
+      }
+      aqlanalyze();
+    })
+    .catch(function () {
+      toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
+    });
+}
+
+function expandNode(nodeId) {
+  const nodeData = graphNodeData(nodeId);
+  if (!nodeData) {
+    return;
+  }
+  const expanddata = serializeFormsToObject("#ldapqueryform, #optionsform");
+  expanddata.expanddn = nodeData.distinguishedName;
+
+  fetchJSONOrThrow("cytograph.json", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(expanddata),
+  })
+    .then(function (data) {
+      const elements = transformGraphElements(data.elements || []);
+      graph.add(elements);
+      graph.updateNodeData(nodeId, { _canexpand: 0 });
+      refreshGraphTheme();
+      runSelectedGraphLayout();
+    })
+    .catch(function (err) {
+      const statusEl = document.getElementById("status");
+      if (statusEl) {
+        statusEl.innerHTML = "Problem loading graph:<br>" + err.message;
+        statusEl.style.display = "";
+      }
+    });
+}
+
+function bindGraphEvents() {
+  graph.onNodeClick(function (evt) {
+    hideGraphContextMenu();
+    if (evt.originalEvent && (evt.originalEvent.altKey || evt.originalEvent.ctrlKey || evt.originalEvent.shiftKey)) {
+      return;
+    }
+    selectGraphNodes([evt.nodeId]);
+    graphState.selectedEdgeId = "";
+    showNodeDetails(evt.nodeId);
+  });
+
+  graph.onEdgeClick(function (evt) {
+    hideGraphContextMenu();
+    graphState.selectedEdgeId = evt.edgeId;
+    selectGraphNodes([]);
+    clearHighlightedEdges();
+    showEdgeDetails(evt.edgeId);
+  });
+
+  graph.onBackgroundClick(function () {
+    hideGraphContextMenu();
+    graphState.selectedEdgeId = "";
+    selectGraphNodes([]);
+  });
+
+  graph.onNodeContextMenu(function (evt) {
+    const client = evt.clientPosition || { x: 0, y: 0 };
+    openNodeContextMenu(evt.nodeId, Number(client.x || 0), Number(client.y || 0));
+  });
+
+  graph.onEdgeContextMenu(function () {
+    hideGraphContextMenu();
+  });
+
+  graph.onEdgeHoverChanged(function (evt) {
+    if (!byIdChecked("showedgelabels")) {
+      graph.clearHoveredEdges();
+      return;
+    }
+    graph.setEdgeHovered(evt.edgeId, !!evt.hovered);
+  });
+}
+
+function transformGraphElements(elements) {
+  return (Array.isArray(elements) ? elements : []).map((item) => {
+    const data = { ...(item.data || {}) };
+    if (!data.id) {
+      return item;
+    }
+    if (!data.source && !data.target) {
+      data.iconFull = iconPathForType(getNodeType(data), data);
+      data.color = getNodeBaseColor(data);
+      data.label = String(data.label || data.id);
+    }
+    return {
+      group: item.group,
+      data,
+      position: item.position,
+    };
+  });
+}
+
+function createAdalancheGraph(elements) {
+  const container = document.getElementById("cy");
+  if (!container || typeof window.createWorkspaceSigmaGraph !== "function") {
+    throw new Error("Sigma graph runtime is not available");
+  }
+  if (graph && typeof graph.kill === "function") {
+    graph.kill();
+  }
+  hideGraphContextMenu();
+  graphState.targetNodeId = "";
+  graphState.selectedNodeIds = [];
+  graphState.selectedEdgeId = "";
+  graphState.highlightedEdgeIds.clear();
+
+  graph = window.graph = window.createWorkspaceSigmaGraph({
+    container,
+    elements: transformGraphElements(elements),
+    iconMinZoom: 0,
+    iconMinScreenSize: 12,
+    theme: graphTheme(),
+  });
+  graphDebugLog("create-graph", {
+    elementCount: Array.isArray(elements) ? elements.length : 0,
+    nodeCount: typeof graph.nodeIds === "function" ? graph.nodeIds().length : 0,
+    edgeCount: typeof graph.edgeIds === "function" ? graph.edgeIds().length : 0,
+  });
+  bindGraphEvents();
+  refreshGraphTheme();
+  return graph;
+}
+
+function selectedGraphLayout() {
+  const preferred = String(getpref(GRAPH_LAYOUT_PREF, DEFAULT_GRAPH_LAYOUT) || "").trim();
+  const select = graphLayoutSelect();
+  if (preferred) {
+    return preferred;
+  }
+  if (select && select.value) {
+    return select.value;
+  }
+  return preferred || DEFAULT_GRAPH_LAYOUT;
+}
+
+function syncGraphLayoutSelection(layoutKey) {
+  const key = String(layoutKey || "").trim() || DEFAULT_GRAPH_LAYOUT;
+  const select = graphLayoutSelect();
+  if (select && select.value !== key) {
+    select.value = key;
+  }
+  setpref(GRAPH_LAYOUT_PREF, key);
+}
+
+function updateGraphLayoutChoices() {
+  const select = graphLayoutSelect();
+  if (!select) {
+    return;
+  }
+  const currentValue = String(selectedGraphLayout() || DEFAULT_GRAPH_LAYOUT);
+  const definitions = graphLayoutDefinitions();
+  select.innerHTML = "";
+  Object.values(definitions).forEach((definition) => {
+    const option = document.createElement("option");
+    option.value = definition.key;
+    option.textContent = definition.label || definition.key;
+    select.appendChild(option);
+  });
+  if (definitions[currentValue]) {
+    select.value = currentValue;
+    return;
+  }
+  const firstLayout = Object.keys(definitions)[0] || DEFAULT_GRAPH_LAYOUT;
+  const fallback = definitions[DEFAULT_GRAPH_LAYOUT] ? DEFAULT_GRAPH_LAYOUT : firstLayout;
+  select.value = fallback;
+  setpref(GRAPH_LAYOUT_PREF, fallback);
+}
+
+function layoutOptionDisplayValue(option, value) {
+  if (option.type === "boolean") {
+    return value ? "On" : "Off";
+  }
+  if (!Number.isFinite(Number(value))) {
+    return "";
+  }
+  const numericValue = Number(value);
+  if (option.unit) {
+    return `${numericValue}${option.unit}`;
+  }
+  return `${numericValue}`;
+}
+
+function renderGraphLayoutOptions() {
+  const root = graphLayoutOptionsRoot();
+  if (!root) {
+    return;
+  }
+  const layoutKey = selectedGraphLayout();
+  const definition = graphLayoutDefinition(layoutKey);
+  root.innerHTML = "";
+  if (!definition) {
+    return;
+  }
+
+  if (definition.description) {
+    const description = document.createElement("div");
+    description.className = "form-text mb-2";
+    description.textContent = definition.description;
+    root.appendChild(description);
+  }
+
+  if (!Array.isArray(definition.options) || definition.options.length === 0) {
+    return;
+  }
+
+  const values = ensureLayoutOptionDefaults(layoutKey);
+  definition.options.forEach((option) => {
+    if (!option || !option.key) {
+      return;
+    }
+    const wrapper = document.createElement("div");
+    wrapper.className = "d-flex align-items-center gap-2 mb-2";
+
+    const label = document.createElement("label");
+    label.className = "form-label mb-0 text-truncate flex-shrink-0";
+    label.style.width = "7rem";
+    label.htmlFor = `graphlayoutoption_${layoutKey}_${option.key}`;
+    label.textContent = option.label || option.key;
+    if (option.description) {
+      label.setAttribute("data-bs-toggle", "tooltip");
+      label.setAttribute("data-bs-placement", "top");
+      label.setAttribute("data-bs-title", option.description);
+      label.style.cursor = "help";
+    }
+    wrapper.appendChild(label);
+
+    if (option.type === "boolean") {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "form-check-input";
+      input.id = `graphlayoutoption_${layoutKey}_${option.key}`;
+      input.checked = !!values[option.key];
+      input.addEventListener("change", () => {
+        const allValues = graphLayoutOptionValues();
+        const layoutValues = ensureLayoutOptionDefaults(layoutKey);
+        layoutValues[option.key] = input.checked;
+        allValues[layoutKey] = layoutValues;
+        persistGraphLayoutOptionValues(allValues);
+        scheduleLayoutRerun(0);
+      });
+      wrapper.appendChild(input);
+      const valueEl = document.createElement("span");
+      valueEl.className = "small text-body-secondary ms-auto flex-shrink-0";
+      valueEl.textContent = layoutOptionDisplayValue(option, input.checked);
+      wrapper.appendChild(valueEl);
+      input.addEventListener("change", () => {
+        valueEl.textContent = layoutOptionDisplayValue(option, input.checked);
+      });
+      installTooltip(label);
+      root.appendChild(wrapper);
+      return;
+    }
+
+    const input = document.createElement("input");
+    input.type = option.type === "range" ? "range" : "number";
+    input.className = option.type === "range" ? "form-range flex-grow-1 mb-0" : "form-control flex-grow-1";
+    input.id = `graphlayoutoption_${layoutKey}_${option.key}`;
+    if (typeof option.min === "number") {
+      input.min = String(option.min);
+    }
+    if (typeof option.max === "number") {
+      input.max = String(option.max);
+    }
+    if (typeof option.step === "number") {
+      input.step = String(option.step);
+    }
+    input.value = String(values[option.key]);
+    wrapper.appendChild(input);
+
+    const valueEl = document.createElement("span");
+    valueEl.className = "small text-body-secondary text-end flex-shrink-0";
+    valueEl.style.minWidth = "3.5rem";
+    valueEl.textContent = layoutOptionDisplayValue(option, values[option.key]);
+    wrapper.appendChild(valueEl);
+
+    input.addEventListener("input", () => {
+      const allValues = graphLayoutOptionValues();
+      const layoutValues = ensureLayoutOptionDefaults(layoutKey);
+      const nextValue = coerceLayoutOptionValue(option, input.value);
+      layoutValues[option.key] = nextValue;
+      allValues[layoutKey] = layoutValues;
+      persistGraphLayoutOptionValues(allValues);
+      valueEl.textContent = layoutOptionDisplayValue(option, nextValue);
+      scheduleLayoutRerun(option.type === "range" ? 180 : 0);
+    });
+    installTooltip(label);
+    root.appendChild(wrapper);
+  });
+}
+
+function setGraphLayoutDefinitions(layouts) {
+  graphState.layoutDefinitions = {};
+  (Array.isArray(layouts) ? layouts : []).forEach((layout) => {
+    if (!layout || !layout.key) {
+      return;
+    }
+    graphState.layoutDefinitions[layout.key] = layout;
+    ensureLayoutOptionDefaults(layout.key);
+  });
+  updateGraphLayoutChoices();
+  renderGraphLayoutOptions();
+}
+
+function applyLayoutPositions(targetGraph, positions, fitGraph) {
+  graphDebugLog("apply-layout-positions:start", {
+    fitGraph: !!fitGraph,
+    summary: graphPositionSummary(positions),
+  });
+  if (typeof targetGraph.clearCustomBBox === "function") {
+    targetGraph.clearCustomBBox();
+  }
+  targetGraph.batch(function () {
+    Object.entries(positions || {}).forEach(([id, pos]) => {
+      targetGraph.setNodePosition(id, pos, { markDirty: false });
+    });
+  });
+  if (typeof targetGraph.rebuildGraph === "function") {
+    targetGraph.rebuildGraph();
+  }
+  targetGraph.refresh();
+  if (fitGraph) {
+    targetGraph.fit(undefined, 30);
+  }
+  graphDebugLog("apply-layout-positions:end", {
+    bbox: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+    customBBox: targetGraph.customBBox || null,
+  });
+}
+
+function graphNeedsSeedLayout(targetGraph) {
+  if (!targetGraph || typeof targetGraph.boundingBox !== "function") {
+    return false;
+  }
+  const bbox = targetGraph.boundingBox();
+  return !!bbox && bbox.w === 0 && bbox.h === 0;
+}
+
+function seedGraphLayout(targetGraph) {
+  if (!targetGraph || typeof targetGraph.nodeIds !== "function") {
+    return;
+  }
+  const ids = targetGraph.nodeIds();
+  if (!ids.length) {
+    return;
+  }
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const spacing = ids.length > 5000 ? 18 : 24;
+  targetGraph.batch(function () {
+    ids.forEach(function (id, index) {
+      const radius = spacing * Math.sqrt(index + 1);
+      const angle = index * goldenAngle;
+      targetGraph.setNodePosition(id, {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      }, { markDirty: false });
+    });
+  });
+  graphDebugLog("seed-layout", {
+    nodeCount: ids.length,
+    bboxAfterSeed: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+  });
+  if (typeof targetGraph.rebuildGraph === "function") {
+    targetGraph.rebuildGraph();
+  }
+  targetGraph.refresh();
+  if (typeof targetGraph.fit === "function") {
+    targetGraph.fit(undefined, 30);
+  }
+}
+
+function stopActiveGraphLayout() {
+  if (graphState.activeLayoutAbort) {
+    graphState.activeLayoutAbort.abort();
+    graphState.activeLayoutAbort = null;
+  }
+}
+
+async function runWasmLayout(targetGraph, layoutKey) {
+  if (!graphState.layoutConnector || !graphState.layoutConnectorReady) {
+    graphDebugLog("run-wasm-layout:connector-missing", {
+      layoutKey,
+      hasConnector: !!graphState.layoutConnector,
+      ready: !!graphState.layoutConnectorReady,
+    });
+    throw new Error("WASM layout connector is not available");
+  }
+  if (graphNeedsSeedLayout(targetGraph)) {
+    seedGraphLayout(targetGraph);
+  }
+  const options = layoutOptionsForLayout(layoutKey);
+  const controller = new AbortController();
+  graphState.activeLayoutAbort = controller;
+  try {
+    const definition = graphLayoutDefinition(layoutKey);
+    const supportsAnimation = !!(definition && definition.supports_animation);
+    graphDebugLog("run-wasm-layout:start", {
+      layoutKey,
+      supportsAnimation,
+      nodeCount: typeof targetGraph.nodeIds === "function" ? targetGraph.nodeIds().length : 0,
+      edgeCount: typeof targetGraph.edgeIds === "function" ? targetGraph.edgeIds().length : 0,
+      bbox: typeof targetGraph.boundingBox === "function" ? targetGraph.boundingBox() : null,
+    });
+    if (supportsAnimation) {
+      const finalFrame = await graphState.layoutConnector.animate(
+        targetGraph,
+        layoutKey,
+        options,
+        { intervalMs: 80, stepsPerFrame: 16 },
+        controller.signal,
+        (frame) => applyLayoutPositions(targetGraph, frame.positions, false)
+      );
+      applyLayoutPositions(targetGraph, finalFrame.positions, true);
+      graphDebugLog("run-wasm-layout:done", {
+        layoutKey,
+        summary: graphPositionSummary(finalFrame.positions),
+      });
+      return;
+    }
+    const result = await graphState.layoutConnector.run(targetGraph, layoutKey, options, controller.signal);
+    applyLayoutPositions(targetGraph, result.positions, true);
+    graphDebugLog("run-wasm-layout:done", {
+      layoutKey,
+      summary: graphPositionSummary(result.positions),
+    });
+  } finally {
+    if (graphState.activeLayoutAbort === controller) {
+      graphState.activeLayoutAbort = null;
+    }
+  }
+}
+
+async function runSelectedGraphLayout() {
+  if (!graph) {
+    return;
+  }
+  graphState.layoutRunToken += 1;
+  const runToken = graphState.layoutRunToken;
+  const layoutKey = selectedGraphLayout();
+  stopActiveGraphLayout();
+  graphState.layoutPending = false;
+  graphDebugLog("run-selected-layout:start", {
+    runToken,
+    layoutKey,
+    connectorReady: !!graphState.layoutConnectorReady,
+    hasConnector: !!graphState.layoutConnector,
+  });
+  busystatus("Running graph layout");
+  try {
+    if (!isWasmLayout(layoutKey)) {
+      throw new Error(`Unsupported layout: ${layoutKey}`);
+    }
+    await runWasmLayout(graph, layoutKey);
+  } catch (err) {
+    graphDebugLog("run-selected-layout:error", {
+      runToken,
+      layoutKey,
+      error: err && err.message ? err.message : String(err),
+    });
+    toast("Graph layout failed", err && err.message ? err.message : String(err), "error");
+  } finally {
+    graphDebugLog("run-selected-layout:finish", {
+      runToken,
+      layoutKey,
+      bbox: typeof graph?.boundingBox === "function" ? graph.boundingBox() : null,
+      pending: !!graphState.layoutPending,
+    });
+    if (graphState.layoutRunToken === runToken) {
+      const statusEl = document.getElementById("status");
+      if (statusEl) {
+        statusEl.style.display = "none";
+      }
+    }
+  }
+}
+
+function initGraphLayoutUI() {
+  updateGraphLayoutChoices();
+  syncGraphLayoutSelection(selectedGraphLayout());
+  renderGraphLayoutOptions();
+
+  const select = graphLayoutSelect();
+  if (select) {
+    select.addEventListener("change", () => {
+      syncGraphLayoutSelection(select.value);
+      renderGraphLayoutOptions();
+      if (window.graph) {
+        runSelectedGraphLayout();
+      }
+    });
+  }
+
+  if (typeof window.createAdalancheLayoutConnector !== "function") {
+    setGraphLayoutStatus("WASM layout connector script is not available.", true);
+    return;
+  }
+
+  const workerCount = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+  graphState.layoutConnector = window.createAdalancheLayoutConnector({
+    workerURL: `sigma/layout-worker.js?v=${encodeURIComponent(LAYOUT_ASSET_VERSION)}`,
+    workerCount,
+  });
+
+  graphState.layoutConnector.init()
+    .then((payload) => {
+      graphState.layoutConnectorReady = true;
+      setGraphLayoutDefinitions(payload && payload.layouts ? payload.layouts : []);
+      graphDebugLog("layout-connector:ready", {
+        layoutCount: Object.keys(graphLayoutDefinitions()).length,
+        pending: !!graphState.layoutPending,
+        hasGraph: !!graph,
+      });
+      const currentLayout = selectedGraphLayout();
+      if (!graphLayoutDefinition(currentLayout)) {
+        syncGraphLayoutSelection(DEFAULT_GRAPH_LAYOUT);
+        renderGraphLayoutOptions();
+      }
+      if (graph && (graphState.layoutPending || graphNeedsSeedLayout(graph))) {
+        runSelectedGraphLayout();
+      }
+    })
+    .catch((err) => {
+      graphState.layoutConnectorReady = false;
+      graphDebugLog("layout-connector:error", {
+        error: err && err.message ? err.message : String(err),
+      });
+      toast(
+        "Graph layouts unavailable",
+        err && err.message ? err.message : String(err),
+        "error"
+      );
+    });
 }
 
 function initgraph(data) {
-    cy = window.cy = cytoscape({
-      container: document.getElementById("cy"),
-      wheelSensitivity: 0.2,
-
-      renderer: {
-        name: "canvas", // still uses the canvas renderer
-        webgl: false, // turns on WebGL mode, beta, node selection etc does not work :-(
-        showFps: false,
-      },
+  createAdalancheGraph(data);
+  graphDebugLog("initgraph", {
+    connectorReady: !!graphState.layoutConnectorReady,
+    hasConnector: !!graphState.layoutConnector,
+  });
+  if (!graphState.layoutConnectorReady) {
+    graphState.layoutPending = true;
+    busystatus("Running graph layout");
+    seedGraphLayout(graph);
+    graphDebugLog("initgraph:seed-pending", {
+      bbox: typeof graph.boundingBox === "function" ? graph.boundingBox() : null,
     });
-
-    cy.style(cytostyle);
-
-    cy.ready(function () {
-        busystatus("Rendering graph");
-        nodemenu = cy.contextMenus({
-            // Customize event to bring up the context menu
-            // Possible options https://js.cytoscape.org/#events/user-input-device-events
-            evtType: 'cxttapstart',
-            // List of initial menu items
-            // A menu item must have either onClickFunction or submenu or both
-            menuItems: [{
-                id: 'target', // ID of menu item
-                content: 'Set as route target', // Display content of menu item
-                tooltipText: 'Node is set as target of routing operation', // Tooltip text for menu item
-                // image: {src : "remove.svg", width : 12, height : 12, x : 6, y : 4}, // menu icon
-                // Filters the elements to have this menu item on cxttap
-                // If the selector is not truthy no elements will have this menu item on cxttap
-                selector: 'node',
-                onClickFunction: function (event) { // The function to be executed on click
-                    // console.log("Toggling target: ", ele.id()); // `ele` holds the reference to the active element
-                    cy.$("node.target").toggleClass("target")
-                    event.target.toggleClass("target")
-                    nodemenu.enableMenuItem("source")
-                },
-                disabled: false, // Whether the item will be created as disabled
-                show: true, // Whether the item will be shown or not
-                hasTrailingDivider: false, // Whether the item will have a trailing divider
-                coreAsWell: false // Whether core instance have this item on cxttap
-            },
-            {
-                id: 'source',
-                content: 'Plot route to target',
-                tooltipText: 'Find shortest route to target selected previously',
-                selector: 'node',
-                onClickFunction: function (event) {
-                    findroute(event.target);
-                },
-                hasTrailingDivider: true, // Whether the item will have a trailing divider
-            },
-            {
-                id: 'expand', // ID of menu item
-                content: 'Expand node', // Display content of menu item
-                tooltipText: 'Load missing edges and nodes', // Tooltip text for menu item
-                // image: {src : "remove.svg", width : 12, height : 12, x : 6, y : 4}, // menu icon
-                // Filters the elements to have this menu item on cxttap
-                // If the selector is not truthy no elements will have this menu item on cxttap
-                selector: 'node[_canexpand>0]',
-                onClickFunction: function (event) { // The function to be executed on click
-                    const expanddata = serializeFormsToObject("#ldapqueryform, #optionsform");
-                    expanddata.expanddn = event.target.attr("distinguishedName");
-
-                    fetchJSONOrThrow("cytograph.json", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json; charset=utf-8" },
-                      body: JSON.stringify(expanddata),
-                    })
-                      .then(function (data) {
-                        neweles = cy.add(data.elements)
-                        replaceele = neweles.getElementById(event.target.attr("id"))
-                        cy.elements().merge(neweles) // merge adds what is missing
-                        cy.elements().add(replaceele) // then we forcibly update the old object
-
-                        event.target.removeData('_canexpand')
-
-                        // Apply layout again
-                        getGraphlayout(byIdValue("graphlayout", "remotev2")).run()
-                      })
-                      .catch(function (err) {
-                        const statusEl = document.getElementById("status");
-                        if (statusEl) {
-                          statusEl.innerHTML = "Problem loading graph:<br>" + err.message;
-                          statusEl.style.display = "";
-                        }
-                      });
-
-
-                },
-                hasTrailingDivider: true, // Whether the item will have a trailing divider
-            },
-            {
-                id: 'whatcanipwn',
-                content: 'What can this node reach?',
-                tooltipText: 'Does reverse search on this node (clears graph)',
-                selector: 'node',
-                onClickFunction: function (evt) {
-                    fetchJSONOrThrow("api/details/id/" + evt.target.id().substring(1))
-                        .then(function (data) {
-                            if (data.attributes["distinguishedName"]) {
-                                set_query(
-                                  "start:(distinguishedname=" +
-                                    data.attributes["distinguishedName"] +
-                                    ")-[]{1,3}->end:()"
-                                );
-                            } else if (data.attributes["objectSid"]) {
-                                set_query(
-                                  "start:(objectSid=" +
-                                    data.attributes["objectSid"] +
-                                    ")-[]{1,3}->end:()"
-                                );
-                            } else if (data.attributes["objectGuid"]) {
-                                set_query(
-                                  "start:(objectGuid=" +
-                                    data.attributes["objectGuid"] +
-                                    ")-[]{1,3}->end:()"
-                                );
-                            } else {
-                                set_query(
-                                  "start:(_id=" +
-                                    evt.target.id().substring(1) +
-                                    ")-[]{1,3}->end:()"
-                                );
-                            }
-
-                            aqlanalyze();
-                        })
-                        .catch(function () {
-                            toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
-                        });
-                }
-            },
-            {
-                id: 'whocanpwn',
-                content: 'Who can reach this node?',
-                tooltipText: 'Does incoming search for this node (clears graph)',
-                selector: 'node',
-                onClickFunction: function (evt) {
-                    fetchJSONOrThrow("api/details/id/" + evt.target.id().substring(1))
-                        .then(function (data) {
-                            if (data.attributes["distinguishedName"]) {
-                                set_query(
-                                  "start:(distinguishedname=" +
-                                    data.attributes["distinguishedName"] +
-                                    ")<-[]{1,3}-end:()"
-                                );
-                            } else if (data.attributes["objectSid"]) {
-                                set_query(
-                                  "start:(objectSid=" +
-                                    data.attributes["objectSid"] +
-                                    ")<-[]{1,3}-end:()"
-                                );
-                            } else if (data.attributes["objectGuid"]) {
-                                set_query(
-                                  "start:(objectGuid=" +
-                                    data.attributes["objectGuid"] +
-                                    ")<-[]{1,3}-end:()"
-                                );
-                            } else {
-                                set_query(
-                                  "start:(_id=" +
-                                    evt.target.id().substring(1) +
-                                    ")<-[]{1,3}-end:()"
-                                );
-                            }
-
-                            aqlanalyze();
-                        })
-                        .catch(function () {
-                            toast("Node not found in backend", "There was a problem doing node lookup in the backend.");
-                        });
-                },
-            }
-            ],
-            // css classes that menu items will have
-            menuItemClasses: [
-                // add class names to this list
-                "bg-primary"
-            ],
-            // css classes that context menu will have
-            contextMenuClasses: [
-                // add class names to this list
-            ],
-            // Indicates that the menu item has a submenu. If not provided default one will be used
-            submenuIndicator: { src: 'submenu-indicator-default.svg', width: 12, height: 12 }
-        });
-
-        cy.on('click', 'node', function (evt) {
-            // console.log('clicked node ' + this.id());
-            // console.log(evt);
-            if (evt.originalEvent.altKey || evt.originalEvent.ctrlKey || evt.originalEvent.shiftKey) {
-              return;
-            }
-
-            id = evt.target.id().substring(1);
-            fetchJSONOrThrow("api/details/id/" + id)
-                .then(function (data) {
-                    windowname = "details_" + id;
-                    if (getpref("ui.open.details.in.same.window", true)) {
-                      windowname = "node_details";
-                    }
-                    new_window(windowname, rendernode(data), renderdetails(data));
-                })
-                .catch(function (err) {
-                    new_window("details", "Node details", rendernode(evt.target) + "<div>Couldn't load details:" + err.message + "</div>");
-                });
-        });
-
-        cy.on('click', 'edge', function (evt) {
-            // console.log('clicked edge ' + this.id());
-              fetchJSONOrThrow("api/edges/id/" + evt.target.source().id().substring(1) +","+ evt.target.target().id().substring(1))
-                .then(function (data) {
-                  windowname = "edge_" + evt.target.source().id() + "_to_" + evt.target.target().id();
-                  if (getpref("ui.open.details.in.same.window", true)) {
-                    windowname = "edge_details";
-                  }
-                  new_window(
-                    windowname,
-                    "Edge from "+renderlabel(data[0].from.label) + " to "+renderlabel(data[0].to.label),
-                    rendernode(data[0].from) + "<br>" + 
-                    renderedges(data[0].edges) + "<br>" + 
-                    rendernode(data[0].to)
-                  );
-                })
-                .catch(function (err) {
-                    toast("Error loading edge details" + err.message);
-                    new_window("details", "Edge details", "<div>Couldn't load details:" + err.message + "</div>");
-                });
-        })
-
-        cy.on('mouseover', 'edge', function (event) {
-            if (byIdChecked("showedgelabels")) {
-                this.css({
-                    content: this.data("methods").sort().join('\n'),
-                });
-            }
-        });
-
-        cy.on('mouseout', 'edge', function (event) {
-            this.css({
-                content: ''
-            });
-        });
-
-        // cy.on('click', function (evt) {
-        //     var evtTarget = evt.target;
-        //     if (evtTarget === cy) {
-        //         $("#details").hide();
-        //         $("#route").hide();
-        //     }
-        // });
-
-    });
-
-    // Distribute all objects to predictable locations
-/*    data.forEach(function (ele) {
-        if (ele.group == "nodes") {
-            // set x to node id modulus 1024
-            x = ele.data.id.substr(1) % 1024;
-            y = Math.floor(ele.data.id.substr(1) / 1024);
-            ele.position = {
-                x: x,
-                y: y
-            }
-        }
-    });
-*/
-
-    // Load data into Cytoscape
-    cy.add(data);
-
-    cy.expandCollapse({
-      layoutBy: null, // to rearrange after expand/collapse. It's just layout options or whole layout function. Choose your side!
-      // recommended usage: use cose-bilkent layout with randomize: false to preserve mental map upon expand/collapse
-      fisheye: true, // whether to perform fisheye view after expand/collapse you can specify a function too
-      animate: true, // whether to animate on drawing changes you can specify a function too
-      animationDuration: 1000, // when animate is true, the duration in milliseconds of the animation
-      ready: function () {
-      }, // callback when expand/collapse initialized
-      undoable: true, // and if undoRedoExtension exists,
-
-      cueEnabled: true, // Whether cues are enabled
-      expandCollapseCuePosition: "top-left", // default cue position is top left you can specify a function per node too
-      expandCollapseCueSize: 12, // size of expand-collapse cue
-      expandCollapseCueLineSize: 8, // size of lines used for drawing plus-minus icons
-      expandCueImage: undefined, // image of expand icon if undefined draw regular expand cue
-      collapseCueImage: undefined, // image of collapse icon if undefined draw regular collapse cue
-      expandCollapseCueSensitivity: 1, // sensitivity of expand-collapse cues
-      edgeTypeInfo: "edgeType", // the name of the field that has the edge type, retrieved from edge.data(), can be a function, if reading the field returns undefined the collapsed edge type will be "unknown"
-      groupEdgesOfSameTypeOnCollapse: false, // if true, the edges to be collapsed will be grouped according to their types, and the created collapsed edges will have same type as their group. if false the collapased edge will have "unknown" type.
-      allowNestedEdgeCollapse: true, // when you want to collapse a compound edge (edge which contains other edges) and normal edge, should it collapse without expanding the compound first
-      zIndex: 999, // z-index value of the canvas in which cue ımages are drawn
-    });
-
-    applyEdgeStyles(cy);
-    applyNodeStyles(cy);
-
-    getGraphlayout(byIdValue("graphlayout", "remotev2")).run()
+    return;
+  }
+  runSelectedGraphLayout();
 }
 
-function getEdgeColor(ele) {
-        color =
-          translateAutoTheme(getpref("theme", "auto")) == "dark"
-            ? "white"
-            : "black";
-        if (ele.data("methods").includes("MemberOfGroup")) {
-          color = "orange";
-        } else if (ele.data("methods").includes("MemberOfGroupIndirect")) {
-          color = "darkorange";
-        } else if (ele.data("methods").includes("ForeignIdentity")) {
-          color = "lightgreen";
-        } else if (ele.data("methods").includes("ResetPassword")) {
-          color = "red";
-        } else if (ele.data("methods").includes("AddMember")) {
-          color = "yellow";
-        } else if (ele.data("methods").includes("TakeOwnership")) {
-          color = "lightblue";
-        } else if (ele.data("methods").includes("WriteDACL")) {
-          color = "lightblue";
-        } else if (ele.data("methods").includes("Owns")) {
-          color = "blue";
-        }
-        return color;
+function initGraphLayoutUIWhenReady() {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGraphLayoutUI, { once: true });
+    return;
+  }
+  initGraphLayoutUI();
 }
 
-function applyEdgeStyles(cy) {
-    cy.edges().each(function (ele) {
-      color = getEdgeColor(ele);
-      ele.style('target-arrow-color', color);
-      ele.style('line-color', color);
-      const flow = Number(ele.data("flow"));
-      const edgeWidth = Number.isFinite(flow) && flow > 0 ? 1 + Math.log(flow) : 1;
-      ele.style('width', edgeWidth);
-    });
-};
-
-function applyNodeStyles(cy, nodestyleOverride) {
-    const nodestyle = nodestyleOverride || getpref("graph.nodesize", "incoming");
-
-    if (nodestyle == "equal") {
-        cy.nodes().each(function (ele) {
-            ele.style("width", 40);
-            ele.style("height", 40);
-        });
-    } else {
-        let scale;
-        switch (nodestyle) {
-            case "incoming":
-                scale = cy.nodes().maxIndegree(false);
-                break;
-            case "outgoing":
-                scale = cy.nodes().maxOutdegree(false);
-                break;
-            default:
-                scale = cy.nodes().maxIndegree(false);
-                break;
-        }
-
-        // Guard for empty/sparse graphs where scale can be 0/undefined.
-        if (!Number.isFinite(scale) || scale <= 0) {
-          cy.nodes().each(function (ele) {
-            ele.style("width", 40);
-            ele.style("height", 40);
-          });
-          return;
-        }
-
-        // Apply node styles
-        cy.nodes().each(function (ele) {
-            let size;
-            switch (nodestyle) {
-                case "incoming":
-                    size = ele.indegree();
-                    break;
-                case "outgoing":
-                    size = ele.outdegree();
-                    break;
-                default:
-                    size = ele.indegree();
-                    break;
-            }
-
-            const numericSize = Number(size);
-            const normalized = Number.isFinite(numericSize)
-              ? normalize(numericSize, 0, scale, 40, 100)
-              : 40;
-            const safeSize = Number.isFinite(normalized) ? normalized : 40;
-            ele.style("width", safeSize);
-            ele.style("height", safeSize);
-        });
-    }
+if (typeof window.ensurePrefsLoaded === "function") {
+  window.ensurePrefsLoaded()
+    .catch(function () {})
+    .finally(initGraphLayoutUIWhenReady);
+} else {
+  initGraphLayoutUIWhenReady();
 }
 
-function findroute(source) {
-    var target = cy.$("node.target")
-    if (target.length == 0) {
-        toast("No target node found", "error")
-        return
-    }
-
-
-    cy.elements().unselect() // unselect everything
-
-    var dfs = cy.elements().aStar({
-        root: source,
-        goal: target,
-        weight: function (ele) {
-            maxprobability = edgeprobability(ele)
-            if (maxprobability != -1) {
-                return 101 - maxprobability // higher probability equals lower priority number
-            }
-            return 0
-        },
-        directed: true
-    })
-    if (dfs.path) {
-      dfs.path.select();
-      pathprobability = 1.0;
-      dfs.path.forEach(function (ele) {
-        if (ele.isEdge()) {
-          pathprobability = pathprobability * (edgeprobability(ele) / 100);
-        }
-      });
-      pathprobability = pathprobability * 100; // Back to percentages
-
-      // empty array
-      nodes = [];
-      edges = [];
-      
-      // Show path information
-      routecontents = "";
-      dfs.path.forEach(function (ele) {
-        if (ele.isNode()) {
-          if (routecontents.length > 0) {
-            routecontents += ",";
-          }
-          routecontents += ele.id().substring(1);
-        }
-      });
-
-      output = "";
-      fetchJSONOrThrow("/api/edges/id/" + routecontents)
-        .then(function (data) {
-          output += "";
-          for (var i = 0; i < data.length; i++) {
-            // render node
-            output += rendericon(data[i].from.attributes["type"]) + renderlabel(data[i].from.label) + "<br>";
-
-            // render edge
-            output += renderedges(data[i].edges) + "<br>";
-
-            if (i == data.length-1) {
-              output += rendericon(data[i].to.attributes["type"]) + renderlabel(data[i].to.label);
-            }
-          }
-
-          new_window(
-            "route_" + source.id() + "_" + target.id(),
-            `Route from ` +
-              renderlabel(data[0].from.label) +
-              ` to ` +
-              renderlabel(data[data.length-1].to.label) +
-              ` - ` +
-              pathprobability.toFixed(2) +
-              `% probability`,
-            output
-          );
-        })
-        .catch(function (err) {
-          toast("Error loading route details", err.message, "error");
-        });
-
-    } else {
-        toast("No route found", "If your analysis was for multiple target nodes, there is no guarantee that all results can reach all targets. You might also have chosen the source and target in the wrong direction?", "warning");
-    }
-}
+window.addEventListener("click", function (event) {
+  const menu = graphState.contextMenu;
+  if (!menu || menu.style.display === "none") {
+    return;
+  }
+  if (event.target instanceof Node && menu.contains(event.target)) {
+    return;
+  }
+  hideGraphContextMenu();
+});

@@ -104,6 +104,12 @@ func NewWebservice() *WebService {
 		protocol: "http",
 	}
 	ws.engine.Use(func(c *gin.Context) {
+		c.Header("Cross-Origin-Opener-Policy", "same-origin")
+		c.Header("Cross-Origin-Embedder-Policy", "require-corp")
+		c.Header("Cross-Origin-Resource-Policy", "same-origin")
+		c.Next()
+	})
+	ws.engine.Use(func(c *gin.Context) {
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
 		// Process request
@@ -252,7 +258,6 @@ func (ws *WebService) Init(r gin.IRoutes) {
 	AddUIEndpoints(ws)
 	AddPreferencesEndpoints(ws)
 	AddDataEndpoints(ws)
-	AddGraphEndpoints(ws)
 }
 
 // Analyze analyzes paths for some purpose, though its implementation is missing in the provided code.

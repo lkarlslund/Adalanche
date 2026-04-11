@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 
@@ -18,6 +19,55 @@ func (p Preference) ID() string {
 	return p.Name
 }
 
+func normalizePreferenceValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			out[key] = normalizePreferenceValue(nested)
+		}
+		return out
+	case map[any]any:
+		out := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			out[fmt.Sprint(key)] = normalizePreferenceValue(nested)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, nested := range typed {
+			out[i] = normalizePreferenceValue(nested)
+		}
+		return out
+	case []string:
+		out := make([]any, len(typed))
+		for i, nested := range typed {
+			out[i] = nested
+		}
+		return out
+	case []int:
+		out := make([]any, len(typed))
+		for i, nested := range typed {
+			out[i] = nested
+		}
+		return out
+	case []float64:
+		out := make([]any, len(typed))
+		for i, nested := range typed {
+			out[i] = nested
+		}
+		return out
+	case []bool:
+		out := make([]any, len(typed))
+		for i, nested := range typed {
+			out[i] = nested
+		}
+		return out
+	default:
+		return value
+	}
+}
+
 func AddPreferencesEndpoints(ws *WebService) {
 	// Saved preferences
 	sb := persistence.GetStorage[Preference]("preferences", false)
@@ -31,7 +81,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 		}
 		prefsmap := maps.Collect[string, any](func(yield func(string, any) bool) {
 			for _, pref := range prefs {
-				if !yield(pref.Name, pref.Value) {
+				if !yield(pref.Name, normalizePreferenceValue(pref.Value)) {
 					break
 				}
 			}
@@ -54,7 +104,7 @@ func AddPreferencesEndpoints(ws *WebService) {
 		if !found {
 			return
 		}
-		out, _ := json.Marshal(pref.Value)
+		out, _ := json.Marshal(normalizePreferenceValue(pref.Value))
 		c.Writer.Write(out)
 	})
 	preferences.PUT("/:key", func(c *gin.Context) {

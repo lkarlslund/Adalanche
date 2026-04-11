@@ -2,6 +2,8 @@ window.onpopstate = function (event) {
   document.body.innerHTML = event.state;
 };
 
+let statusHideTimer = null;
+
 function translateAutoTheme(theme) {
   if (theme === "auto") {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -11,10 +13,8 @@ function translateAutoTheme(theme) {
 
 function setTheme(theme) {
   document.documentElement.setAttribute("data-bs-theme", theme);
-  if (window.cy) {
-    cy.style(cytostyle);
-    applyEdgeStyles(cy);
-    applyNodeStyles(cy);
+  if (window.graph) {
+    refreshGraphTheme();
   }
 }
 
@@ -84,6 +84,10 @@ function busystatus(busytext) {
   const status = document.getElementById("status");
   if (!status) {
     return;
+  }
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
   }
   status.innerHTML =
     `<div class="text-center pb-3">` +
@@ -228,8 +232,12 @@ async function aqlanalyze(e) {
       return;
     }
 
-    // Remove all windows
-    document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    const wm = getWindowManager();
+    if (wm && Array.isArray(wm.windows)) {
+      wm.windows = [];
+    } else {
+      document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    }
 
     var info = "";
     if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
@@ -726,16 +734,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const searchAndHighlight = document.getElementById("searchandhighlight");
         if (searchAndHighlight) {
           searchAndHighlight.addEventListener("click", function () {
-            if (cy && highlighttext) {
+            if (window.graph && highlighttext) {
               fetchJSON(
                 buildURL("/api/search/get-ids", {
                   query: highlighttext.value,
                 })
               ).then(function (data) {
-                cy.$("*").unselect();
-                for (var id of data) {
-                  cy.$("#" + id).select();
-                }
+                selectGraphNodes(Array.isArray(data) ? data : []);
               });
             }
           });
@@ -792,7 +797,13 @@ document.addEventListener("DOMContentLoaded", function () {
         "</b></div>";
       setHTML("status", statustext);
       setVisible("status", true);
-      setTimeout(() => setVisible("status", false), 15000);
+      if (statusHideTimer) {
+        clearTimeout(statusHideTimer);
+      }
+      statusHideTimer = setTimeout(() => {
+        setVisible("status", false);
+        statusHideTimer = null;
+      }, 15000);
       setHTML("programinfo", data.adalanche.program + " " + data.adalanche.shortversion);
     })
     .catch(function (err) {

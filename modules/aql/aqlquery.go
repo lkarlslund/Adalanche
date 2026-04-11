@@ -103,10 +103,6 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			break
 		}
 
-		if processed != 0 {
-			currentState.workingGraph.Reset()
-			pWPPool.Put(&currentState.workingGraph)
-		}
 		processed++
 
 		currentState = queue.Pop()
@@ -141,10 +137,11 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
+			newWorkingGraph := currentState.workingGraph.Clone()
 			queue.Push(searchState{
 				node:                       currentState.node,
 				currentSearchIndex:         currentState.currentSearchIndex + 1,
-				workingGraph:               currentState.workingGraph,
+				workingGraph:               newWorkingGraph,
 				currentDepth:               0,
 				currentTotalDepth:          currentState.currentTotalDepth,
 				overAllProbabilityFraction: currentState.overAllProbabilityFraction,
@@ -272,11 +269,3 @@ var (
 	directionsOut = []engine.EdgeDirection{engine.Out}
 	directionsAny = []engine.EdgeDirection{engine.In, engine.Out}
 )
-
-var pWPPool sync.Pool
-
-func init() {
-	pWPPool.New = func() any {
-		return &probableWorkingPath{}
-	}
-}
