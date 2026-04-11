@@ -11,10 +11,8 @@ function translateAutoTheme(theme) {
 
 function setTheme(theme) {
   document.documentElement.setAttribute("data-bs-theme", theme);
-  if (window.cy) {
-    cy.style(cytostyle);
-    applyEdgeStyles(cy);
-    applyNodeStyles(cy);
+  if (window.graph) {
+    refreshGraphTheme();
   }
 }
 
@@ -726,16 +724,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const searchAndHighlight = document.getElementById("searchandhighlight");
         if (searchAndHighlight) {
           searchAndHighlight.addEventListener("click", function () {
-            if (cy && highlighttext) {
+            if (window.graph && highlighttext) {
               fetchJSON(
                 buildURL("/api/search/get-ids", {
                   query: highlighttext.value,
                 })
               ).then(function (data) {
-                cy.$("*").unselect();
-                for (var id of data) {
-                  cy.$("#" + id).select();
-                }
+                selectGraphNodes(Array.isArray(data) ? data : []);
               });
             }
           });

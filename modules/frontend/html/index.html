@@ -19,7 +19,6 @@
 
     <link rel="stylesheet" type="text/css" href="external/toastify.min.css">
     <link rel="stylesheet" type="text/css" href="external/spinkit.css" />
-    <link rel="stylesheet" type="text/css" href="external/graph/cytoscape-context-menus.css" />
     <link rel="stylesheet" type="text/css" href="external/vendor/tippy.css" />
 
     <!-- we put everything custom here, so we can override earlier variables -->
@@ -34,8 +33,19 @@
     <script src="external/popper.min.js"></script>
 
 
-    <!-- Remaining non-vendored graph layout/runtime scripts -->
-    <script src="cytoscape-remote-layout.js"></script>
+    <script src="external/vendor/graphology/graphology-0.26.0.umd.min.js"></script>
+    <script src="external/vendor/graphology-layout-forceatlas2/graphology-layout-forceatlas2-0.10.1.js"></script>
+    <script src="external/vendor/graphology-layout-noverlap/graphology-layout-noverlap-0.4.2.js"></script>
+    <script src="external/vendor/sigma/sigma-2.4.0.min.js"></script>
+    <script src="sigma/render-metrics.js"></script>
+    <script src="sigma/sigma-node-image-program.js"></script>
+    <script src="sigma/sigma-graph-rendering.js"></script>
+    <script src="sigma/sigma-graph-renderer.js"></script>
+    <script src="sigma/sigma-graph-viewport.js"></script>
+    <script src="sigma/sigma-graph-layouts.js"></script>
+    <script src="sigma/sigma-graph-overlays.js"></script>
+    <script src="sigma/sigma-graph-interactions.js"></script>
+    <script src="sigma/sigma-graph.js"></script>
 
     <script src="anonymizer.js"></script>
 
@@ -344,15 +354,10 @@
                     class="form-control"
                     id="graphlayout"
                     x-model="layout"
-                    x-on:change="if (window.cy) getGraphlayout(layout).run()"
+                    x-on:change="if (window.graph) runSelectedGraphLayout()"
                   >
                     <option value="remotev2">Remote COSE v2</option>
-                    <option value="fcose">FCOSE</option>
-                    <option value="d3force">D3 Force</option>
-                    <option value="cose">COSE</option>
-                    <option value="cosebilkent">COSE Bilkent</option>
-                    <option value="dagre">DAGRE</option>
-                    <!-- <option value="cise">CISE</option> -->
+                    <option value="forceatlas2">ForceAtlas2</option>
                     <option value="random">Random (debug)</option>
                     <option value="fixed">Fixed (debug)</option>
                   </select>
@@ -376,7 +381,7 @@
                     class="form-control"
                     id="nodelabels"
                     x-model="nodelabels"
-                    x-on:change="if (window.cy) window.cy.style().update()"
+                    x-on:change="if (window.graph) refreshGraphTheme()"
                   >
                     <option value="normal">Normal</option>
                     <option value="off">Off</option>
@@ -391,7 +396,7 @@
                     class="form-control"
                     id="nodesizes"
                     x-model="nodesize"
-                    x-on:change="if (window.cy) applyNodeStyles(window.cy, nodesize)"
+                    x-on:change="if (window.graph) applyNodeStyles(window.graph, nodesize)"
                   >
                     <option value="equal">All same size</option>
                     <option value="incoming">Incoming edges</option>
@@ -406,6 +411,7 @@
                       id="showedgelabels"
                       type="checkbox"
                       x-model="showEdgeLabels"
+                      x-on:change="if (window.graph) refreshGraphTheme()"
                     />
                     <label class="form-check-label" for="showedgelabels"
                       >Show edge methods on mouse hover</label
