@@ -232,8 +232,12 @@ async function aqlanalyze(e) {
       return;
     }
 
-    // Remove all windows
-    document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    const wm = getWindowManager();
+    if (wm && Array.isArray(wm.windows)) {
+      wm.windows = [];
+    } else {
+      document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    }
 
     var info = "";
     if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {

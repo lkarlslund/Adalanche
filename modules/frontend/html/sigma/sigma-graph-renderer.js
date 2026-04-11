@@ -41,7 +41,7 @@
             ? (selectedNodeTheme.borderColor || "#f8f9fa")
             : (data.borderColor || "rgba(0,0,0,0)");
           const borderWidth = selected
-            ? Math.max(Number(data.borderWidth || 0), 0.1)
+            ? Math.max(Number(data.borderWidth || 0), 0.045)
             : Number(data.borderWidth || 0);
           graph.graph.mergeNodeAttributes(id, {
             label,

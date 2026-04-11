@@ -1185,7 +1185,14 @@ fn connected_components(graph: &Graph) -> Vec<ConnectedComponent> {
     components
 }
 
-fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
+fn cluster_visibility_layout_with_profile(
+    graph: &Graph,
+    options: &Map<String, Value>,
+    separation_bias: f64,
+    meta_pull_scale: f64,
+    external_radius_boost: f64,
+    hub_center_penalty: f64,
+) -> HashMap<String, Position> {
     let n = graph.nodes.len();
     if n == 0 {
         return HashMap::new();
@@ -1274,8 +1281,9 @@ fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> Has
         }
     }
 
-    let cluster_ring_radius =
-        (total_radius / (std::f64::consts::PI * 1.2)).max(cluster_padding * 1.5);
+    let cluster_ring_radius = ((total_radius / (std::f64::consts::PI * 1.2))
+        .max(cluster_padding * 1.5))
+        * separation_bias.max(1.0);
     let cluster_count = max_usize(1, clusters.len());
     for (idx, cluster) in clusters.iter_mut().enumerate() {
         let angle = seed_angle + ((2.0 * std::f64::consts::PI * idx as f64) / cluster_count as f64);
@@ -1296,8 +1304,9 @@ fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> Has
                     dist2 = 0.01;
                 }
                 let dist = dist2.sqrt();
-                let min_dist = clusters[i].radius + clusters[j].radius + cluster_padding;
-                let repulse = (min_dist * min_dist * 0.18) / dist2;
+                let min_dist =
+                    clusters[i].radius + clusters[j].radius + (cluster_padding * separation_bias);
+                let repulse = (min_dist * min_dist * (0.18 * separation_bias.max(1.0))) / dist2;
                 let fx = (dx / dist) * repulse;
                 let fy = (dy / dist) * repulse;
                 acc[i].x -= fx;
@@ -1305,9 +1314,10 @@ fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> Has
                 acc[j].x += fx;
                 acc[j].y += fy;
                 if let Some(weight) = meta_weights.get(&(i, j)) {
-                    let ideal = clusters[i].radius + clusters[j].radius + (cluster_padding * 0.45);
+                    let ideal =
+                        clusters[i].radius + clusters[j].radius + (cluster_padding * 0.45 * separation_bias.max(1.0));
                     let delta = dist - ideal;
-                    let pull = 0.0028 * weight * delta;
+                    let pull = 0.0028 * meta_pull_scale * weight * delta;
                     let px = (dx / dist) * pull;
                     let py = (dy / dist) * pull;
                     acc[i].x += px;
@@ -1380,13 +1390,20 @@ fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> Has
             let node_gap = node_visual_gap(&graph.nodes[placement.idx], inter_node_spacing);
             let mut radius = (inter_node_spacing * (order as f64).sqrt())
                 .max(node_gap * (1.05 + 0.38 * ((order - 1) as f64).sqrt()));
-            let center_bias = 1.0 - (0.24 * (placement.degree as f64 / max_degree as f64));
+            let center_bias =
+                1.0 - (hub_center_penalty * (placement.degree as f64 / max_degree as f64));
             radius *= clamp_f64(center_bias, 0.72, 1.0);
             if placement.external > 0 {
-                radius *=
-                    1.0 + clamp_f64(bridge_pull * 0.09 * placement.external as f64, 0.0, 0.22);
-                radius = radius
-                    .max(cluster.radius * (0.56 + (0.05 * (placement.external.min(2) as f64))));
+                radius *= 1.0
+                    + clamp_f64(
+                        bridge_pull * external_radius_boost * placement.external as f64,
+                        0.0,
+                        0.45,
+                    );
+                radius = radius.max(
+                    cluster.radius
+                        * (0.56 + (0.09 * separation_bias.min(2.5)) + (0.07 * (placement.external.min(3) as f64))),
+                );
             }
             let mut angle = seed_angle + golden_angle * order as f64;
             if placement.external > 0
@@ -1414,6 +1431,14 @@ fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> Has
     } else {
         phyllotaxis_layout(graph, inter_node_spacing)
     }
+}
+
+fn cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
+    cluster_visibility_layout_with_profile(graph, options, 1.0, 1.0, 0.09, 0.24)
+}
+
+fn separated_cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
+    cluster_visibility_layout_with_profile(graph, options, 1.9, 0.38, 0.16, 0.34)
 }
 
 fn packed_cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>) -> HashMap<String, Position> {
@@ -1588,6 +1613,181 @@ fn packed_cluster_visibility_layout(graph: &Graph, options: &Map<String, Value>)
     }
 }
 
+fn packed_separated_cluster_visibility_layout(
+    graph: &Graph,
+    options: &Map<String, Value>,
+) -> HashMap<String, Position> {
+    let components = connected_components(graph);
+    if components.is_empty() {
+        return HashMap::new();
+    }
+    if components.len() == 1 {
+        return separated_cluster_visibility_layout(graph, options);
+    }
+
+    let component_padding = option_f64(options, "component_padding", 420.0).max(40.0);
+    let intra_spacing = option_f64(options, "intra_cluster_spacing", 54.0).max(8.0);
+    let seed = option_f64(options, "seed", 42.0).max(1.0).round();
+    let seed_angle = (seed * 0.618_033_988_75).rem_euclid(360.0) * (std::f64::consts::PI / 180.0);
+    let mut component_layouts: Vec<(HashMap<String, Position>, f64, f64, f64)> =
+        Vec::with_capacity(components.len());
+
+    for (component_index, component) in components.iter().enumerate() {
+        let subgraph = Graph {
+            nodes: component
+                .nodes
+                .iter()
+                .map(|idx| graph.nodes[*idx].clone())
+                .collect(),
+            edges: component.edges.clone(),
+        };
+        let mut positions = if component.nodes.len() <= 4 {
+            let ids: Vec<String> = subgraph.nodes.iter().map(|node| node.id.clone()).collect();
+            let mut out = HashMap::with_capacity(ids.len());
+            if ids.len() == 1 {
+                out.insert(ids[0].clone(), Position { x: 0.0, y: 0.0 });
+            } else {
+                let radius =
+                    (intra_spacing * 2.6).max(56.0 + (intra_spacing * ids.len() as f64 * 0.2));
+                for (idx, id) in ids.iter().enumerate() {
+                    let angle = seed_angle
+                        + (component_index as f64 * 0.173)
+                        + ((2.0 * std::f64::consts::PI * idx as f64) / ids.len() as f64);
+                    out.insert(
+                        id.clone(),
+                        Position {
+                            x: angle.cos() * radius,
+                            y: angle.sin() * radius,
+                        },
+                    );
+                }
+            }
+            out
+        } else {
+            separated_cluster_visibility_layout(&subgraph, options)
+        };
+        if positions.is_empty() {
+            continue;
+        }
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for pos in positions.values() {
+            min_x = min_x.min(pos.x);
+            max_x = max_x.max(pos.x);
+            min_y = min_y.min(pos.y);
+            max_y = max_y.max(pos.y);
+        }
+        let center_x = (min_x + max_x) * 0.5;
+        let center_y = (min_y + max_y) * 0.5;
+        for pos in positions.values_mut() {
+            pos.x -= center_x;
+            pos.y -= center_y;
+        }
+        let width = (max_x - min_x).max(intra_spacing * 3.2);
+        let height = (max_y - min_y).max(intra_spacing * 3.2);
+        let diagonal_radius = ((width * 0.5).powi(2) + (height * 0.5).powi(2)).sqrt();
+        let major_axis_radius = (width.max(height) * 0.5) + (intra_spacing * 0.6);
+        let radius = diagonal_radius
+            .mul_add(0.88, 0.0)
+            .max(major_axis_radius)
+            .max(intra_spacing * 2.2);
+        component_layouts.push((positions, width, height, radius));
+    }
+
+    if component_layouts.is_empty() {
+        return HashMap::new();
+    }
+
+    let mut packed = HashMap::new();
+    let mut packed_min_x = f64::INFINITY;
+    let mut packed_max_x = f64::NEG_INFINITY;
+    let mut packed_min_y = f64::INFINITY;
+    let mut packed_max_y = f64::NEG_INFINITY;
+    let mut placed: Vec<(f64, f64, f64)> = Vec::new();
+
+    component_layouts.sort_by(|left, right| {
+        right
+            .3
+            .partial_cmp(&left.3)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                right
+                    .1
+                    .partial_cmp(&left.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
+
+    for (idx, (positions, _width, _height, radius)) in component_layouts.into_iter().enumerate() {
+        let (offset_x, offset_y) = if idx == 0 {
+            (0.0, 0.0)
+        } else {
+            let mut chosen = None;
+            let placed_radius = placed.iter().map(|(_, _, pr)| *pr).fold(0.0, f64::max);
+            let base_ring = (placed_radius + radius + component_padding * 0.5)
+                .max(radius + component_padding * 0.3);
+            'search: for ring in 0..80 {
+                let ring_radius =
+                    base_ring + (ring as f64 * (component_padding * 0.75 + radius * 0.4));
+                let sample_count = max_usize(
+                    24,
+                    ((2.0 * std::f64::consts::PI * ring_radius)
+                        / (component_padding * 0.55 + radius * 0.72))
+                        .round() as usize,
+                );
+                for sample in 0..sample_count {
+                    let angle = seed_angle
+                        + (ring as f64 * 0.43)
+                        + ((2.0 * std::f64::consts::PI * sample as f64) / sample_count as f64);
+                    let x = angle.cos() * ring_radius;
+                    let y = angle.sin() * ring_radius;
+                    let mut collides = false;
+                    for (px, py, pr) in &placed {
+                        let dx = x - *px;
+                        let dy = y - *py;
+                        let min_dist = radius + *pr + component_padding;
+                        if (dx * dx) + (dy * dy) < (min_dist * min_dist) {
+                            collides = true;
+                            break;
+                        }
+                    }
+                    if !collides {
+                        chosen = Some((x, y));
+                        break 'search;
+                    }
+                }
+            }
+            chosen.unwrap_or((0.0, (idx as f64) * (radius * 2.2 + component_padding)))
+        };
+        placed.push((offset_x, offset_y, radius));
+        for (id, pos) in positions {
+            let next = Position {
+                x: pos.x + offset_x,
+                y: pos.y + offset_y,
+            };
+            packed_min_x = packed_min_x.min(next.x);
+            packed_max_x = packed_max_x.max(next.x);
+            packed_min_y = packed_min_y.min(next.y);
+            packed_max_y = packed_max_y.max(next.y);
+            packed.insert(id, next);
+        }
+    }
+
+    let shift_x = (packed_min_x + packed_max_x) * 0.5;
+    let shift_y = (packed_min_y + packed_max_y) * 0.5;
+    for pos in packed.values_mut() {
+        pos.x -= shift_x;
+        pos.y -= shift_y;
+    }
+    if positions_are_finite(&packed) {
+        packed
+    } else {
+        phyllotaxis_layout(graph, intra_spacing)
+    }
+}
+
 fn definitions() -> Vec<Definition> {
     vec![
         Definition {
@@ -1605,6 +1805,20 @@ fn definitions() -> Vec<Definition> {
             ],
         },
         Definition {
+            key: "wasm.separated_cluster_visibility".to_string(),
+            label: "Separated Cluster Visibility".to_string(),
+            description: "Readability-first cluster overview with stronger separation and bridge nodes pushed toward cluster rims.".to_string(),
+            supports_animation: false,
+            options: vec![
+                OptionDefinition { key: "cluster_padding".to_string(), label: "Cluster Padding".to_string(), r#type: "range".to_string(), default: json!(280.0), description: "Spacing between detected communities.".to_string(), unit: "px".to_string(), min: Some(60.0), max: Some(2200.0), step: Some(10.0) },
+                OptionDefinition { key: "intra_cluster_spacing".to_string(), label: "Cluster Spread".to_string(), r#type: "range".to_string(), default: json!(54.0), description: "Overall spread of nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(8.0), max: Some(280.0), step: Some(2.0) },
+                OptionDefinition { key: "inter_node_spacing".to_string(), label: "Inter-node Spacing".to_string(), r#type: "range".to_string(), default: json!(220.0), description: "Spacing between rendered nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(20.0), max: Some(1200.0), step: Some(10.0) },
+                OptionDefinition { key: "bridge_pull".to_string(), label: "Bridge Pull".to_string(), r#type: "range".to_string(), default: json!(0.55), description: "Bias bridge nodes toward neighboring communities while keeping clusters apart.".to_string(), unit: String::new(), min: Some(0.0), max: Some(2.0), step: Some(0.05) },
+                OptionDefinition { key: "iterations".to_string(), label: "Cluster Iterations".to_string(), r#type: "range".to_string(), default: json!(260.0), description: "Iterations for community-center separation.".to_string(), unit: String::new(), min: Some(20.0), max: Some(2400.0), step: Some(20.0) },
+                OptionDefinition { key: "seed".to_string(), label: "Seed".to_string(), r#type: "number".to_string(), default: json!(42.0), description: "Random seed for deterministic placement.".to_string(), unit: String::new(), min: Some(1.0), max: Some(1_000_000.0), step: Some(1.0) },
+            ],
+        },
+        Definition {
             key: "wasm.packed_cluster_visibility".to_string(),
             label: "Packed Cluster Visibility".to_string(),
             description: "Cluster-aware overview layout that also separates disconnected visible components deterministically.".to_string(),
@@ -1616,6 +1830,21 @@ fn definitions() -> Vec<Definition> {
                 OptionDefinition { key: "inter_node_spacing".to_string(), label: "Inter-node Spacing".to_string(), r#type: "range".to_string(), default: json!(180.0), description: "Spacing between rendered nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(20.0), max: Some(800.0), step: Some(10.0) },
                 OptionDefinition { key: "bridge_pull".to_string(), label: "Bridge Pull".to_string(), r#type: "range".to_string(), default: json!(0.7), description: "Bias bridge nodes toward neighboring communities.".to_string(), unit: String::new(), min: Some(0.0), max: Some(2.0), step: Some(0.05) },
                 OptionDefinition { key: "iterations".to_string(), label: "Cluster Iterations".to_string(), r#type: "range".to_string(), default: json!(220.0), description: "Iterations for community-center separation.".to_string(), unit: String::new(), min: Some(20.0), max: Some(2000.0), step: Some(20.0) },
+                OptionDefinition { key: "seed".to_string(), label: "Seed".to_string(), r#type: "number".to_string(), default: json!(42.0), description: "Random seed for deterministic placement.".to_string(), unit: String::new(), min: Some(1.0), max: Some(1_000_000.0), step: Some(1.0) },
+            ],
+        },
+        Definition {
+            key: "wasm.packed_separated_cluster_visibility".to_string(),
+            label: "Separated Packed Clusters".to_string(),
+            description: "Readability-first cluster overview with stronger cluster separation and wider component packing.".to_string(),
+            supports_animation: false,
+            options: vec![
+                OptionDefinition { key: "cluster_padding".to_string(), label: "Cluster Padding".to_string(), r#type: "range".to_string(), default: json!(280.0), description: "Spacing between detected communities.".to_string(), unit: "px".to_string(), min: Some(60.0), max: Some(2200.0), step: Some(10.0) },
+                OptionDefinition { key: "component_padding".to_string(), label: "Component Padding".to_string(), r#type: "range".to_string(), default: json!(420.0), description: "Spacing between disconnected visible components.".to_string(), unit: "px".to_string(), min: Some(60.0), max: Some(4000.0), step: Some(10.0) },
+                OptionDefinition { key: "intra_cluster_spacing".to_string(), label: "Cluster Spread".to_string(), r#type: "range".to_string(), default: json!(54.0), description: "Overall spread of nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(8.0), max: Some(280.0), step: Some(2.0) },
+                OptionDefinition { key: "inter_node_spacing".to_string(), label: "Inter-node Spacing".to_string(), r#type: "range".to_string(), default: json!(220.0), description: "Spacing between rendered nodes inside a cluster.".to_string(), unit: "px".to_string(), min: Some(20.0), max: Some(1200.0), step: Some(10.0) },
+                OptionDefinition { key: "bridge_pull".to_string(), label: "Bridge Pull".to_string(), r#type: "range".to_string(), default: json!(0.55), description: "Bias bridge nodes toward neighboring communities while keeping clusters apart.".to_string(), unit: String::new(), min: Some(0.0), max: Some(2.0), step: Some(0.05) },
+                OptionDefinition { key: "iterations".to_string(), label: "Cluster Iterations".to_string(), r#type: "range".to_string(), default: json!(260.0), description: "Iterations for community-center separation.".to_string(), unit: String::new(), min: Some(20.0), max: Some(2400.0), step: Some(20.0) },
                 OptionDefinition { key: "seed".to_string(), label: "Seed".to_string(), r#type: "number".to_string(), default: json!(42.0), description: "Random seed for deterministic placement.".to_string(), unit: String::new(), min: Some(1.0), max: Some(1_000_000.0), step: Some(1.0) },
             ],
         },
@@ -1710,6 +1939,12 @@ pub fn adalanche_layout_run(request_json: String) -> String {
         "wasm.cluster_visibility" => cluster_visibility_layout(&req.graph, &req.options),
         "wasm.packed_cluster_visibility" | "wasm.cluster" => {
             packed_cluster_visibility_layout(&req.graph, &req.options)
+        }
+        "wasm.separated_cluster_visibility" => {
+            separated_cluster_visibility_layout(&req.graph, &req.options)
+        }
+        "wasm.packed_separated_cluster_visibility" => {
+            packed_separated_cluster_visibility_layout(&req.graph, &req.options)
         }
         "wasm.path" => path_layout(&req.graph, &req.options),
         "wasm.circle" => circle_layout(&req.graph, &req.options),

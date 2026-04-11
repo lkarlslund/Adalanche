@@ -97,6 +97,9 @@
         if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
         return;
       }
+      if (!event || event.button !== 0) {
+        return;
+      }
       const point = graph.relativePoint(event);
       const nodeId = graph.getNodeAtPosition(point.x, point.y) || graph.hoveredNodeId || "";
       if (!nodeId) return;

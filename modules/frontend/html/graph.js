@@ -15,7 +15,7 @@ const graphState = {
   layoutPending: false,
 };
 
-const DEFAULT_GRAPH_LAYOUT = "wasm.packed_cluster_visibility";
+const DEFAULT_GRAPH_LAYOUT = "wasm.packed_separated_cluster_visibility";
 const GRAPH_LAYOUT_PREF = "ui.graph.layout";
 const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
 const LAYOUT_ASSET_VERSION = "20260411-1";
@@ -454,15 +454,15 @@ function computeNodeVisualPatch(nodeData) {
   }
   if (nodeData && (nodeData.reference === "start" || nodeData._querysource)) {
     patch.borderColor = "#ef4444";
-    patch.borderWidth = 0.18;
+    patch.borderWidth = 0.05;
   }
   if (nodeData && (nodeData.reference === "end" || nodeData._querytarget)) {
     patch.borderColor = "#2563eb";
-    patch.borderWidth = 0.18;
+    patch.borderWidth = 0.05;
   }
   if (graphState.targetNodeId && nodeData.id === graphState.targetNodeId) {
     patch.borderColor = dark ? "#f8f9fa" : "#111827";
-    patch.borderWidth = 0.24;
+    patch.borderWidth = 0.06;
   }
 
   return patch;
