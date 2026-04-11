@@ -412,6 +412,13 @@
       if (typeof this.renderer.refresh === "function") this.renderer.refresh();
     }
 
+    clearCustomBBox() {
+      this.customBBox = null;
+      if (this.renderer && typeof this.renderer.setCustomBBox === "function") {
+        this.renderer.setCustomBBox(null);
+      }
+    }
+
     setThemeConfig(theme) {
       this.themeConfig = Rendering.normalizeThemeConfig(theme);
       this.applyStyles();
@@ -590,10 +597,15 @@
       return {
         nodes: this.nodeIds().map((id) => {
           const pos = this.nodePosition(id);
+          const data = this.nodeData.get(id) || {};
           return {
             id,
             x: Number(pos.x || 0),
             y: Number(pos.y || 0),
+            render_size: Number(data.renderSize || 10),
+            label: String(data.label || id),
+            is_start: !!(data.reference === "start" || data._querysource),
+            is_end: !!(data.reference === "end" || data._querytarget),
             selected: this.selectedNodeIDsSet.has(id),
           };
         }),

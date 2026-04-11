@@ -10,9 +10,10 @@ const graphState = {
   layoutConnectorReady: false,
   layoutDefinitions: {},
   activeLayoutAbort: null,
+  layoutRerunTimer: null,
 };
 
-const DEFAULT_GRAPH_LAYOUT = "wasm.force";
+const DEFAULT_GRAPH_LAYOUT = "wasm.cluster";
 const GRAPH_LAYOUT_PREF = "ui.graph.layout";
 const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
 
@@ -130,6 +131,20 @@ function layoutOptionsForLayout(layoutKey) {
   const key = String(layoutKey || "").trim();
   const values = ensureLayoutOptionDefaults(key);
   return { ...values };
+}
+
+function scheduleLayoutRerun(delayMs) {
+  if (!graph) {
+    return;
+  }
+  if (graphState.layoutRerunTimer) {
+    clearTimeout(graphState.layoutRerunTimer);
+    graphState.layoutRerunTimer = null;
+  }
+  graphState.layoutRerunTimer = setTimeout(() => {
+    graphState.layoutRerunTimer = null;
+    runSelectedGraphLayout();
+  }, Math.max(0, Number(delayMs) || 0));
 }
 
 function installTooltip(el) {
@@ -1027,6 +1042,7 @@ function renderGraphLayoutOptions() {
         layoutValues[option.key] = input.checked;
         allValues[layoutKey] = layoutValues;
         persistGraphLayoutOptionValues(allValues);
+        scheduleLayoutRerun(0);
       });
       wrapper.appendChild(input);
       const valueEl = document.createElement("span");
@@ -1071,6 +1087,7 @@ function renderGraphLayoutOptions() {
       allValues[layoutKey] = layoutValues;
       persistGraphLayoutOptionValues(allValues);
       valueEl.textContent = layoutOptionDisplayValue(option, nextValue);
+      scheduleLayoutRerun(option.type === "range" ? 180 : 0);
     });
     installTooltip(label);
     root.appendChild(wrapper);
@@ -1091,6 +1108,9 @@ function setGraphLayoutDefinitions(layouts) {
 }
 
 function applyLayoutPositions(targetGraph, positions, fitGraph) {
+  if (typeof targetGraph.clearCustomBBox === "function") {
+    targetGraph.clearCustomBBox();
+  }
   targetGraph.batch(function () {
     Object.entries(positions || {}).forEach(([id, pos]) => {
       targetGraph.setNodePosition(id, pos, { markDirty: false });

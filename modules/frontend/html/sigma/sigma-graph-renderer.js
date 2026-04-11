@@ -124,7 +124,11 @@
         const label = String(data && data.label ? data.label : "");
         if (!label) return null;
         const nodeSize = Math.max(1, Number(data.size || 0));
-        const fontSize = Math.max(1, Math.max(Number(nodeTheme.fontSize || 11), nodeSize * 0.95));
+        const baseFontSize = Math.max(1, Number(nodeTheme.fontSize || 11));
+        const fontSize = Math.max(
+          1,
+          Math.min(baseFontSize + 3, baseFontSize + Math.max(0, nodeSize - 10) * 0.22)
+        );
         const fontFamily = "Oswald";
         const fontWeight = "normal";
         context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;

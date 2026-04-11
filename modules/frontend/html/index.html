@@ -351,7 +351,7 @@
               <div class="p-1">
                 <div>
                   <div class="d-flex align-items-center gap-2">
-                    <label for="graphlayout" class="form-label mb-0 flex-shrink-0">Layout:</label>
+                    <label for="graphlayout" class="form-label mb-0 flex-shrink-0">Layout</label>
                     <select
                       class="form-control"
                       id="graphlayout"
@@ -362,32 +362,36 @@
                 </div>
 
                 <div class="mb-1" x-data="{ nodelabels: $persist('normal').as('ui.graph.nodelabels').using(window.backendPersist) }">
-                  <label for="nodelabels">Node labels</label>
-                  <select
-                    class="form-control"
-                    id="nodelabels"
-                    x-model="nodelabels"
-                    x-on:change="if (window.graph) refreshGraphTheme()"
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="off">Off</option>
-                    <option value="randomize">Randomize</option>
-                    <option value="checksum">Checksum</option>
-                  </select>
+                  <div class="d-flex align-items-center gap-2">
+                    <label for="nodelabels" class="form-label mb-0 flex-shrink-0">Node labels</label>
+                    <select
+                      class="form-control"
+                      id="nodelabels"
+                      x-model="nodelabels"
+                      x-on:change="if (window.graph) refreshGraphTheme()"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="off">Off</option>
+                      <option value="randomize">Randomize</option>
+                      <option value="checksum">Checksum</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="mb-1" x-data="{ nodesize: $persist('incoming').as('graph.nodesize').using(window.backendPersist) }">
-                  <label for="nodesizes">Node size</label>
-                  <select
-                    class="form-control"
-                    id="nodesizes"
-                    x-model="nodesize"
-                    x-on:change="if (window.graph) applyNodeStyles(window.graph, nodesize)"
-                  >
-                    <option value="equal">All same size</option>
-                    <option value="incoming">Incoming edges</option>
-                    <option value="outgoing">Outgoing edges</option>
-                  </select>
+                  <div class="d-flex align-items-center gap-2">
+                    <label for="nodesizes" class="form-label mb-0 flex-shrink-0">Node size</label>
+                    <select
+                      class="form-control"
+                      id="nodesizes"
+                      x-model="nodesize"
+                      x-on:change="if (window.graph) applyNodeStyles(window.graph, nodesize)"
+                    >
+                      <option value="equal">All same size</option>
+                      <option value="incoming">Incoming edges</option>
+                      <option value="outgoing">Outgoing edges</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="mb-1">
