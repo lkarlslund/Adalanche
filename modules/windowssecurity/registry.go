@@ -12,13 +12,16 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-func ReadRegistryKey(item string) (any, error) {
-	if strings.Index(item, `*`) != -1 {
+func splitRegistryPath(item string) (registry.Key, string, string, error) {
+	if strings.Contains(item, `*`) {
 		// Globbing not supported yet ... let's see later :-)
-		return nil, errors.New("globbing not supported yet")
+		return 0, "", "", errors.New("globbing not supported yet")
 	}
 
 	regparts := strings.Split(item, "\\")
+	if len(regparts) < 2 {
+		return 0, "", "", fmt.Errorf("invalid registry path %q", item)
+	}
 
 	keypath := strings.Join(regparts[1:len(regparts)-1], "\\")
 	valuename := regparts[len(regparts)-1]
@@ -37,18 +40,42 @@ func ReadRegistryKey(item string) (any, error) {
 	case "HKCC", "HKEY_CURRENT_CONFIG":
 		hive = registry.CURRENT_CONFIG
 	default:
-		return nil, fmt.Errorf("Unsupported registry hive name %v, skipping %v", hive, item)
+		return 0, "", "", fmt.Errorf("Unsupported registry hive name %v, skipping %v", hive, item)
 	}
 
-	var value any
+	return hive, keypath, valuename, nil
+}
 
-	k, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+func ReadRegistrySubKeyNames(item string) ([]string, error) {
+	hive, keypath, _, err := splitRegistryPath(item + `\placeholder`)
 	if err != nil {
-		ui.Warn().Msgf("Problem opening registry key %v (%v) / %v: %v", hivename, hive, keypath, err)
+		return nil, err
+	}
+
+	k, err := registry.OpenKey(hive, keypath, registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err != nil {
+		ui.Warn().Msgf("Problem opening registry key %v / %v: %v", hive, keypath, err)
 		return nil, err
 	}
 	defer k.Close()
 
+	return k.ReadSubKeyNames(-1)
+}
+
+func ReadRegistryKey(item string) (any, error) {
+	hive, keypath, valuename, err := splitRegistryPath(item)
+	if err != nil {
+		return nil, err
+	}
+
+	k, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+	if err != nil {
+		ui.Warn().Msgf("Problem opening registry key %v / %v: %v", hive, keypath, err)
+		return nil, err
+	}
+	defer k.Close()
+
+	var value any
 	var valtype uint32
 	value, valtype, err = k.GetStringValue(valuename)
 	if err != nil {
