@@ -76,6 +76,37 @@ func TestIndexedGraphSetEdgeMerge(t *testing.T) {
 	}
 }
 
+func TestIndexedGraphSetEdgeOverwriteAndBlankRemoval(t *testing.T) {
+	first := testEdge("overwrite-first")
+	second := testEdge("overwrite-second")
+	from := testNamedNode("from")
+	to := testNamedNode("to")
+	graph := testGraph(from, to)
+
+	graph.SetEdge(from, to, EdgeBitmap{}.Set(first), false)
+	graph.SetEdge(from, to, EdgeBitmap{}.Set(second), false)
+
+	edge, found := graph.GetEdge(from, to)
+	if !found {
+		t.Fatal("expected overwritten edge to exist")
+	}
+	if edge.IsSet(first) || !edge.IsSet(second) {
+		t.Fatalf("expected overwrite to replace prior bitmap, got %v", edge.Edges())
+	}
+
+	graph.SetEdge(from, to, EdgeBitmap{}, false)
+	edge, found = graph.GetEdge(from, to)
+	if found || !edge.IsBlank() {
+		t.Fatal("expected blank bitmap to remove edge")
+	}
+
+	graph.SetEdge(from, to, EdgeBitmap{}, false)
+	edge, found = graph.GetEdge(from, to)
+	if found || !edge.IsBlank() {
+		t.Fatal("expected repeated blank overwrite to remain removed")
+	}
+}
+
 func TestIndexedGraphBulkLoadEdgesFlushesBufferedEdges(t *testing.T) {
 	first := testEdge("bulk-first")
 	second := testEdge("bulk-second")

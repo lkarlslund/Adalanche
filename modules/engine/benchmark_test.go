@@ -67,6 +67,17 @@ func BenchmarkGetIndexWarm(b *testing.B) {
 	}
 }
 
+func BenchmarkGetIndexCold(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph := NewIndexedGraph()
+		for j := 0; j < 5000; j++ {
+			graph.Add(benchmarkNamedNode(j))
+		}
+		_ = graph.GetIndex(Name)
+	}
+}
+
 func BenchmarkGetMultiIndexWarm(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
@@ -78,6 +89,17 @@ func BenchmarkGetMultiIndexWarm(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_, _ = index.Lookup(NV("node-4242"), NV("node-4242"))
+	}
+}
+
+func BenchmarkGetMultiIndexCold(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph := NewIndexedGraph()
+		for j := 0; j < 5000; j++ {
+			graph.Add(benchmarkNamedNode(j))
+		}
+		_ = graph.GetMultiIndex(Name, SAMAccountName)
 	}
 }
 
@@ -119,6 +141,135 @@ func BenchmarkFindMultiOrAdd(b *testing.B) {
 		_, _ = graph.FindMultiOrAdd(Name, NV("node"), func() *Node {
 			return benchmarkNamedNode(i)
 		})
+	}
+}
+
+func BenchmarkFindOrAddHit(b *testing.B) {
+	graph := NewIndexedGraph()
+	node := benchmarkNamedNode(1)
+	graph.Add(node)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = graph.FindOrAdd(Name, NV("node-1"))
+	}
+}
+
+func BenchmarkFindOrAddMiss(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph := NewIndexedGraph()
+		_, _ = graph.FindOrAdd(Name, NV("node"), SAMAccountName, NV("NODE"))
+	}
+}
+
+func BenchmarkFindTwoMultiOrAdd(b *testing.B) {
+	graph := NewIndexedGraph()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
+			return NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
+		})
+	}
+}
+
+func BenchmarkFindTwoMultiOrAddHit(b *testing.B) {
+	graph := NewIndexedGraph()
+	node := NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
+	graph.Add(node)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), nil)
+	}
+}
+
+func BenchmarkFindTwoMultiOrAddMiss(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph := NewIndexedGraph()
+		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
+			return NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
+		})
+	}
+}
+
+func BenchmarkGraphIterate(b *testing.B) {
+	graph := NewIndexedGraph()
+	for i := 0; i < 5000; i++ {
+		graph.Add(benchmarkNamedNode(i))
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph.Iterate(func(*Node) bool {
+			return true
+		})
+	}
+}
+
+func BenchmarkAddRelaxed(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph := NewIndexedGraph()
+		for j := 0; j < 1000; j++ {
+			graph.AddRelaxed(benchmarkNamedNode(j))
+		}
+	}
+}
+
+func BenchmarkSetEdgeMerge(b *testing.B) {
+	first := testEdge("bench-edge-merge-first")
+	second := testEdge("bench-edge-merge-second")
+	graph := NewIndexedGraph()
+	from := benchmarkNamedNode(1)
+	to := benchmarkNamedNode(2)
+	graph.Add(from)
+	graph.Add(to)
+	graph.SetEdge(from, to, EdgeBitmap{}.Set(first), false)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		graph.SetEdge(from, to, EdgeBitmap{}.Set(second), true)
+	}
+}
+
+func BenchmarkNodeSetFlex(b *testing.B) {
+	node := NewNode()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		node.SetFlex(
+			IgnoreBlanks,
+			Name, "Alpha",
+			DisplayName, "Alpha Node",
+			Description, "Node Description",
+			SAMAccountName, "ALPHA",
+		)
+	}
+}
+
+func BenchmarkReindexObject(b *testing.B) {
+	graph := NewIndexedGraph()
+	_ = graph.GetIndex(Name)
+	_ = graph.GetIndex(SAMAccountName)
+	_ = graph.GetMultiIndex(Name, SAMAccountName)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		node := NewNode(
+			Name, NV("node"),
+			SAMAccountName, NV("NODE"),
+		)
+		graph.Add(node)
 	}
 }
 
