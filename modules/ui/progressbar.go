@@ -40,7 +40,13 @@ type progressBar struct {
 var (
 	pbLock       sync.Mutex
 	progressbars = map[*progressBar]struct{}{}
+
+	progressEnabled atomic.Bool
 )
+
+func init() {
+	progressEnabled.Store(true)
+}
 
 type ProgressReport struct {
 	StartTime      time.Time
@@ -53,6 +59,10 @@ type ProgressReport struct {
 }
 
 func GetProgressReport() []ProgressReport {
+	if !ProgressEnabled() {
+		return nil
+	}
+
 	pbLock.Lock()
 	pbr := make([]ProgressReport, len(progressbars))
 	var i int
@@ -75,6 +85,14 @@ func GetProgressReport() []ProgressReport {
 	}
 	pbLock.Unlock()
 	return pbr[:i]
+}
+
+func SetProgressEnabled(enabled bool) {
+	progressEnabled.Store(enabled)
+}
+
+func ProgressEnabled() bool {
+	return progressEnabled.Load()
 }
 
 func ProgressBar(title string, max int64) *progressBar {
@@ -103,9 +121,11 @@ func ProgressBar(title string, max int64) *progressBar {
 	pb.Start()
 
 	// Save it
-	pbLock.Lock()
-	progressbars[&pb] = struct{}{}
-	pbLock.Unlock()
+	if ProgressEnabled() {
+		pbLock.Lock()
+		progressbars[&pb] = struct{}{}
+		pbLock.Unlock()
+	}
 
 	return &pb
 }
@@ -140,6 +160,11 @@ func (pb *progressBar) SetTitle(title string) {
 }
 
 func (pb *progressBar) Finish() {
+	if !ProgressEnabled() {
+		pb.Done = true
+		return
+	}
+
 	// Save it
 	pbLock.Lock()
 	delete(progressbars, pb)
@@ -149,6 +174,9 @@ func (pb *progressBar) Finish() {
 }
 
 func (pb *progressBar) update() {
+	if !ProgressEnabled() {
+		return
+	}
 	if time.Since(pb.Lastupdate) < 1*time.Second {
 		return
 	}

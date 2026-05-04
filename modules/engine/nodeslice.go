@@ -157,7 +157,7 @@ func (ns *NodeSlice) SortFunc(lessthan func(o, o2 *Node) bool) {
 func (ns *NodeSlice) Skip(count int) {
 	if count > 0 {
 		// from start
-		if count > len(ns.nodes) {
+		if count < len(ns.nodes) {
 			ns.nodes = ns.nodes[count:]
 		} else {
 			ns.nodes = ns.nodes[:0]
@@ -165,7 +165,7 @@ func (ns *NodeSlice) Skip(count int) {
 	} else if count < 0 {
 		// from end
 		count = -count
-		if count > len(ns.nodes) {
+		if count < len(ns.nodes) {
 			ns.nodes = ns.nodes[:len(ns.nodes)-count]
 		} else {
 			ns.nodes = ns.nodes[:0]
