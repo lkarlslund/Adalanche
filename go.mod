@@ -29,7 +29,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang-auth/go-channelbinding v1.0.1
-	github.com/gomarkdown/markdown v0.0.0-20250810172220-2e2c11897d1a
+	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/google/certtostore v1.0.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/gravwell/gravwell/v3 v3.8.52
@@ -65,7 +65,7 @@ require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
-	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
+	github.com/Azure/go-ntlmssp v0.1.1 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/StackExchange/wmi v1.2.0 // indirect
 	github.com/Velocidex/json v0.0.0-20220224052537-92f3c0326e5a // indirect
