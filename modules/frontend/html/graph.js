@@ -225,7 +225,8 @@ function registerDefaultNodeLegendEntries() {
     icon: "icons/certificate.svg",
     description: "Certificate templates.",
   });
-  registerNodeLegendEntry("DNS-Node", {
+  registerNodeLegendEntry("Dns-Node", {
+    label: "DNS-Node",
     color: "",
     icon: "icons/dns.svg",
     description: "DNS records and nodes.",
@@ -797,10 +798,6 @@ function ensureEdgeHoverCard() {
   card.style.zIndex = "1080";
   card.style.maxWidth = "22rem";
   card.style.minWidth = "14rem";
-  card.style.background = translateAutoTheme(pref("theme", "auto")) === "dark" ? "rgba(15, 18, 22, 0.96)" : "rgba(255, 255, 255, 0.96)";
-  card.style.color = translateAutoTheme(pref("theme", "auto")) === "dark" ? "#f8f9fa" : "#111827";
-  card.style.border = "1px solid rgba(148, 163, 184, 0.35)";
-  card.style.backdropFilter = "blur(6px)";
   document.body.appendChild(card);
   graphState.edgeHoverCard = card;
   return card;
@@ -851,7 +848,7 @@ function showEdgeHoverCard(edgeId, clientPosition) {
   const body = methods.map((method) => `<li class="list-group-item py-1 px-2 border-0 bg-transparent">${escapehtml(String(method))}</li>`).join("");
   card.innerHTML =
     `<div class="card-body p-2">` +
-    `<div class="fw-semibold small text-uppercase opacity-75 mb-2">Edge Methods</div>` +
+    `<div class="fw-semibold small text-uppercase text-body-secondary mb-2">Edge Methods</div>` +
     `<ul class="list-group list-group-flush small">${body}</ul>` +
     `</div>`;
   card.style.display = "";

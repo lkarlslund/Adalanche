@@ -282,6 +282,21 @@ input[type="number"] {
   transform: translate(-50%, 0%);
 }
 
+#graph-edge-hover-card {
+  backdrop-filter: blur(6px);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] #graph-edge-hover-card {
+  background: rgba(15, 18, 22, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+[data-bs-theme="light"] #graph-edge-hover-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 /* Keep tooltip backgrounds solid and readable in both themes. */
 [data-bs-theme="dark"] .tooltip .tooltip-inner {
   background-color: #2b2f34;

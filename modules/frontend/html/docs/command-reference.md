@@ -40,7 +40,20 @@ adalanche [command]
   - Logs elapsed time since start instead of wall-clock time.
 
 - `--embeddedprofiler`
-  - Starts Go's pprof HTTP listener on localhost, starting at port `6060` and incrementing if occupied.
+  - Starts the loopback-only profiler on an available port from `6060` through `6069`; startup logs the address.
+  - `/debug/memory` returns current runtime memory statistics and timestamped aggregate estimates from analysis completion. A null graph snapshot means analysis has not completed.
+  - Estimates include node structures, selected slice capacities, adjacency payloads, indexes, and the shared descriptor cache. They exclude map/allocator overhead, shared string storage, attribute payloads, extensions, and report buffers; they are not a total heap or RSS measurement.
+  - Standard profiles include `/debug/pprof/goroutineleak`. Keep profiles private: they can contain sensitive metadata.
+
+- `--flightrecorder`, `--flightrecorderbytes`, `--flightrecorderage`
+  - Opt-in recent execution history; requires `--embeddedprofiler`.
+  - Defaults: a 16 MiB window target and 30 seconds of desired history. The byte target takes precedence and is not a hard memory limit.
+  - Download `/debug/flightrecorder` while running and open the saved trace with `go tool trace`. Concurrent snapshot requests receive HTTP 429. History is not automatically saved on exit.
+
+- `--blockprofilerate`, `--mutexprofilefraction`
+  - Optional contention sampling; both default to zero (disabled).
+  - Block rate is the sampling interval in nanoseconds; `1` samples all blocking events. Mutex fraction samples approximately one in N contention events.
+  - Sampling increases overhead; enable only when investigating contention.
 
 - `--cpuprofile`, `--cpuprofiletimeout`
   - Writes `adalanche-cpuprofile-*.pprof` to datapath.

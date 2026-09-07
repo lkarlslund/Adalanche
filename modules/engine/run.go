@@ -116,7 +116,6 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	if err := finalizeGraph(globalGraph); err != nil {
 		return nil, err
 	}
-
 	captureMemoryStatistics(globalGraph)
 	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
 
