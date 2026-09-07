@@ -2,8 +2,6 @@ package profiling
 
 import (
 	"fmt"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,13 +17,18 @@ import (
 type Options struct {
 	Datapath string
 
-	EmbeddedProfiler  bool
-	CPUProfile        bool
-	CPUProfileTimeout int32
-	MemProfile        bool
-	MemProfileTimeout int32
-	FGTrace           bool
-	FGProf            bool
+	EmbeddedProfiler     bool
+	CPUProfile           bool
+	CPUProfileTimeout    int32
+	MemProfile           bool
+	MemProfileTimeout    int32
+	FGTrace              bool
+	FGProf               bool
+	FlightRecorder       bool
+	FlightRecorderBytes  uint64
+	FlightRecorderAge    time.Duration
+	BlockProfileRate     int
+	MutexProfileFraction int
 }
 
 type profilerControl struct {
@@ -34,6 +37,7 @@ type profilerControl struct {
 }
 
 type session struct {
+	address  string
 	controls []profilerControl
 	wg       sync.WaitGroup
 }
@@ -48,21 +52,20 @@ func Start(options Options) error {
 	defer sessionMu.Unlock()
 
 	s := &session{}
-
-	if options.EmbeddedProfiler {
-		go func() {
-			port := 6060
-			for {
-				err := http.ListenAndServe(fmt.Sprintf("localhost:%v", port), nil)
-				if err != nil {
-					ui.Error().Msgf("Profiling listener failed: %v, trying with new port", err)
-					port++
-					continue
-				}
-				ui.Info().Msgf("Profiling listener started on port %v", port)
-				return
+	if currentSession != nil {
+		return fmt.Errorf("profiling session already active")
+	}
+	started := false
+	defer func() {
+		if !started {
+			for _, control := range s.controls {
+				control.stop()
 			}
-		}()
+			s.wg.Wait()
+		}
+	}()
+	if err := s.startDiagnostics(options); err != nil {
+		return err
 	}
 
 	if options.FGProf {
@@ -125,6 +128,7 @@ func Start(options Options) error {
 	}
 
 	currentSession = s
+	started = true
 	return nil
 }
 

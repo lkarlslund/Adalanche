@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lkarlslund/adalanche/modules/ui"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -54,7 +53,6 @@ func ReadRegistrySubKeyNames(item string) ([]string, error) {
 
 	k, err := registry.OpenKey(hive, keypath, registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
 	if err != nil {
-		ui.Warn().Msgf("Problem opening registry key %v / %v: %v", hive, keypath, err)
 		return nil, err
 	}
 	defer k.Close()
@@ -70,7 +68,6 @@ func ReadRegistryKey(item string) (any, error) {
 
 	k, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
 	if err != nil {
-		ui.Warn().Msgf("Problem opening registry key %v / %v: %v", hive, keypath, err)
 		return nil, err
 	}
 	defer k.Close()
@@ -83,7 +80,7 @@ func ReadRegistryKey(item string) (any, error) {
 			switch valtype {
 			case registry.NONE, registry.LINK, registry.RESOURCE_LIST, registry.FULL_RESOURCE_DESCRIPTOR, registry.RESOURCE_REQUIREMENTS_LIST:
 				// skip trying
-				return nil, fmt.Errorf("Unsupported registry type %v for key %v", valtype, valuename)
+				return nil, fmt.Errorf("registry type %v: %w", valtype, errors.ErrUnsupported)
 			case registry.SZ, registry.EXPAND_SZ:
 				// strange, that should have worked
 			case registry.BINARY:
@@ -94,11 +91,8 @@ func ReadRegistryKey(item string) (any, error) {
 				value, _, err = k.GetStringsValue(valuename)
 			}
 		} else {
-			return nil, fmt.Errorf("Problem getting registry value %v: %v", item, err)
+			return nil, fmt.Errorf("read registry value: %w", err)
 		}
-	}
-	if err != nil {
-		ui.Warn().Msgf("Problem reading registry value %v: %v", valuename, err)
 	}
 	return value, err
 }

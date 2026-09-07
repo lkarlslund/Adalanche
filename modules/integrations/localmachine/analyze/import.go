@@ -904,5 +904,8 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		)
 		ao.EdgeTo(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 	}
+	if err := importCollectionSettings(machine, cinfo); err != nil {
+		return nil, err
+	}
 	return machine, nil
 }

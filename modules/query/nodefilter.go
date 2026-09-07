@@ -555,7 +555,7 @@ func (hsm HasStringMatch) ToWhereClause(a string) string {
 }
 
 type HasGlobMatch struct {
-	Match         glob.Glob
+	Match         *glob.Pattern
 	Globstr       string
 	Casesensitive bool
 }

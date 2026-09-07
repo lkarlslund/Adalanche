@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
-	"github.com/gobwas/glob/util/runes"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	timespan "github.com/lkarlslund/time-timespan"
 )
@@ -30,7 +30,7 @@ func parseLDAPRuneQuery(s []rune, ao *engine.IndexedGraph) ([]rune, NodeFilter, 
 	if len(s) < 5 {
 		return nil, nil, errors.New("query string too short")
 	}
-	if !runes.HasPrefix(s, []rune("(")) || !runes.HasSuffix(s, []rune(")")) {
+	if s[0] != '(' || s[len(s)-1] != ')' {
 		return nil, nil, errors.New("query must start with ( and end with )")
 	}
 	// Strip (
@@ -102,7 +102,7 @@ attributeloop:
 			s = s[2:] // yum yum
 		case ':':
 			// Modifier
-			nextcolon := runes.Index(s[1:], []rune(":"))
+			nextcolon := slices.Index(s[1:], ':')
 			if nextcolon == -1 {
 				return nil, nil, errors.New("incomplete query string detected (only one colon modifier)")
 			}

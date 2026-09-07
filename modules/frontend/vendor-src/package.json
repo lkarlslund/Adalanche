@@ -10,27 +10,27 @@
     "check": "node ./scripts/check.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.1"
+    "esbuild": "^0.28.2"
   },
   "overrides": {
     "lodash": "^4.18.1"
   },
   "dependencies": {
-    "@alpinejs/persist": "^3.14.9",
-    "@ryangjchandler/alpine-tooltip": "^2.0.1",
-    "alpinejs": "^3.14.9",
+    "@alpinejs/persist": "^3.17.1",
     "@popperjs/core": "^2.11.8",
+    "@ryangjchandler/alpine-tooltip": "^2.0.1",
+    "alpinejs": "^3.17.1",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
-    "cytoscape": "^3.30.3",
-    "cytoscape-cose-bilkent": "^4.1.0",
+    "cytoscape": "^3.34.2",
     "cytoscape-context-menus": "^4.2.1",
+    "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-d3-force": "^1.1.4",
-    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-dagre": "^4.0.1",
     "cytoscape-expand-collapse": "^4.1.1",
     "cytoscape-fcose": "^2.2.0",
-    "d3-force": "^3.0.0",
     "cytoscape-popper": "^4.0.1",
+    "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
     "tippy.js": "^6.3.7"
   }

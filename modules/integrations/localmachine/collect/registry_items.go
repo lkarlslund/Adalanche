@@ -1,8 +1,8 @@
 package collect
 
 import (
+	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
-	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
 const (
@@ -54,22 +54,27 @@ func registryCollectionItems(interfaceKeys []string) []string {
 	return items
 }
 
-func collectRegistryItems(readValue registryValueReader, readSubkeys registrySubkeyReader) localmachine.RegistryData {
+func collectRegistryItems(readValue registryValueReader, readSubkeys registrySubkeyReader, outcomes basedata.CollectionResults) localmachine.RegistryData {
+	if outcomes == nil {
+		panic("registry collection requires a result map")
+	}
 	var interfaceItems []string
 	if readSubkeys != nil {
 		interfaceKeys, err := readSubkeys(netbiosInterfacesRegistryPath)
-		if err != nil {
-			ui.Warn().Msgf("Could not enumerate NetBIOS interfaces at %s: %v", netbiosInterfacesRegistryPath, err)
-		} else {
+		outcomes["registry/subkeys/"+netbiosInterfacesRegistryPath] = basedata.CollectionResultFromError(err)
+		// Partial enumeration results remain useful; the failure is retained.
+		if len(interfaceKeys) > 0 {
 			interfaceItems = interfaceKeys
 		}
+	} else {
+		outcomes["registry/subkeys/"+netbiosInterfacesRegistryPath] = basedata.CollectionResult{Status: basedata.CollectionNotRequested}
 	}
 
 	results := make(localmachine.RegistryData)
 	for _, item := range registryCollectionItems(interfaceItems) {
 		value, err := readValue(item)
+		outcomes["registry/value/"+item] = basedata.CollectionResultFromError(err)
 		if err != nil {
-			ui.Warn().Msgf("Could not read registry key %s: %v", item, err)
 			continue
 		}
 		results[item] = value

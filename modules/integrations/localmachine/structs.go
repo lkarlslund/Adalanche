@@ -9,9 +9,10 @@ import (
 
 type Info struct {
 	basedata.Common
-	RegistryData RegistryData `json:",omitempty"`
-	Machine      Machine
-	LoginInfos   []LogonInfo `json:",omitempty"`
+	CollectionResults basedata.CollectionResults `json:",omitempty"`
+	RegistryData      RegistryData               `json:",omitempty"`
+	Machine           Machine
+	LoginInfos        []LogonInfo `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
 	Network                                 NetworkInformation
 	Users                                   Users            `json:",omitempty"`
@@ -86,6 +87,16 @@ type Share struct {
 	Type        int    `json:",omitempty"`
 }
 type RegistryData map[string]any
+
+// CollectionSettings retains settings and acquisition metadata from one capture.
+// It deliberately excludes file contents, task arguments and other payloads.
+type CollectionSettings struct {
+	basedata.Common
+	RegistryData           RegistryData               `json:",omitempty"`
+	CollectionResults      basedata.CollectionResults `json:",omitempty"`
+	UnprivilegedCollection bool                       `json:",omitempty"`
+}
+
 type Services []Service
 type Service struct {
 	RegistryOwner        string   `json:",omitempty"`

@@ -14,7 +14,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"

@@ -39,7 +39,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
 
 	// Memory, GC and CPU settings
-	memlimit.SetGoMemLimit(0.8)
+	if _, err := memlimit.Set(memlimit.WithRatio(0.8)); err != nil {
+		ui.Warn().Msgf("Could not configure memory limit: %v", err)
+	}
 	debug.SetGCPercent(35)
 
 	maxprocs.Set(maxprocs.Logger(ui.Debug().Msgf))

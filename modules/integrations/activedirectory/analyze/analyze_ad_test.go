@@ -3,7 +3,7 @@ package analyze
 import (
 	"testing"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	attrs "github.com/lkarlslund/adalanche/modules/integrations/attrs"

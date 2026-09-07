@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -23,6 +23,7 @@ const invalidNodeIndex = ^NodeIndex(0)
 type EdgeCombo uint16
 
 type IndexedGraph struct {
+	extensions    sync.Map
 	Datapath      string
 	root          *Node
 	DefaultValues []any

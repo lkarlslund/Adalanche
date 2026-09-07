@@ -28,6 +28,7 @@ import (
 )
 
 func Collect() (localmachine.Info, error) {
+	outcomes := make(basedata.CollectionResults)
 	if !is64Bit && os64Bit {
 		ui.Debug().Msgf("Running as 32-bit on 64-bit system")
 	}
@@ -71,11 +72,13 @@ func Collect() (localmachine.Info, error) {
 	var interfaceinfo []localmachine.NetworkInterfaceInfo
 
 	interfaces, err := net.Interfaces()
+	outcomes["network/interfaces"] = basedata.CollectionResultFromError(err)
 	if err != nil {
 		ui.Warn().Msgf("Problem getting network adapter information: %v", err)
 	} else {
 		for _, iface := range interfaces {
-			addrs, _ := iface.Addrs()
+			addrs, addrErr := iface.Addrs()
+			outcomes["network/addresses/"+iface.Name] = basedata.CollectionResultFromError(addrErr)
 			var addrstrings []string
 			for _, addr := range addrs {
 				addrstrings = append(addrstrings, addr.String())
@@ -198,24 +201,29 @@ func Collect() (localmachine.Info, error) {
 	shares_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Services\LanmanServer\Shares`,
 		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	outcomes["shares/open"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		defer shares_key.Close()
 		permissions_key, err := registry.OpenKey(shares_key,
 			`Security`,
 			registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+		outcomes["shares/security-open"] = basedata.CollectionResultFromError(err)
 		if err == nil {
 			defer permissions_key.Close()
 
 			shares, err := shares_key.ReadValueNames(-1)
+			outcomes["shares/enumerate"] = basedata.CollectionResultFromError(err)
 			if err == nil {
 				for _, share := range shares {
-					permissions, _, _ := permissions_key.GetBinaryValue(share)
+					permissions, _, permissionErr := permissions_key.GetBinaryValue(share)
+					outcomes["shares/security/"+share] = basedata.CollectionResultFromError(permissionErr)
 					shareinfo := localmachine.Share{
 						Name: share,
 						DACL: permissions,
 					}
 
 					share_settings, _, err := shares_key.GetStringsValue(share)
+					outcomes["shares/settings/"+share] = basedata.CollectionResultFromError(err)
 					if err == nil {
 						for _, share_setting := range share_settings {
 							ss := strings.Split(share_setting, "=")
@@ -237,6 +245,7 @@ func Collect() (localmachine.Info, error) {
 
 					if shareinfo.Path != "" {
 						ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(shareinfo.Path, windows.SE_FILE_OBJECT)
+						outcomes["shares/path-security/"+share] = basedata.CollectionResultFromError(err)
 						if err == nil {
 							shareinfo.PathOwner = ownersid.String()
 							shareinfo.PathDACL = dacl
@@ -254,8 +263,10 @@ func Collect() (localmachine.Info, error) {
 	// SCHEDULED TASKS
 	var scheduledtasksinfo taskmaster.RegisteredTaskCollection
 	ts, err := taskmaster.Connect()
+	outcomes["tasks/connect"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		scheduledtasksinfo, err = ts.GetRegisteredTasks()
+		outcomes["tasks/enumerate"] = basedata.CollectionResultFromError(err)
 		if err == nil {
 			scheduledtasksinfo.Release()
 		}
@@ -525,7 +536,7 @@ func Collect() (localmachine.Info, error) {
 
 	// SERVICE CONTROL MANAGER SECURITY DESCRIPTOR FROM REGISTRY
 	var scmsd []byte
-	securitykey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\ServiceGroupOrder\Security`, registry.QUERY_VALUE|registry.SET_VALUE|registry.WOW64_64KEY)
+	securitykey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\ServiceGroupOrder\Security`, registry.QUERY_VALUE|registry.WOW64_64KEY)
 	if err != nil {
 		ui.Warn().Msgf("Problem opening service security key for service control manager: %v, skipping\n", err)
 	} else {
@@ -536,21 +547,26 @@ func Collect() (localmachine.Info, error) {
 			ui.Error().Msgf("Problem reading security descriptor for service control manager: %v, skipping\n", err)
 		}
 	}
+	outcomes["services/manager-security"] = basedata.CollectionResultFromError(err)
 
 	// SERVICES
 	var servicesinfo localmachine.Services
 	services_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Services`,
 		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	outcomes["services/open"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		defer services_key.Close()
 		services, err := services_key.ReadSubKeyNames(-1)
+		outcomes["services/enumerate"] = basedata.CollectionResultFromError(err)
 		if err == nil {
 			for _, service := range services {
 				service_key, err := registry.OpenKey(services_key, service,
 					registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+				outcomes["services/open/"+service] = basedata.CollectionResultFromError(err)
 				if err == nil {
-					stype, _, _ := service_key.GetIntegerValue("Type")
+					stype, _, typeErr := service_key.GetIntegerValue("Type")
+					outcomes["services/type/"+service] = basedata.CollectionResultFromError(typeErr)
 					if stype >= 16 {
 						// get service details
 						displayname, _, _ := service_key.GetStringValue("DisplayName")
@@ -562,15 +578,18 @@ func Collect() (localmachine.Info, error) {
 						start, _, _ := service_key.GetIntegerValue("Start")
 
 						// Grab service key security
-						registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+						registryowner, registrydacl, aclErr := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
+						outcomes["services/registry-security/"+service] = basedata.CollectionResultFromError(aclErr)
 
 						// get security descriptor under Security/Security
 						var sd []byte
 						service_key_security, err := registry.OpenKey(service_key, `Security`,
 							registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
 						if err == nil {
-							sd, _, _ = service_key_security.GetBinaryValue("Security")
+							sd, _, err = service_key_security.GetBinaryValue("Security")
+							service_key_security.Close()
 						}
+						outcomes["services/security/"+service] = basedata.CollectionResultFromError(err)
 
 						// let's see if we can grab a DACL
 						var imagepathowner string
@@ -621,6 +640,7 @@ func Collect() (localmachine.Info, error) {
 							imageexecutable = executable
 							if executable != "" {
 								ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+								outcomes["services/executable-security/"+service] = basedata.CollectionResultFromError(err)
 								if err == nil {
 									imagepathowner = ownersid.String()
 									imagepathdacl = dacl
@@ -660,7 +680,8 @@ func Collect() (localmachine.Info, error) {
 	domainsid, _ := windowssecurity.ParseStringSID(machineinfo.ComputerDomainSID)
 
 	var usersinfo localmachine.Users
-	users, _ := winapi.ListLocalUsers()
+	users, usersErr := winapi.ListLocalUsers()
+	outcomes["users/enumerate"] = basedata.CollectionResultFromError(usersErr)
 	for _, user := range users {
 		usersid, _ := windowssecurity.ParseStringSID(user.SID)
 		if machineinfo.IsDomainJoined && usersid.StripRID() == domainsid.StripRID() {
@@ -687,14 +708,17 @@ func Collect() (localmachine.Info, error) {
 
 	// GROUPS
 	var groupsinfo localmachine.Groups
-	groups, _ := winapi.ListLocalGroups()
+	groups, groupsErr := winapi.ListLocalGroups()
+	outcomes["groups/enumerate"] = basedata.CollectionResultFromError(groupsErr)
 	for _, group := range groups {
-		groupsid, _ := winio.LookupSidByName(group.Name)
+		groupsid, sidErr := winio.LookupSidByName(group.Name)
+		outcomes["groups/identity/"+group.Name] = basedata.CollectionResultFromError(sidErr)
 		grp := localmachine.Group{
 			Name: group.Name,
 			SID:  groupsid,
 		}
-		members, _ := winapi.LocalGroupGetMembers(group.Name)
+		members, membersErr := winapi.LocalGroupGetMembers(group.Name)
+		outcomes["groups/members/"+group.Name] = basedata.CollectionResultFromError(membersErr)
 		for _, member := range members {
 			grp.Members = append(grp.Members, localmachine.Member{
 				Name: member.DomainAndName,
@@ -704,9 +728,12 @@ func Collect() (localmachine.Info, error) {
 		groupsinfo = append(groupsinfo, grp)
 	}
 
-	registrydata := CollectRegistryItems()
+	registrydata := CollectRegistryItemsWithResults(outcomes)
 
-	dumpedsoftwareinfo, _ := winapi.InstalledSoftwareList()
+	dumpedsoftwareinfo, softwareErr := winapi.InstalledSoftwareList()
+	// The provider does not expose nested enumeration errors. Record only the
+	// call outcome, not a claim that the software inventory is complete.
+	outcomes["software/provider-call"] = basedata.CollectionResultFromError(softwareErr)
 	var softwareinfo []localmachine.Software
 	if len(dumpedsoftwareinfo) > 0 {
 		softwareinfo = make([]localmachine.Software, len(dumpedsoftwareinfo))
@@ -734,9 +761,15 @@ func Collect() (localmachine.Info, error) {
 
 	var privilegesinfo localmachine.Privileges
 	pol, err := LsaOpenPolicy("", _POLICY_LOOKUP_NAMES|_POLICY_VIEW_LOCAL_INFORMATION)
+	outcomes["privileges/open"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		for _, privilege := range PRIVILEGE_NAMES {
 			sids, err := LsaEnumerateAccountsWithUserRight(*pol, string(privilege))
+			resultErr := err
+			if err == STATUS_NO_MORE_ENTRIES || err == NO_MORE_DATA_IS_AVAILABLE {
+				resultErr = nil // A successful empty assignment list.
+			}
+			outcomes["privileges/assignments/"+string(privilege)] = basedata.CollectionResultFromError(resultErr)
 			if err == nil {
 				sidstrings := make([]string, len(sids))
 				for i, sid := range sids {
@@ -758,9 +791,11 @@ func Collect() (localmachine.Info, error) {
 	info := localmachine.Info{
 		Common: basedata.Common{
 			Collector: "collector",
+			Version:   version.Version,
 			Commit:    version.Commit,
 			Collected: time.Now(),
 		},
+		CollectionResults:      outcomes,
 		UnprivilegedCollection: isUnprivileged, // Indicate if the collection was running with low privs, so we can issue annoying warnings when loading them
 		Machine:                machineinfo,
 		// Hardware: hwinfo,
@@ -782,7 +817,7 @@ func Collect() (localmachine.Info, error) {
 		Tasks: func() []localmachine.RegisteredTask {
 			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
 			for i, task := range scheduledtasksinfo {
-				tasks[i] = ConvertRegisteredTask(task)
+				tasks[i] = ConvertRegisteredTaskWithResults(task, outcomes)
 			}
 			return tasks
 		}(),

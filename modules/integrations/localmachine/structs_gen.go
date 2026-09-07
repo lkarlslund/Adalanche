@@ -160,6 +160,263 @@ func (z Availability) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *CollectionSettings) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Common":
+			err = z.Common.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "Common")
+				return
+			}
+		case "RegistryData":
+			var zb0002 uint32
+			zb0002, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "RegistryData")
+				return
+			}
+			if z.RegistryData == nil {
+				z.RegistryData = make(RegistryData, zb0002)
+			} else if len(z.RegistryData) > 0 {
+				clear(z.RegistryData)
+			}
+			for zb0002 > 0 {
+				zb0002--
+				var za0001 string
+				za0001, err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "RegistryData")
+					return
+				}
+				var za0002 interface{}
+				za0002, err = dc.ReadIntf()
+				if err != nil {
+					err = msgp.WrapError(err, "RegistryData", za0001)
+					return
+				}
+				z.RegistryData[za0001] = za0002
+			}
+		case "CollectionResults":
+			err = z.CollectionResults.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "CollectionResults")
+				return
+			}
+		case "UnprivilegedCollection":
+			z.UnprivilegedCollection, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "UnprivilegedCollection")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z *CollectionSettings) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 4
+	// write "Common"
+	err = en.Append(0x84, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = z.Common.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "Common")
+		return
+	}
+	// write "RegistryData"
+	err = en.Append(0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x61, 0x74, 0x61)
+	if err != nil {
+		return
+	}
+	err = en.WriteMapHeader(uint32(len(z.RegistryData)))
+	if err != nil {
+		err = msgp.WrapError(err, "RegistryData")
+		return
+	}
+	for za0001, za0002 := range z.RegistryData {
+		err = en.WriteString(za0001)
+		if err != nil {
+			err = msgp.WrapError(err, "RegistryData")
+			return
+		}
+		err = en.WriteIntf(za0002)
+		if err != nil {
+			err = msgp.WrapError(err, "RegistryData", za0001)
+			return
+		}
+	}
+	// write "CollectionResults"
+	err = en.Append(0xb1, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73)
+	if err != nil {
+		return
+	}
+	err = z.CollectionResults.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "CollectionResults")
+		return
+	}
+	// write "UnprivilegedCollection"
+	err = en.Append(0xb6, 0x55, 0x6e, 0x70, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x64, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.UnprivilegedCollection)
+	if err != nil {
+		err = msgp.WrapError(err, "UnprivilegedCollection")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *CollectionSettings) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 4
+	// string "Common"
+	o = append(o, 0x84, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	o, err = z.Common.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "Common")
+		return
+	}
+	// string "RegistryData"
+	o = append(o, 0xac, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x44, 0x61, 0x74, 0x61)
+	o = msgp.AppendMapHeader(o, uint32(len(z.RegistryData)))
+	for za0001, za0002 := range z.RegistryData {
+		o = msgp.AppendString(o, za0001)
+		o, err = msgp.AppendIntf(o, za0002)
+		if err != nil {
+			err = msgp.WrapError(err, "RegistryData", za0001)
+			return
+		}
+	}
+	// string "CollectionResults"
+	o = append(o, 0xb1, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73)
+	o, err = z.CollectionResults.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "CollectionResults")
+		return
+	}
+	// string "UnprivilegedCollection"
+	o = append(o, 0xb6, 0x55, 0x6e, 0x70, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x64, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendBool(o, z.UnprivilegedCollection)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *CollectionSettings) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Common":
+			bts, err = z.Common.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Common")
+				return
+			}
+		case "RegistryData":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RegistryData")
+				return
+			}
+			if z.RegistryData == nil {
+				z.RegistryData = make(RegistryData, zb0002)
+			} else if len(z.RegistryData) > 0 {
+				clear(z.RegistryData)
+			}
+			for zb0002 > 0 {
+				var za0002 interface{}
+				zb0002--
+				var za0001 string
+				za0001, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RegistryData")
+					return
+				}
+				za0002, bts, err = msgp.ReadIntfBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RegistryData", za0001)
+					return
+				}
+				z.RegistryData[za0001] = za0002
+			}
+		case "CollectionResults":
+			bts, err = z.CollectionResults.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "CollectionResults")
+				return
+			}
+		case "UnprivilegedCollection":
+			z.UnprivilegedCollection, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "UnprivilegedCollection")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *CollectionSettings) Msgsize() (s int) {
+	s = 1 + 7 + z.Common.Msgsize() + 13 + msgp.MapHeaderSize
+	if z.RegistryData != nil {
+		for za0001, za0002 := range z.RegistryData {
+			_ = za0002
+			s += msgp.StringPrefixSize + len(za0001) + msgp.GuessSize(za0002)
+		}
+	}
+	s += 18 + z.CollectionResults.Msgsize() + 23 + msgp.BoolSize
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *Group) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -567,6 +824,12 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Common")
 				return
 			}
+		case "CollectionResults":
+			err = z.CollectionResults.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "CollectionResults")
+				return
+			}
 		case "RegistryData":
 			var zb0002 uint32
 			zb0002, err = dc.ReadMapHeader()
@@ -909,15 +1172,25 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 15
+	// map header, size 16
 	// write "Common"
-	err = en.Append(0x8f, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	err = en.Append(0xde, 0x0, 0x10, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
 	err = z.Common.EncodeMsg(en)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
+		return
+	}
+	// write "CollectionResults"
+	err = en.Append(0xb1, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73)
+	if err != nil {
+		return
+	}
+	err = z.CollectionResults.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "CollectionResults")
 		return
 	}
 	// write "RegistryData"
@@ -1206,12 +1479,19 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 15
+	// map header, size 16
 	// string "Common"
-	o = append(o, 0x8f, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	o = append(o, 0xde, 0x0, 0x10, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	o, err = z.Common.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
+		return
+	}
+	// string "CollectionResults"
+	o = append(o, 0xb1, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73)
+	o, err = z.CollectionResults.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "CollectionResults")
 		return
 	}
 	// string "RegistryData"
@@ -1376,6 +1656,12 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			bts, err = z.Common.UnmarshalMsg(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Common")
+				return
+			}
+		case "CollectionResults":
+			bts, err = z.CollectionResults.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "CollectionResults")
 				return
 			}
 		case "RegistryData":
@@ -1721,7 +2007,7 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Info) Msgsize() (s int) {
-	s = 1 + 7 + z.Common.Msgsize() + 13 + msgp.MapHeaderSize
+	s = 3 + 7 + z.Common.Msgsize() + 18 + z.CollectionResults.Msgsize() + 13 + msgp.MapHeaderSize
 	if z.RegistryData != nil {
 		for za0001, za0002 := range z.RegistryData {
 			_ = za0002

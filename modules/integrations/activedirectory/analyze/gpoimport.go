@@ -7,12 +7,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/go-ini/ini"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"golang.org/x/text/encoding/unicode"
+	"gopkg.in/ini.v1"
 )
 
 var (
