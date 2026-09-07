@@ -40,7 +40,8 @@ jobs:
         run: |
           sudo chmod 777 /opt
           mkdir -p /opt/go-win7
-          curl -L https://github.com/XTLS/go-win7/releases/download/patched-1.26.2/go-for-win7-linux-amd64.zip -o go-win7.zip
+          curl -fL https://github.com/XTLS/go-win7/releases/download/patched-1.27.1/go-for-win7-linux-amd64.zip -o go-win7.zip
+          echo "4f0434fceea1b1c80c6d3511f0f777b0dc3b1260f172f1bf1ec202575bd36ec1  go-win7.zip" | sha256sum --check
           unzip -qq go-win7.zip -d /opt/go-win7
           sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
 

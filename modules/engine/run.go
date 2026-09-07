@@ -14,6 +14,7 @@ import (
 
 // Loads, processes and merges everything. It's magic, just in code
 func Run(paths ...string) (*IndexedGraph, error) {
+	latestMemoryStatistics.Store(nil)
 	starttime := time.Now()
 
 	var activeLoaders []Loader
@@ -112,6 +113,7 @@ func Run(paths ...string) (*IndexedGraph, error) {
 		overallprogress.Add(1)
 	}
 
+	captureMemoryStatistics(globalGraph)
 	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
 
 	type statentry struct {

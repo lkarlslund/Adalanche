@@ -32,6 +32,11 @@ var (
 	logzerotime  = Root.Flags().Bool("logzerotime", false, "Logged timestamps start from zero when program launches")
 
 	embeddedprofiler  = Root.Flags().Bool("embeddedprofiler", false, "Start embedded Go profiler on localhost:6060")
+	flightRecorder    = Root.Flags().Bool("flightrecorder", false, "Keep a recent execution trace; requires embeddedprofiler")
+	flightBytes       = Root.Flags().Uint64("flightrecorderbytes", 16<<20, "Trace window byte target, not a hard memory limit (1–256 MiB)")
+	flightAge         = Root.Flags().Duration("flightrecorderage", 30*time.Second, "Desired trace history age (byte target takes precedence)")
+	blockRate         = Root.Flags().Int("blockprofilerate", 0, "Blocking sample interval in nanoseconds; 0 disables, 1 samples all")
+	mutexFraction     = Root.Flags().Int("mutexprofilefraction", 0, "Sample one in N mutex contention events; 0 disables")
 	cpuprofile        = Root.Flags().Bool("cpuprofile", false, "Save CPU profile from start to end of processing in datapath")
 	cpuprofiletimeout = Root.Flags().Int32("cpuprofiletimeout", 0, "CPU profiling timeout in seconds (0 means no timeout, -1 means stop when data processing ends)")
 	memprofile        = Root.Flags().Bool("memprofile", false, "Save memory profile from start to end of processing in datapath")
@@ -144,14 +149,19 @@ func init() {
 		}
 
 		err = profiling.Start(profiling.Options{
-			Datapath:          *Datapath,
-			EmbeddedProfiler:  *embeddedprofiler,
-			CPUProfile:        *cpuprofile,
-			CPUProfileTimeout: *cpuprofiletimeout,
-			MemProfile:        *memprofile,
-			MemProfileTimeout: *memprofiletimeout,
-			FGTrace:           *dofgtrace,
-			FGProf:            *dofgprof,
+			Datapath:             *Datapath,
+			EmbeddedProfiler:     *embeddedprofiler,
+			FlightRecorder:       *flightRecorder,
+			FlightRecorderBytes:  *flightBytes,
+			FlightRecorderAge:    *flightAge,
+			BlockProfileRate:     *blockRate,
+			MutexProfileFraction: *mutexFraction,
+			CPUProfile:           *cpuprofile,
+			CPUProfileTimeout:    *cpuprofiletimeout,
+			MemProfile:           *memprofile,
+			MemProfileTimeout:    *memprofiletimeout,
+			FGTrace:              *dofgtrace,
+			FGProf:               *dofgprof,
 		})
 		if err != nil {
 			return err
