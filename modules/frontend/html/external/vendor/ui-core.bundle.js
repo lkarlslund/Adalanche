@@ -2188,7 +2188,10 @@ function watch(getter, callback) {
     oldValueJSON = newJSON;
     firstTime = false;
   });
-  return () => release(effectReference);
+  return () => {
+    dequeueJob(effectReference);
+    release(effectReference);
+  };
 }
 async function transaction(callback) {
   startTransaction();
@@ -2274,9 +2277,11 @@ function mutateDom(callback) {
   if (!currentlyObserving)
     return callback();
   stopObservingMutations();
-  let result = callback();
-  startObservingMutations();
-  return result;
+  try {
+    return callback();
+  } finally {
+    startObservingMutations();
+  }
 }
 var isCollecting = false;
 var deferredMutations = [];
@@ -3758,6 +3763,7 @@ function entangle({ get: outerGet, set: outerSet }, { get: innerGet, set: innerS
     innerHash = JSON.stringify(innerGet());
   });
   return () => {
+    dequeueJob(reference);
     release(reference);
   };
 }
@@ -3872,7 +3878,7 @@ var Alpine = {
   get transaction() {
     return transaction;
   },
-  version: "3.17.1",
+  version: "3.17.4",
   flushAndStopDeferringMutations,
   dontAutoEvaluateFunctions,
   disableEffectScheduling,
@@ -5509,9 +5515,37 @@ function isKeyEvent(event) {
 function isClickEvent(event) {
   return ["contextmenu", "click", "mouse"].some((i) => event.includes(i));
 }
+var nonKeyModifiers = [
+  // x-on's own modifiers:
+  "window",
+  "document",
+  "prevent",
+  "stop",
+  "once",
+  "capture",
+  "self",
+  "away",
+  "outside",
+  "passive",
+  "dot",
+  "camel",
+  "preserve-scroll",
+  // x-model's own modifiers:
+  "blur",
+  "change",
+  "lazy",
+  "number",
+  "boolean",
+  "trim",
+  "fill",
+  "unintrusive",
+  "parent"
+];
 function isListeningForASpecificKeyThatHasntBeenPressed(e, modifiers) {
-  let keyModifiers = modifiers.filter((i) => {
-    return !["window", "document", "prevent", "stop", "once", "capture", "self", "away", "outside", "passive", "preserve-scroll", "blur", "change", "lazy"].includes(i);
+  let keyModifiers = modifiers.filter((modifier, index) => {
+    if (modifier === "false" && modifiers[index - 1] === "passive")
+      return false;
+    return !nonKeyModifiers.includes(modifier);
   });
   if (keyModifiers.includes("debounce")) {
     let debounceIndex = keyModifiers.indexOf("debounce");
@@ -5884,7 +5918,9 @@ directive("data", (el, { expression }, { cleanup }) => {
   }
   initInterceptors(reactiveData, cleanup);
   let undo = addScopeToNode(el, reactiveData);
-  reactiveData["init"] && evaluate(el, reactiveData["init"]);
+  skipDuringClone(() => {
+    reactiveData["init"] && evaluate(el, reactiveData["init"]);
+  })();
   cleanup(() => {
     reactiveData["destroy"] && evaluate(el, reactiveData["destroy"]);
     undo();
@@ -6080,7 +6116,7 @@ function loop(templateEl, iteratorNames, evaluateItems, evaluateKey) {
 function parseForExpression(expression) {
   let forIteratorRE = /,([^,\}\]]*)(?:,([^,\}\]]*))?$/;
   let stripParensRE = /^\s*\(|\)\s*$/g;
-  let forAliasRE = /([\s\S]*?)\s+(?:in|of)\s+([\s\S]*)/;
+  let forAliasRE = /([\s\S]*?)\b(?:in|of)\b([\s\S]*)/;
   let inMatch = expression.match(forAliasRE);
   if (!inMatch)
     return;
