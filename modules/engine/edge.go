@@ -18,6 +18,7 @@ type DetailFunction func(source, target *Node, edge *EdgeBitmap) string
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
+	edgeInfos[pm].fixedProbability = nil
 	return pm
 }
 
@@ -252,6 +253,7 @@ var edgeNames = make(map[string]Edge)
 var edgeInfos []*edgeInfo
 
 type edgeInfo struct {
+	fixedProbability             *Probability
 	Tags                         map[string]struct{}
 	probability                  ProbabilityCalculatorFunction
 	detailer                     DetailFunction

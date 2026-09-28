@@ -66,11 +66,6 @@ const (
 	RIGHT_ACCESS_SYSTEM_SECURITY = 0x01000000 /* Not stored in AD, just for requests */
 )
 
-func ParseSDDL(sddl string) (ACL, error) {
-	_ = sddl
-	return ACL{}, nil
-}
-
 /*
 func parseSDDLid(sddlid string) (windowssecurity.SID, error) {
 	switch sddlid {
