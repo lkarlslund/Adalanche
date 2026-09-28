@@ -11,6 +11,7 @@ type Info struct {
 	basedata.Common
 	CollectionResults basedata.CollectionResults `json:",omitempty"`
 	RegistryData      RegistryData               `json:",omitempty"`
+	AssessmentData    string                     `json:",omitempty"` // Versioned, allowlisted metadata; no secret payloads.
 	Machine           Machine
 	LoginInfos        []LogonInfo `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
@@ -95,6 +96,7 @@ type CollectionSettings struct {
 	RegistryData           RegistryData               `json:",omitempty"`
 	CollectionResults      basedata.CollectionResults `json:",omitempty"`
 	UnprivilegedCollection bool                       `json:",omitempty"`
+	AssessmentData         string                     `json:",omitempty"`
 }
 
 type Services []Service

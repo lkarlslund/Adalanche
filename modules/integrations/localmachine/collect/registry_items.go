@@ -11,6 +11,12 @@ const (
 )
 
 var registryItems = []string{
+	`HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest\UseLogonCredential`,
+	`HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\LsaCfgFlags`,
+	`HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPLBoot`,
+	`HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\fDenyTSConnections`,
+	`HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0\RestrictReceivingNTLMTraffic`,
+	`HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0\RestrictSendingNTLMTraffic`,
 	`HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPL`, // Check LSA Protection
 
 	`HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\ConsentPromptBehaviorAdmin`,    // UAC Prompt Behavior (Administrator)

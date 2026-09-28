@@ -14,6 +14,7 @@ func importCollectionSettings(machine *engine.Node, info localmachine.Info) erro
 	data, err := json.Marshal(localmachine.CollectionSettings{
 		Common: info.Common, RegistryData: info.RegistryData,
 		CollectionResults: info.CollectionResults, UnprivilegedCollection: info.UnprivilegedCollection,
+		AssessmentData: info.AssessmentData,
 	})
 	if err != nil {
 		return fmt.Errorf("encode collected settings: %w", err)

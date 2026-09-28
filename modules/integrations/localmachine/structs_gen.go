@@ -223,6 +223,12 @@ func (z *CollectionSettings) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "UnprivilegedCollection")
 				return
 			}
+		case "AssessmentData":
+			z.AssessmentData, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "AssessmentData")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -236,9 +242,9 @@ func (z *CollectionSettings) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *CollectionSettings) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
+	// map header, size 5
 	// write "Common"
-	err = en.Append(0x84, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	err = en.Append(0x85, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
@@ -289,15 +295,25 @@ func (z *CollectionSettings) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "UnprivilegedCollection")
 		return
 	}
+	// write "AssessmentData"
+	err = en.Append(0xae, 0x41, 0x73, 0x73, 0x65, 0x73, 0x73, 0x6d, 0x65, 0x6e, 0x74, 0x44, 0x61, 0x74, 0x61)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.AssessmentData)
+	if err != nil {
+		err = msgp.WrapError(err, "AssessmentData")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *CollectionSettings) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "Common"
-	o = append(o, 0x84, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	o = append(o, 0x85, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	o, err = z.Common.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
@@ -324,6 +340,9 @@ func (z *CollectionSettings) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "UnprivilegedCollection"
 	o = append(o, 0xb6, 0x55, 0x6e, 0x70, 0x72, 0x69, 0x76, 0x69, 0x6c, 0x65, 0x67, 0x65, 0x64, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendBool(o, z.UnprivilegedCollection)
+	// string "AssessmentData"
+	o = append(o, 0xae, 0x41, 0x73, 0x73, 0x65, 0x73, 0x73, 0x6d, 0x65, 0x6e, 0x74, 0x44, 0x61, 0x74, 0x61)
+	o = msgp.AppendString(o, z.AssessmentData)
 	return
 }
 
@@ -391,6 +410,12 @@ func (z *CollectionSettings) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "UnprivilegedCollection")
 				return
 			}
+		case "AssessmentData":
+			z.AssessmentData, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "AssessmentData")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -412,7 +437,7 @@ func (z *CollectionSettings) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.GuessSize(za0002)
 		}
 	}
-	s += 18 + z.CollectionResults.Msgsize() + 23 + msgp.BoolSize
+	s += 18 + z.CollectionResults.Msgsize() + 23 + msgp.BoolSize + 15 + msgp.StringPrefixSize + len(z.AssessmentData)
 	return
 }
 
@@ -858,6 +883,12 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.RegistryData[za0001] = za0002
 			}
+		case "AssessmentData":
+			z.AssessmentData, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "AssessmentData")
+				return
+			}
 		case "Machine":
 			err = z.Machine.DecodeMsg(dc)
 			if err != nil {
@@ -1172,9 +1203,9 @@ func (z *Info) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 16
+	// map header, size 17
 	// write "Common"
-	err = en.Append(0xde, 0x0, 0x10, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	err = en.Append(0xde, 0x0, 0x11, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
@@ -1214,6 +1245,16 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "RegistryData", za0001)
 			return
 		}
+	}
+	// write "AssessmentData"
+	err = en.Append(0xae, 0x41, 0x73, 0x73, 0x65, 0x73, 0x73, 0x6d, 0x65, 0x6e, 0x74, 0x44, 0x61, 0x74, 0x61)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.AssessmentData)
+	if err != nil {
+		err = msgp.WrapError(err, "AssessmentData")
+		return
 	}
 	// write "Machine"
 	err = en.Append(0xa7, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65)
@@ -1479,9 +1520,9 @@ func (z *Info) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 16
+	// map header, size 17
 	// string "Common"
-	o = append(o, 0xde, 0x0, 0x10, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
+	o = append(o, 0xde, 0x0, 0x11, 0xa6, 0x43, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e)
 	o, err = z.Common.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "Common")
@@ -1505,6 +1546,9 @@ func (z *Info) MarshalMsg(b []byte) (o []byte, err error) {
 			return
 		}
 	}
+	// string "AssessmentData"
+	o = append(o, 0xae, 0x41, 0x73, 0x73, 0x65, 0x73, 0x73, 0x6d, 0x65, 0x6e, 0x74, 0x44, 0x61, 0x74, 0x61)
+	o = msgp.AppendString(o, z.AssessmentData)
 	// string "Machine"
 	o = append(o, 0xa7, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65)
 	o, err = z.Machine.MarshalMsg(o)
@@ -1691,6 +1735,12 @@ func (z *Info) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				z.RegistryData[za0001] = za0002
+			}
+		case "AssessmentData":
+			z.AssessmentData, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "AssessmentData")
+				return
 			}
 		case "Machine":
 			bts, err = z.Machine.UnmarshalMsg(bts)
@@ -2014,7 +2064,7 @@ func (z *Info) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.GuessSize(za0002)
 		}
 	}
-	s += 8 + z.Machine.Msgsize() + 11 + msgp.ArrayHeaderSize
+	s += 15 + msgp.StringPrefixSize + len(z.AssessmentData) + 8 + z.Machine.Msgsize() + 11 + msgp.ArrayHeaderSize
 	for za0003 := range z.LoginInfos {
 		s += z.LoginInfos[za0003].Msgsize()
 	}

@@ -824,5 +824,6 @@ func Collect() (localmachine.Info, error) {
 		Privileges: privilegesinfo,
 	}
 
+	collectAssessment(&info)
 	return info, nil
 }

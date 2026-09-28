@@ -179,9 +179,6 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	)
 	ao.ReindexObject(machine, false) // We changed stuff after adding it
 	// Add local accounts as synthetic objects
-	userscontainer := engine.NewNode(activedirectory.Name, "Users")
-	ao.Add(userscontainer)
-	userscontainer.ChildOf(machine)
 	if !isdomaincontroller {
 		for _, user := range cinfo.Users {
 			uac := 512
@@ -213,7 +210,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 					activedirectory.LogonCount, user.NumberOfLogins,
 					engine.DataSource, uniquesource,
 				)
-				localUser.ChildOf(userscontainer)
+				localUser.ChildOf(machine)
 				ao.EdgeTo(localUser, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 
 				if user.IsEnabled {
@@ -235,9 +232,6 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			}
 		}
 		// Iterate over Groups
-		groupscontainer := engine.NewNode(activedirectory.Name, "Groups")
-		ao.Add(groupscontainer)
-		groupscontainer.ChildOf(machine)
 		for _, group := range cinfo.Groups {
 			groupsid, err := windowssecurity.ParseStringSID(group.SID)
 			if err != nil {
@@ -253,7 +247,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				engine.Type, "Group",
 				engine.DataSource, uniquesource,
 			)
-			localGroup.ChildOf(groupscontainer)
+			localGroup.ChildOf(machine)
 			if err != nil && group.Name != "SMS Admins" {
 				ui.Warn().Msgf("Can't convert local group SID %v: %v", group.SID, err)
 				continue
@@ -290,7 +284,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				case groupsid == windowssecurity.DCOMUsersSID:
 					ao.EdgeTo(localGroup, machine, EdgeLocalDCOMRights)
 				case groupsid == windowssecurity.RemoteDesktopUsersSID:
-					ao.EdgeTo(localGroup, machine, EdgeLocalRDPRights)
+					if !locallyDeniedLogon(cinfo, groupsid.String(), "SeDenyRemoteInteractiveLogonRight") {
+						ao.EdgeTo(localGroup, machine, EdgeLocalRDPRights)
+					}
 				}
 				if memberobject.HasAttr(engine.DataSource) && !existing {
 					// Maybe a deleted user or group
@@ -378,6 +374,12 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			continue
 		}
 		for _, sidstring := range pi.AssignedSIDs {
+			if pi.Name == "SeNetworkLogonRight" && locallyDeniedLogon(cinfo, sidstring, "SeDenyNetworkLogonRight") {
+				continue
+			}
+			if pi.Name == "SeRemoteInteractiveLogonRight" && locallyDeniedLogon(cinfo, sidstring, "SeDenyRemoteInteractiveLogonRight") {
+				continue
+			}
 			sid, err := windowssecurity.ParseStringSID(sidstring)
 			if err != nil {
 				ui.Error().Msgf("Invalid SID %v: %v", sidstring, err)
@@ -420,7 +422,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 
 		if login.LogonType == 2 || login.LogonType == 11 {
 			logins := topInteractiveUsers[username]
-			logins++
+			logins += int(login.Count)
 			topInteractiveUsers[username] = logins
 		}
 
@@ -521,81 +523,87 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	}
 
 	// INDIVIDUAL SERVICES
-	servicescontainer := engine.NewNode(activedirectory.Name, "Services")
-	ao.Add(servicescontainer)
-	servicescontainer.ChildOf(machine)
-	// All services are a member of this group
-	localservicesgroup := ao.AddNew(
-		activedirectory.ObjectSid, engine.NV(windowssecurity.ServicesSID),
-		engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
-		engine.DisplayName, "Services (local)",
-		engine.DataSource, cinfo.Machine.Name,
-		engine.Type, "Group",
-	)
-	localservicesgroup.ChildOf(machine)
+	// Keep the security principal, but create it only for retained services.
+	var localservicesgroup *engine.Node
+	var skippedServiceSIDs []windowssecurity.SID
 	for _, service := range cinfo.Services {
-		serviceobject := engine.NewNode(
-			engine.IgnoreBlanks,
-			activedirectory.Name, service.Name,
-			activedirectory.DisplayName, service.Name,
-			activedirectory.Description, service.Description,
-			engine.DataSource, cinfo.Machine.Name,
-			ServiceStart, int64(service.Start),
-			ServiceType, int64(service.Type),
-			activedirectory.Type, "Service",
-		)
-		if service.Start < 3 {
-			serviceobject.Tag("service_autostart")
-		}
-		switch service.Start {
-		case 0:
-			serviceobject.Tag("service_boot")
-		case 1:
-			serviceobject.Tag("service_system")
-		case 2:
-			serviceobject.Tag("service_automatic")
-		case 3:
-			serviceobject.Tag("service_manual")
-		case 4:
-			serviceobject.Tag("service_disabled")
-		}
-		ao.Add(serviceobject)
-		serviceobject.ChildOf(servicescontainer)
-		ao.EdgeTo(serviceobject, localservicesgroup, EdgeMemberOfGroup)
-		ao.EdgeTo(machine, serviceobject, EdgeHosts)
+		keepService := !serviceAdminOnly(service)
+		var serviceobject, serviceexecutable *engine.Node
+		if keepService {
+			if localservicesgroup == nil {
+				localservicesgroup = ao.FindOrAddAdjacentSID(windowssecurity.ServicesSID, machine)
+				localservicesgroup.SetFlex(
+					activedirectory.ObjectSid, engine.NV(windowssecurity.ServicesSID),
+					engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
+					engine.DisplayName, "Services (local)",
+					engine.DataSource, cinfo.Machine.Name,
+					engine.Type, "Group",
+				)
+				localservicesgroup.ChildOf(machine)
+			}
+			serviceobject = engine.NewNode(
+				engine.IgnoreBlanks,
+				activedirectory.Name, service.Name,
+				activedirectory.DisplayName, service.Name,
+				activedirectory.Description, service.Description,
+				engine.DataSource, cinfo.Machine.Name,
+				ServiceStart, int64(service.Start),
+				ServiceType, int64(service.Type),
+				activedirectory.Type, "Service",
+			)
+			if service.Start < 3 {
+				serviceobject.Tag("service_autostart")
+			}
+			switch service.Start {
+			case 0:
+				serviceobject.Tag("service_boot")
+			case 1:
+				serviceobject.Tag("service_system")
+			case 2:
+				serviceobject.Tag("service_automatic")
+			case 3:
+				serviceobject.Tag("service_manual")
+			case 4:
+				serviceobject.Tag("service_disabled")
+			}
+			ao.Add(serviceobject)
+			serviceobject.ChildOf(machine)
+			ao.EdgeTo(serviceobject, localservicesgroup, EdgeMemberOfGroup)
+			ao.EdgeTo(machine, serviceobject, EdgeHosts)
 
-		// Change service executable contents
-		serviceexecutable := engine.NewNode(
-			activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
-			AbsolutePath, service.ImageExecutable,
-			engine.Type, "Executable",
-		)
-		ao.Add(serviceexecutable)
-		ao.EdgeTo(serviceobject, serviceexecutable, EdgeExecutes)
-		serviceexecutable.ChildOf(serviceobject)
-		if ownersid, err := windowssecurity.ParseStringSID(service.ImageExecutableOwner); err == nil {
-			owner := ao.FindOrAddAdjacentSID(ownersid, machine)
-			ao.EdgeTo(owner, serviceexecutable, activedirectory.EdgeOwns)
-		}
-		if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
-			for _, entry := range sd.Entries {
-				entrysid := entry.SID
-				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entrysid.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
-					o := ao.FindOrAddAdjacentSID(entrysid, machine)
-					if entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						ao.EdgeTo(o, serviceexecutable, EdgeFileWrite)
-					}
-					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						ao.EdgeTo(o, serviceexecutable, activedirectory.EdgeTakeOwnership) // Not sure about this one
-					}
-					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						ao.EdgeTo(o, serviceexecutable, activedirectory.EdgeWriteDACL)
+			// Change service executable contents
+			serviceexecutable = engine.NewNode(
+				activedirectory.DisplayName, filepath.Base(service.ImageExecutable),
+				AbsolutePath, service.ImageExecutable,
+				engine.Type, "Executable",
+			)
+			ao.Add(serviceexecutable)
+			ao.EdgeTo(serviceobject, serviceexecutable, EdgeExecutes)
+			serviceexecutable.ChildOf(serviceobject)
+			if ownersid, err := windowssecurity.ParseStringSID(service.ImageExecutableOwner); err == nil {
+				owner := ao.FindOrAddAdjacentSID(ownersid, machine)
+				ao.EdgeTo(owner, serviceexecutable, activedirectory.EdgeOwns)
+			}
+			if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
+				for _, entry := range sd.Entries {
+					entrysid := entry.SID
+					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entrysid.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
+						o := ao.FindOrAddAdjacentSID(entrysid, machine)
+						if entry.Mask&engine.FILE_WRITE_DATA != 0 {
+							ao.EdgeTo(o, serviceexecutable, EdgeFileWrite)
+						}
+						if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
+							ao.EdgeTo(o, serviceexecutable, activedirectory.EdgeTakeOwnership) // Not sure about this one
+						}
+						if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
+							ao.EdgeTo(o, serviceexecutable, activedirectory.EdgeWriteDACL)
+						}
 					}
 				}
+				// ui.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
 			}
-			// ui.Debug().Msgf("Service %v executable %v: %v", service.Name, service.ImageExecutable, sd)
-		}
 
+		}
 		var svcaccount *engine.Node
 		var serviceaccountSID windowssecurity.SID
 		if service.AccountSID == "" {
@@ -621,7 +629,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 
 						if !strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
 							if svcaccount.Parent() == nil {
-								svcaccount.ChildOf(serviceobject)
+								svcaccount.ChildOf(machine)
 							}
 						}
 					} else if strings.Contains(service.Account, "@") {
@@ -651,11 +659,21 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				ao.EdgeTo(machine, svcaccount, EdgeSessionService)
 				ao.EdgeTo(machine, svcaccount, EdgeHasServiceAccountCredentials)
 			}
-			ao.EdgeTo(serviceexecutable, svcaccount, analyze.EdgeAuthenticatesAs)
+			if keepService {
+				ao.EdgeTo(serviceexecutable, svcaccount, analyze.EdgeAuthenticatesAs)
+			} else {
+				// Preserve the execution identity formerly reached through Hosts
+				// and Executes, including accounts identified only by name.
+				ao.EdgeTo(machine, svcaccount, analyze.EdgeAuthenticatesAs)
+			}
 		} else {
 			ui.Warn().Msgf("Unhandled service credentials %+v", service)
 		}
 
+		if !keepService {
+			skippedServiceSIDs = append(skippedServiceSIDs, windowssecurity.ServiceNameToServiceSID(service.Name))
+			continue
+		}
 		// Specific service SID
 		so := ao.FindOrAddAdjacentSID(windowssecurity.ServiceNameToServiceSID(service.Name), machine)
 		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
@@ -718,9 +736,6 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 
 	// SCHEDULED TASKS
 	if len(cinfo.Tasks) > 0 {
-		taskcontainer := engine.NewNode(activedirectory.Name, "Scheduled Tasks")
-		ao.Add(taskcontainer)
-		taskcontainer.ChildOf(machine)
 		for _, task := range cinfo.Tasks {
 			taskobject := ao.AddNew(
 				engine.IgnoreBlanks,
@@ -730,8 +745,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				// engine.Enabled, task.Enabled,
 				engine.Type, "ScheduledTask",
 			)
-			taskobject.ChildOf(taskcontainer)
+			taskobject.ChildOf(machine)
 			ao.EdgeTo(machine, taskobject, EdgeHosts)
+			importTaskExecution(ao, machine, taskobject, task)
 			switch task.Definition.Principal.LogonType {
 			case TASK_LOGON_GROUP:
 				// When someone that is a member of the group is logged in
@@ -740,7 +756,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				if task.Definition.Principal.UserID == "LOCAL SERVICE" {
 					// "LOCAL SERVICE"
 				}
-				if task.Definition.Principal.UserID == "SYSTEM" && task.Definition.Principal.RunLevel == 1 {
+				if task.Enabled && task.Definition.Settings.Enabled && task.Definition.Principal.UserID == "SYSTEM" && task.Definition.Principal.RunLevel == 1 {
 					// Elevated as system
 					system := ao.FindOrAddAdjacentSID(windowssecurity.SystemSID, machine)
 					ao.EdgeTo(taskobject, system, analyze.EdgeAuthenticatesAs)
@@ -752,7 +768,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 
 			// DACL that can change the task
 			if task.Definition.RegistrationInfo.SecurityDescriptor != "" {
-				if sd, err := engine.ParseSDDL(task.Definition.RegistrationInfo.SecurityDescriptor); err == nil {
+				if sd, err := engine.ParseSDDL(task.Definition.RegistrationInfo.SecurityDescriptor); err == nil && plainAllowACL(sd) {
 					for _, entry := range sd.Entries {
 						entrysid := entry.SID
 						if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
@@ -767,19 +783,19 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 								}
 								ao.EdgeTo(sidNode, taskobject, activedirectory.EdgeWriteDACL)
 							}
-							if entry.Mask&engine.WRITE_OWNER != engine.WRITE_OWNER {
+							if entry.Mask&engine.WRITE_OWNER == engine.WRITE_OWNER {
 								if sidNode == nil {
 									sidNode = ao.FindOrAddAdjacentSID(entrysid, machine)
 								}
 								ao.EdgeTo(sidNode, taskobject, activedirectory.EdgeTakeOwnership)
 							}
-							if entry.Mask&engine.TASK_WRITE == engine.TASK_WRITE {
+							if entry.Mask&(engine.TASK_WRITE|engine.Mask(0x40000000)) != 0 {
 								if sidNode == nil {
 									sidNode = ao.FindOrAddAdjacentSID(entrysid, machine)
 								}
 								ao.EdgeTo(sidNode, taskobject, activedirectory.EdgeWriteAll)
 							}
-							if entry.Mask&engine.TASK_FULL_CONTROL == engine.TASK_FULL_CONTROL {
+							if entry.Mask&engine.TASK_FULL_CONTROL == engine.TASK_FULL_CONTROL || entry.Mask&0x10000000 != 0 {
 								if sidNode == nil {
 									sidNode = ao.FindOrAddAdjacentSID(entrysid, machine)
 								}
@@ -804,11 +820,6 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	}
 	// SHARES
 	if len(cinfo.Shares) > 0 {
-		computershares := ao.AddNew(
-			activedirectory.Type, "Container",
-			activedirectory.DisplayName, "Shares",
-		)
-		computershares.ChildOf(machine)
 		for _, share := range cinfo.Shares {
 			shareobject := ao.AddNew(
 				engine.IgnoreBlanks,
@@ -819,7 +830,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				engine.Type, "Share",
 			)
 			ao.EdgeTo(machine, shareobject, EdgeShares)
-			shareobject.ChildOf(computershares)
+			shareobject.ChildOf(machine)
 			// Fileshare rights
 			if len(share.DACL) == 0 {
 				ui.Warn().Msgf("No security descriptor for machine %v file share %v", cinfo.Machine.Name, share.Name)
@@ -862,12 +873,12 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 			pathobject.ChildOf(machine)
 			ao.EdgeTo(shareobject, pathobject, EdgePublishes)
 			// File rights
-			if sd, err := engine.CacheOrParseSecurityDescriptor(string(share.PathDACL)); err == nil {
-				if !sd.Owner.IsNull() {
-					owner := ao.FindOrAddAdjacentSID(sd.Owner, machine)
+			if sd, err := engine.ParseACL(share.PathDACL); err == nil {
+				if sid, err := windowssecurity.ParseStringSID(share.PathOwner); err == nil {
+					owner := ao.FindOrAddAdjacentSID(sid, machine)
 					ao.EdgeTo(owner, pathobject, activedirectory.EdgeOwns)
 				}
-				for _, entry := range sd.DACL.Entries {
+				for _, entry := range sd.Entries {
 					entrysid := entry.SID
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						aclsid := ao.FindOrAddAdjacentSID(entrysid, machine)
@@ -904,7 +915,17 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		)
 		ao.EdgeTo(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 	}
+	// An omitted service's identity may still be an ACL trustee elsewhere.
+	// Retain that path without creating otherwise unused service identities.
+	for _, sid := range skippedServiceSIDs {
+		if identity, found := ao.FindAdjacentSID(sid, machine); found {
+			ao.EdgeTo(machine, identity, analyze.EdgeAuthenticatesAs)
+		}
+	}
 	if err := importCollectionSettings(machine, cinfo); err != nil {
+		return nil, err
+	}
+	if err := importLocalEvidence(machine, cinfo); err != nil {
 		return nil, err
 	}
 	return machine, nil
