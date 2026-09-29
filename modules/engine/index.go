@@ -1,123 +1,170 @@
 package engine
 
 import (
+	"hash/maphash"
+	"slices"
+	"strings"
 	"sync"
 )
 
+// Indexes are keyed by a 64-bit hash of the value. Strings hash under simple
+// case folding, so values that compare equal ignoring case share a hash; all
+// other kinds hash their exact value. The hash only selects a bucket: every
+// entry keeps its key and is matched with indexKeyEqual, so a collision
+// costs a comparison, never a wrong result. The hash is seeded per process,
+// so which values collide cannot be planned.
+
+var indexSeed = maphash.MakeSeed()
+
+// indexHash is a variable so tests can force collisions.
+var indexHash = func(v AttributeValue) uint64 {
+	if v.kind == kindString {
+		return stringTable.foldHash(uint32(v.bits))
+	}
+	return maphash.Comparable(indexSeed, v)
+}
+
+func indexKeyEqual(a, b AttributeValue) bool {
+	if a == b {
+		return true
+	}
+	if a.kind == kindString && b.kind == kindString {
+		return strings.EqualFold(stringTable.get(uint32(a.bits)), stringTable.get(uint32(b.bits)))
+	}
+	return false
+}
+
+func containsNode(ns NodeSlice, o *Node) bool {
+	return slices.Contains(ns.nodes, o)
+}
+
+type indexEntry struct {
+	key   AttributeValue
+	nodes NodeSlice
+	next  *indexEntry // another key with the same hash
+}
+
 type Index struct {
-	lookup map[AttributeValue]*NodeSlice
+	lookup map[uint64]*indexEntry
 	sync.RWMutex
 }
 
 func (i *Index) init() {
-	i.lookup = make(map[AttributeValue]*NodeSlice)
+	i.lookup = make(map[uint64]*indexEntry)
+}
+
+func (i *Index) find(key AttributeValue, hash uint64) *indexEntry {
+	for e := i.lookup[hash]; e != nil; e = e.next {
+		if indexKeyEqual(e.key, key) {
+			return e
+		}
+	}
+	return nil
 }
 
 func (i *Index) Lookup(key AttributeValue) (NodeSlice, bool) {
-	iv := AttributeValueToIndex(key)
+	hash := indexHash(key)
 	i.RLock()
-	result, found := i.lookup[iv]
-	i.RUnlock()
-	if !found {
-		return NodeSlice{}, false
+	e := i.find(key, hash)
+	var result NodeSlice
+	if e != nil {
+		result = e.nodes
 	}
-	return *result, found
+	i.RUnlock()
+	return result, e != nil
 }
 
 func (i *Index) Add(key AttributeValue, o *Node, undupe bool) {
-	iv := AttributeValueToIndex(key)
+	hash := indexHash(key)
 	i.Lock()
-	existing, found := i.lookup[iv]
-	if !found {
-		new := NewNodeSlice(0)
-		i.lookup[iv] = &new
-		existing = &new
+	defer i.Unlock()
+	e := i.find(key, hash)
+	if e == nil {
+		e = &indexEntry{key: key, nodes: NewNodeSlice(0), next: i.lookup[hash]}
+		i.lookup[hash] = e
 	}
-	i.Unlock()
-	if undupe && existing.Len() > 0 {
-		dupefound := false
-		existing.Iterate(func(eo *Node) bool {
-			if o == eo {
-				dupefound = true
-				return false
-			}
-			return true
-		})
-		if dupefound {
-			return
-		}
+	if undupe && containsNode(e.nodes, o) {
+		return
 	}
-	existing.Add(o)
+	e.nodes.Add(o)
 }
 
+// Iterate visits each distinct key (the first value added for it) and its nodes.
 func (i *Index) Iterate(each func(key AttributeValue, objects NodeSlice) bool) {
 	i.RLock()
-	for key, value := range i.lookup {
-		if !each(key, *value) {
-			break
+	defer i.RUnlock()
+	for _, e := range i.lookup {
+		for ; e != nil; e = e.next {
+			if !each(e.key, e.nodes) {
+				return
+			}
 		}
 	}
-	i.RUnlock()
+}
+
+type multiIndexEntry struct {
+	key, key2 AttributeValue
+	nodes     NodeSlice
+	next      *multiIndexEntry
 }
 
 type MultiIndex struct {
-	lookup map[AttributeValuePair]*NodeSlice
+	lookup map[uint64]*multiIndexEntry
 	sync.RWMutex
 }
 
 func (i *MultiIndex) init() {
-	i.lookup = make(map[AttributeValuePair]*NodeSlice)
+	i.lookup = make(map[uint64]*multiIndexEntry)
+}
+
+func multiIndexHash(key, key2 AttributeValue) uint64 {
+	return maphash.Comparable(indexSeed, [2]uint64{indexHash(key), indexHash(key2)})
+}
+
+func (i *MultiIndex) find(key, key2 AttributeValue, hash uint64) *multiIndexEntry {
+	for e := i.lookup[hash]; e != nil; e = e.next {
+		if indexKeyEqual(e.key, key) && indexKeyEqual(e.key2, key2) {
+			return e
+		}
+	}
+	return nil
 }
 
 func (i *MultiIndex) Lookup(key, key2 AttributeValue) (NodeSlice, bool) {
-	iv := AttributeValueToIndex(key)
-	iv2 := AttributeValueToIndex(key2)
-
+	hash := multiIndexHash(key, key2)
 	i.RLock()
-	result, found := i.lookup[AttributeValuePair{iv, iv2}]
-	i.RUnlock()
-	if !found {
-		return NodeSlice{}, false
+	e := i.find(key, key2, hash)
+	var result NodeSlice
+	if e != nil {
+		result = e.nodes
 	}
-	return *result, found
+	i.RUnlock()
+	return result, e != nil
 }
 
 func (i *MultiIndex) Add(key, key2 AttributeValue, o *Node, undupe bool) {
-	iv := AttributeValueToIndex(key)
-	iv2 := AttributeValueToIndex(key2)
-	avp := AttributeValuePair{iv, iv2}
+	hash := multiIndexHash(key, key2)
 	i.Lock()
-	existing, found := i.lookup[avp]
-	if !found {
-		new := NewNodeSlice(0)
-		i.lookup[avp] = &new
-		existing = &new
+	defer i.Unlock()
+	e := i.find(key, key2, hash)
+	if e == nil {
+		e = &multiIndexEntry{key: key, key2: key2, nodes: NewNodeSlice(0), next: i.lookup[hash]}
+		i.lookup[hash] = e
 	}
-	if undupe && existing.Len() > 0 {
-		dupefound := false
-		existing.Iterate(func(eo *Node) bool {
-			if o == eo {
-				dupefound = true
-				return false
-			}
-			return true
-		})
-		if dupefound {
-			i.Unlock()
-			return
-		}
+	if undupe && containsNode(e.nodes, o) {
+		return
 	}
-
-	existing.Add(o)
-	i.Unlock()
+	e.nodes.Add(o)
 }
 
 func (i *MultiIndex) Iterate(each func(key, key2 AttributeValue, objects NodeSlice) bool) {
 	i.RLock()
-	for pair, value := range i.lookup {
-		if !each(pair.Value1, pair.Value2, *value) {
-			break
+	defer i.RUnlock()
+	for _, e := range i.lookup {
+		for ; e != nil; e = e.next {
+			if !each(e.key, e.key2, e.nodes) {
+				return
+			}
 		}
 	}
-	i.RUnlock()
 }

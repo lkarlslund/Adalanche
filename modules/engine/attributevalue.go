@@ -199,16 +199,6 @@ func timeValue(t time.Time) AttributeValue {
 	return AttributeValue{kindTimeTable, uint64(timeTable.intern(t))}
 }
 
-// Lower returns the value with strings folded to lower case, for
-// case-insensitive index keys. The folded form of each distinct string is
-// computed once.
-func (v AttributeValue) Lower() AttributeValue {
-	if v.kind != kindString {
-		return v
-	}
-	return AttributeValue{kindString, uint64(stringTable.lower(uint32(v.bits)))}
-}
-
 // IsNil reports whether this is the empty "no value" value.
 func (v AttributeValue) IsNil() bool {
 	return v.kind == kindNil

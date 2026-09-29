@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -121,20 +122,86 @@ func TestInternConcurrently(t *testing.T) {
 	}
 }
 
-func TestLowerIsCachedAndInterned(t *testing.T) {
-	mixed := NVString("MiXeD-Lower-Test")
-	if mixed.Lower() != NVString("mixed-lower-test") || mixed.Lower() != mixed.Lower() {
-		t.Fatal("lowercase form not interned")
+func TestFoldHashMatchesEqualFold(t *testing.T) {
+	pairs := [][2]string{
+		{"XYZ", "xyz"}, {"xYz", "XyZ"}, {"CN=Admin,DC=Example", "cn=admin,dc=example"},
+		{"k", "\u212a"},    // Kelvin sign folds with k
+		{"s", "\u017f"},    // long s folds with s
+		{"Ωmega", "ωMEGA"}, // Greek
+		{"straße", "STRAßE"},
+		{"", ""},
 	}
-	already := NVString("already-lower")
-	if already.Lower() != already {
-		t.Fatal("lowercase string should fold to itself")
+	for _, p := range pairs {
+		if !strings.EqualFold(p[0], p[1]) {
+			t.Fatalf("fixture %q/%q is not EqualFold", p[0], p[1])
+		}
+		if foldHash(p[0]) != foldHash(p[1]) {
+			t.Fatalf("%q and %q fold equal but hash differently", p[0], p[1])
+		}
 	}
-	if n := NVInt(7); n.Lower() != n {
-		t.Fatal("non-strings are unchanged")
+	if foldHash("abc") == foldHash("abd") {
+		t.Fatal("distinct strings hashed equal")
 	}
-	if NVSID("S-1-5-32-544").Lower() != NVSID("S-1-5-32-544") {
-		t.Fatal("SIDs are not folded")
+}
+
+func TestIndexIsCaseInsensitiveForStringsOnly(t *testing.T) {
+	var index Index
+	index.init()
+	a, b := NewNode(), NewNode()
+	index.Add(NVString("XYZ"), a, false)
+	index.Add(NVSID("S-1-5-21-1"), b, false)
+	for _, lookup := range []string{"XYZ", "xyz", "xYz"} {
+		if nodes, found := index.Lookup(NVString(lookup)); !found || nodes.First() != a {
+			t.Fatalf("lookup %q failed", lookup)
+		}
+	}
+	if _, found := index.Lookup(NVString("xy")); found {
+		t.Fatal("prefix matched")
+	}
+	if _, found := index.Lookup(NVString("S-1-5-21-1")); found {
+		t.Fatal("a string matched a SID")
+	}
+	if _, found := index.Lookup(NVInt(0)); found {
+		t.Fatal("unrelated kind matched")
+	}
+}
+
+func TestIndexCollisionsNeverMix(t *testing.T) {
+	previous := indexHash
+	indexHash = func(AttributeValue) uint64 { return 42 } // everything collides
+	defer func() { indexHash = previous }()
+
+	var index Index
+	index.init()
+	var multi MultiIndex
+	multi.init()
+	nodes := map[string]*Node{}
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		nodes[name] = NewNode()
+		index.Add(NVString(name), nodes[name], false)
+		multi.Add(NVString(name), NVInt(1), nodes[name], false)
+	}
+	index.Add(NVString("ALPHA"), nodes["alpha"], true) // same key, deduplicated
+	for name, node := range nodes {
+		got, found := index.Lookup(NVString(strings.ToUpper(name)))
+		if !found || got.Len() != 1 || got.First() != node {
+			t.Fatalf("collision mixed up %q: %v", name, got.nodes)
+		}
+		got, found = multi.Lookup(NVString(name), NVInt(1))
+		if !found || got.Len() != 1 || got.First() != node {
+			t.Fatalf("multi-index collision mixed up %q", name)
+		}
+		if _, found := multi.Lookup(NVString(name), NVInt(2)); found {
+			t.Fatal("second key ignored")
+		}
+	}
+	if _, found := index.Lookup(NVString("delta")); found {
+		t.Fatal("missing key found through a collision")
+	}
+	keys := 0
+	index.Iterate(func(AttributeValue, NodeSlice) bool { keys++; return true })
+	if keys != 3 {
+		t.Fatalf("iterated %d keys, want 3", keys)
 	}
 }
 

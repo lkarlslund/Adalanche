@@ -192,11 +192,9 @@ func (os *IndexedGraph) refreshMultiIndex(attribute, attribute2 Attribute, index
 		}
 
 		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
-			iv := AttributeValueToIndex(value)
 			o.Attr(attribute2).Iterate(func(value2 AttributeValue) bool {
-				iv2 := AttributeValueToIndex(value2)
 				// Add to index
-				index.Add(iv, iv2, o, false)
+				index.Add(value, value2, o, false)
 
 				return true
 			})
@@ -234,8 +232,7 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 		if index != nil {
 			attribute := Attribute(i)
 			o.AttrRendered(attribute).Iterate(func(value AttributeValue) bool {
-				// If it's a string, lowercase it before adding to index, we do the same on lookups
-				indexval := AttributeValueToIndex(value)
+				indexval := value
 
 				unique := attribute.HasFlag(Unique)
 
@@ -265,11 +262,8 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 		}
 
 		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
-			key := AttributeValueToIndex(value)
 			o.Attr(attribute2).Iterate(func(value2 AttributeValue) bool {
-				key2 := AttributeValueToIndex(value2)
-
-				index.Add(key, key2, o, !isnew)
+				index.Add(value, value2, o, !isnew)
 
 				return true
 			})
@@ -279,8 +273,10 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 	os.indexlock.RUnlock()
 }
 
+// AttributeValueToIndex is kept for callers; indexes match strings ignoring
+// case themselves, so values are used as they are.
 func AttributeValueToIndex(value AttributeValue) AttributeValue {
-	return value.Lower()
+	return value
 }
 
 func (os *IndexedGraph) Filter(evaluate func(o *Node) bool) *IndexedGraph {
@@ -742,7 +738,7 @@ func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeVa
 
 	if attribute2 == NonExistingAttribute {
 		// Lookup by one attribute
-		matches, found := singleIndex.Lookup(AttributeValueToIndex(value))
+		matches, found := singleIndex.Lookup(value)
 		if found {
 			os.nodeMutex.Unlock()
 			return matches, found

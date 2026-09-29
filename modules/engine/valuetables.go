@@ -1,10 +1,12 @@
 package engine
 
 import (
-	"strings"
+	"hash/maphash"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/gofrs/uuid/v5"
@@ -126,8 +128,8 @@ func (in *interner[T]) get(index uint32) T {
 // string pointers for the collector to scan. Hash collisions are checked
 // against the stored string and resolved in a small overflow map.
 type stringEntry struct {
-	s     string
-	lower atomic.Uint32 // handle+1 of the lowercase form; 0 until computed
+	s    string
+	fold uint64 // hash under simple case folding, for case-insensitive indexes
 }
 
 type stringInterner struct {
@@ -191,7 +193,7 @@ func (s *stringInterner) add(v string) uint32 {
 		s.table.directory.Store(&grown)
 		chunks = grown
 	}
-	chunks[index>>tableChunkBits][index&(tableChunkSize-1)].s = v
+	chunks[index>>tableChunkBits][index&(tableChunkSize-1)] = stringEntry{s: v, fold: foldHash(v)}
 	s.table.count++
 	return index
 }
@@ -209,18 +211,31 @@ func (s *stringInterner) get(index uint32) string {
 	return s.table.at(index).s
 }
 
-// lower returns the handle of the lowercase form of the string at index,
-// computing and interning it on first use.
-func (s *stringInterner) lower(index uint32) uint32 {
-	entry := s.table.at(index)
-	if cached := entry.lower.Load(); cached != 0 {
-		return cached - 1
+func (s *stringInterner) foldHash(index uint32) uint64 {
+	return s.table.at(index).fold
+}
+
+// foldHash hashes s under simple Unicode case folding, the equivalence
+// strings.EqualFold uses: each rune is replaced by the smallest rune in its
+// folding orbit, so EqualFold(a, b) implies foldHash(a) == foldHash(b).
+func foldHash(s string) uint64 {
+	var h maphash.Hash
+	h.SetSeed(indexSeed)
+	var buf [utf8.UTFMax]byte
+	for _, r := range s {
+		if r < utf8.RuneSelf {
+			c := byte(r)
+			if 'a' <= c && c <= 'z' {
+				c -= 'a' - 'A' // Uppercase is the smallest rune of an ASCII letter's orbit.
+			}
+			h.WriteByte(c)
+			continue
+		}
+		folded := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			folded = min(folded, f)
+		}
+		h.Write(buf[:utf8.EncodeRune(buf[:], folded)])
 	}
-	folded := strings.ToLower(entry.s)
-	result := index
-	if folded != entry.s {
-		result = s.intern(folded)
-	}
-	entry.lower.Store(result + 1)
-	return result
+	return h.Sum64()
 }
