@@ -200,7 +200,7 @@ func expandFlexInit(flexinit ...any) []nodePatchAttrValues {
 			}
 
 			newValue := NV(item)
-			if newValue == nil || (ignoreBlanks && newValue.IsZero()) {
+			if newValue.IsNil() || (ignoreBlanks && newValue.IsZero()) {
 				if ignoreBlanks {
 					continue
 				}

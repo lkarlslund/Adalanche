@@ -18,8 +18,6 @@ type typestatistics [256]int
 
 type NodeIndex uint32
 
-const invalidNodeIndex = ^NodeIndex(0)
-
 type EdgeCombo uint16
 
 type IndexedGraph struct {
@@ -31,14 +29,13 @@ type IndexedGraph struct {
 	// Node tracking
 	nodeMutex  sync.RWMutex
 	nodeLookup gsync.MapOf[*Node, NodeIndex] // map to index in objects
+	idLookup   gsync.MapOf[NodeID, *Node]    // node ID -> node, read without locking
 	nodes      []*Node                       // All objects, int -> *Node
 
 	// Edge tracking
-	edgeComboLookup map[EdgeBitmap]EdgeCombo
-	edgeCombos      []EdgeBitmap
-	edges           [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
-	edgeComboMutex  sync.RWMutex
-	edgeMutex       sync.RWMutex
+	edgeCombos *edgeComboTable
+	edges      [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
+	edgeMutex  sync.RWMutex
 
 	// Lookups
 	indexlock    sync.RWMutex
@@ -51,17 +48,11 @@ type IndexedGraph struct {
 func NewIndexedGraph() *IndexedGraph {
 	g := IndexedGraph{
 		// indexes:      make(map[Attribute]*Index),
-		multiindexes:    make(map[AttributePair]*MultiIndex),
-		edgeComboLookup: make(map[EdgeBitmap]EdgeCombo, 1024),
-		edgeCombos:      make([]EdgeBitmap, 0, 1024),
+		multiindexes: make(map[AttributePair]*MultiIndex),
+		edgeCombos:   newEdgeComboTable(),
 		edges: [2]map[NodeIndex]map[NodeIndex]EdgeCombo{
 			make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192), make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192)},
 	}
-
-	// Super important for this to work!
-	blank := EdgeBitmap{}
-	g.edgeCombos = append(g.edgeCombos, blank)
-	g.edgeComboLookup[blank] = 0
 
 	// unique := uintptr(unsafe.Pointer(&g))
 	// ui.Debug().Msgf("IndexedGraph %v created!", unique)
@@ -289,13 +280,7 @@ func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
 }
 
 func AttributeValueToIndex(value AttributeValue) AttributeValue {
-	if value == nil {
-		return nil
-	}
-	if s, ok := value.(attributeValueString); ok {
-		return NV(strings.ToLower(s.String()))
-	}
-	return value
+	return value.Lower()
 }
 
 func (os *IndexedGraph) Filter(evaluate func(o *Node) bool) *IndexedGraph {
@@ -352,14 +337,16 @@ func (os *IndexedGraph) indexToNode(id NodeIndex) (*Node, bool) {
 }
 
 func (os *IndexedGraph) nodeToIndex(node *Node) (NodeIndex, bool) {
-	if node.graphIndex != invalidNodeIndex {
-		return node.graphIndex, true
-	}
+	// Nodes can belong to multiple graphs. An index belongs to this graph,
+	// never to the shared node itself.
 	return os.nodeLookup.Load(node)
 }
 
 func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
-	return os.Find(AttributeNodeId, NV(int(id)))
+	if id == InvalidNodeID {
+		return nil, false
+	}
+	return os.idLookup.Load(id)
 }
 
 // Attemps to merge the node into the objects
@@ -487,11 +474,13 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 func (os *IndexedGraph) add(newNode *Node) {
 	index := NodeIndex(len(os.nodes))
 	if _, found := os.nodeLookup.LoadOrStore(newNode, index); !found {
-		newNode.graphIndex = index
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
 		os.nodes = append(os.nodes, newNode)
+		if newNode.id != InvalidNodeID {
+			os.idLookup.Store(newNode.id, newNode)
+		}
 		os.ReindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	} else {
@@ -503,11 +492,13 @@ func (os *IndexedGraph) AddRelaxed(newNode *Node) {
 	os.nodeMutex.Lock()
 	index := NodeIndex(len(os.nodes))
 	if _, found := os.nodeLookup.LoadOrStore(newNode, index); !found {
-		newNode.graphIndex = index
 		if os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
 		os.nodes = append(os.nodes, newNode)
+		if newNode.id != InvalidNodeID {
+			os.idLookup.Store(newNode.id, newNode)
+		}
 		os.ReindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	}
@@ -712,11 +703,11 @@ func (os *IndexedGraph) FindTwoMulti(attribute Attribute, value AttributeValue, 
 }
 
 func (os *IndexedGraph) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
-	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, nil)
+	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, nil)
 }
 
 func (os *IndexedGraph) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
-	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, nil, addifnotfound)
+	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, addifnotfound)
 }
 
 func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
@@ -849,7 +840,7 @@ func (os *IndexedGraph) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node)
 }
 
 func (os *IndexedGraph) findAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
-	sidValue := NV(s)
+	sidValue := NVSID(s)
 	if relativeTo == nil {
 		return os.Find(ObjectSid, sidValue)
 	}
@@ -859,7 +850,7 @@ func (os *IndexedGraph) findAdjacentSID(s windowssecurity.SID, relativeTo *Node)
 	domainContext := relativeTo.OneAttr(DomainContext)
 	dataSource := relativeTo.OneAttr(DataSource)
 
-	if relativeType == NodeTypeMachine && dataSource != nil && s.StripRID() == relativeSID {
+	if relativeType == NodeTypeMachine && !dataSource.IsNil() && s.StripRID() == relativeSID {
 		return os.FindTwo(ObjectSid, sidValue, DataSource, dataSource)
 	}
 
@@ -871,13 +862,13 @@ func (os *IndexedGraph) findAdjacentSID(s windowssecurity.SID, relativeTo *Node)
 		return result.First(), true
 	}
 
-	if domainContext != nil {
+	if !domainContext.IsNil() {
 		if o, found := os.findSIDWithScope(DomainContext, domainContext, sidValue); found {
 			return o, true
 		}
 	}
 
-	if dataSource != nil {
+	if !dataSource.IsNil() {
 		if o, found := os.findSIDWithScope(DataSource, dataSource, sidValue); found {
 			return o, true
 		}
@@ -891,13 +882,13 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 		return found, true
 	}
 
-	sidValue := NV(s)
+	sidValue := NVSID(s)
 	if relativeTo == nil {
 		return os.FindOrAdd(ObjectSid, sidValue)
 	}
 
 	dataSource := relativeTo.OneAttr(DataSource)
-	if relativeTo.Type() == NodeTypeMachine && dataSource != nil && s.StripRID() == relativeTo.SID() {
+	if relativeTo.Type() == NodeTypeMachine && !dataSource.IsNil() && s.StripRID() == relativeTo.SID() {
 		return os.FindTwoOrAdd(ObjectSid, sidValue, DataSource, dataSource)
 	}
 

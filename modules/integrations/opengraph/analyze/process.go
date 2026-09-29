@@ -5,11 +5,15 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/opengraph"
 )
 
+// The source's node identifier, which edges reference with match_by "id".
+// It is kept as an ordinary attribute; engine node IDs are process-local.
+var attributeOpenGraphID = engine.NewAttribute("id")
+
 func processOpenGraphData(g *engine.IndexedGraph, ogd opengraph.Model) error {
 	// process nodes
 	for _, node := range ogd.Graph.Nodes {
 		data := make([]any, 0, len(node.Properties)*2+4)
-		data = append(data, engine.AttributeNodeId, node.ID)
+		data = append(data, attributeOpenGraphID, node.ID)
 		if len(node.Kinds) > 0 {
 			data = append(data, engine.Type, node.Kinds[0])
 		}

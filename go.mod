@@ -24,6 +24,7 @@ require (
 	github.com/gin-contrib/pprof v1.5.6
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-asn1-ber/asn1-ber v1.5.8
+	github.com/go-ole/go-ole v1.3.0
 	github.com/gobwas/glob v1.0.0
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/golang-auth/go-channelbinding v1.1.0
@@ -35,6 +36,7 @@ require (
 	github.com/icza/gox v0.2.14
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/json-iterator/go v1.1.12
+	github.com/klauspost/compress v1.20.1
 	github.com/lkarlslund/binstruct v1.3.1-0.20220418073417-7618823b3136
 	github.com/lkarlslund/go-win64api v0.0.0-20211005130710-d4f2d07ed091
 	github.com/lkarlslund/gonk v0.0.0-20241127131211-8ff91a8ac49f
@@ -87,7 +89,6 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/gin-contrib/sse v1.1.2 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-playground/locales v0.14.2 // indirect
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/go-playground/validator/v10 v10.30.5 // indirect

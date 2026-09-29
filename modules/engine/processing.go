@@ -97,7 +97,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 			pb.Add(1)
 
 			// Just fast track melting nodes with same DN together, solves duplicate schema items etc.
-			if val := node.OneAttr(DistinguishedName); val != nil {
+			if val := node.OneAttr(DistinguishedName); !val.IsNil() {
 				if samedn, found := dnindex.Lookup(val); found {
 					mergeMutex.Lock()
 					mergedNodesMap[node] = samedn.First()

@@ -335,61 +335,26 @@ var ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4
 var ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("a05b8cc2-17bc-4802-a710-e7c15ab866a2")
 
 func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph) bool {
-	if a.Entries[index].Type == ACETYPE_ACCESS_DENIED || a.Entries[index].Type == ACETYPE_ACCESS_DENIED_OBJECT {
+	grant := a.Entries[index]
+	if grant.Type != ACETYPE_ACCESS_ALLOWED && grant.Type != ACETYPE_ACCESS_ALLOWED_OBJECT {
 		return false
 	}
-	if a.Entries[index].matchObjectClassAndGUID(testObject, mask, guid, ao) {
-		// It's allowed, unless there's a prior DENY rule that matches
-		if a.containsdeny && index > 0 {
-			allowedSid := a.Entries[index].SID
-
-			for i := 0; i < index; i++ {
-				if a.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || a.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT {
-					// this is not a DENY ACE, so we can skip it
-					if i < a.firstinheriteddeny && a.firstinheriteddeny < index {
-						// we've been processing direct DENY, but there are some inherited, so skip to them
-						i = a.firstinheriteddeny
-					} else {
-						// no more DENY entries so we're granted access
-						return true
-					}
-				}
-
-				// Check SID first, this is very fast, then do detailed check later
-				var sidmatch bool
-
-				currentPotentialDenySid := a.Entries[i].SID
-
-				if currentPotentialDenySid == allowedSid {
-					sidmatch = true
-				} else {
-					// FIXME
-
-					// This removes a few false positives
-					//
-					// The allowed SID might be a member of one or more groups matching a DENY ACE
-					// This will never work for cross domain groups
-
-					// FIXME
-					// so, found := ao.Find(ObjectSid, AttributeValueSID(currentPotentialDenySid))
-					// if found {
-					// 	for _, memberOfSid := range so.MemberOfSID(true) {
-					// 		if memberOfSid == allowedSid {
-					// 			sidmatch = true
-					// 			break
-					// 		}
-					// 	}
-					// }
-				}
-
-				if sidmatch && a.Entries[i].matchObjectClassAndGUID(testObject, mask, guid, ao) {
-					return false // Access denied
-				}
+	if !grant.matchObjectClassAndGUID(testObject, mask, guid, ao) {
+		return false
+	}
+	if a.containsdeny {
+		// Only preceding deny ACEs can invalidate this grant. This evaluates the
+		// exact trustee, not a complete access token with its group memberships.
+		for _, deny := range a.Entries[:index] {
+			if deny.Type != ACETYPE_ACCESS_DENIED && deny.Type != ACETYPE_ACCESS_DENIED_OBJECT {
+				continue
+			}
+			if deny.SID == grant.SID && deny.matchObjectClassAndGUID(testObject, mask, guid, ao) {
+				return false
 			}
 		}
-		return true // No deny match
 	}
-	return false // No allow match
+	return true
 }
 
 var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
@@ -421,7 +386,7 @@ func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID,
 				// Not in cache, let's populate it
 				cachedset = UnknownGUID // Assume failure
 				if s, found := ao.Find(SchemaIDGUID, NV(g)); found {
-					if set, ok := s.OneAttrRaw(AttributeSecurityGUID).(uuid.UUID); ok {
+					if set, ok := s.OneAttrGUID(AttributeSecurityGUID); ok {
 						cachedset = set
 						if cachedset.IsNil() {
 							cachedset = UnknownGUID
@@ -452,7 +417,7 @@ func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID,
 			ui.Warn().Msg("That's not right")
 		}
 		o.Attr(ObjectClassGUIDs).Iterate(func(classattr AttributeValue) bool {
-			if class, ok := classattr.Raw().(uuid.UUID); ok {
+			if class, ok := classattr.AsGUID(); ok {
 				if a.InheritedObjectType == class {
 					result = true
 					return false

@@ -74,6 +74,9 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
   if (!wm) {
     return true;
   }
+  if (width <= 0 && typeof content === "string" && content.includes('class="node-details"')) {
+    width = Math.min(736, window.innerWidth * 0.6);
+  }
   return wm.openWindow({
     id,
     title,

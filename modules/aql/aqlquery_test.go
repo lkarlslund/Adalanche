@@ -213,19 +213,22 @@ func BenchmarkCommitToGraph(b *testing.B) {
 	}
 
 	combo := ao.EdgeBitmapToEdgeCombo(engine.EdgeBitmap{}.Set(edgeType))
-	var path probableWorkingPath
-	for i, node := range nodes {
-		reference := byte(255)
-		if i == 0 {
-			reference = 0
-		}
-		path.Add(node.ID(), engine.Out, combo, reference)
-	}
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
+		var paths pathArena
+		tail := int32(-1)
+		for j, node := range nodes {
+			reference := byte(255)
+			if j == 0 {
+				reference = 0
+			}
+			index, _ := ao.NodeIndexOf(node)
+			tail = paths.add(tail, pathItem{target: index, direction: engine.Out, combo: combo, reference: reference})
+		}
 		graphResult := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
-		path.CommitToGraph(ao, graphResult, []NodeQuery{{Reference: "source"}})
+		paths.commit(tail, ao, graphResult)
+		paths.flush(ao, graphResult, []NodeQuery{{Reference: "source"}})
 	}
 }
 

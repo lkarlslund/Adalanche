@@ -56,3 +56,27 @@ func TestGraphFinalizerFailure(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestGraphAttributeCalculatorFailure(t *testing.T) {
+	graphAttributeCalculators.Lock()
+	previous := graphAttributeCalculators.items
+	graphAttributeCalculators.items = nil
+	graphAttributeCalculators.Unlock()
+	t.Cleanup(func() {
+		graphAttributeCalculators.Lock()
+		graphAttributeCalculators.items = previous
+		graphAttributeCalculators.Unlock()
+	})
+	g := testGraph(testNamedNode("calculated"))
+	want := errors.New("calculation failed")
+	RegisterGraphAttributeCalculator(func(got *IndexedGraph) error {
+		if got != g {
+			t.Fatal("wrong graph")
+		}
+		return want
+	})
+	RegisterGraphAttributeCalculator(func(*IndexedGraph) error { t.Fatal("continued after failure"); return nil })
+	if err := calculateGraphAttributes(g); !errors.Is(err, want) {
+		t.Fatalf("error = %v", err)
+	}
+}

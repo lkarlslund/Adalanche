@@ -12,14 +12,29 @@ type StartLength struct {
 	length uint16
 }
 
+// attributeSlot locates one attribute's values in AttributesAndValues.values.
+type attributeSlot struct {
+	attribute Attribute
+	StartLength
+}
+
+// AttributesAndValues stores a node's attributes as a slice sorted by
+// attribute, pointing into one shared values slice. Nodes have tens of
+// attributes, where a binary search over a compact slice beats a map and
+// saves a map allocation per node.
 type AttributesAndValues struct {
-	attributes map[Attribute]StartLength
+	attributes []attributeSlot
 	values     AttributeValues
 	mu         sync.Mutex
 }
 
-func (avm *AttributesAndValues) init() {
-	avm.attributes = make(map[Attribute]StartLength)
+func (avm *AttributesAndValues) init() {}
+
+// find returns the position of a in attributes, or where it would be inserted.
+func (avm *AttributesAndValues) find(a Attribute) (int, bool) {
+	return slices.BinarySearchFunc(avm.attributes, a, func(slot attributeSlot, a Attribute) int {
+		return int(slot.attribute) - int(a)
+	})
 }
 
 func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndValues {
@@ -33,38 +48,35 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 	var merged AttributesAndValues
 	merged.init()
 
-	// pre-allocate backing array for values to avoid repeated reallocations
+	// pre-allocate backing arrays to avoid repeated reallocations
 	longestlen := max(len(avm2.values), len(avm.values))
 	merged.values = make(AttributeValues, 0, longestlen)
+	merged.attributes = make([]attributeSlot, 0, max(len(avm.attributes), len(avm2.attributes)))
 
-	// Collect keys directly from both maps (avoids extra Iterate/map lookups).
-	attributes := make([]Attribute, 0, len(avm.attributes)+len(avm2.attributes))
-	for attr := range avm.attributes {
-		attributes = append(attributes, attr)
-	}
-	for attr := range avm2.attributes {
-		attributes = append(attributes, attr)
-	}
-
-	// For each attribute, grab the slices directly and append merged values once.
-	slices.Sort(attributes)
-	var lastAttribute Attribute
-	for _, attr := range attributes {
-		if attr == lastAttribute {
-			// already processed this attribute (duplicate in combined list)
-			continue
+	// Both attribute lists are sorted, so walk them together.
+	i, j := 0, 0
+	for i < len(avm.attributes) || j < len(avm2.attributes) {
+		var attr Attribute
+		switch {
+		case j == len(avm2.attributes) || (i < len(avm.attributes) && avm.attributes[i].attribute < avm2.attributes[j].attribute):
+			attr = avm.attributes[i].attribute
+		default:
+			attr = avm2.attributes[j].attribute
 		}
-		lastAttribute = attr
 
 		var av1 AttributeValues
-		if sl, found := avm.attributes[attr]; found {
+		if i < len(avm.attributes) && avm.attributes[i].attribute == attr {
+			sl := avm.attributes[i].StartLength
 			av1 = avm.values[sl.start : sl.start+sl.length]
+			i++
 		}
 		var av2 AttributeValues
-		if !attr.HasFlag(DropWhenMerging) {
-			if sl, found := avm2.attributes[attr]; found {
+		if j < len(avm2.attributes) && avm2.attributes[j].attribute == attr {
+			if !attr.HasFlag(DropWhenMerging) {
+				sl := avm2.attributes[j].StartLength
 				av2 = avm2.values[sl.start : sl.start+sl.length]
 			}
+			j++
 		}
 		mergedVals := mergeValues(av1, av2)
 		if len(mergedVals) == 0 {
@@ -76,7 +88,7 @@ func (avm *AttributesAndValues) Merge(avm2 *AttributesAndValues) *AttributesAndV
 		if start > 0xFFFF || len(mergedVals) > 0xFFFF {
 			panic("too many attribute values to store in merged AttributesAndValues")
 		}
-		merged.attributes[attr] = StartLength{uint16(start), uint16(len(mergedVals))}
+		merged.attributes = append(merged.attributes, attributeSlot{attr, StartLength{uint16(start), uint16(len(mergedVals))}})
 	}
 
 	return &merged
@@ -96,10 +108,11 @@ func (avm *AttributesAndValues) Get(a Attribute) (av AttributeValues, found bool
 }
 
 func (avm *AttributesAndValues) get(a Attribute) (av AttributeValues, found bool) {
-	sl, found := avm.attributes[a]
+	i, found := avm.find(a)
 	if !found {
 		return nil, false
 	}
+	sl := avm.attributes[i].StartLength
 	return avm.values[sl.start : sl.start+sl.length], true
 }
 
@@ -139,21 +152,32 @@ func (avm *AttributesAndValues) Set(a Attribute, av AttributeValues) {
 	avm.mu.Unlock()
 }
 
+// shiftAfter moves the value ranges that start after start down by length,
+// after those values were removed from the values slice.
+func (avm *AttributesAndValues) shiftAfter(start, length uint16) {
+	for k := range avm.attributes {
+		if avm.attributes[k].start > start {
+			avm.attributes[k].start -= length
+		}
+	}
+}
+
 func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 	if sliceOverlap(av, avm.values) {
 		panic(fmt.Sprintf("AttributeValues slice %v overlaps with existing values %v", av, avm.values))
 	}
 
-	wasnil := len(av) > 0 && av[0] == nil
-	sl, found := avm.attributes[a]
+	wasnil := len(av) > 0 && av[0].IsNil()
+	i, found := avm.find(a)
 	if found {
+		sl := avm.attributes[i].StartLength
 		// If we are last and there is room just add the missing elements
 		weAreLast := sl.start+sl.length == uint16(len(avm.values))
-		if weAreLast && cap(avm.values)-len(avm.values) >= len(av)-int(sl.length) {
-			// extend the slice
+		if weAreLast && len(av) > 0 && cap(avm.values)-len(avm.values) >= len(av)-int(sl.length) {
+			// extend or shrink the slice in place
 			avm.values = avm.values[:len(avm.values)+len(av)-int(sl.length)]
 			copy(avm.values[sl.start:], av)
-			avm.attributes[a] = StartLength{sl.start, uint16(len(av))} // Update the length
+			avm.attributes[i].length = uint16(len(av)) // Update the length
 			return
 		}
 
@@ -161,28 +185,26 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 			// Easy
 			copy(avm.values[sl.start:sl.start+sl.length], av)
 			return
-		} else {
-			// Remove it, and we add it again below
-			avm.values = slices.Delete(avm.values, int(sl.start), int(sl.start+sl.length))
-			if !weAreLast {
-				// Adjust start positions of all attributes that come after the deleted one
-				for k, v := range avm.attributes {
-					if v.start >= sl.start {
-						avm.attributes[k] = StartLength{v.start - sl.length, v.length}
-					}
-				}
-			}
+		}
+
+		// Remove it, and we add it again below
+		avm.values = slices.Delete(avm.values, int(sl.start), int(sl.start+sl.length))
+		avm.attributes = slices.Delete(avm.attributes, i, i+1)
+		if !weAreLast {
+			avm.shiftAfter(sl.start, sl.length)
 		}
 	}
 
 	if len(av) == 0 {
 		return
 	}
-	// Find where to insert it. We want to keep the values sorted by attribute name.
 
 	start := len(avm.values)
 	length := len(av)
-	avm.attributes[a] = StartLength{uint16(start), uint16(length)}
+	if start+length > 0xFFFF || length > 0xFFFF {
+		panic("too many attribute values to store in AttributesAndValues")
+	}
+	avm.attributes = slices.Insert(avm.attributes, i, attributeSlot{a, StartLength{uint16(start), uint16(length)}})
 	if len(avm.values)+length > cap(avm.values) {
 		newCap := len(avm.values) + len(av)
 		if newCap < 8 {
@@ -194,7 +216,7 @@ func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 		copy(newValues, avm.values)
 		avm.values = newValues
 	}
-	if av[0] == nil {
+	if av[0].IsNil() {
 		panic(fmt.Sprintf("nil attribute value (was %v)", wasnil))
 	}
 	avm.values = append(avm.values, av...)
@@ -213,26 +235,24 @@ func (avm *AttributesAndValues) Clear(a Attribute) {
 }
 
 func (avm *AttributesAndValues) clear(a Attribute) {
-	sl, found := avm.attributes[a]
+	i, found := avm.find(a)
 	if !found {
 		return
 	}
+	sl := avm.attributes[i].StartLength
 
 	weAreLast := int(sl.start+sl.length) == len(avm.values)
 	avm.values = slices.Delete(avm.values, int(sl.start), int(sl.start+sl.length))
+	avm.attributes = slices.Delete(avm.attributes, i, i+1)
 	if !weAreLast {
-		for k, v := range avm.attributes {
-			if v.start > sl.start {
-				avm.attributes[k] = StartLength{v.start - sl.length, v.length}
-			}
-		}
+		avm.shiftAfter(sl.start, sl.length)
 	}
-	delete(avm.attributes, a)
 }
 
+// Iterate visits attributes in attribute order.
 func (avm *AttributesAndValues) Iterate(f func(attr Attribute, values AttributeValues) bool) {
-	for attr, sl := range avm.attributes {
-		if !f(attr, avm.values[sl.start:sl.start+sl.length]) {
+	for _, slot := range avm.attributes {
+		if !f(slot.attribute, avm.values[slot.start:slot.start+slot.length]) {
 			return
 		}
 	}

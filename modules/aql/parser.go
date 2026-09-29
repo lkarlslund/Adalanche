@@ -609,13 +609,13 @@ func parseValue(ts *TokenStream, ao *engine.IndexedGraph) (engine.AttributeValue
 	case Integer:
 		value = engine.NV(ts.Token().Native.(int64))
 	case Float:
-		return nil, errors.New("float type not supported yet")
+		return engine.AttributeValue{}, errors.New("float type not supported yet")
 	case QuotedString:
 		value = engine.NV(ts.Token().Value)
 	case True, False:
 		value = engine.NV(ts.Token().Type == True) // brilliant++
 	default:
-		return nil, fmt.Errorf("unexpected value %v (type %v)"+ts.Token().Value, ts.Token().Type.String())
+		return engine.AttributeValue{}, fmt.Errorf("unexpected value %v (type %v)"+ts.Token().Value, ts.Token().Type.String())
 	}
 
 	ts.Next()

@@ -35,20 +35,17 @@ var (
 	calculateKerberoast = func(source, target *engine.Node, edges *engine.EdgeBitmap) engine.Probability {
 		if target.HasTag("account_active") {
 			// Get password age
-			pwdage := target.OneAttr(MetaPasswordAge)
-			if pwdage != nil {
-				if age, ok := pwdage.Raw().(int64); ok {
-					// Just set passwords ate 20% success, up to 80% for 10 year old passwords
-					tenyears := 24 * 365 * 10
-					if int(age) > tenyears {
-						return 80
-					}
-					risk := (80 * int(age)) / tenyears
-					if risk < 20 {
-						return 20
-					}
-					return engine.Probability(risk)
+			if age, ok := target.OneAttr(MetaPasswordAge).AsInt(); ok {
+				// Just set passwords ate 20% success, up to 80% for 10 year old passwords
+				tenyears := 24 * 365 * 10
+				if int(age) > tenyears {
+					return 80
 				}
+				risk := (80 * int(age)) / tenyears
+				if risk < 20 {
+					return 20
+				}
+				return engine.Probability(risk)
 			}
 			return 50
 		}
@@ -91,6 +88,7 @@ var (
 	EdgeCall                                 = engine.NewEdge("Call").Describe("Call a service point")
 	EdgeControls                             = engine.NewEdge("Controls").Describe("Node controls a service point")
 	EdgeReadLAPSPassword                     = engine.NewEdge("ReadLAPSPassword").Tag("Pivot").Tag("Granted")
+	EdgeReadEncryptedLAPSPassword            = engine.NewEdge("ReadEncryptedLAPSPassword").Tag("Informative").RegisterFixedProbability(0).SetDefault(false, false, false).Describe("Access to encrypted LAPS password data; decryption permission is not established.")
 	EdgeMemberOfGroup                        = engine.NewEdge("MemberOfGroup").Tag("Granted")
 	EdgeMemberOfGroupIndirect                = engine.NewEdge("MemberOfGroupIndirect").SetDefault(false, false, false).Tag("Granted")
 	EdgeOverwritesACL                        = engine.NewEdge("OverwritesACL")

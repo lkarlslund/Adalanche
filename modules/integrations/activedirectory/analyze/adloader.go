@@ -8,8 +8,10 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
+	"github.com/lkarlslund/adalanche/modules/collection"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/frontend"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -38,6 +40,7 @@ type convertqueueitem struct {
 }
 
 type ADLoader struct {
+	failed atomic.Uint64
 
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
@@ -135,7 +138,52 @@ func (ld *ADLoader) getShard(path string) *engine.IndexedGraph {
 	return ao
 }
 
-func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
+func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) (resultErr error) {
+	defer func() {
+		if resultErr != nil && resultErr != engine.ErrUninterested {
+			ld.failed.Add(1)
+		}
+	}()
+	if strings.HasSuffix(path, collection.ADSuffix) {
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		// Preflight before admitting any records to the shared analysis shard.
+		verified, err := collection.NewReader(f, collection.AD)
+		if err != nil {
+			return err
+		}
+		err = activedirectory.ValidateObjects(&activedirectory.ObjectReader{Container: verified})
+		verified.Close()
+		if err != nil {
+			return err
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		r, err := collection.NewReader(f, collection.AD)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+		objects := activedirectory.ObjectReader{Container: r}
+		ao := ld.getShard(path)
+		for {
+			object, err := objects.Next()
+			if err == io.EOF {
+				if r.Completion.Outcome != "complete" {
+					ui.Warn().Msgf("AD collection acquisition status: %s", r.Completion.Outcome)
+				}
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			ld.objectstoconvert <- convertqueueitem{object, ao}
+		}
+	}
 	if strings.HasSuffix(path, ".objects.msgp.lz4") {
 		ao := ld.getShard(path)
 
@@ -192,6 +240,10 @@ func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
 	ld.done.Wait()
 
 	var aos []*engine.IndexedGraph
+	if failures := ld.failed.Load(); failures != 0 {
+		ld.shardobjects.Range(func(_ string, ao *engine.IndexedGraph) bool { aos = append(aos, ao); return true })
+		return aos, fmt.Errorf("%d AD collections failed to import", failures)
+	}
 	ld.shardobjects.Range(func(path string, ao *engine.IndexedGraph) bool {
 		_, netbiosname, _, _, err := FindDomain(ao)
 		if err != nil {

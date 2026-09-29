@@ -543,7 +543,8 @@ function rendericon(type, nodeData) {
 
 function rendernode(ele) {
   const type = Array.isArray(ele.attributes && ele.attributes.type) ? ele.attributes.type[0] : ele.type;
-  return rendericon(type, ele.attributes) + " " + renderlabel(ele.label || "");
+  const icon = ele.icon ? `<img src="${escapehtml(ele.icon)}" width="24" height="24" alt="">` : rendericon(type, ele.attributes);
+  return icon + " " + escapehtml(renderlabel(ele.label || ""));
 }
 
 function renderdetails(data) {

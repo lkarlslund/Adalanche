@@ -242,6 +242,8 @@ func (ldo *LDAPOptions) Autodetect() error {
 
 type objectCallbackFunc func(ro *activedirectory.RawObject) error
 type DumpOptions struct {
+	Source        string
+	Method        string
 	OnObject      objectCallbackFunc
 	SearchBase    string
 	Query         string

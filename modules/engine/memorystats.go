@@ -67,7 +67,7 @@ func (g *IndexedGraph) EstimateMemory() MemoryStatistics {
 	for _, n := range g.nodes {
 		s.AttributeKeys += uint64(len(n.values.attributes))
 		s.AttributeValues += uint64(len(n.values.values))
-		s.AttributeSlotsBytes += uint64(cap(n.values.values)) * uint64(unsafe.Sizeof(AttributeValue(nil)))
+		s.AttributeSlotsBytes += uint64(cap(n.values.values)) * uint64(unsafe.Sizeof(AttributeValue{}))
 		s.ChildSlotsBytes += uint64(cap(n.children.nodes)) * uint64(unsafe.Sizeof((*Node)(nil)))
 		if n.sdcache != nil {
 			s.DescriptorReferences++
@@ -79,8 +79,8 @@ func (g *IndexedGraph) EstimateMemory() MemoryStatistics {
 		}
 	}
 	s.AdjacencyPayloadBytes = s.AdjacencyEntries * uint64(unsafe.Sizeof(NodeIndex(0))+unsafe.Sizeof(EdgeCombo(0)))
-	s.EdgeCombinations = uint64(len(g.edgeCombos))
-	s.CombinationSliceBytes = uint64(cap(g.edgeCombos)) * uint64(unsafe.Sizeof(EdgeBitmap{}))
+	s.EdgeCombinations = uint64(g.edgeCombos.bitmaps.len())
+	s.CombinationSliceBytes = s.EdgeCombinations * uint64(unsafe.Sizeof(EdgeBitmap{}))
 	addIndex := func(nodes *NodeSlice) {
 		s.IndexKeys++
 		s.IndexReferences += uint64(len(nodes.nodes))

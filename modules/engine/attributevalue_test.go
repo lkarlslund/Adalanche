@@ -22,7 +22,7 @@ func TestNVSupportsCoreTypesAndDeduplicatesStrings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value := NV(tt.in)
-			if value == nil {
+			if value.IsNil() {
 				t.Fatal("expected normalized value")
 			}
 		})

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/lkarlslund/adalanche/modules/collection"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -81,6 +82,13 @@ func loadWithLoaders(loaders []Loader, paths []string, cb ProgressCallbackFunc) 
 		filepath.Walk(path, func(lpath string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+			if collection.IsStaging(info.Name()) {
+				// Output that is still being written, or was abandoned.
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 			if !info.IsDir() {
 				files = append(files, fs{lpath, info.Size()})

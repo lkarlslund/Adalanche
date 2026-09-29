@@ -81,16 +81,22 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	maxSearchIndex := byte(len(aqlq.Next))
 
-	var initialWorkingGraph probableWorkingPath
-	initialWorkingGraph.Add(startObject.ID(), engine.Any, 0, 0)
+	var paths pathArena
+	startID := startObject.ID()
+	startIndex, found := aqlq.datasource.NodeIndexOf(startObject)
+	if !found {
+		return committedGraph
+	}
 
 	queue := PriorityQueue{
 		p: aqlq.Traversal,
 	}
 	queue.Push(searchState{
-		node:                       startObject,
+		nodeIndex:                  startIndex,
+		nodeID:                     startID,
+		path:                       paths.add(-1, pathItem{target: startIndex, direction: engine.Any}),
+		filter:                     pathFilter(0).with(startIndex),
 		currentSearchIndex:         0,
-		workingGraph:               initialWorkingGraph,
 		currentDepth:               0,
 		currentTotalDepth:          0,
 		overAllProbabilityFraction: 1,
@@ -106,11 +112,12 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		processed++
 
 		currentState = queue.Pop()
+		currentNode := aqlq.datasource.NodeAt(currentState.nodeIndex)
 
 		// completed path in queue
 		if currentState.currentSearchIndex == maxSearchIndex {
 			// do deduplication checks here if needed
-			currentState.workingGraph.CommitToGraph(aqlq.datasource, committedGraph, aqlq.Sources)
+			paths.commit(currentState.path, aqlq.datasource, committedGraph)
 			continue
 		}
 
@@ -134,11 +141,12 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
-			newWorkingGraph := currentState.workingGraph.Clone()
 			queue.Push(searchState{
-				node:                       currentState.node,
+				nodeIndex:                  currentState.nodeIndex,
+				nodeID:                     currentState.nodeID,
+				path:                       currentState.path,
+				filter:                     currentState.filter,
 				currentSearchIndex:         currentState.currentSearchIndex + 1,
-				workingGraph:               newWorkingGraph,
 				currentDepth:               0,
 				currentTotalDepth:          currentState.currentTotalDepth,
 				overAllProbabilityFraction: currentState.overAllProbabilityFraction,
@@ -146,7 +154,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		for _, direction := range directions {
-			aqlq.datasource.Edges(currentState.node, direction).Iterate(func(nextNode *engine.Node, eb engine.EdgeBitmap) bool {
+			aqlq.datasource.EdgesAt(currentState.nodeIndex, direction).IterateIndexed(func(nextIndex engine.NodeIndex, nextNode *engine.Node, eb engine.EdgeBitmap) bool {
 				if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
 					return false
 				}
@@ -157,17 +165,17 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				case Trail:
 					if direction == engine.Out {
 						if /*committedGraph.HasEdge(currentState.node, nextNode) ||*/
-						currentState.workingGraph.HasEdge(currentState.node.ID(), nextNode.ID()) {
+						paths.hasEdge(currentState.path, currentState.filter, currentState.nodeIndex, nextIndex) {
 							return true
 						}
 					} else {
 						if /*committedGraph.HasEdge(nextNode, currentState.node) ||*/
-						currentState.workingGraph.HasEdge(nextNode.ID(), currentState.node.ID()) {
+						paths.hasEdge(currentState.path, currentState.filter, nextIndex, currentState.nodeIndex) {
 							return true
 						}
 					}
 				case Acyclic:
-					if currentState.workingGraph.HasNode(nextNode.ID()) || committedGraph.HasNode(nextNode) {
+					if paths.hasNode(currentState.path, currentState.filter, nextIndex) || committedGraph.HasNode(nextNode) {
 						return true
 					}
 					// case Path:
@@ -198,9 +206,9 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 
 				if direction == engine.Out {
-					edgeProbabilityPct = matchedEdges.MaxProbability(currentState.node, nextNode)
+					edgeProbabilityPct = matchedEdges.MaxProbability(currentNode, nextNode)
 				} else {
-					edgeProbabilityPct = matchedEdges.MaxProbability(nextNode, currentState.node)
+					edgeProbabilityPct = matchedEdges.MaxProbability(nextNode, currentNode)
 				}
 
 				if thisEdgeSearcher.ProbabilityComparator != query.CompareInvalid && !query.Comparator[engine.Probability](thisEdgeSearcher.ProbabilityComparator).Compare(edgeProbabilityPct, thisEdgeSearcher.ProbabilityValue) {
@@ -219,16 +227,15 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 				if nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
 					(nextTargets == nil || nextTargets.Contains(nextNode)) {
-					newWorkingGraph := currentState.workingGraph.Clone()
-
-					ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
-					newWorkingGraph.Add(nextNode.ID(), direction, ec, byte(currentState.currentSearchIndex+1))
-
 					if nextSearchIndex <= maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
+						ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
+						nextID := nextNode.ID()
 						queue.Push(searchState{
-							node:                       nextNode,
+							nodeIndex:                  nextIndex,
+							nodeID:                     nextID,
+							path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: byte(currentState.currentSearchIndex + 1)}),
+							filter:                     currentState.filter.with(nextIndex),
 							currentSearchIndex:         nextSearchIndex,
-							workingGraph:               newWorkingGraph,
 							currentDepth:               0,
 							currentTotalDepth:          nextTotalDepth,
 							overAllProbabilityFraction: nextOverAllProbabilityFraction,
@@ -237,15 +244,14 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 				if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) &&
 					(nextEdgeTargets == nil || nextEdgeTargets.Contains(nextNode)) {
-					newWorkingGraph := currentState.workingGraph.Clone()
-
 					ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
-					newWorkingGraph.Add(nextNode.ID(), direction, ec, 255)
-
+					nextID := nextNode.ID()
 					queue.Push(searchState{
-						node:                       nextNode,
+						nodeIndex:                  nextIndex,
+						nodeID:                     nextID,
+						path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: 255}),
+						filter:                     currentState.filter.with(nextIndex),
 						currentSearchIndex:         currentState.currentSearchIndex,
-						workingGraph:               newWorkingGraph,
 						currentDepth:               nextDepth,
 						currentTotalDepth:          nextTotalDepth,
 						overAllProbabilityFraction: nextOverAllProbabilityFraction,
@@ -256,6 +262,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 	}
 
+	paths.flush(aqlq.datasource, committedGraph, aqlq.Sources)
 	ui.Debug().Msgf("Processed %v path permutations, returning graph with %v nodes", processed, committedGraph.Order())
 
 	return committedGraph

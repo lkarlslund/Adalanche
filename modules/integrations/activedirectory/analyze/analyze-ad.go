@@ -185,7 +185,7 @@ func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.No
 			guids := make([]engine.AttributeValue, 0, objectclasses.Len())
 			objectclasses.Iterate(func(class engine.AttributeValue) bool {
 				if oto, found := view.Find(engine.LDAPDisplayName, class); found {
-					if guid := oto.OneAttr(activedirectory.SchemaIDGUID); guid == nil {
+					if guid := oto.OneAttr(activedirectory.SchemaIDGUID); guid.IsNil() {
 						ui.Debug().Msgf("%v", oto)
 						ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
 					} else {
@@ -203,9 +203,9 @@ func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.No
 		simple := engine.NV("Unknown")
 		typedn := object.OneAttr(engine.ObjectCategory)
 
-		if typedn != nil {
+		if !typedn.IsNil() {
 			if oto, found := view.Find(engine.DistinguishedName, typedn); found {
-				if _, ok := oto.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
+				if _, ok := oto.OneAttrGUID(activedirectory.SchemaIDGUID); ok {
 					objectcategoryguid = oto.OneAttr(activedirectory.SchemaIDGUID)
 					simple = oto.OneAttr(activedirectory.Name)
 				} else {
@@ -301,7 +301,7 @@ func applyIndirectMemberOfPatches(view *engine.FrozenGraph, out *engine.NodePatc
 						if member == group {
 							continue
 						}
-						if dn := member.OneAttr(engine.DistinguishedName); dn != nil {
+						if dn := member.OneAttr(engine.DistinguishedName); !dn.IsNil() {
 							groupList = append(groupList, dn)
 						}
 					}
@@ -328,33 +328,47 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 			return true
 		}
 
-		DCsyncObject, _ := ao.FindTwoOrAdd(
-			engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
-			engine.Name, engine.NV("DCsync"),
-		)
-		DCsyncObject.Tag("hvt")
+		var dcsync *engine.Node
+		if dn := o.DN(); dn != "" {
+			dcsync, _ = ao.FindTwoOrAdd(
+				engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
+				engine.DistinguishedName, engine.NV("CN=DCsync,"+dn),
+			)
+			dcsync.Set(engine.Name, engine.NV("DCsync"))
+			dcsync.Set(engine.DomainContext, engine.NV(o.OneAttrString(engine.DomainContext)))
+			dcsync.Tag("hvt")
+			ao.EdgeTo(o, dcsync, activedirectory.EdgeControls)
+		} else {
+			ui.Warn().Msg("Cannot scope DCSync service for a domain without a distinguished name; retaining replication rights only")
+		}
 
-		ao.EdgeTo(o, DCsyncObject, activedirectory.EdgeControls)
+		type replicationRights struct{ changes, changesAll bool }
+		rights := make(map[windowssecurity.SID]replicationRights)
 
 		for index, acl := range sd.DACL.Entries {
-			var changes, changesall bool
+			granted := rights[acl.SID]
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
 				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
 				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
-				changes = true
+				granted.changes = true
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
 				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
-				changesall = true
+				granted.changesAll = true
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
 				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 			}
 
-			if changes && changesall {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), DCsyncObject, activedirectory.EdgeCall)
+			if granted.changes || granted.changesAll {
+				rights[acl.SID] = granted
+			}
+		}
+		for sid, granted := range rights {
+			if dcsync != nil && granted.changes && granted.changesAll {
+				ao.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), dcsync, activedirectory.EdgeCall)
 			}
 		}
 
@@ -369,7 +383,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 		}
 
 		DomainJoinedSID := machine.OneAttr(attrs.DomainJoinedSID)
-		if DomainJoinedSID == nil {
+		if DomainJoinedSID.IsNil() {
 			ui.Warn().Msgf("Machine %v has no DomainJoinedSID attribute (dump %v)", machine.OneAttrString(engine.Name), machine.ValueMap())
 			return true
 		}
@@ -626,8 +640,8 @@ func addRBCDEdges(ao *engine.IndexedGraph) {
 		}
 		o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
-				for _, acl := range sd.DACL.Entries {
-					if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
+				for index, acl := range sd.DACL.Entries {
+					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil, ao) {
 						ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, EdgeRBCD)
 					}
 				}
@@ -737,78 +751,7 @@ func init() {
 		})
 	}, "Reading local admin passwords via LAPS v1", engine.BeforeMergeFinal)
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		// Find LAPS or return
-		var lapsV2PasswordGUID uuid.UUID
-		var lapsV2EncryptedPasswordGUID uuid.UUID
-
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-LAPS-Password"),
-			engine.ObjectClass, engine.NV("attributeSchema")); found {
-			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-				ui.Debug().Msg("Detected LAPS schema extension GUID")
-				lapsV2PasswordGUID = objectGUID
-			} else {
-				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
-			}
-		}
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-LAPS-EncryptedPassword"),
-			engine.ObjectClass, engine.NV("attributeSchema")); found {
-			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-				ui.Debug().Msg("Detected LAPS schema extension GUID")
-				lapsV2EncryptedPasswordGUID = objectGUID
-			} else {
-				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
-			}
-		}
-
-		if lapsV2PasswordGUID.IsNil() {
-			ui.Debug().Msg("Microsoft LAPS V2 not detected, skipping tests for this")
-			return
-		}
-
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for computers
-			if o.Type() != engine.NodeTypeComputer {
-				return true
-			}
-
-			// ... that has LAPS installed
-			if !o.HasAttr(activedirectory.MSLAPSPasswordExpirationTime) {
-				return true
-			}
-
-			// Analyze ACL
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-
-			// Link to the machine object
-			machinesid := o.SID()
-			if machinesid.IsBlank() {
-				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
-			}
-			machine, found := ao.Find(DomainJoinedSID, engine.NV(machinesid))
-			if !found {
-				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v2", machinesid)
-				return true
-			}
-			machine.Tag("laps")
-
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2PasswordGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), machine, activedirectory.EdgeReadLAPSPassword)
-				}
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsV2EncryptedPasswordGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), machine, activedirectory.EdgeReadLAPSPassword) // FIXME
-				}
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, msLAPSEncryptedPasswordAttributesGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), machine, activedirectory.EdgeReadLAPSPassword) // FIXME
-				}
-			}
-			return true
-		})
-	}, "Reading local admin passwords via LAPS v2", engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addLAPSv2Edges, "Reading local admin passwords via LAPS v2", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.IterateStable(func(o *engine.Node) bool {
@@ -1484,7 +1427,7 @@ func init() {
 			}
 
 			sid := computeraccount.OneAttr(engine.ObjectSid)
-			if sid == nil {
+			if sid.IsNil() {
 				ui.Error().Msgf("Computer account without SID: %v", computeraccount.DN())
 				return true
 			}
@@ -1818,7 +1761,7 @@ func init() {
 						machine.Tag("hvt")
 
 						domainContext := object.OneAttr(engine.DomainContext)
-						if domainContext == nil {
+						if domainContext.IsNil() {
 							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
 						}
 
@@ -2046,7 +1989,7 @@ func init() {
 		func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
 			view.Iterate(func(enrollementService *engine.Node) bool {
 				if enrollementService.Type() == engine.NodeTypePKIEnrollmentService {
-					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); cadns != nil {
+					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); !cadns.IsNil() {
 						// find the CA machine object
 						if ca, found := view.FindTwo(
 							engine.Type, ObjectTypeMachine.ValueString(),

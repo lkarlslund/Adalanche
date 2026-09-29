@@ -136,6 +136,17 @@ func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, edge EdgeT
 	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
 }
 
+// AddEdgeFlow is AddEdge repeated flow times: it sets the edge and adds flow
+// to the count of paths using it.
+func (pg *Graph[NodeType, EdgeType]) AddEdgeFlow(source, target NodeType, edge EdgeType, flow int) {
+	pg.AddNode(source)
+	pg.AddNode(target)
+	existing := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	existing.Edge = edge
+	existing.Flow += flow
+	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
+}
+
 // GetEdge returns the edge between two nodes
 func (pg *Graph[NodeType, EdgeType]) GetEdge(source, target NodeType) (EdgeType, bool) {
 	pg.autoCleanupEdges()

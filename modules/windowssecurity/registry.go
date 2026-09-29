@@ -60,6 +60,27 @@ func ReadRegistrySubKeyNames(item string) ([]string, error) {
 	return k.ReadSubKeyNames(-1)
 }
 
+// ReadRegistryDWORD reads an exact DWORD value without coercing strings or QWORDs.
+func ReadRegistryDWORD(item string) (uint32, error) {
+	hive, keypath, valuename, err := splitRegistryPath(item)
+	if err != nil {
+		return 0, err
+	}
+	key, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+	if err != nil {
+		return 0, err
+	}
+	defer key.Close()
+	value, kind, err := key.GetIntegerValue(valuename)
+	if errors.Is(err, registry.ErrUnexpectedType) || (err == nil && kind != registry.DWORD) {
+		return 0, fmt.Errorf("registry type %v: %w", kind, errors.ErrUnsupported)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return uint32(value), nil
+}
+
 func ReadRegistryKey(item string) (any, error) {
 	hive, keypath, valuename, err := splitRegistryPath(item)
 	if err != nil {

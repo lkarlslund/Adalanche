@@ -29,11 +29,10 @@ func (g *IndexedGraph) Freeze() *FrozenGraph {
 	g.nodeMutex.RUnlock()
 
 	g.edgeMutex.RLock()
-	g.edgeComboMutex.RLock()
+	combos := g.edgeCombos.bitmaps.snapshot()
 	for direction := range fg.edges {
-		fg.edges[direction] = freezeAdjacency(g.edges[direction], g.edgeCombos, len(fg.nodes))
+		fg.edges[direction] = freezeAdjacency(g.edges[direction], combos, len(fg.nodes))
 	}
-	g.edgeComboMutex.RUnlock()
 	g.edgeMutex.RUnlock()
 
 	return fg
@@ -158,11 +157,8 @@ func (fg *FrozenGraph) IterateEdges(node *Node, direction EdgeDirection, iter fu
 		return
 	}
 
-	index := node.graphIndex
-	if index == invalidNodeIndex {
-		return
-	}
-	if int(index) >= len(fg.nodes) {
+	index, found := fg.graph.nodeToIndex(node)
+	if !found || uint64(index) >= uint64(len(fg.nodes)) || fg.nodes[index] != node {
 		return
 	}
 

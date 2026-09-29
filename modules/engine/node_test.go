@@ -19,7 +19,7 @@ func TestNodeAbsorbMergesAndDeduplicatesAttributes(t *testing.T) {
 func TestNodeSetRejectsNilValue(t *testing.T) {
 	node := testNamedNode("Alpha")
 	requirePanic(t, func() {
-		node.Set(Name, nil)
+		node.Set(Name, AttributeValue{})
 	})
 }
 

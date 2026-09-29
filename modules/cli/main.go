@@ -103,12 +103,11 @@ func loadConfiguration(cmd *cobra.Command) {
 }
 
 func init() {
-	cobra.OnInitialize(func() {
-		loadConfiguration(Root)
-	})
-
 	Root.AddCommand(versionCmd)
 	Root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// Standalone collection inspection overrides this hook and does not load
+		// configuration, create output directories, or start runtime services.
+		loadConfiguration(Root)
 		ui.Zerotime = *logzerotime
 
 		ll, err := ui.LogLevelString(*loglevel)

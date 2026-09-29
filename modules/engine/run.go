@@ -113,6 +113,9 @@ func Run(paths ...string) (*IndexedGraph, error) {
 		overallprogress.Add(1)
 	}
 
+	if err := calculateGraphAttributes(globalGraph); err != nil {
+		return nil, err
+	}
 	if err := finalizeGraph(globalGraph); err != nil {
 		return nil, err
 	}

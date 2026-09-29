@@ -18,10 +18,11 @@ import (
 var (
 	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
 
-	AbsolutePath    = engine.NewAttribute("absolutePath").Flag(engine.Single)
-	RelativePath    = engine.NewAttribute("relativePath").Flag(engine.Single)
-	BinarySize      = engine.NewAttribute("binarySize").Flag(engine.Single)
-	ExposedPassword = engine.NewAttribute("exposedPassword")
+	AbsolutePath         = engine.NewAttribute("absolutePath").Flag(engine.Single)
+	RelativePath         = engine.NewAttribute("relativePath").Flag(engine.Single)
+	BinarySize           = engine.NewAttribute("binarySize").Flag(engine.Single)
+	ExposedPassword      = engine.NewAttribute("exposedPassword")
+	GPOCollectionResults = engine.NewAttribute("gpoCollectionResults")
 
 	EdgeExposesPassword       = engine.NewEdge("ExposesPassword").Tag("Pivot")
 	EdgeContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
@@ -49,6 +50,9 @@ var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[
 
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error {
 	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	if err := retainPolicyResults(gpoobject, ginfo.Common, ginfo.CollectionResults); err != nil {
+		return err
+	}
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
@@ -72,6 +76,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			BinarySize, item.Size,
 			activedirectory.WhenChanged, item.Timestamp,
 		)
+		if err := retainPolicyResults(itemobject, ginfo.Common, item.CollectionResults); err != nil {
+			return err
+		}
 
 		if strings.EqualFold(relativepath, "/adm") ||
 			strings.EqualFold(relativepath, "/gpt.ini") {
@@ -136,22 +143,16 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			}
 			for _, match := range cpasswordusername.FindAllStringSubmatch(line, -1) {
 				ui.Debug().Msgf("Found password in %s", item.RelativePath)
-				ui.Debug().Msgf("Password: %v", match)
-				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
 				exposed = append(exposed, struct{ Username, Password string }{match[cpasswordusername.SubexpIndex("username")], match[cpasswordusername.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			for _, match := range usernamecpassword.FindAllStringSubmatch(line, -1) {
-				ui.Debug().Msgf("Found username in %s", item.RelativePath)
-				ui.Debug().Msgf("Password: %v", match)
-				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Debug().Msgf("Found password in %s", item.RelativePath)
 				exposed = append(exposed, struct{ Username, Password string }{match[usernamecpassword.SubexpIndex("username")], match[usernamecpassword.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			if unhandledpass {
-				ui.Error().Msgf("Unhandled password in %s", item.RelativePath)
-				ui.Error().Msgf("GPO Dump\n%s", item.Contents)
-				ui.Fatal().Msg("Please submit bugreport on Github with redacted account name and redacted password")
+				return fmt.Errorf("unrecognized credential entry in GPO file %q; import incomplete", item.RelativePath)
 			}
 		}
 		for _, e := range exposed {
@@ -245,8 +246,8 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 
 			// Description: "Indicates that a GPO deploys a scheduled task which is running from an UNC path (FIXME, not done yet!)",
 		case "/machine/preferences/scheduledtasks/scheduledtasks.xml":
-			for _, task := range GPOparseScheduledTasks(string(item.Contents)) {
-				ui.Warn().Msgf("Scheduled task: %v ... FIXME!", task)
+			if tasks := GPOparseScheduledTasks(string(item.Contents)); len(tasks) > 0 {
+				ui.Warn().Msgf("GPO scheduled-task analysis is not implemented (%d tasks in %s)", len(tasks), item.RelativePath)
 			}
 		// Description: "Detects startup or shutdown scripts from GPOs",
 		case "/machine/scripts/scripts.ini":

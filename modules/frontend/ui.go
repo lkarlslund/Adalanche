@@ -211,6 +211,11 @@ func AddUIEndpoints(ws *WebService) {
 type APINodeDetails struct {
 	ID                engine.NodeID       `json:"id"`
 	Label             string              `json:"label"`
+	Type              string              `json:"type"`
+	TypeLabel         string              `json:"typeLabel,omitempty"`
+	Icon              string              `json:"icon,omitempty"`
+	IdentityField     string              `json:"identityField,omitempty"`
+	Identity          string              `json:"identity,omitempty"`
 	DistinguishedName string              `json:"distinguishedname"`
 	Attributes        map[string][]string `json:"attributes"`
 	// CanPwn            map[string][]string `json:"can_pwn"`
@@ -227,8 +232,18 @@ func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 	od := APINodeDetails{
 		ID:                o.ID(),
 		Label:             o.Label(),
+		Type:              o.Type().String(),
 		DistinguishedName: o.DN(),
 		Attributes:        o.ValueMap(),
+	}
+	for _, kind := range engine.NodeTypes() {
+		if kind.Name == od.Type {
+			od.TypeLabel, od.Icon = kind.DisplayName, kind.Icon
+			break
+		}
+	}
+	if attribute, value := o.PrimaryID(); attribute != engine.NonExistingAttribute && !value.IsNil() {
+		od.IdentityField, od.Identity = attribute.String(), value.String()
 	}
 	if pretty {
 		for k, slice := range od.Attributes {
@@ -337,6 +352,19 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 
+		if c.Query("format") == "raw" {
+			details := apiNodeDetails(o, false)
+			for _, values := range details.Attributes {
+				for i, value := range values {
+					if !util.IsPrintableString(value) {
+						values[i] = util.Hexify(value)
+					}
+				}
+			}
+			c.Header("Cache-Control", "no-store")
+			c.JSON(200, details)
+			return
+		}
 		c.JSON(200, apiNodeDetails(o, true))
 	})
 	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {

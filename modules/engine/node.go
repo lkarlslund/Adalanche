@@ -23,8 +23,6 @@ import (
 var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
 
-var AttributeNodeId = NewAttribute("nodeID").Flag(Single, Hidden, DropWhenMerging)
-
 var uniqueNodeID atomic.Uint32
 
 var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -32,10 +30,10 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 var BlankSID = windowssecurity.SID("")
 
 type Node struct {
+	id         NodeID
 	sdcache    *SecurityDescriptor
 	parent     *Node
 	sid        atomic.Value // windowssecurity.SID
-	graphIndex NodeIndex
 	children   NodeSlice
 	values     AttributesAndValues
 	objecttype NodeType
@@ -51,15 +49,17 @@ func NewNode(flexinit ...any) *Node {
 	return &result
 }
 
-// Temporary workaround
+// NodeID identifies a node within one running process. IDs are assigned in
+// creation order and are not stable across restarts or reloads.
 type NodeID uint32
 
+// InvalidNodeID is never assigned; it means the node has no ID, which only
+// happens for a Node that was not created through NewNode.
+const InvalidNodeID NodeID = 0
+
+// ID returns the node's process-local ID, or InvalidNodeID if none was assigned.
 func (o *Node) ID() NodeID {
-	n := o.OneAttr(AttributeNodeId)
-	if n == nil {
-		return 0
-	}
-	return NodeID(n.Raw().(int64))
+	return o.id
 }
 
 func (o *Node) lockbucket() int {
@@ -226,7 +226,7 @@ func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 	for _, attr := range primaryidattrs {
 		if o.HasAttr(attr) {
 			val := o.OneAttr(attr)
-			if val != nil {
+			if !val.IsNil() {
 				return attr, val
 			}
 		}
@@ -254,11 +254,11 @@ func (o *Node) Type() NodeType {
 
 func (o *Node) ObjectCategoryGUID(ao *IndexedGraph) uuid.UUID {
 	// if o.objectcategoryguid == NullGUID {
-	guid := o.OneAttrRaw(ObjectCategoryGUID)
-	if guid == nil {
+	guid, found := o.OneAttrGUID(ObjectCategoryGUID)
+	if !found {
 		return UnknownGUID
 	}
-	return guid.(uuid.UUID)
+	return guid
 	// return o.objectcategoryguid
 }
 
@@ -335,15 +335,18 @@ func (o *Node) OneAttrRaw(attr Attribute) any {
 	return nil
 }
 
+// OneAttr returns the attribute's value when it has exactly one, or the nil value.
 func (o *Node) OneAttr(attr Attribute) AttributeValue {
 	a := o.Attr(attr)
-	if a == nil {
-		return nil
-	}
 	if a.Len() == 1 {
 		return a.First()
 	}
-	return nil
+	return AttributeValue{}
+}
+
+// OneAttrGUID returns a single GUID value without allocating.
+func (o *Node) OneAttrGUID(attr Attribute) (uuid.UUID, bool) {
+	return o.OneAttr(attr).AsGUID()
 }
 
 func (o *Node) HasAttr(attr Attribute) bool {
@@ -478,7 +481,7 @@ func (o *Node) setFlex(flexinit ...any) {
 			}
 
 			newvalue := NV(i)
-			if newvalue == nil || (ignoreblanks && newvalue.IsZero()) {
+			if newvalue.IsNil() || (ignoreblanks && newvalue.IsZero()) {
 				if ignoreblanks {
 					continue
 				}
@@ -631,7 +634,7 @@ func (o *Node) setNoLock(a Attribute, values AttributeValues) {
 
 	// Check it's not nil
 	for _, value := range values {
-		if value == nil {
+		if value.IsNil() {
 			panic("tried to set nil value")
 		}
 	}
@@ -651,9 +654,11 @@ func (o *Node) Meta() map[string]string {
 }
 
 func (o *Node) init() {
-	o.graphIndex = invalidNodeIndex
 	o.values.init()
-	o.Set(AttributeNodeId, NV(uniqueNodeID.Add(1)))
+	o.id = NodeID(uniqueNodeID.Add(1))
+	if o.id == InvalidNodeID {
+		panic("node ID space exhausted")
+	}
 }
 
 func (o *Node) String() string {
@@ -725,7 +730,7 @@ func (o *Node) SID() windowssecurity.SID {
 	if cachedSid == nil {
 		if asid, ok := o.get(ObjectSid); ok {
 			if asid.Len() == 1 {
-				if sid, ok = asid.First().Raw().(windowssecurity.SID); ok {
+				if sid, ok = asid.First().AsSID(); ok {
 					o.sid.Store(sid)
 					cachedSid = sid
 				}

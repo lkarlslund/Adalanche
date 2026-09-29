@@ -9,10 +9,7 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/pierrec/lz4/v4"
-	"github.com/tinylib/msgp/msgp"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -72,6 +69,7 @@ func (ntds *NTDSDumper) DebugDump() error {
 	return nil
 }
 func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	do.Source, do.Method = ntds.path, "database"
 	// Initialize the catalog
 	catalog, err := parser.ReadCatalog(ntds.ese)
 	if err != nil {
@@ -253,29 +251,11 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 		return nil
 	})
 	// Dump it
-	var e *msgp.Writer
-	if do.WriteToFile != "" {
-		err = os.MkdirAll(filepath.Dir(do.WriteToFile), 0755)
-		if err != nil {
-			return nil, fmt.Errorf("problem creating directory: %v", err)
-		}
-		outfile, err := os.Create(do.WriteToFile)
-		if err != nil {
-			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
-		}
-		defer outfile.Close()
-		boutfile := lz4.NewWriter(outfile)
-		lz4options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
-			lz4.ChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Level9),
-			lz4.ConcurrencyOption(-1),
-		}
-		boutfile.Apply(lz4options...)
-		defer boutfile.Close()
-		e = msgp.NewWriter(boutfile)
+	w, writeErr := newDumpWriter(do)
+	if writeErr != nil {
+		return nil, writeErr
 	}
+	defer w.Abort()
 	var objects []activedirectory.RawObject
 	// fmt.Println(catalog.Dump())
 	err = catalog.DumpTable("datatable", func(row *ordereddict.Dict) error {
@@ -476,21 +456,26 @@ func (ntds *NTDSDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error
 			ui.Debug().Msgf("Crossref: %v", item)
 		}
 		if do.OnObject != nil {
-			do.OnObject(&item)
+			if err := do.OnObject(&item); err != nil {
+				return err
+			}
 		}
 		if do.ReturnObjects {
 			objects = append(objects, item)
 		}
-		if e != nil {
-			err = item.EncodeMsg(e)
+		if w != nil {
+			err = w.Write(&item)
 			if err != nil {
 				return fmt.Errorf("problem encoding LDAP object %v: %v", item.DistinguishedName, err)
 			}
 		}
 		return nil
 	})
-	if e != nil {
-		e.Flush()
+	if err != nil {
+		return objects, err
+	}
+	if err := w.Commit(); err != nil {
+		return objects, err
 	}
 	return objects, err
 }

@@ -1,6 +1,7 @@
 package aql
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -8,45 +9,43 @@ import (
 )
 
 func TestPriorityQueueOrdering(t *testing.T) {
-	n1 := engine.NewNode(engine.Name, "one")
-	n2 := engine.NewNode(engine.Name, "two")
-	n3 := engine.NewNode(engine.Name, "three")
+	const n1, n2, n3 engine.NodeID = 1, 2, 3
 
 	tests := []struct {
 		name     string
 		priority Priority
 		states   []searchState
-		want     []*engine.Node
+		want     []engine.NodeID
 	}{
 		{
 			name:     "shortest-first",
 			priority: ShortestFirst,
 			states: []searchState{
-				{node: n3, currentTotalDepth: 5},
-				{node: n2, currentTotalDepth: 2},
-				{node: n1, currentTotalDepth: 1},
+				{nodeID: n3, currentTotalDepth: 5},
+				{nodeID: n2, currentTotalDepth: 2},
+				{nodeID: n1, currentTotalDepth: 1},
 			},
-			want: []*engine.Node{n1, n2, n3},
+			want: []engine.NodeID{n1, n2, n3},
 		},
 		{
 			name:     "probable-shortest",
 			priority: ProbableShortest,
 			states: []searchState{
-				{node: n1, currentTotalDepth: 1, overAllProbabilityFraction: 0.5},
-				{node: n2, currentTotalDepth: 3, overAllProbabilityFraction: 0.9},
-				{node: n3, currentTotalDepth: 2, overAllProbabilityFraction: 0.7},
+				{nodeID: n1, currentTotalDepth: 1, overAllProbabilityFraction: 0.5},
+				{nodeID: n2, currentTotalDepth: 3, overAllProbabilityFraction: 0.9},
+				{nodeID: n3, currentTotalDepth: 2, overAllProbabilityFraction: 0.7},
 			},
-			want: []*engine.Node{n2, n3, n1},
+			want: []engine.NodeID{n2, n3, n1},
 		},
 		{
 			name:     "longest-first",
 			priority: LongestFirst,
 			states: []searchState{
-				{node: n1, currentTotalDepth: 1},
-				{node: n2, currentTotalDepth: 4},
-				{node: n3, currentTotalDepth: 2},
+				{nodeID: n1, currentTotalDepth: 1},
+				{nodeID: n2, currentTotalDepth: 4},
+				{nodeID: n3, currentTotalDepth: 2},
 			},
-			want: []*engine.Node{n2, n3, n1},
+			want: []engine.NodeID{n2, n3, n1},
 		},
 	}
 
@@ -57,8 +56,8 @@ func TestPriorityQueueOrdering(t *testing.T) {
 				queue.Push(state)
 			}
 			for i, want := range tt.want {
-				if got := queue.Pop().node; got != want {
-					t.Fatalf("pop %d: got %v want %v", i, got.Label(), want.Label())
+				if got := queue.Pop().nodeID; got != want {
+					t.Fatalf("pop %d: got %v want %v", i, got, want)
 				}
 			}
 		})
@@ -85,41 +84,60 @@ func TestPriorityQueueDropBackPanicsOnInvalidCount(t *testing.T) {
 	queue.DropBack(3)
 }
 
-func TestProbableWorkingPathCloneAndReset(t *testing.T) {
+func TestPathArena(t *testing.T) {
 	edgeType := engine.NewEdge("unit-test-aql-edge")
 	edgeCombo := engine.NewIndexedGraph().EdgeBitmapToEdgeCombo(engine.EdgeBitmap{}.Set(edgeType))
 
-	var path probableWorkingPath
-	path.Add(1, engine.Out, edgeCombo, 0)
-	path.Add(2, engine.Out, edgeCombo, 0)
-	path.Add(3, engine.In, edgeCombo, 0)
+	var paths pathArena
+	root := paths.add(-1, pathItem{target: 1, direction: engine.Any})
+	two := paths.add(root, pathItem{target: 2, direction: engine.Out, combo: edgeCombo})
+	three := paths.add(two, pathItem{target: 3, direction: engine.In, combo: edgeCombo})
+	branch := paths.add(two, pathItem{target: 4, direction: engine.Out, combo: edgeCombo})
+	filter := pathFilter(0).with(1).with(2).with(3)
 
-	if !path.HasNode(2) {
-		t.Fatal("expected path to contain node 2")
+	if !paths.hasNode(three, filter, 2) || !paths.hasNode(three, filter, 1) {
+		t.Fatal("expected path to contain its earlier nodes")
 	}
-	if !path.HasEdge(1, 2) {
+	if paths.hasNode(three, filter.with(4), 4) {
+		t.Fatal("a sibling branch's node is not on this path")
+	}
+	if !paths.hasEdge(three, filter, 1, 2) {
 		t.Fatal("expected path to contain 1->2 edge")
 	}
-	if !path.HasEdge(3, 2) {
+	if !paths.hasEdge(three, filter, 3, 2) {
 		t.Fatal("expected path to track reverse edge direction")
 	}
-
-	cloned := path.Clone()
-	cloned.path[0].target = 99
-	if path.path[0].target == 99 {
-		t.Fatal("expected clone to deep-copy path items")
+	if paths.hasEdge(three, filter, 2, 3) {
+		t.Fatal("edge direction ignored")
 	}
-
-	path.Reset()
-	if len(path.path) != 0 {
-		t.Fatal("expected reset to clear path items")
+	targets := func(tail int32) []engine.NodeIndex {
+		var out []engine.NodeIndex
+		for i := tail; i >= 0; i = paths.steps[i].parent {
+			out = append([]engine.NodeIndex{paths.steps[i].item.target}, out...)
+		}
+		return out
 	}
-	if path.HasNode(1) {
-		t.Fatal("expected reset to clear bloom filter")
+	if got := targets(branch); len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 4 {
+		t.Fatalf("branch path %v", got)
+	}
+	// Extending one branch must not change another.
+	if got := targets(three); len(got) != 3 || got[2] != 3 {
+		t.Fatalf("shared prefix changed: %v", got)
 	}
 }
 
-func TestProbableWorkingPathCommitToGraph(t *testing.T) {
+func TestPathFilter(t *testing.T) {
+	var f pathFilter
+	if f.mayHave(7) {
+		t.Fatal("empty filter matched")
+	}
+	f = f.with(7)
+	if !f.mayHave(7) {
+		t.Fatal("added ID not found")
+	}
+}
+
+func TestPathArenaCommitAndFlush(t *testing.T) {
 	edgeAB := engine.NewEdge("unit-test-edge-ab")
 	edgeBC := engine.NewEdge("unit-test-edge-bc")
 
@@ -130,48 +148,87 @@ func TestProbableWorkingPathCommitToGraph(t *testing.T) {
 	ao.Add(a)
 	ao.Add(b)
 	ao.Add(c)
+	ia, _ := ao.NodeIndexOf(a)
+	ib, _ := ao.NodeIndexOf(b)
+	ic, _ := ao.NodeIndexOf(c)
 
 	comboAB := ao.EdgeBitmapToEdgeCombo(engine.EdgeBitmap{}.Set(edgeAB))
 	comboBC := ao.EdgeBitmapToEdgeCombo(engine.EdgeBitmap{}.Set(edgeBC))
 
-	var path probableWorkingPath
-	path.Add(a.ID(), engine.Out, comboAB, 0)
-	path.Add(b.ID(), engine.Out, comboAB, 255)
-	path.Add(c.ID(), engine.In, comboBC, 255)
+	var paths pathArena
+	root := paths.add(-1, pathItem{target: ia, direction: engine.Any, reference: 0})
+	toB := paths.add(root, pathItem{target: ib, direction: engine.Out, combo: comboAB, reference: 1})
+	toC := paths.add(toB, pathItem{target: ic, direction: engine.In, combo: comboBC, reference: 255})
 
 	result := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
-	path.CommitToGraph(ao, result, []NodeQuery{{Reference: "start"}})
+	paths.commit(toB, ao, result)
+	if !result.HasNode(a) || !result.HasNode(b) || result.HasNode(c) {
+		t.Fatal("commit must add exactly the path's nodes immediately")
+	}
+	paths.commit(toC, ao, result)
+	paths.flush(ao, result, []NodeQuery{{Reference: "start"}, {Reference: "middle"}})
 
 	if reference := result.GetNodeData(a, "reference"); reference != "start" {
 		t.Fatalf("expected node reference metadata, got %v", reference)
 	}
-	if !result.HasEdge(a, b) {
-		t.Fatal("expected forward edge to be committed")
+	if reference := result.GetNodeData(b, "reference"); reference != "middle" {
+		t.Fatalf("expected node reference metadata, got %v", reference)
 	}
-	if !result.HasEdge(c, b) {
-		t.Fatal("expected reverse edge direction to be committed")
+	if !result.HasEdge(a, b) || !result.HasEdge(c, b) {
+		t.Fatal("expected forward and reverse edges to be committed")
+	}
+	flows := map[[2]*engine.Node]int{}
+	result.IterateEdges(func(s, t *engine.Node, _ engine.EdgeBitmap, flow int) bool {
+		flows[[2]*engine.Node{s, t}] = flow
+		return true
+	})
+	if flows[[2]*engine.Node{a, b}] != 2 || flows[[2]*engine.Node{c, b}] != 1 {
+		t.Fatalf("flow counts %v, want a->b used by both paths", flows)
 	}
 }
 
 func BenchmarkPriorityQueuePushPop(b *testing.B) {
 	queue := PriorityQueue{p: ShortestFirst}
-	node := engine.NewNode(engine.Name, "bench")
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		queue.Push(searchState{node: node, currentTotalDepth: byte(i % 8)})
+		queue.Push(searchState{nodeID: engine.NodeID(i), currentTotalDepth: byte(i % 8)})
 		_ = queue.Pop()
 	}
 }
 
-func BenchmarkProbableWorkingPathClone(b *testing.B) {
-	var path probableWorkingPath
-	for i := 0; i < 64; i++ {
-		path.Add(engine.NodeID(i+1), engine.Out, 0, 255)
-	}
-
+func BenchmarkPathArenaExtend(b *testing.B) {
+	var paths pathArena
+	tail := paths.add(-1, pathItem{target: 1})
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = path.Clone()
+		if len(paths.steps) > 1<<16 {
+			paths.steps = paths.steps[:1]
+			tail = 0
+		}
+		tail = paths.add(tail, pathItem{target: engine.NodeIndex(i + 2)})
+	}
+}
+
+func TestPriorityQueuePopsInStrictOrder(t *testing.T) {
+	queue := PriorityQueue{p: ProbableShortest}
+	// Many ties on probability and depth; the order must still be total.
+	var pushed []searchState
+	for i := range 5000 {
+		s := searchState{
+			nodeID:                     engine.NodeID(i%37 + 1),
+			path:                       int32(i),
+			currentTotalDepth:          byte(i % 5),
+			overAllProbabilityFraction: float32(i%3) / 2,
+		}
+		pushed = append(pushed, s)
+		queue.Push(s)
+	}
+	ordered := PriorityQueue{p: ProbableShortest, items: pushed}
+	sort.Slice(ordered.items, ordered.Less)
+	for i := range ordered.items {
+		if got := queue.Pop(); got != ordered.items[i] {
+			t.Fatalf("pop %d: got %+v want %+v", i, got, ordered.items[i])
+		}
 	}
 }

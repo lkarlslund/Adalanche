@@ -2,7 +2,9 @@ package engine
 
 import (
 	"math"
+	"sync"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
@@ -38,39 +40,50 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction E
 }
 
 func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
-	ue, found := g.edgeComboLookup[edge]
-	if !found {
-		ue = EdgeCombo(len(g.edgeCombos))
-		if ue == math.MaxUint16 {
-			ui.Fatal().Msgf("Too many unique edges")
-		}
-		g.edgeComboLookup[edge] = ue
-		g.edgeCombos = append(g.edgeCombos, edge)
+	return g.edgeCombos.intern(edge)
+}
+
+// edgeComboTable interns edge bitmaps as small combination IDs. Reads in
+// both directions take no lock; only adding a new combination locks.
+type edgeComboTable struct {
+	mu      sync.Mutex
+	lookup  gsync.MapOf[EdgeBitmap, EdgeCombo]
+	bitmaps *chunkedTable[EdgeBitmap]
+}
+
+func newEdgeComboTable() *edgeComboTable {
+	t := &edgeComboTable{bitmaps: newChunkedTable[EdgeBitmap]()}
+	t.intern(EdgeBitmap{}) // Combination 0 is always the blank bitmap.
+	return t
+}
+
+func (t *edgeComboTable) intern(edge EdgeBitmap) EdgeCombo {
+	if combo, found := t.lookup.Load(edge); found {
+		return combo
 	}
-	return ue
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if combo, found := t.lookup.Load(edge); found {
+		return combo
+	}
+	index := t.bitmaps.add(edge)
+	if index >= math.MaxUint16 {
+		ui.Fatal().Msgf("Too many unique edges")
+	}
+	t.lookup.Store(edge, EdgeCombo(index))
+	return EdgeCombo(index)
+}
+
+func (t *edgeComboTable) get(combo EdgeCombo) EdgeBitmap {
+	return t.bitmaps.get(uint32(combo))
 }
 
 func (g *IndexedGraph) EdgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
-	g.edgeComboMutex.RLock()
-	ue, found := g.edgeComboLookup[edge]
-	g.edgeComboMutex.RUnlock()
-	if !found {
-		g.edgeComboMutex.Lock()
-		ue = EdgeCombo(len(g.edgeCombos))
-		if ue == math.MaxUint16 {
-			ui.Fatal().Msgf("Too many unique edges")
-		}
-		g.edgeComboLookup[edge] = ue
-		g.edgeCombos = append(g.edgeCombos, edge)
-		g.edgeComboMutex.Unlock()
-	}
-	return ue
+	return g.edgeCombos.intern(edge)
 }
 
 func (g *IndexedGraph) EdgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
-	g.edgeComboMutex.RLock()
-	defer g.edgeComboMutex.RUnlock()
-	return g.edgeCombos[ue]
+	return g.edgeCombos.get(ue)
 }
 
 type CompressedEdgeSubSlice []byte
@@ -166,6 +179,27 @@ func (g *IndexedGraph) Edges(node *Node, direction EdgeDirection) EdgeFilter {
 	}
 }
 
+// NodeIndexOf returns the node's position in this graph, for use with NodeAt
+// and EdgesAt when a search wants to avoid holding node pointers.
+func (g *IndexedGraph) NodeIndexOf(node *Node) (NodeIndex, bool) {
+	return g.nodeLookup.Load(node)
+}
+
+// NodeAt returns the node at a position from NodeIndexOf or IterateIndexed.
+// Like Iterate, it must not race with nodes being added.
+func (g *IndexedGraph) NodeAt(index NodeIndex) *Node {
+	return g.nodes[index]
+}
+
+// EdgesAt is Edges for a node given by its position in this graph.
+func (g *IndexedGraph) EdgesAt(index NodeIndex, direction EdgeDirection) EdgeFilter {
+	return EdgeFilter{
+		graph:     g,
+		direction: direction,
+		fromNode:  index,
+	}
+}
+
 func (g *IndexedGraph) IterateEdges(node *Node, direction EdgeDirection, iter func(target *Node, ebm EdgeBitmap) bool) {
 	g.Edges(node, direction).Iterate(iter)
 }
@@ -185,6 +219,20 @@ func (ef EdgeFilter) Len() int {
 	return len(ef.graph.edges[ef.direction][ef.fromNode])
 }
 
+// IterateIndexed is Iterate, passing each target's position in the graph.
+func (ef EdgeFilter) IterateIndexed(iter func(targetIndex NodeIndex, target *Node, ebm EdgeBitmap) bool) {
+	if ef.direction > In {
+		return
+	}
+	ef.graph.edgeMutex.RLock()
+	defer ef.graph.edgeMutex.RUnlock()
+	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
+		if !iter(nodeIndex, ef.graph.nodes[nodeIndex], ef.graph.edgeCombos.get(edgeCombo)) {
+			return
+		}
+	}
+}
+
 func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
 	if ef.direction > In {
 		return
@@ -192,7 +240,7 @@ func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
 	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
-		eb := ef.graph.edgeCombos[edgeCombo]
+		eb := ef.graph.edgeCombos.get(edgeCombo)
 		target := ef.graph.nodes[nodeIndex]
 		if !iter(target, eb) {
 			return

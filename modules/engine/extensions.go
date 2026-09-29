@@ -26,6 +26,35 @@ var graphFinalizers struct {
 	items []func(*IndexedGraph) error
 }
 
+var graphAttributeCalculators struct {
+	sync.RWMutex
+	items []func(*IndexedGraph) error
+}
+
+// RegisterGraphAttributeCalculator registers an initialization-time calculation
+// after all topology processors and before read-only finalizers. Calculators may
+// publish node attributes, but must not change graph topology. Errors abort Run.
+func RegisterGraphAttributeCalculator(calculate func(*IndexedGraph) error) {
+	if calculate == nil {
+		panic("nil graph attribute calculator")
+	}
+	graphAttributeCalculators.Lock()
+	defer graphAttributeCalculators.Unlock()
+	graphAttributeCalculators.items = append(graphAttributeCalculators.items, calculate)
+}
+
+func calculateGraphAttributes(g *IndexedGraph) error {
+	graphAttributeCalculators.RLock()
+	callbacks := append([]func(*IndexedGraph) error(nil), graphAttributeCalculators.items...)
+	graphAttributeCalculators.RUnlock()
+	for _, calculate := range callbacks {
+		if err := calculate(g); err != nil {
+			return fmt.Errorf("calculate graph attributes: %w", err)
+		}
+	}
+	return nil
+}
+
 // RegisterGraphFinalizer registers an initialization-time extension that runs
 // after all graph processors. Finalizers must treat the graph as read-only.
 // An error prevents Run from returning the graph as successfully analyzed.

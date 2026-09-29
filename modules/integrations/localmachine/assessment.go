@@ -19,16 +19,29 @@ type Assessment struct {
 	Paths      []PathSecurity               `json:"paths,omitempty"`
 }
 type AssessmentCapture struct {
-	Result  basedata.CollectionResult `json:"result"`
-	Records []json.RawMessage         `json:"records"`
+	Started   time.Time                 `json:"started,omitzero"`
+	Completed time.Time                 `json:"completed,omitzero"`
+	Scope     string                    `json:"scope,omitempty"`
+	Truncated bool                      `json:"truncated,omitempty"`
+	Result    basedata.CollectionResult `json:"result"`
+	Records   []json.RawMessage         `json:"records"`
 }
 type PathSecurity struct {
-	Path    string                    `json:"path"`
-	Purpose string                    `json:"purpose"`
-	Subject string                    `json:"subject"`
-	Owner   string                    `json:"owner,omitempty"`
-	DACL    []byte                    `json:"dacl,omitempty"`
-	Result  basedata.CollectionResult `json:"result"`
+	ConfiguredPath string                    `json:"configuredPath,omitempty"`
+	InspectionPath string                    `json:"inspectionPath,omitempty"`
+	FinalPath      string                    `json:"finalPath,omitempty"`
+	FileID         string                    `json:"fileId,omitempty"`
+	VolumeSerial   string                    `json:"volumeSerial,omitempty"`
+	ReparsePoint   bool                      `json:"reparsePoint,omitempty"`
+	ReparseAt      string                    `json:"reparseAt,omitempty"`
+	NullDACL       bool                      `json:"nullDacl,omitempty"`
+	IdentityResult basedata.CollectionResult `json:"identityResult,omitzero"`
+	Path           string                    `json:"path"`
+	Purpose        string                    `json:"purpose"`
+	Subject        string                    `json:"subject"`
+	Owner          string                    `json:"owner,omitempty"`
+	DACL           []byte                    `json:"dacl,omitempty"`
+	Result         basedata.CollectionResult `json:"result"`
 }
 
 func DecodeAssessment(raw string) (Assessment, error) {
