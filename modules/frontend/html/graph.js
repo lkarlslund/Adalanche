@@ -16,7 +16,7 @@ const graphState = {
   layoutPending: false,
 };
 
-const DEFAULT_GRAPH_LAYOUT = "wasm.packed_separated_cluster_visibility";
+const DEFAULT_GRAPH_LAYOUT = "wasm.cluster_visibility";
 const GRAPH_LAYOUT_PREF = "ui.graph.layout";
 const GRAPH_LAYOUT_OPTIONS_PREF = "ui.graph.layout.options";
 const LAYOUT_ASSET_VERSION = "20260411-1";
@@ -1646,7 +1646,12 @@ async function runWasmLayout(targetGraph, layoutKey) {
   if (graphNeedsSeedLayout(targetGraph)) {
     seedGraphLayout(targetGraph);
   }
-  const options = layoutOptionsForLayout(layoutKey);
+  // Layouts space nodes for how they will look once fitted to this view.
+  const options = {
+    ...layoutOptionsForLayout(layoutKey),
+    viewport_width: typeof targetGraph.width === "function" ? targetGraph.width() : 0,
+    viewport_height: typeof targetGraph.height === "function" ? targetGraph.height() : 0,
+  };
   const controller = new AbortController();
   graphState.activeLayoutAbort = controller;
   try {

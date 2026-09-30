@@ -349,7 +349,7 @@
                 Graph Visualization
               </summary>
               <div class="p-1">
-                <div x-data="{ graphlayout: $persist('wasm.packed_separated_cluster_visibility').as('ui.graph.layout').using(window.backendPersist) }">
+                <div x-data="{ graphlayout: $persist('wasm.cluster_visibility').as('ui.graph.layout').using(window.backendPersist) }">
                   <div class="d-flex align-items-center gap-2">
                     <label for="graphlayout" class="form-label mb-0 flex-shrink-0">Layout</label>
                     <select
