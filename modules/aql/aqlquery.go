@@ -236,38 +236,8 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 			}
 
-			if thisEdgeSearcher.FilterEdges.NegativeComparator != query.CompareInvalid {
-				matchedEdges := thisEdgeSearcher.FilterEdges.NegativeBitmap.Intersect(eb)
-				if query.Comparator[int64](thisEdgeSearcher.FilterEdges.NegativeComparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.NegativeCount) {
-					return true
-				}
-			}
-
-			var edgeProbabilityPct engine.Probability // default to 100%
-			matchedEdges := eb                        // start with all edges as a match
-			filteredMatches := eb
-			if thisEdgeSearcher.FilterEdges.Comparator != query.CompareInvalid {
-				matchedEdges = thisEdgeSearcher.FilterEdges.Bitmap.Intersect(eb)
-				if !thisEdgeSearcher.FilterEdges.NoTrimEdges {
-					filteredMatches = matchedEdges
-				}
-
-				if !query.Comparator[int64](thisEdgeSearcher.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.Count) {
-					return true
-				}
-			}
-
-			if direction == engine.Out {
-				edgeProbabilityPct = matchedEdges.MaxProbability(currentNode, nextNode)
-			} else {
-				edgeProbabilityPct = matchedEdges.MaxProbability(nextNode, currentNode)
-			}
-
-			if thisEdgeSearcher.ProbabilityComparator != query.CompareInvalid && !query.Comparator[engine.Probability](thisEdgeSearcher.ProbabilityComparator).Compare(edgeProbabilityPct, thisEdgeSearcher.ProbabilityValue) {
-				return true
-			}
-
-			if opts.MinEdgeProbability > 0 && edgeProbabilityPct < opts.MinEdgeProbability {
+			filteredMatches, edgeProbabilityPct, ok := thisEdgeSearcher.allows(opts, currentNode, nextNode, direction, eb)
+			if !ok {
 				return true
 			}
 
@@ -332,3 +302,42 @@ var (
 	directionsOut = []engine.EdgeDirection{engine.Out}
 	directionsAny = []engine.EdgeDirection{engine.In, engine.Out}
 )
+
+// allows applies an edge searcher's per-edge rules to one step from current
+// to next: the edge type filters, the edge probability filter and the
+// minimum edge probability option. It returns the edges to keep in the
+// result and the step's probability.
+func (es EdgeSearcher) allows(opts ResolverOptions, current, next *engine.Node, direction engine.EdgeDirection, eb engine.EdgeBitmap) (engine.EdgeBitmap, engine.Probability, bool) {
+	if es.FilterEdges.NegativeComparator != query.CompareInvalid {
+		matchedEdges := es.FilterEdges.NegativeBitmap.Intersect(eb)
+		if query.Comparator[int64](es.FilterEdges.NegativeComparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.NegativeCount) {
+			return eb, 0, false
+		}
+	}
+
+	matchedEdges := eb // start with all edges as a match
+	filteredMatches := eb
+	if es.FilterEdges.Comparator != query.CompareInvalid {
+		matchedEdges = es.FilterEdges.Bitmap.Intersect(eb)
+		if !es.FilterEdges.NoTrimEdges {
+			filteredMatches = matchedEdges
+		}
+		if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
+			return eb, 0, false
+		}
+	}
+
+	var probability engine.Probability
+	if direction == engine.Out {
+		probability = matchedEdges.MaxProbability(current, next)
+	} else {
+		probability = matchedEdges.MaxProbability(next, current)
+	}
+	if es.ProbabilityComparator != query.CompareInvalid && !query.Comparator[engine.Probability](es.ProbabilityComparator).Compare(probability, es.ProbabilityValue) {
+		return eb, 0, false
+	}
+	if opts.MinEdgeProbability > 0 && probability < opts.MinEdgeProbability {
+		return eb, 0, false
+	}
+	return filteredMatches, probability, true
+}
