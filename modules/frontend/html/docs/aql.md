@@ -14,13 +14,14 @@ query = %searchtype% %label:%(nodefilter)-[edgefilter]%{n,m}%->%label:%(nodefilt
 
 ## Graph search types (searchtype)
 
-Traversal is shortest-path-first.
+WALK, TRAIL and ACYCLIC traverse shortest-path-first. REACH finds all routes at once.
 
 | Keyword | Description |
 |---------|-------------|
 | WALK | All traversals allowed, including loops (not recommended). |
 | TRAIL | A path never uses an edge twice, and edges already in the result graph are not reused. |
 | ACYCLIC | A path never visits a node twice, and nodes already in the result graph are not reused (default). |
+| REACH | Every edge that lies on at least one route from a start node to an end node within the query's rules and the depth limit. Routes may revisit nodes. The result does not depend on search order. Over the node limit, only the shortest routes that fit are kept. Every edge has a flow of 1. |
 
 ## Labels
 

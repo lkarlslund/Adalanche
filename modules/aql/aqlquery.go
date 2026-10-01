@@ -60,6 +60,10 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 		return &result, nil
 	}
 
+	if aqlq.Mode == Reach {
+		return aqlq.resolveReach(opts)
+	}
+
 	// Start nodes are searched in parallel but merged in canonical order, so
 	// the result, including where a node limit cuts it off, is the same on
 	// every run.

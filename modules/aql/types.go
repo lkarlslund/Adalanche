@@ -113,6 +113,7 @@ const (
 	Walk    QueryMode = iota // Any route, including loops
 	Trail                    // No edge used twice in a path or already in the result
 	Acyclic                  // No node visited twice in a path or already in the result
+	Reach                    // Every edge on any route within the query's rules
 )
 
 type id struct {

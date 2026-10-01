@@ -76,6 +76,8 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 			result.Mode = Trail // Allow cycles, but no edge may be visited twice
 		case "ACYCLIC":
 			result.Mode = Acyclic // Allow cycles, but no node may be visited twice
+		case "REACH":
+			result.Mode = Reach // Every edge on any route, without enumerating paths
 		default:
 			return nil, fmt.Errorf("unknown query mode: %v", ts.Token().Value)
 		}

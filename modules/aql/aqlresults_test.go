@@ -118,6 +118,9 @@ func TestAQLResultsDoNotDependOnGraphBuildOrder(t *testing.T) {
 		{"ACYCLIC start:(name=s*)-[AQLTestHop]{1,3}->mid:(name=m*)-[AQLTestHop]{1,2}->end:(name=end)", NewResolverOptions()},
 		{"TRAIL start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)", NewResolverOptions()},
 		{"ACYCLIC start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)", func() ResolverOptions { o := NewResolverOptions(); o.NodeLimit = 5; return o }()},
+		{"REACH start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)", NewResolverOptions()},
+		{"REACH start:(name=s*)-[AQLTestHop]{1,3}->mid:(name=m*)-[AQLTestHop]{1,2}->end:(name=end)", NewResolverOptions()},
+		{"REACH start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)", func() ResolverOptions { o := NewResolverOptions(); o.NodeLimit = 8; return o }()},
 	}
 	for _, q := range queries {
 		want := runQuery(t, testGraph(t, 0, competingPaths...), q.aql, q.opts)
@@ -204,8 +207,12 @@ func TestAQLResults(t *testing.T) {
 			if tt.opts != nil {
 				tt.opts(&opts)
 			}
-			if got, want := runQuery(t, g(), tt.aql, opts), strings.Join(tt.want, "\n"); got != want {
-				t.Fatalf("%s gives\n%s\nwant\n%s", tt.aql, got, want)
+			// No route here has a choice of paths, so every mode agrees.
+			for _, mode := range []string{"", "REACH "} {
+				aql := mode + tt.aql
+				if got, want := runQuery(t, g(), aql, opts), strings.Join(tt.want, "\n"); got != want {
+					t.Fatalf("%s gives\n%s\nwant\n%s", aql, got, want)
+				}
 			}
 		})
 	}
@@ -225,6 +232,7 @@ func TestAQLModesReuseAcrossTheResult(t *testing.T) {
 		{"WALK", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
 		{"TRAIL", shortOnly},
 		{"ACYCLIC", shortOnly},
+		{"REACH", []string{"a -hop-> m flow=1", "m -hop-> e flow=1", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
 	} {
 		aql := tt.mode + " start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)"
 		if got, want := runQuery(t, g(), aql, NewResolverOptions()), strings.Join(tt.want, "\n"); got != want {
@@ -311,6 +319,118 @@ func TestAQLNegation(t *testing.T) {
 	} {
 		if got := runQuery(t, g, tt.aql, NewResolverOptions()); got != tt.want {
 			t.Errorf("%s gives %q, want %q", tt.aql, got, tt.want)
+		}
+	}
+}
+
+func TestAQLReach(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		graph []string
+		aql   string
+		opts  func(*ResolverOptions)
+		want  []string
+	}{
+		{
+			name:  "routes may revisit a node",
+			graph: []string{"s -hop-> a", "a -hop-> b", "b -hop-> a", "a -hop-> e"},
+			aql:   "REACH start:(name=s)-[AQLTestHop]{1,4}->end:(name=e)",
+			want:  []string{"a -hop-> b flow=1", "a -hop-> e flow=1", "b -hop-> a flow=1", "s -hop-> a flow=1"},
+		},
+		{
+			name:  "a loop too long for the step is left out",
+			graph: []string{"s -hop-> a", "a -hop-> b", "b -hop-> a", "a -hop-> e"},
+			aql:   "REACH start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)",
+			want:  []string{"a -hop-> e flow=1", "s -hop-> a flow=1"},
+		},
+		{
+			name:  "edges off every route are left out",
+			graph: []string{"s -hop-> a", "a -hop-> e", "a -hop-> x", "x -hop-> y"},
+			aql:   "REACH start:(name=s)-[AQLTestHop]{1,5}->end:(name=e)",
+			want:  []string{"a -hop-> e flow=1", "s -hop-> a flow=1"},
+		},
+		{
+			name:  "a step of zero edges must land on the next node filter",
+			graph: []string{"u -hop-> x"},
+			aql:   "REACH start:(name=u)-[AQLTestOther]{0,1}->end:(name=x)",
+			want:  nil,
+		},
+		{
+			name:  "a step of zero edges",
+			graph: []string{"a -hop-> b", "b -hop-> c"},
+			aql:   "REACH start:(name=a)-[AQLTestHop]{0}->mid:(name=a)-[AQLTestHop]->end:()",
+			want:  []string{"a -hop-> b flow=1"},
+		},
+		{
+			name:  "a route of zero edges",
+			graph: []string{"a -hop-> b"},
+			aql:   "REACH start:(name=a)-[AQLTestOther]{0,2}->end:(name=a)",
+			want:  []string{"a"},
+		},
+		{
+			name:  "depth limit spans all steps",
+			graph: []string{"a -hop-> b", "b -hop-> c", "c -other-> d", "d -other-> e"},
+			aql:   "REACH start:(name=a)-[AQLTestHop]{1,2}->mid:()-[AQLTestOther]{1,2}->end:(name=e)",
+			opts:  func(o *ResolverOptions) { o.MaxDepth = 3 },
+			want:  nil,
+		},
+		{
+			name:  "the same node pair in two steps keeps both steps' edges",
+			graph: []string{"a -hop-> b", "a -other-> b", "b -hop-> a"},
+			aql:   "REACH start:(name=a)-[AQLTestHop]->mid:(name=b)-[AQLTestHop]->mid2:(name=a)-[AQLTestOther]->end:(name=b)",
+			want:  []string{"a -hop,other-> b flow=1", "b -hop-> a flow=1"},
+		},
+		{
+			name:  "over the node limit only the shortest routes are kept",
+			graph: []string{"s -hop-> a", "a -hop-> e", "s -hop-> b", "b -hop-> c", "c -hop-> e"},
+			aql:   "REACH start:(name=s)-[AQLTestHop]{1,4}->end:(name=e)",
+			opts:  func(o *ResolverOptions) { o.NodeLimit = 4 },
+			want:  []string{"a -hop-> e flow=1", "s -hop-> a flow=1"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := NewResolverOptions()
+			if tt.opts != nil {
+				tt.opts(&opts)
+			}
+			if got, want := runQuery(t, testGraph(t, 0, tt.graph...), tt.aql, opts), strings.Join(tt.want, "\n"); got != want {
+				t.Fatalf("%s gives\n%s\nwant\n%s", tt.aql, got, want)
+			}
+		})
+	}
+}
+
+func TestAQLReachNodeLimitTooSmall(t *testing.T) {
+	g := testGraph(t, 0, "s -hop-> a", "a -hop-> e")
+	resolver, err := ParseAQLQuery("REACH start:(name=s)-[AQLTestHop]{1,2}->end:(name=e)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := NewResolverOptions()
+	opts.NodeLimit = 2
+	if _, err := resolver.Resolve(opts); err == nil {
+		t.Fatal("expected an error when the shortest routes exceed the node limit")
+	}
+}
+
+func TestAQLReachReferences(t *testing.T) {
+	g := testGraph(t, 0, "a -hop-> b", "b -other-> c", "c -hop-> a")
+	resolver, err := ParseAQLQuery("REACH start:(name=a)-[AQLTestHop]->mid:(name=b)-[AQLTestOther]->(name=c)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := resolver.Resolve(NewResolverOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]any{}
+	for n := range result.Nodes() {
+		got[n.Label()] = result.GetNodeData(n, "reference")
+	}
+	want := map[string]any{"a": "start", "b": "mid", "c": nil}
+	for label, ref := range want {
+		if got[label] != ref {
+			t.Errorf("node %s has reference %v, want %v", label, got[label], ref)
 		}
 	}
 }
