@@ -235,3 +235,82 @@ func TestAQLModesReuseAcrossTheResult(t *testing.T) {
 		t.Error("SIMPLE is no longer a query mode")
 	}
 }
+
+func TestESC1QueryMatchesOnlyIssuableTemplates(t *testing.T) {
+	var esc1 string
+	for _, q := range PredefinedQueries {
+		if strings.HasPrefix(q.Name, "Enroll in ESC1 ") {
+			esc1 = q.Query
+		}
+	}
+	if esc1 == "" {
+		t.Fatal("ESC1 query not found")
+	}
+	enroll := engine.NewEdge("CertificateEnroll")
+	memberOf := engine.NewEdge("MemberOf")
+	nameFlag := engine.NewAttribute("msPKI-Certificate-Name-Flag")
+	enrollmentFlag := engine.NewAttribute("msPKI-Enrollment-Flag")
+	raSignature := engine.NewAttribute("msPKI-RA-Signature")
+	eku := engine.NewAttribute("pKIExtendedKeyUsage")
+
+	g := engine.NewIndexedGraph()
+	user := engine.NewNode(engine.Name, "user", engine.Type, engine.NodeTypeUser.ValueString())
+	group := engine.NewNode(engine.Name, "enrollers", engine.Type, engine.NodeTypeGroup.ValueString())
+	g.Add(user)
+	g.Add(group)
+	g.EdgeToEx(user, group, memberOf, true)
+
+	template := func(name string, published bool, flex ...any) {
+		n := engine.NewNode(append([]any{engine.Name, name, engine.Type, engine.NodeTypeCertificateTemplate.ValueString()}, flex...)...)
+		if published {
+			n.Tag("published")
+		}
+		g.Add(n)
+		g.EdgeToEx(group, n, enroll, true)
+	}
+	clientAuth := "1.3.6.1.5.5.7.3.2"
+	template("client auth", true, nameFlag, int64(1), eku, clientAuth)
+	template("pkinit", true, nameFlag, int64(1), eku, "1.3.6.1.5.2.3.4")
+	template("no usage limits", true, nameFlag, int64(1))
+	template("signature count zero", true, nameFlag, int64(1), eku, clientAuth, raSignature, int64(0))
+	template("not published", false, nameFlag, int64(1), eku, clientAuth)
+	template("manager approval", true, nameFlag, int64(1), eku, clientAuth, enrollmentFlag, int64(2))
+	template("signature required", true, nameFlag, int64(1), eku, clientAuth, raSignature, int64(1))
+	template("subject from directory", true, nameFlag, int64(0), eku, clientAuth)
+	template("server auth only", true, nameFlag, int64(1), eku, "1.3.6.1.5.5.7.3.1")
+
+	resolver, err := ParseAQLQuery(esc1, g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := resolver.Resolve(NewResolverOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matched []string
+	for n := range result.Nodes() {
+		if n.Type() == engine.NodeTypeCertificateTemplate {
+			matched = append(matched, n.Label())
+		}
+	}
+	slices.Sort(matched)
+	want := []string{"client auth", "no usage limits", "pkinit", "signature count zero"}
+	if !slices.Equal(matched, want) {
+		t.Fatalf("ESC1 matched %v, want %v", matched, want)
+	}
+}
+
+func TestAQLNegation(t *testing.T) {
+	g := testGraph(t, 0, "a -hop-> b", "b -hop-> c")
+	for _, tt := range []struct{ aql, want string }{
+		{"(!(name=a))", "b\nc"},
+		{"(!name=a)", "b\nc"},
+		{"(&(!(name=a))(!(name=c)))", "b"},
+		{"(!(|(name=a)(name=b)))", "c"},
+		{"(!(!(name=a)))", "a"},
+	} {
+		if got := runQuery(t, g, tt.aql, NewResolverOptions()); got != tt.want {
+			t.Errorf("%s gives %q, want %q", tt.aql, got, tt.want)
+		}
+	}
+}

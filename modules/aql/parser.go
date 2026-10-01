@@ -232,8 +232,12 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 	}
 
 	if ts.Token().Type == LParan {
-		// Double wrapped!?
-		return parseLDAPFilter(ts, ao)
+		// Double wrapped, as in (!(attribute=value))
+		result, err := parseLDAPFilter(ts, ao)
+		if err != nil || !invert {
+			return result, err
+		}
+		return query.NotQuery{Subitem: result}, nil
 	}
 
 	if ts.Token().Type == BinaryAnd || ts.Token().Type == BinaryOr {

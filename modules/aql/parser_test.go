@@ -9,6 +9,11 @@ import (
 func init() {
 	engine.NewAttribute("MockAttribute")
 	engine.NewAttribute("msPKI-Template-Schema-Version")
+	engine.NewAttribute("msPKI-Enrollment-Flag")
+	engine.NewAttribute("msPKI-RA-Signature")
+	engine.NewAttribute("msPKI-Certificate-Name-Flag")
+	engine.NewAttribute("pKIExtendedKeyUsage")
+	engine.NewEdge("CertificateEnroll")
 	engine.NewAttribute("msDS-SupportedEncryptionTypes")
 	engine.NewEdge("MemberOf")
 	engine.NewEdge("MachineAccount")
