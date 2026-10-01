@@ -481,8 +481,15 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 	})
 }
 
+// gpoAccessToken approximates the security token the computer presents when
+// it reads its policy: its own SID, every group it is a member of directly or
+// transitively, and the well-known groups every authenticated computer has.
 func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowssecurity.SID]struct{} {
-	token := make(map[windowssecurity.SID]struct{})
+	token := map[windowssecurity.SID]struct{}{
+		windowssecurity.EveryoneSID:           {},
+		windowssecurity.AuthenticatedUsersSID: {},
+		windowssecurity.ThisOrganizationSID:   {},
+	}
 	if sid := computer.SID(); !sid.IsBlank() {
 		token[sid] = struct{}{}
 	}
@@ -497,15 +504,16 @@ func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowss
 	return token
 }
 
+// canReadGPO reports whether the token can read the GPO's attributes, which
+// the client needs for the GPO to be returned by its search (MS-GPOL 3.2.5.1.5).
 func canReadGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph) bool {
-	return tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_GENERIC_READ) ||
-		tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_DS_READ_PROPERTY) ||
-		tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_READ_CONTROL)
+	return tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_DS_READ_PROPERTY)
 }
 
+// canApplyGPO reports whether the token is granted, and not denied, the
+// Apply Group Policy extended right (MS-GPOL 3.2.5.1.6 step 3).
 func canApplyGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph) bool {
-	return tokenHasGPOAccess(gpo, token, ao, ExtendedRightApplyGroupPolicy, engine.RIGHT_DS_CONTROL_ACCESS) ||
-		tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_GENERIC_ALL)
+	return tokenHasGPOAccess(gpo, token, ao, ExtendedRightApplyGroupPolicy, engine.RIGHT_DS_CONTROL_ACCESS)
 }
 
 func tokenHasGPOAccess(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph, guid uuid.UUID, mask engine.Mask) bool {
@@ -513,17 +521,10 @@ func tokenHasGPOAccess(gpo *engine.Node, token map[windowssecurity.SID]struct{},
 	if err != nil || sd == nil {
 		return true
 	}
-
-	for i, acl := range sd.DACL.Entries {
-		if _, ok := token[acl.SID]; !ok {
-			continue
-		}
-		if sd.DACL.IsObjectClassAccessAllowed(i, gpo, mask, guid, ao) {
-			return true
-		}
-	}
-
-	return false
+	return sd.AccessCheck(func(sid windowssecurity.SID) bool {
+		_, ok := token[sid]
+		return ok
+	}, gpo, mask, guid, ao)
 }
 
 func resolveMemberOfAndMember(ao *engine.IndexedGraph) {
@@ -1908,7 +1909,8 @@ func init() {
 		addMachinesAffectedByGPO(ao)
 	},
 		"Machines affected by a GPO",
-		engine.AfterMergeLow,
+		// Needs group memberships, which are resolved at AfterMergeLow.
+		engine.AfterMerge,
 	)
 
 	LoaderID.AddNodePatchProcessor(applyWellKnownSIDDisplayNames,
@@ -2123,70 +2125,9 @@ func init() {
 		engine.AfterMergeLow,
 	)
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		var warnlines int
-		ao.Filter(func(o *engine.Node) bool {
-			return o.Type() == engine.NodeTypeGroupPolicyContainer
-		}).Iterate(func(gpo *engine.Node) bool {
-			ao.Edges(gpo, engine.In).Iterate(func(group *engine.Node, methods engine.EdgeBitmap) bool {
-				groupname := group.OneAttrString(engine.SAMAccountName)
-				if strings.Contains(groupname, "%") {
-					// Lowercase for ease
-					groupname := strings.ToLower(groupname)
-
-					// It has some sort of % variable in it, let's go
-					ao.Edges(gpo, engine.Out).Iterate(func(affected *engine.Node, amethods engine.EdgeBitmap) bool {
-						if amethods.IsSet(activedirectory.EdgeAffectedByGPO) && affected.Type() == engine.NodeTypeComputer {
-							netbiosdomain, computername, found := strings.Cut(affected.OneAttrString(engine.DownLevelLogonName), "\\")
-							if !found {
-								ui.Error().Msgf("Could not parse downlevel logon name %v", affected.OneAttrString(engine.DownLevelLogonName))
-								return true //continue
-							}
-							computername = strings.TrimRight(computername, "$")
-
-							realgroup := groupname
-							realgroup = strings.Replace(realgroup, "%computername%", computername, -1)
-							realgroup = strings.Replace(realgroup, "%domainname%", netbiosdomain, -1)
-							realgroup = strings.Replace(realgroup, "%domain%", netbiosdomain, -1)
-
-							var targetgroups engine.NodeSlice
-
-							if !strings.Contains(realgroup, "\\") {
-								realgroup = netbiosdomain + "\\" + realgroup
-							}
-							targetgroups, _ = ao.FindMulti(
-								engine.DownLevelLogonName, engine.NV(realgroup),
-							)
-
-							if targetgroups.Len() == 0 {
-								if warnlines < 10 {
-									ui.Warn().Msgf("Could not find group %v", realgroup)
-								}
-								warnlines++
-							} else if targetgroups.Len() == 1 {
-								for _, edge := range methods.Edges() {
-									ao.EdgeToEx(targetgroups.First(), affected, edge, true)
-								}
-							} else {
-								ui.Warn().Msgf("Found multiple groups for %v: %v", realgroup, targetgroups)
-								targetgroups.Iterate(func(targetgroup *engine.Node) bool {
-									ui.Warn().Msgf("Target: %v", targetgroup.DN())
-									return true
-								})
-							}
-						}
-						return true
-					})
-				}
-				return true
-			})
-			return true
-		})
-		if warnlines > 0 {
-			ui.Warn().Msgf("%v groups could not be resolved, this could affect analysis results", warnlines)
-		}
-
-	}, "Resolve expanding environment variables in group names to real names from GPOs",
+	LoaderID.AddProcessor(resolveGPOLocalGroupMembers,
+		"Resolve GPO local group members given by name, expanding preference variables per machine",
+		// Needs the AffectedByGPO edges, which are added earlier at AfterMerge.
 		engine.AfterMerge,
 	)
 }

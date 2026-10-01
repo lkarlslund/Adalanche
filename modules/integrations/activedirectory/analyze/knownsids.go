@@ -33,8 +33,9 @@ var (
 		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.RemoteDesktopUsersSID, // DK
 		strings.ToLower("Superbrugere"):               windowssecurity.PowerUsersSID,         // DK
 
-		strings.ToLower("Administrators"):       windowssecurity.AdministratorsSID,     // EN
-		strings.ToLower("Remote Desktop Users"): windowssecurity.RemoteDesktopUsersSID, // EN
+		strings.ToLower("Administrators"):        windowssecurity.AdministratorsSID,     // EN
+		strings.ToLower("Remote Desktop Users"):  windowssecurity.RemoteDesktopUsersSID, // EN
+		strings.ToLower("Distributed COM Users"): windowssecurity.DCOMUsersSID,          // EN
 
 		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // DE
 		strings.ToLower("Administrateurs"): windowssecurity.AdministratorsSID, // FR

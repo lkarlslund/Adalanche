@@ -213,35 +213,41 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			}
 
 			for _, sidpair := range pairs {
-				var member *engine.Node
-				if sidpair.MemberSID == "" {
-					if strings.Contains(sidpair.MemberName, "\\") || strings.Contains(sidpair.MemberName, "@") {
-						ui.Debug().Msgf("GPO member with \\ or @ detected: %v", sidpair.MemberName)
-					} else {
-						// Just use the name, we assume it's a domain object
-						member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.NV(sidpair.MemberName))
-					}
-				} else {
-					// Use the SID
-					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
-					if err == nil {
-						member = ao.FindOrAddSID(membersid)
-					}
-				}
-				if member != nil {
-					switch sidpair.GroupSID {
-					case "S-1-5-32-544":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalAdminRights)
-					case "S-1-5-32-562":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalDCOMRights)
-					case "S-1-5-32-555":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalRDPRights)
-					case "":
+				edge, known := localGroupEdge(sidpair.GroupSID)
+				if !known {
+					if sidpair.GroupSID == "" {
 						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
-				} else {
-					ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
+					continue
 				}
+				switch {
+				case sidpair.MemberSID != "":
+					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
+					if err != nil {
+						ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
+						continue
+					}
+					ao.EdgeTo(ao.FindOrAddSID(membersid), gpoobject, edge)
+				case sidpair.MemberName != "":
+					// Names, including ones with preference variables, are
+					// resolved after merge when the whole directory is known.
+					gpoobject.Add(GPOLocalGroupMember, engine.NV(sidpair.GroupSID+"|"+sidpair.MemberName))
+				}
+			}
+
+		case "/user/preferences/groups/groups.xml":
+			// User-side items apply on whichever computer an in-scope user
+			// logs on to, which the directory alone does not tell us. Keep
+			// them visible on the GPO.
+			for _, sidpair := range GPOparseGroups(string(item.Contents)) {
+				member := sidpair.MemberName
+				switch {
+				case sidpair.CurrentUser:
+					member = "<logged on user>"
+				case sidpair.MemberSID != "":
+					member = sidpair.MemberSID
+				}
+				gpoobject.Add(GPOUserLocalGroupMember, engine.NV(sidpair.GroupSID+"|"+member))
 			}
 
 			// Description: "Indicates that a GPO deploys a scheduled task which is running from an UNC path (FIXME, not done yet!)",
@@ -328,7 +334,7 @@ type Action struct {
 
 var (
 	uncexec       = regexp.MustCompile(`\\\\.*\\.*\\.*\.(cmd|bat|ps1|vbs|exe|dll)`)
-	importantsids = regexp.MustCompile(`S-1-5-32-(544|555|562)`)
+	importantsids = regexp.MustCompile(`^S-1-5-32-(544|555|562)$`)
 )
 
 func GPOparseScheduledTasks(rawxml string) []string {
@@ -364,10 +370,12 @@ type Group struct {
 }
 
 type Properties struct {
-	Action  string `xml:"action,attr"`
-	SID     string `xml:"groupSid,attr"`
-	Name    string `xml:"groupName,attr"`
-	Members Members
+	Action         string `xml:"action,attr"`
+	SID            string `xml:"groupSid,attr"`
+	Name           string `xml:"groupName,attr"`
+	UserAction     string `xml:"userAction,attr"`
+	RemoveAccounts string `xml:"removeAccounts,attr"`
+	Members        Members
 }
 
 type Members struct {
@@ -386,27 +394,49 @@ type SIDpair struct {
 	GroupName  string
 	MemberSID  string
 	MemberName string
+	// CurrentUser is set when a user-side preference item adds whoever is
+	// logged on (userAction="ADD").
+	CurrentUser bool
 }
 
+// GPOparseGroups returns the local group memberships a Groups.xml preference
+// file adds (MS-GPPREF 2.2.1.11). Update (also the default when no action is
+// given) and Replace add members; Create leaves an existing group untouched
+// and Delete removes it, so neither adds to the built-in groups tracked here.
+// A group named only by groupName is translated from its well-known name.
 func GPOparseGroups(rawxml string) []SIDpair {
 	var results []SIDpair
 	var groups Groups
-	err := xml.Unmarshal([]byte(rawxml), &groups)
-	if err == nil {
-		for _, group := range groups.Group {
-			for _, prop := range group.Properties {
-				if prop.Action == "U" && importantsids.MatchString(prop.SID) {
-					for _, member := range prop.Members.Member {
-						if member.Action == "ADD" {
-							results = append(results, SIDpair{
-								GroupSID:   prop.SID,
-								GroupName:  prop.Name,
-								MemberSID:  member.SID,
-								MemberName: member.Name,
-							})
-						}
-					}
+	if err := xml.Unmarshal([]byte(rawxml), &groups); err != nil {
+		return nil
+	}
+	for _, group := range groups.Group {
+		for _, prop := range group.Properties {
+			action := strings.ToUpper(prop.Action)
+			if action != "" && action != "U" && action != "R" {
+				continue
+			}
+			groupsid := prop.SID
+			if groupsid == "" {
+				if sid, err := TranslateLocalizedNameToSID(strings.TrimSuffix(strings.TrimSpace(prop.Name), " (built-in)")); err == nil {
+					groupsid = sid.String()
 				}
+			}
+			if !importantsids.MatchString(groupsid) {
+				continue
+			}
+			for _, member := range prop.Members.Member {
+				if strings.EqualFold(member.Action, "ADD") {
+					results = append(results, SIDpair{
+						GroupSID:   groupsid,
+						GroupName:  prop.Name,
+						MemberSID:  member.SID,
+						MemberName: member.Name,
+					})
+				}
+			}
+			if strings.EqualFold(prop.UserAction, "ADD") && prop.RemoveAccounts != "1" {
+				results = append(results, SIDpair{GroupSID: groupsid, GroupName: prop.Name, CurrentUser: true})
 			}
 		}
 	}

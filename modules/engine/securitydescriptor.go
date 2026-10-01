@@ -357,6 +357,39 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, 
 	return true
 }
 
+// AccessCheck evaluates the DACL for a principal whose token holds the SIDs
+// accepted by inToken, following the access check in MS-DTYP 2.5.3.2. ACEs
+// are processed in order; a deny ACE that covers any right still required
+// refuses access, and allow ACEs accumulate until every requested right is
+// granted. A missing DACL grants everything. Implicit owner rights,
+// privileges and conditional ACEs are not evaluated, so conditional allows
+// grant nothing.
+func (sd *SecurityDescriptor) AccessCheck(inToken func(windowssecurity.SID) bool, o *Node, requested Mask, g uuid.UUID, ao *IndexedGraph) bool {
+	if sd.Control&CONTROLFLAG_DACL_PRESENT == 0 {
+		return true
+	}
+	remaining := requested
+	for _, ace := range sd.DACL.Entries {
+		if ace.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 || !inToken(ace.SID) {
+			continue
+		}
+		switch ace.Type {
+		case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
+			if ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
+				return false
+			}
+		case ACETYPE_ACCESS_ALLOWED, ACETYPE_ACCESS_ALLOWED_OBJECT:
+			if ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
+				remaining &^= ace.Mask
+				if remaining == 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
 
 // Is the ACE something that allows or denies this type of GUID?
@@ -373,12 +406,15 @@ func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID,
 		return false
 	}
 
+	return a.appliesTo(o, g, ao)
+}
+
+// appliesTo reports whether the ACE's object type and inherited object type
+// cover the requested GUID on object o, ignoring the access mask.
+func (a ACE) appliesTo(o *Node, g uuid.UUID, ao *IndexedGraph) bool {
 	// This ACE only applies to some kinds of attributes / extended rights?
 	if !a.ObjectType.IsNil() {
 		typematch := a.ObjectType == g
-		if typematch && requestedAccess == RIGHT_DS_CONTROL_ACCESS {
-			typematch = true
-		}
 		if !typematch {
 			// Lets chack if this requested guid is part of a group which is allowed
 			cachedset, found := objectSecurityGUIDcache.Load(g)
