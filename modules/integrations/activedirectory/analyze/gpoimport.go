@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -16,7 +17,11 @@ import (
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
+	gPCFileSysPath          = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
+	gpoFlags                = engine.NewAttribute("flags")
+	gpoDirectoryVersion     = engine.NewAttribute("versionNumber")
+	gpoFunctionalityVersion = engine.NewAttribute("gPCFunctionalityVersion")
+	gpoFileVersion          = engine.NewAttribute("gpoFileSystemVersion")
 
 	AbsolutePath         = engine.NewAttribute("absolutePath").Flag(engine.Single)
 	RelativePath         = engine.NewAttribute("relativePath").Flag(engine.Single)
@@ -80,8 +85,18 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			return err
 		}
 
-		if strings.EqualFold(relativepath, "/adm") ||
-			strings.EqualFold(relativepath, "/gpt.ini") {
+		if relativepath == "/gpt.ini" || relativepath == "gpt.ini" {
+			if status := item.CollectionResults["contents"].Status; status != basedata.CollectionUnknown && status != basedata.CollectionCollected {
+				continue
+			}
+			if policy, err := ini.LoadSources(ini.LoadOptions{Insensitive: true}, item.Contents); err == nil {
+				if version, err := policy.Section("General").Key("Version").Uint64(); err == nil && version <= 0xffffffff {
+					gpoobject.Set(gpoFileVersion, engine.NV(int64(version)))
+				}
+			}
+			continue
+		}
+		if strings.EqualFold(relativepath, "/adm") {
 			// not really useful from an attack perspective
 			continue
 		}

@@ -465,6 +465,9 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 				if allowEnforcedGPOsOnly && gpLinkOptions&0x02 == 0 {
 					continue
 				}
+				if !computerPolicyEnabled(gpo) {
+					continue
+				}
 
 				canRead := canReadGPO(gpo, computerToken, ao)
 				canApply := canApplyGPO(gpo, computerToken, ao)
@@ -508,6 +511,38 @@ func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowss
 // the client needs for the GPO to be returned by its search (MS-GPOL 3.2.5.1.5).
 func canReadGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph) bool {
 	return tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_DS_READ_PROPERTY)
+}
+
+func addGMSAPasswordReadEdges(ao *engine.IndexedGraph) {
+	ao.Iterate(func(o *engine.Node) bool {
+		o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
+			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
+				for _, acl := range sd.DACL.Entries {
+					if sd.AccessCheck(func(sid windowssecurity.SID) bool { return sid == acl.SID }, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil, ao) {
+						ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
+					}
+				}
+			}
+			return true
+		})
+		return true
+	})
+}
+
+// Missing metadata in older collections is unknown, not an explicit disable.
+func computerPolicyEnabled(gpo *engine.Node) bool {
+	if flags, ok := gpo.AttrInt(gpoFlags); ok && flags&2 != 0 {
+		return false
+	}
+	if version, ok := gpo.AttrInt(gpoDirectoryVersion); ok && version == 0 {
+		if fileVersion, known := gpo.AttrInt(gpoFileVersion); known && fileVersion == 0 {
+			return false
+		}
+	}
+	if functionality, ok := gpo.AttrInt(gpoFunctionalityVersion); ok && functionality != 2 {
+		return false
+	}
+	return true
 }
 
 // canApplyGPO reports whether the token is granted, and not denied, the
@@ -1129,51 +1164,7 @@ func init() {
 		addRBCDEdges(ao)
 	}, `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`, engine.BeforeMergeFinal)
 
-	EdgeCD := engine.NewEdge("ConstrainedDeleg")
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only computers
-			if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok {
-				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
-					o.Attr(activedirectory.MSDSAllowedToDelegateTo).Iterate(func(val engine.AttributeValue) bool {
-						// Each of these is a SID, so find that SID and add an edge
-						// sd := val.Raw().(*engine.SecurityDescriptor)
-						ui.Debug().Msgf("Found msDS-AllowedToDelegate on %v as %v", o.DN(), val.String())
-						_, host, split := strings.Cut(val.String(), "/")
-						if !split {
-							ui.Error().Msgf("Constrained delegation SPN %v does not contain /", val.String())
-							return true // continue
-						}
-						if strings.Contains(host, "/") {
-							ui.Error().Msgf("Constrained delegation host name %v still contains /", val.String())
-							return true // continue
-						}
-						if strings.Contains(host, ":") {
-							ui.Debug().Msgf("Constrained delegation host name %v contains :, removing port", val.String())
-							host = strings.Split(host, ":")[0]
-						}
-						if !strings.Contains(host, ".") {
-							ui.Debug().Msgf("Constrained delegation host name %v is not FQDN, adding domain context DNS", val.String())
-							host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
-						}
-						if target, found := ao.FindTwo(DnsHostName, engine.NV(host),
-							engine.Type, engine.NV("Machine"),
-						); found {
-							ao.EdgeTo(o, target, EdgeCD)
-						} else {
-							ui.Error().Msgf("Could not find constrained delegation SPN %v target (looked for machine %v) in the AD", val.String(), host)
-						}
-
-						return true
-					})
-				}
-			}
-			return true
-		})
-	}, `Someone is listed in the msDS-AllowedToDelegate (Constrained Delegation) on an account`, engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addConstrainedDelegationEdges, `Constrained delegation to a service; without protocol transition a suitable forwardable ticket is also required`, engine.BeforeMergeFinal)
 
 	/*
 		// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
@@ -1257,21 +1248,7 @@ func init() {
 		})
 	}, "Permission to add yourself to a group", engine.BeforeMergeFinal)
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
-				if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok {
-					for _, acl := range sd.DACL.Entries {
-						if acl.Type == engine.ACETYPE_ACCESS_ALLOWED {
-							ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
-						}
-					}
-				}
-				return true
-			})
-			return true
-		})
-	}, "Allows someone to read a password of a managed service account", engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addGMSAPasswordReadEdges, "Allows someone to read a password of a managed service account", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
@@ -1690,12 +1667,12 @@ func init() {
 			if object.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() > 0 {
 				object.Tag("laps")
 			}
+			if object.HasAttr(activedirectory.MSDSAllowedToDelegateTo) {
+				object.Tag("constrained")
+			}
 			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
-				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 && uac&engine.UAC_NOT_DELEGATED == 0 {
+				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
 					object.Tag("unconstrained")
-				}
-				if uac&engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION != 0 {
-					object.Tag("constrained")
 				}
 				if uac&engine.UAC_NOT_DELEGATED != 0 {
 					object.Tag("nodelegation")
