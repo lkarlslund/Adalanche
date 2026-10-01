@@ -10,6 +10,15 @@ import (
 )
 
 func collectPolicyProvenance(c *assessmentCapture) error {
+	// The AD site the machine places itself in decides which site-linked
+	// GPOs apply. Netlogon keeps the discovered site, and an administrator
+	// override if one is configured.
+	site := map[string]any{"Class": "MachineSite", "Source": "netlogon", "Scope": "machine"}
+	registryStrings(c, registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\Netlogon\Parameters`, site, []string{"DynamicSiteName", "SiteName"}, nil)
+	if err := c.add(site); err != nil {
+		return err
+	}
+
 	namespaces := []string{`root\RSOP\Computer`}
 	err := wmiRecords(c, `root\RSOP\User`, "__Namespace", []string{"Name"}, "", func(r map[string]any) error {
 		name, _ := r["Name"].(string)

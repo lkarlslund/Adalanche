@@ -13,6 +13,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
+	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -403,27 +404,24 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 			return true
 		}
 
+		// The machine's own policy results are the confirmed outcome. When
+		// they were collected, the import already linked the applied GPOs,
+		// and they replace what the directory implies.
+		if machine.HasAttr(localmachine.GPOResultsCollected) {
+			machine.Tag("gpo_results_collected")
+			return true
+		}
+
 		computerToken := gpoAccessToken(computer, ao)
 
 		allowEnforcedGPOsOnly := false
-		currentObject := computer
-		var hasparent bool
-
-		for {
-			potentialParent := currentObject.Parent()
-			if potentialParent != nil && potentialParent.DN() != "" && strings.HasSuffix(currentObject.DN(), potentialParent.DN()) {
-				currentObject = potentialParent
-			} else {
-				currentObject, hasparent = ao.DistinguishedParent(currentObject)
-				if !hasparent {
-					break
-				}
-			}
-
+		// applySOM applies the GPO links of one scope of management (an OU,
+		// the domain or a site), in the order MS-GPOL 3.2.5.1.5 walks them.
+		applySOM := func(som *engine.Node) {
 			var gpcachelinks engine.AttributeValues
 			var found bool
-			if gpcachelinks, found = currentObject.Get(GPLinkCache); !found {
-				gplinks := strings.Trim(currentObject.OneAttrString(activedirectory.GPLink), " ")
+			if gpcachelinks, found = som.Get(GPLinkCache); !found {
+				gplinks := strings.Trim(som.OneAttrString(activedirectory.GPLink), " ")
 				if len(gplinks) != 0 {
 					if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
 						ui.Error().Msgf("Error parsing gplink on %v: %v", computer.DN(), gplinks)
@@ -453,7 +451,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 						gpcachelinks = collecteddata
 					}
 				}
-				currentObject.Set(GPLinkCache, gpcachelinks...)
+				som.Set(GPLinkCache, gpcachelinks...)
 			}
 
 			for i := 0; i < gpcachelinks.Len(); i += 2 {
@@ -475,11 +473,33 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 					ao.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
 				}
 			}
-
-			if currentObject.OneAttrString(activedirectory.GPOptions) == "1" {
+			if som.OneAttrString(activedirectory.GPOptions) == "1" {
 				allowEnforcedGPOsOnly = true
 			}
 		}
+
+		currentObject := computer
+		var hasparent bool
+
+		for {
+			potentialParent := currentObject.Parent()
+			if potentialParent != nil && potentialParent.DN() != "" && strings.HasSuffix(currentObject.DN(), potentialParent.DN()) {
+				currentObject = potentialParent
+			} else {
+				currentObject, hasparent = ao.DistinguishedParent(currentObject)
+				if !hasparent {
+					break
+				}
+			}
+
+			applySOM(currentObject)
+		}
+
+		// The site comes last in the walk (MS-GPOL 3.2.5.1.4).
+		if site := machineSite(ao, machine, computer); site != nil {
+			applySOM(site)
+		}
+
 		return true
 	})
 }

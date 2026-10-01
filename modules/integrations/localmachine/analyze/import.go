@@ -928,5 +928,6 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	if err := importLocalEvidence(machine, cinfo); err != nil {
 		return nil, err
 	}
+	importPolicyProvenance(ao, machine, cinfo)
 	return machine, nil
 }
