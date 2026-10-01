@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func TestACLAccessAllowedHonorsPrecedingDenies(t *testing.T) {
@@ -39,5 +40,34 @@ func TestACLUnsupportedACEIsNotAGrant(t *testing.T) {
 		if acl.IsObjectClassAccessAllowed(0, nil, RIGHT_DS_CONTROL_ACCESS, uuid.Nil, nil) {
 			t.Errorf("ACE type %v incorrectly grants access", kind)
 		}
+	}
+}
+
+func TestACLPartialDenyBlocksMultiRightGrant(t *testing.T) {
+	trustee := "S-1-5-21-1-2-3-1001"
+	sid, _ := windowssecurity.ParseStringSID(trustee)
+	for _, tt := range []struct {
+		name      string
+		denyMask  Mask
+		denyFlags ACEFlags
+		want      bool
+	}{
+		{"deny one of the requested rights", RIGHT_WRITE_DACL, 0, false},
+		{"deny an unrequested right", RIGHT_SYNCRONIZE, 0, true},
+		{"inherit-only partial deny", RIGHT_WRITE_DACL, ACEFLAG_INHERIT_ONLY_ACE, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			acl := ACL{containsdeny: true, Entries: []ACE{
+				{Type: ACETYPE_ACCESS_DENIED, ACEFlags: tt.denyFlags, Mask: tt.denyMask, SID: sid},
+				{Type: ACETYPE_ACCESS_ALLOWED, Mask: RIGHT_GENERIC_ALL, SID: sid},
+			}}
+			if got := acl.IsObjectClassAccessAllowed(1, nil, RIGHT_GENERIC_ALL, uuid.Nil, nil); got != tt.want {
+				t.Fatalf("GenericAll allowed = %v, want %v", got, tt.want)
+			}
+			// A single right the deny does not cover is still granted.
+			if !acl.IsObjectClassAccessAllowed(1, nil, RIGHT_WRITE_OWNER, uuid.Nil, nil) {
+				t.Fatal("WRITE_OWNER should still be granted")
+			}
+		})
 	}
 }

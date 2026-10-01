@@ -84,7 +84,7 @@ func addLAPSv2Edges(ao *engine.IndexedGraph) {
 				continue
 			}
 			for _, sid := range PrincipalsGranted(sd, o, rights[g.attribute], g.attribute, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), machine, g.edge)
+				ao.EdgeTo(aceTrustee(ao, sd, sid, o), machine, g.edge)
 			}
 		}
 		return true

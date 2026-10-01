@@ -348,18 +348,18 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 		for index, acl := range sd.DACL.Entries {
 			granted := rights[acl.SID]
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
 				granted.changes = true
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
 				granted.changesAll = true
 			}
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 			}
 
 			if granted.changes || granted.changesAll {
@@ -368,7 +368,7 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 		}
 		for sid, granted := range rights {
 			if dcsync != nil && granted.changes && granted.changesAll {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), dcsync, activedirectory.EdgeCall)
+				ao.EdgeTo(aceTrustee(ao, sd, sid, o), dcsync, activedirectory.EdgeCall)
 			}
 		}
 
@@ -519,7 +519,7 @@ func addGMSAPasswordReadEdges(ao *engine.IndexedGraph) {
 			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
 				for _, acl := range sd.DACL.Entries {
 					if sd.AccessCheck(func(sid windowssecurity.SID) bool { return sid == acl.SID }, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil, ao) {
-						ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
+						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
 					}
 				}
 			}
@@ -626,7 +626,7 @@ func addWriteDACLEdges(ao *engine.IndexedGraph) {
 		}
 		for index, acl := range sd.DACL.Entries {
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_DACL, uuid.Nil, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteDACL)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteDACL)
 			}
 		}
 		return true
@@ -644,7 +644,7 @@ func addResetPasswordEdges(ao *engine.IndexedGraph) {
 		}
 		for index, acl := range sd.DACL.Entries {
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeResetPassword)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeResetPassword)
 			}
 		}
 		return true
@@ -662,7 +662,7 @@ func addWriteAllowedToActEdges(ao *engine.IndexedGraph) {
 		}
 		for index, acl := range sd.DACL.Entries {
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteAllowedToAct)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToAct)
 			}
 		}
 		return true
@@ -678,7 +678,7 @@ func addRBCDEdges(ao *engine.IndexedGraph) {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil, ao) {
-						ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, EdgeRBCD)
+						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, EdgeRBCD)
 					}
 				}
 			}
@@ -699,7 +699,7 @@ func addWriteKeyCredentialLinkEdges(ao *engine.IndexedGraph) {
 		}
 		for index, acl := range sd.DACL.Entries {
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteKeyCredentialLink)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteKeyCredentialLink)
 			}
 		}
 		return true
@@ -714,7 +714,7 @@ func addAllExtendedRightsEdges(ao *engine.IndexedGraph) {
 		}
 		for index, acl := range sd.DACL.Entries {
 			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeAllExtendedRights)
+				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAllExtendedRights)
 			}
 		}
 		return true
@@ -782,7 +782,7 @@ func init() {
 			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
 			// control access rights.
 			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, ao) {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), machine, activedirectory.EdgeReadLAPSPassword)
+				ao.EdgeTo(aceTrustee(ao, sd, sid, o), machine, activedirectory.EdgeReadLAPSPassword)
 			}
 			return true
 		})
@@ -874,7 +874,7 @@ func init() {
 			}
 			for _, acl := range sd.DACL.Entries {
 				if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
 				}
 			}
 			return true
@@ -884,41 +884,32 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-		var disableOwnerImplicitRights bool
-		domain, found := ao.FindTwo(
-			engine.ObjectClass, engine.NV("domainDNS"),
-			engine.IsCriticalSystemObject, engine.NV(true))
-		domainContext := domain.OneAttrString(engine.DomainContext)
-		if found {
-			if ds, found := ao.Find(engine.DistinguishedName, engine.NV("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domainContext)); found {
-				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
-				if len(excluded) >= 29 {
-					disableOwnerImplicitRights = string(excluded[28]) == "1"
-				}
-			}
-		}
-
+		blocked := map[string]bool{} // per domain context
 		ao.Iterate(func(o *engine.Node) bool {
 			sd, err := o.SecurityDescriptor()
-			if err != nil {
+			if err != nil || sd.Owner.IsNull() {
 				return true
 			}
-			// https://www.alsid.com/crb_article/kerberos-delegation/
-			// --- Citation bloc --- This is generally true, but an exception exists: positioning a Deny for the OWNER RIGHTS SID (S-1-3-4) in an object’s ACE removes the owner’s implicit control of this object’s DACL. ---------------------
-			aclhasdeny := false
-			for _, ace := range sd.DACL.Entries {
-				if ace.Type == engine.ACETYPE_ACCESS_DENIED && ace.SID == windowssecurity.OwnerSID {
-					aclhasdeny = true
+			// Any ACE for OWNER RIGHTS replaces the owner's implicit rights.
+			if hasOwnerRightsACE(sd) {
+				return true
+			}
+			// BlockOwnerImplicitRights takes them away on computer objects.
+			// The spec exempts owners in Domain Admins or Enterprise Admins;
+			// memberships are not resolved yet here, and those owners have
+			// full control through other edges anyway.
+			if o.Type() == engine.NodeTypeComputer {
+				domainContext := o.OneAttrString(engine.DomainContext)
+				block, known := blocked[domainContext]
+				if !known {
+					block = blocksOwnerImplicitRights(forestHeuristics(ao, domainContext))
+					blocked[domainContext] = block
+				}
+				if block {
+					return true
 				}
 			}
-			if disableOwnerImplicitRights && o.Type() == engine.NodeTypeComputer {
-				return true // Skibidi it
-			}
-
-			if !sd.Owner.IsNull() && !aclhasdeny {
-				ao.EdgeTo(ao.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
-			}
-
+			ao.EdgeTo(ao.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
 			return true
 		})
 	}, "Indicator that someone owns an object", engine.BeforeMergeFinal)
@@ -931,7 +922,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_ALL, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeGenericAll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeGenericAll)
 				}
 			}
 			return true
@@ -946,7 +937,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_WRITE, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteAll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAll)
 				}
 			}
 			return true
@@ -961,7 +952,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWritePropertyAll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWritePropertyAll)
 				}
 			}
 			return true
@@ -976,7 +967,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteExtendedAll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteExtendedAll)
 				}
 			}
 			return true
@@ -992,7 +983,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_OWNER, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeTakeOwnership)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeTakeOwnership)
 				}
 			}
 			return true
@@ -1015,7 +1006,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
 				}
 			}
 			return true
@@ -1040,7 +1031,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeReadPasswordId)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeReadPasswordId)
 				}
 			}
 			return true
@@ -1130,7 +1121,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteSPN)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteSPN)
 				}
 			}
 			return true
@@ -1149,7 +1140,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteValidatedSPN)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteValidatedSPN)
 				}
 			}
 			return true
@@ -1182,7 +1173,7 @@ func init() {
 				for index, acl := range sd.DACL.Entries {
 					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToDelegateTo, ao) {
 						// Also requires the SeEnableDelegationPrivilege set on the DC for the user doing it!!
-						ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
+						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
 					}
 				}
 				return true
@@ -1202,7 +1193,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeAddMember)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddMember)
 				}
 			}
 			return true
@@ -1222,7 +1213,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeAddMemberGroupAttr)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddMemberGroupAttr)
 				}
 			}
 			return true
@@ -1242,7 +1233,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeAddSelfMember)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddSelfMember)
 				}
 			}
 			return true
@@ -1263,7 +1254,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteAltSecurityIdentities)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAltSecurityIdentities)
 				}
 			}
 			return true
@@ -1282,7 +1273,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteProfilePath)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteProfilePath)
 				}
 			}
 			return true
@@ -1301,7 +1292,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteScriptPath)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteScriptPath)
 				}
 			}
 			return true
@@ -1352,7 +1343,7 @@ func init() {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) ||
 					sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeCertificateEnroll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateEnroll)
 				}
 			}
 			return true
@@ -1372,7 +1363,7 @@ func init() {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateAutoEnroll, ao) ||
 					sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeCertificateAutoEnroll)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateAutoEnroll)
 				}
 			}
 			return true
@@ -1387,7 +1378,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeVoodooBit)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeVoodooBit)
 				}
 			}
 			return true
@@ -1482,94 +1473,10 @@ func init() {
 		"applying domain part attribute",
 		engine.BeforeMergeLow)
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		// Find all the AdminSDHolder containers
-		ao.Filter(func(o *engine.Node) bool {
-			return strings.HasPrefix(o.OneAttrString(engine.DistinguishedName), "CN=AdminSDHolder,CN=System,")
-		}).Iterate(func(adminsdholder *engine.Node) bool {
-			// We found it - so we know it can change ACLs of some objects
-			domaincontext := adminsdholder.OneAttrString(engine.DomainContext)
-
-			// Are some groups excluded?
-			excluded_mask := 0
-
-			// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
-			// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
-			if ds, found := ao.Find(engine.DistinguishedName, engine.NV("CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,"+domaincontext)); found {
-				excluded := ds.OneAttrString(activedirectory.DsHeuristics)
-				if len(excluded) >= 16 {
-					excluded_mask = strings.Index("0123456789ABCDEF", strings.ToUpper(string(excluded[15])))
-				}
-			}
-
-			ao.Filter(func(o *engine.Node) bool {
-				// Check if object is a group
-				if o.Type() != engine.NodeTypeGroup {
-					return false
-				}
-
-				// Only this "local" AD (for multi domain analysis)
-				if o.OneAttrString(engine.DomainContext) != domaincontext {
-					return false
-				}
-				return true
-			}).Iterate(func(o *engine.Node) bool {
-
-				grpsid := o.SID()
-				if grpsid.IsNull() {
-					return true
-				}
-
-				switch grpsid.RID() {
-				case DOMAIN_USER_RID_ADMIN:
-				case DOMAIN_USER_RID_KRBTGT:
-				case DOMAIN_GROUP_RID_ADMINS:
-				case DOMAIN_GROUP_RID_CONTROLLERS:
-				case DOMAIN_GROUP_RID_SCHEMA_ADMINS:
-				case DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
-				case DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
-				case DOMAIN_ALIAS_RID_ADMINS:
-				case DOMAIN_ALIAS_RID_ACCOUNT_OPS:
-					if excluded_mask&1 != 0 {
-						return true
-					}
-				case DOMAIN_ALIAS_RID_SYSTEM_OPS:
-					if excluded_mask&2 != 0 {
-						return true
-					}
-				case DOMAIN_ALIAS_RID_PRINT_OPS:
-					if excluded_mask&4 != 0 {
-						return true
-					}
-				case DOMAIN_ALIAS_RID_BACKUP_OPS:
-					if excluded_mask&8 != 0 {
-						return true
-					}
-				case DOMAIN_ALIAS_RID_REPLICATOR:
-				default:
-					// Not a protected group
-					return true
-				}
-
-				// Only domain groups
-				if grpsid.Component(2) != 21 && grpsid.Component(2) != 32 {
-					ui.Debug().Msgf("RID match but not domain object for %v with SID %v", o.OneAttrString(engine.DistinguishedName), o.SID().String())
-					return true
-				}
-
-				// Apply this edge
-				ao.EdgeTo(adminsdholder, o, activedirectory.EdgeOverwritesACL)
-				ao.EdgeIteratorRecursive(o, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, target *engine.Node, edge engine.EdgeBitmap, depth int) bool {
-					ao.EdgeTo(adminsdholder, target, activedirectory.EdgeOverwritesACL)
-					return true
-				})
-				return true
-			})
-			return true
-		})
-	},
+	LoaderID.AddProcessor(addAdminSDHolderEdges,
 		"AdminSDHolder rights propagation indicator",
-		engine.BeforeMerge)
+		// Needs group memberships, which are resolved at AfterMergeLow.
+		engine.AfterMerge)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Find domain object
@@ -1835,7 +1742,8 @@ func init() {
 
 	LoaderID.AddNodePatchProcessor(applyProtectedUserTags,
 		"Protected users meta attribute",
-		engine.BeforeMerge,
+		// Needs group memberships, which are resolved at AfterMergeLow.
+		engine.AfterMerge,
 	)
 
 	// Loader.AddProcessor(func(ao *engine.Objects) {
@@ -1937,6 +1845,9 @@ func init() {
 		resolveMemberOfAndMember(ao)
 	},
 		"MemberOf and Member resolution",
+		// Memberships cross domains, and each domain is a separate graph
+		// until the merge, so this is the first step after it. Anything
+		// that follows group memberships must run at AfterMerge or later.
 		engine.AfterMergeLow,
 	)
 
@@ -1953,7 +1864,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeUserAccountControlGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), o, activedirectory.EdgeWriteUserAccountControl)
+					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteUserAccountControl)
 				}
 			}
 			return true

@@ -343,13 +343,16 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, 
 		return false
 	}
 	if a.containsdeny {
-		// Only preceding deny ACEs can invalidate this grant. This evaluates the
-		// exact trustee, not a complete access token with its group memberships.
+		// Only preceding deny ACEs can invalidate this grant, and one that
+		// denies any of the requested rights does (MS-DTYP 2.5.3.2). This
+		// evaluates the exact trustee, not a complete access token with its
+		// group memberships.
 		for _, deny := range a.Entries[:index] {
 			if deny.Type != ACETYPE_ACCESS_DENIED && deny.Type != ACETYPE_ACCESS_DENIED_OBJECT {
 				continue
 			}
-			if deny.SID == grant.SID && deny.matchObjectClassAndGUID(testObject, mask, guid, ao) {
+			if deny.SID == grant.SID && deny.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE == 0 &&
+				deny.Mask&mask != 0 && deny.appliesTo(testObject, guid, ao) {
 				return false
 			}
 		}
