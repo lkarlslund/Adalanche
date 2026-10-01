@@ -210,3 +210,28 @@ func TestAQLResults(t *testing.T) {
 		})
 	}
 }
+
+func TestAQLModesReuseAcrossTheResult(t *testing.T) {
+	// The short path s->m->e is found first. The longer s->a->m->e reuses
+	// the edge m->e and the nodes m and e from it.
+	g := func() *engine.IndexedGraph {
+		return testGraph(t, 0, "s -hop-> m", "m -hop-> e", "s -hop-> a", "a -hop-> m")
+	}
+	shortOnly := []string{"m -hop-> e flow=1", "s -hop-> m flow=1"}
+	for _, tt := range []struct {
+		mode string
+		want []string
+	}{
+		{"WALK", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
+		{"TRAIL", shortOnly},
+		{"ACYCLIC", shortOnly},
+	} {
+		aql := tt.mode + " start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)"
+		if got, want := runQuery(t, g(), aql, NewResolverOptions()), strings.Join(tt.want, "\n"); got != want {
+			t.Errorf("%s gives\n%s\nwant\n%s", aql, got, want)
+		}
+	}
+	if _, err := ParseAQLQuery("SIMPLE (name=s)-[]->(name=e)", nil); err == nil {
+		t.Error("SIMPLE is no longer a query mode")
+	}
+}

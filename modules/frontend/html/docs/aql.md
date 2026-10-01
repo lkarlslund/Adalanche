@@ -19,9 +19,8 @@ Traversal is shortest-path-first.
 | Keyword | Description |
 |---------|-------------|
 | WALK | All traversals allowed, including loops (not recommended). |
-| TRAIL | Already-used edges in current result graph are not reused. |
-| ACYCLIC | Already-used nodes in current result graph are not reused (default). |
-| SIMPLE | Neither reused nodes nor reused edges are allowed. |
+| TRAIL | A path never uses an edge twice, and edges already in the result graph are not reused. |
+| ACYCLIC | A path never visits a node twice, and nodes already in the result graph are not reused (default). |
 
 ## Labels
 

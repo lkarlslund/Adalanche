@@ -138,6 +138,9 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	maxSearchIndex := byte(len(aqlq.Next))
 
 	var paths pathArena
+	if aqlq.Mode == Trail {
+		paths.committedEdges = make(map[[2]engine.NodeIndex]struct{})
+	}
 	startIndex, found := aqlq.datasource.NodeIndexOf(startObject)
 	if !found {
 		return committedGraph
@@ -218,25 +221,19 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			case Walk:
 				// no-op
 			case Trail:
-				if direction == engine.Out {
-					if /*committedGraph.HasEdge(currentState.node, nextNode) ||*/
-					paths.hasEdge(currentState.path, currentState.filter, currentState.nodeIndex, nextIndex) {
-						return true
-					}
-				} else {
-					if /*committedGraph.HasEdge(nextNode, currentState.node) ||*/
-					paths.hasEdge(currentState.path, currentState.filter, nextIndex, currentState.nodeIndex) {
-						return true
-					}
+				// No edge twice in a path, nor an edge already in the result.
+				from, to := currentState.nodeIndex, nextIndex
+				if direction != engine.Out {
+					from, to = to, from
+				}
+				if paths.hasEdge(currentState.path, currentState.filter, from, to) || paths.hasCommittedEdge(from, to) {
+					return true
 				}
 			case Acyclic:
+				// No node twice in a path, nor a node already in the result.
 				if paths.hasNode(currentState.path, currentState.filter, nextIndex) || committedGraph.HasNode(nextNode) {
 					return true
 				}
-				// case Path:
-				// 	if currentState.workingGraph.HasNode(nextNode.ID()) {
-				// 		return true
-				// 	}
 			}
 
 			if thisEdgeSearcher.FilterEdges.NegativeComparator != query.CompareInvalid {

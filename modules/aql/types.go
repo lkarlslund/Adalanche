@@ -110,10 +110,9 @@ func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.N
 type QueryMode int
 
 const (
-	Walk    QueryMode = iota // No Homomorphism
-	Trail                    // Edge homomorphism (unique edges)
-	Acyclic                  // Node homomorphism (unique nodes)
-	Simple                   // Partial node-isomorphism
+	Walk    QueryMode = iota // Any route, including loops
+	Trail                    // No edge used twice in a path or already in the result
+	Acyclic                  // No node visited twice in a path or already in the result
 )
 
 type id struct {

@@ -181,6 +181,15 @@ type pathArena struct {
 	steps   []pathStep
 	commits uint32
 	scratch []int32
+	// committedEdges holds the edges of committed paths as source->target
+	// pairs while the search runs, for TRAIL. Nil when not tracked.
+	committedEdges map[[2]engine.NodeIndex]struct{}
+}
+
+// hasCommittedEdge reports whether a committed path uses the edge from->to.
+func (a *pathArena) hasCommittedEdge(from, to engine.NodeIndex) bool {
+	_, found := a.committedEdges[[2]engine.NodeIndex{from, to}]
+	return found
 }
 
 func (a *pathArena) add(parent int32, item pathItem) int32 {
@@ -228,6 +237,13 @@ func (a *pathArena) commit(tail int32, ds *engine.IndexedGraph, g graph.Graph[*e
 		step := &a.steps[i]
 		if step.commits == 0 {
 			g.AddNode(ds.NodeAt(step.item.target))
+			if a.committedEdges != nil && step.parent >= 0 {
+				from, to := a.steps[step.parent].item.target, step.item.target
+				if step.item.direction == engine.In {
+					from, to = to, from
+				}
+				a.committedEdges[[2]engine.NodeIndex{from, to}] = struct{}{}
+			}
 		}
 		step.commits++
 		step.lastCommit = a.commits
