@@ -22,6 +22,7 @@ func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (Ed
 }
 
 func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
+	g.edgeVersion++ // callers hold edgeMutex
 	// Save the edge
 	toMap := g.edges[direction][from]
 	if toMap == nil {

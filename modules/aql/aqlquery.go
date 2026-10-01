@@ -1,7 +1,10 @@
 package aql
 
 import (
+	"cmp"
 	"errors"
+	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -57,19 +60,70 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 		return &result, nil
 	}
 
-	var resultlock sync.Mutex
-	nodeindex := 0
-	pb = ui.ProgressBar("Searching from start nodes", int64(len(aqlq.sourceCache)))
-	aqlq.sourceCache[nodeindex].IterateParallel(func(o *engine.Node) bool {
-		pb.Add(1)
-		searchResult := aqlq.resolveEdgesFrom(opts, o)
-		resultlock.Lock()
-		if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
-			result.Merge(searchResult)
+	// Start nodes are searched in parallel but merged in canonical order, so
+	// the result, including where a node limit cuts it off, is the same on
+	// every run.
+	adjacency := aqlq.datasource.RankedAdjacency()
+	ranks := adjacency.Ranks
+	var starts []*engine.Node
+	aqlq.sourceCache[0].Iterate(func(o *engine.Node) bool {
+		starts = append(starts, o)
+		return true
+	})
+	rankOf := func(o *engine.Node) uint32 {
+		if i, found := aqlq.datasource.NodeIndexOf(o); found {
+			return ranks[i]
 		}
-		resultlock.Unlock()
-		return false
-	}, 0)
+		return ^uint32(0)
+	}
+	slices.SortStableFunc(starts, func(a, b *engine.Node) int {
+		return cmp.Compare(rankOf(a), rankOf(b))
+	})
+
+	type startResult struct {
+		position int
+		result   graph.Graph[*engine.Node, engine.EdgeBitmap]
+	}
+	jobs := make(chan int)
+	results := make(chan startResult)
+	workers := runtime.NumCPU()
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for position := range jobs {
+				results <- startResult{position, aqlq.resolveEdgesFrom(opts, starts[position], adjacency)}
+			}
+		}()
+	}
+	go func() {
+		for position := range starts {
+			jobs <- position
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	pb = ui.ProgressBar("Searching from start nodes", int64(len(starts)))
+	pending := make(map[int]graph.Graph[*engine.Node, engine.EdgeBitmap])
+	next := 0
+	for r := range results {
+		pb.Add(1)
+		pending[r.position] = r.result
+		for {
+			searchResult, ready := pending[next]
+			if !ready {
+				break
+			}
+			delete(pending, next)
+			next++
+			if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
+				result.Merge(searchResult)
+			}
+		}
+	}
 	pb.Finish()
 	return &result, nil
 }
@@ -77,12 +131,13 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
 	startObject *engine.Node,
+	adjacency *engine.RankedAdjacency,
 ) graph.Graph[*engine.Node, engine.EdgeBitmap] {
+	ranks := adjacency.Ranks
 	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	maxSearchIndex := byte(len(aqlq.Next))
 
 	var paths pathArena
-	startID := startObject.ID()
 	startIndex, found := aqlq.datasource.NodeIndexOf(startObject)
 	if !found {
 		return committedGraph
@@ -93,7 +148,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	}
 	queue.Push(searchState{
 		nodeIndex:                  startIndex,
-		nodeID:                     startID,
+		rank:                       ranks[startIndex],
 		path:                       paths.add(-1, pathItem{target: startIndex, direction: engine.Any}),
 		filter:                     pathFilter(0).with(startIndex),
 		currentSearchIndex:         0,
@@ -143,7 +198,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
 			queue.Push(searchState{
 				nodeIndex:                  currentState.nodeIndex,
-				nodeID:                     currentState.nodeID,
+				rank:                       currentState.rank,
 				path:                       currentState.path,
 				filter:                     currentState.filter,
 				currentSearchIndex:         currentState.currentSearchIndex + 1,
@@ -153,112 +208,119 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			})
 		}
 
-		for _, direction := range directions {
-			aqlq.datasource.EdgesAt(currentState.nodeIndex, direction).IterateIndexed(func(nextIndex engine.NodeIndex, nextNode *engine.Node, eb engine.EdgeBitmap) bool {
-				if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
-					return false
-				}
+		visit := func(direction engine.EdgeDirection, nextIndex engine.NodeIndex, nextNode *engine.Node, eb engine.EdgeBitmap) bool {
 
-				switch aqlq.Mode {
-				case Walk:
-					// no-op
-				case Trail:
-					if direction == engine.Out {
-						if /*committedGraph.HasEdge(currentState.node, nextNode) ||*/
-						paths.hasEdge(currentState.path, currentState.filter, currentState.nodeIndex, nextIndex) {
-							return true
-						}
-					} else {
-						if /*committedGraph.HasEdge(nextNode, currentState.node) ||*/
-						paths.hasEdge(currentState.path, currentState.filter, nextIndex, currentState.nodeIndex) {
-							return true
-						}
-					}
-				case Acyclic:
-					if paths.hasNode(currentState.path, currentState.filter, nextIndex) || committedGraph.HasNode(nextNode) {
-						return true
-					}
-					// case Path:
-					// 	if currentState.workingGraph.HasNode(nextNode.ID()) {
-					// 		return true
-					// 	}
-				}
+			if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+				return false
+			}
 
-				if thisEdgeSearcher.FilterEdges.NegativeComparator != query.CompareInvalid {
-					matchedEdges := thisEdgeSearcher.FilterEdges.NegativeBitmap.Intersect(eb)
-					if query.Comparator[int64](thisEdgeSearcher.FilterEdges.NegativeComparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.NegativeCount) {
-						return true
-					}
-				}
-
-				var edgeProbabilityPct engine.Probability // default to 100%
-				matchedEdges := eb                        // start with all edges as a match
-				filteredMatches := eb
-				if thisEdgeSearcher.FilterEdges.Comparator != query.CompareInvalid {
-					matchedEdges = thisEdgeSearcher.FilterEdges.Bitmap.Intersect(eb)
-					if !thisEdgeSearcher.FilterEdges.NoTrimEdges {
-						filteredMatches = matchedEdges
-					}
-
-					if !query.Comparator[int64](thisEdgeSearcher.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.Count) {
-						return true
-					}
-				}
-
+			switch aqlq.Mode {
+			case Walk:
+				// no-op
+			case Trail:
 				if direction == engine.Out {
-					edgeProbabilityPct = matchedEdges.MaxProbability(currentNode, nextNode)
+					if /*committedGraph.HasEdge(currentState.node, nextNode) ||*/
+					paths.hasEdge(currentState.path, currentState.filter, currentState.nodeIndex, nextIndex) {
+						return true
+					}
 				} else {
-					edgeProbabilityPct = matchedEdges.MaxProbability(nextNode, currentNode)
-				}
-
-				if thisEdgeSearcher.ProbabilityComparator != query.CompareInvalid && !query.Comparator[engine.Probability](thisEdgeSearcher.ProbabilityComparator).Compare(edgeProbabilityPct, thisEdgeSearcher.ProbabilityValue) {
-					return true
-				}
-
-				if opts.MinEdgeProbability > 0 && edgeProbabilityPct < opts.MinEdgeProbability {
-					return true
-				}
-
-				nextOverAllProbabilityPct := currentState.overAllProbabilityFraction * float32(edgeProbabilityPct)
-				if nextOverAllProbabilityPct < float32(aqlq.OverAllProbability) {
-					return true
-				}
-				nextOverAllProbabilityFraction := nextOverAllProbabilityPct / 100
-
-				if nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
-					(nextTargets == nil || nextTargets.Contains(nextNode)) {
-					if nextSearchIndex <= maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
-						ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
-						nextID := nextNode.ID()
-						queue.Push(searchState{
-							nodeIndex:                  nextIndex,
-							nodeID:                     nextID,
-							path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: byte(currentState.currentSearchIndex + 1)}),
-							filter:                     currentState.filter.with(nextIndex),
-							currentSearchIndex:         nextSearchIndex,
-							currentDepth:               0,
-							currentTotalDepth:          nextTotalDepth,
-							overAllProbabilityFraction: nextOverAllProbabilityFraction,
-						})
+					if /*committedGraph.HasEdge(nextNode, currentState.node) ||*/
+					paths.hasEdge(currentState.path, currentState.filter, nextIndex, currentState.nodeIndex) {
+						return true
 					}
 				}
-				if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) &&
-					(nextEdgeTargets == nil || nextEdgeTargets.Contains(nextNode)) {
+			case Acyclic:
+				if paths.hasNode(currentState.path, currentState.filter, nextIndex) || committedGraph.HasNode(nextNode) {
+					return true
+				}
+				// case Path:
+				// 	if currentState.workingGraph.HasNode(nextNode.ID()) {
+				// 		return true
+				// 	}
+			}
+
+			if thisEdgeSearcher.FilterEdges.NegativeComparator != query.CompareInvalid {
+				matchedEdges := thisEdgeSearcher.FilterEdges.NegativeBitmap.Intersect(eb)
+				if query.Comparator[int64](thisEdgeSearcher.FilterEdges.NegativeComparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.NegativeCount) {
+					return true
+				}
+			}
+
+			var edgeProbabilityPct engine.Probability // default to 100%
+			matchedEdges := eb                        // start with all edges as a match
+			filteredMatches := eb
+			if thisEdgeSearcher.FilterEdges.Comparator != query.CompareInvalid {
+				matchedEdges = thisEdgeSearcher.FilterEdges.Bitmap.Intersect(eb)
+				if !thisEdgeSearcher.FilterEdges.NoTrimEdges {
+					filteredMatches = matchedEdges
+				}
+
+				if !query.Comparator[int64](thisEdgeSearcher.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), thisEdgeSearcher.FilterEdges.Count) {
+					return true
+				}
+			}
+
+			if direction == engine.Out {
+				edgeProbabilityPct = matchedEdges.MaxProbability(currentNode, nextNode)
+			} else {
+				edgeProbabilityPct = matchedEdges.MaxProbability(nextNode, currentNode)
+			}
+
+			if thisEdgeSearcher.ProbabilityComparator != query.CompareInvalid && !query.Comparator[engine.Probability](thisEdgeSearcher.ProbabilityComparator).Compare(edgeProbabilityPct, thisEdgeSearcher.ProbabilityValue) {
+				return true
+			}
+
+			if opts.MinEdgeProbability > 0 && edgeProbabilityPct < opts.MinEdgeProbability {
+				return true
+			}
+
+			nextOverAllProbabilityPct := currentState.overAllProbabilityFraction * float32(edgeProbabilityPct)
+			if nextOverAllProbabilityPct < float32(aqlq.OverAllProbability) {
+				return true
+			}
+			nextOverAllProbabilityFraction := nextOverAllProbabilityPct / 100
+
+			if nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
+				(nextTargets == nil || nextTargets.Contains(nextNode)) {
+				if nextSearchIndex <= maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
 					ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
-					nextID := nextNode.ID()
 					queue.Push(searchState{
 						nodeIndex:                  nextIndex,
-						nodeID:                     nextID,
-						path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: 255}),
+						rank:                       ranks[nextIndex],
+						path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: byte(currentState.currentSearchIndex + 1)}),
 						filter:                     currentState.filter.with(nextIndex),
-						currentSearchIndex:         currentState.currentSearchIndex,
-						currentDepth:               nextDepth,
+						currentSearchIndex:         nextSearchIndex,
+						currentDepth:               0,
 						currentTotalDepth:          nextTotalDepth,
 						overAllProbabilityFraction: nextOverAllProbabilityFraction,
 					})
 				}
-				return true
-			})
+			}
+			if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) &&
+				(nextEdgeTargets == nil || nextEdgeTargets.Contains(nextNode)) {
+				ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
+				queue.Push(searchState{
+					nodeIndex:                  nextIndex,
+					rank:                       ranks[nextIndex],
+					path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: 255}),
+					filter:                     currentState.filter.with(nextIndex),
+					currentSearchIndex:         currentState.currentSearchIndex,
+					currentDepth:               nextDepth,
+					currentTotalDepth:          nextTotalDepth,
+					overAllProbabilityFraction: nextOverAllProbabilityFraction,
+				})
+			}
+			return true
+		}
+
+		for _, direction := range directions {
+			// Edges are stored in maps; visit neighbours in canonical order so
+			// which paths are found first does not change between runs.
+			for _, e := range adjacency.Neighbors[direction][currentState.nodeIndex] {
+				if !visit(direction, e.Target, aqlq.datasource.NodeAt(e.Target), aqlq.datasource.EdgeComboToEdgeBitmap(e.Combo)) {
+					break
+				}
+			}
 		}
 	}
 

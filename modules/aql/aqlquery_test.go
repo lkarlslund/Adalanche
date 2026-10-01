@@ -117,12 +117,12 @@ func TestAQLResolveTrailBlocksReusingSameEdgeInReverse(t *testing.T) {
 		}
 	}
 
-	walkResult := newResolver(Walk).resolveEdgesFrom(NewResolverOptions(), alpha)
+	walkResult := searchFrom(newResolver(Walk), alpha)
 	if walkResult.Order() != 2 || !walkResult.HasEdge(alpha, beta) || walkResult.HasEdge(beta, alpha) {
 		t.Fatalf("expected walk mode to traverse the same stored edge out and back, got order=%d hasAB=%v hasBA=%v", walkResult.Order(), walkResult.HasEdge(alpha, beta), walkResult.HasEdge(beta, alpha))
 	}
 
-	trailResult := newResolver(Trail).resolveEdgesFrom(NewResolverOptions(), alpha)
+	trailResult := searchFrom(newResolver(Trail), alpha)
 	if trailResult.Order() != 0 {
 		t.Fatalf("expected trail mode to reject reused edge path, got %d nodes", trailResult.Order())
 	}
@@ -157,12 +157,12 @@ func TestAQLResolveAcyclicBlocksReturningToVisitedNode(t *testing.T) {
 		}
 	}
 
-	walkResult := newResolver(Walk).resolveEdgesFrom(NewResolverOptions(), alpha)
+	walkResult := searchFrom(newResolver(Walk), alpha)
 	if !walkResult.HasEdge(alpha, beta) || !walkResult.HasEdge(beta, alpha) {
 		t.Fatalf("expected walk mode to allow cycle path, got order=%d hasAB=%v hasBA=%v", walkResult.Order(), walkResult.HasEdge(alpha, beta), walkResult.HasEdge(beta, alpha))
 	}
 
-	acyclicResult := newResolver(Acyclic).resolveEdgesFrom(NewResolverOptions(), alpha)
+	acyclicResult := searchFrom(newResolver(Acyclic), alpha)
 	if acyclicResult.Order() != 0 {
 		t.Fatalf("expected acyclic mode to reject cycle, got %d nodes", acyclicResult.Order())
 	}
@@ -194,7 +194,7 @@ func TestAQLResolveMinIterationsZeroAllowsZeroHopMatch(t *testing.T) {
 		}},
 	}
 
-	result := resolver.resolveEdgesFrom(NewResolverOptions(), alpha)
+	result := searchFrom(resolver, alpha)
 	if result.Order() != 1 || !result.HasNode(alpha) {
 		t.Fatal("expected zero-hop resolution to commit the start node")
 	}
@@ -311,4 +311,8 @@ func BenchmarkResolveHubGraph(b *testing.B) {
 			b.Fatalf("resolve failed: %v", err)
 		}
 	}
+}
+
+func searchFrom(q AQLquery, start *engine.Node) graph.Graph[*engine.Node, engine.EdgeBitmap] {
+	return q.resolveEdgesFrom(NewResolverOptions(), start, q.datasource.RankedAdjacency())
 }

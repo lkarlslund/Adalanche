@@ -59,8 +59,8 @@ func (pq *PriorityQueue) Less(i, j int) bool {
 	}
 	// A strict total order, so the pop order never depends on heap layout.
 	a, b := &pq.items[i], &pq.items[j]
-	if a.nodeID != b.nodeID {
-		return a.nodeID < b.nodeID
+	if a.rank != b.rank {
+		return a.rank < b.rank
 	}
 	if a.path != b.path {
 		return a.path < b.path
@@ -153,7 +153,7 @@ type searchState struct {
 	filter                     pathFilter       // node IDs on the path
 	nodeIndex                  engine.NodeIndex // position in the data source graph
 	path                       int32            // last step in the pathArena
-	nodeID                     engine.NodeID
+	rank                       uint32           // canonical rank of the node, for a repeatable order
 	overAllProbabilityFraction float32
 	currentSearchIndex         byte // index into Next and sourceCache patterns
 	currentDepth               byte // depth in current edge searcher

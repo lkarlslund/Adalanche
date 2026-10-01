@@ -9,43 +9,43 @@ import (
 )
 
 func TestPriorityQueueOrdering(t *testing.T) {
-	const n1, n2, n3 engine.NodeID = 1, 2, 3
+	const n1, n2, n3 uint32 = 1, 2, 3
 
 	tests := []struct {
 		name     string
 		priority Priority
 		states   []searchState
-		want     []engine.NodeID
+		want     []uint32
 	}{
 		{
 			name:     "shortest-first",
 			priority: ShortestFirst,
 			states: []searchState{
-				{nodeID: n3, currentTotalDepth: 5},
-				{nodeID: n2, currentTotalDepth: 2},
-				{nodeID: n1, currentTotalDepth: 1},
+				{rank: n3, currentTotalDepth: 5},
+				{rank: n2, currentTotalDepth: 2},
+				{rank: n1, currentTotalDepth: 1},
 			},
-			want: []engine.NodeID{n1, n2, n3},
+			want: []uint32{n1, n2, n3},
 		},
 		{
 			name:     "probable-shortest",
 			priority: ProbableShortest,
 			states: []searchState{
-				{nodeID: n1, currentTotalDepth: 1, overAllProbabilityFraction: 0.5},
-				{nodeID: n2, currentTotalDepth: 3, overAllProbabilityFraction: 0.9},
-				{nodeID: n3, currentTotalDepth: 2, overAllProbabilityFraction: 0.7},
+				{rank: n1, currentTotalDepth: 1, overAllProbabilityFraction: 0.5},
+				{rank: n2, currentTotalDepth: 3, overAllProbabilityFraction: 0.9},
+				{rank: n3, currentTotalDepth: 2, overAllProbabilityFraction: 0.7},
 			},
-			want: []engine.NodeID{n2, n3, n1},
+			want: []uint32{n2, n3, n1},
 		},
 		{
 			name:     "longest-first",
 			priority: LongestFirst,
 			states: []searchState{
-				{nodeID: n1, currentTotalDepth: 1},
-				{nodeID: n2, currentTotalDepth: 4},
-				{nodeID: n3, currentTotalDepth: 2},
+				{rank: n1, currentTotalDepth: 1},
+				{rank: n2, currentTotalDepth: 4},
+				{rank: n3, currentTotalDepth: 2},
 			},
-			want: []engine.NodeID{n2, n3, n1},
+			want: []uint32{n2, n3, n1},
 		},
 	}
 
@@ -56,7 +56,7 @@ func TestPriorityQueueOrdering(t *testing.T) {
 				queue.Push(state)
 			}
 			for i, want := range tt.want {
-				if got := queue.Pop().nodeID; got != want {
+				if got := queue.Pop().rank; got != want {
 					t.Fatalf("pop %d: got %v want %v", i, got, want)
 				}
 			}
@@ -192,7 +192,7 @@ func BenchmarkPriorityQueuePushPop(b *testing.B) {
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		queue.Push(searchState{nodeID: engine.NodeID(i), currentTotalDepth: byte(i % 8)})
+		queue.Push(searchState{rank: uint32(i), currentTotalDepth: byte(i % 8)})
 		_ = queue.Pop()
 	}
 }
@@ -216,7 +216,7 @@ func TestPriorityQueuePopsInStrictOrder(t *testing.T) {
 	var pushed []searchState
 	for i := range 5000 {
 		s := searchState{
-			nodeID:                     engine.NodeID(i%37 + 1),
+			rank:                       uint32(i%37 + 1),
 			path:                       int32(i),
 			currentTotalDepth:          byte(i % 5),
 			overAllProbabilityFraction: float32(i%3) / 2,

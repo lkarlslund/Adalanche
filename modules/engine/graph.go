@@ -33,9 +33,10 @@ type IndexedGraph struct {
 	nodes      []*Node                       // All objects, int -> *Node
 
 	// Edge tracking
-	edgeCombos *edgeComboTable
-	edges      [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
-	edgeMutex  sync.RWMutex
+	edgeCombos  *edgeComboTable
+	edges       [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
+	edgeMutex   sync.RWMutex
+	edgeVersion uint64 // changes whenever an edge is written, under edgeMutex
 
 	// Lookups
 	indexlock    sync.RWMutex
@@ -43,6 +44,10 @@ type IndexedGraph struct {
 	multiindexes map[AttributePair]*MultiIndex // Uses a map for storage considerations
 
 	typecount typestatistics
+
+	canonicalMutex sync.Mutex
+	canonicalRanks []uint32 // see CanonicalRanks
+	rankedEdges    *RankedAdjacency
 }
 
 func NewIndexedGraph() *IndexedGraph {

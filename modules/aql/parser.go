@@ -107,7 +107,8 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 		result.Sources = append(result.Sources, nq)
 	}
 
-	if !ts.EOF() {
+	// A query ends at the end of input or where UNION starts the next one.
+	if !ts.EOF() && ts.Token().Type != Union {
 		return nil, fmt.Errorf("expected end of query but found: %v", ts.Token().Value)
 	}
 	return result, nil
