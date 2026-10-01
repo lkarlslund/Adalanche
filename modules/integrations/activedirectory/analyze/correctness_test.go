@@ -8,6 +8,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func TestConstrainedDelegationWithoutProtocolTransition(t *testing.T) {
@@ -146,4 +147,43 @@ func TestFailedGPOFileReadDoesNotEstablishEmptyVersion(t *testing.T) {
 	if node.HasAttr(gpoFileVersion) {
 		t.Fatal("failed read must not establish a file version")
 	}
+}
+
+func TestKerberoastSkipsDisabledAccounts(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		uac  int64
+		want bool
+	}{
+		{"enabled", engine.UAC_NORMAL_ACCOUNT, true},
+		{"disabled", engine.UAC_NORMAL_ACCOUNT | engine.UAC_ACCOUNTDISABLE, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			authenticated := engine.NewNode(engine.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
+			service := engine.NewNode(engine.Type, engine.NodeTypeUser.ValueString(), activedirectory.UserAccountControl, tt.uac,
+				activedirectory.ServicePrincipalName, "http/web.example.test")
+			graph := newADTestGraph(authenticated, service)
+			if err := engine.Process(graph, "test", LoaderID, engine.BeforeMergeFinal); err != nil {
+				t.Fatal(err)
+			}
+			edges, _ := graph.GetEdge(authenticated, service)
+			if edges.IsSet(activedirectory.EdgeHasSPN) != tt.want || service.HasTag("kerberoast") != tt.want {
+				t.Fatalf("HasSPN %v, tag %v, want %v", edges.IsSet(activedirectory.EdgeHasSPN), service.HasTag("kerberoast"), tt.want)
+			}
+		})
+	}
+}
+
+func TestMembershipPropertySetGrantsAddMember(t *testing.T) {
+	membershipSet := uuid.Must(uuid.FromString("bc0ac240-79a9-11d0-9020-00c04fc2d4cf"))
+	writer := mustSID(t, "S-1-5-21-1-2-3-1001")
+	schema := engine.NewNode(engine.SchemaIDGUID, engine.NV(AttributeMember), engine.AttributeSecurityGUID, engine.NV(membershipSet))
+	principal := engine.NewNode(engine.ObjectSid, engine.NV(writer))
+	group := engine.NewNode(engine.Type, engine.NodeTypeGroup.ValueString(),
+		engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(allowACE(writer, engine.RIGHT_DS_WRITE_PROPERTY, membershipSet))))
+	graph := newADTestGraph(schema, principal, group)
+	if err := engine.Process(graph, "test", LoaderID, engine.BeforeMergeFinal); err != nil {
+		t.Fatal(err)
+	}
+	requireEdgeSet(t, graph, principal, group, activedirectory.EdgeAddMember)
 }

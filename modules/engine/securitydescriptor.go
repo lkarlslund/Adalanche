@@ -443,30 +443,9 @@ func (a ACE) appliesTo(o *Node, g uuid.UUID, ao *IndexedGraph) bool {
 		}
 	}
 
-	if !a.InheritedObjectType.IsNil() {
-		// We weren't passed a type, so if we don't have general access return false
-		if o == nil {
-			return false
-		}
-
-		result := false
-
-		ocg := o.Attr(ObjectClassGUIDs)
-		if ocg.Len() == 0 {
-			ui.Warn().Msg("That's not right")
-		}
-		o.Attr(ObjectClassGUIDs).Iterate(func(classattr AttributeValue) bool {
-			if class, ok := classattr.AsGUID(); ok {
-				if a.InheritedObjectType == class {
-					result = true
-					return false
-				}
-			}
-			return true
-		})
-
-		return result
-	}
+	// InheritedObjectType only decides which child objects inherit an ACE;
+	// the access check ignores it (MS-DTYP 2.5.3.2). On a child of another
+	// class the inherited copy is inherit-only, which callers skip.
 
 	return true
 }
@@ -566,10 +545,6 @@ func (a ACE) String(ao *IndexedGraph) string {
 	}
 	if a.Mask&RIGHT_DS_CONTROL_ACCESS == RIGHT_DS_CONTROL_ACCESS {
 		rights = append(rights, "DS_CONTROL_ACCESS")
-	}
-
-	if a.Mask&RIGHT_DS_VOODOO_BIT == RIGHT_DS_VOODOO_BIT {
-		rights = append(rights, "DS_VOODOO_BIT")
 	}
 
 	if a.Mask&RIGHT_DS_LIST_OBJECT == RIGHT_DS_LIST_OBJECT {
@@ -673,10 +648,6 @@ func (a ACE) StringNoLookup() string {
 	}
 	if a.Mask&RIGHT_DS_CONTROL_ACCESS == RIGHT_DS_CONTROL_ACCESS {
 		rights = append(rights, "DS_CONTROL_ACCESS")
-	}
-
-	if a.Mask&RIGHT_DS_VOODOO_BIT == RIGHT_DS_VOODOO_BIT {
-		rights = append(rights, "DS_VOODOO_BIT")
 	}
 
 	if a.Mask&RIGHT_DS_LIST_OBJECT == RIGHT_DS_LIST_OBJECT {

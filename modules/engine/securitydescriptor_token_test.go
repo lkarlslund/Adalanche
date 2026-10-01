@@ -57,3 +57,16 @@ func TestAccessCheckFollowsTheAccessCheckAlgorithm(t *testing.T) {
 		t.Fatal("a missing DACL grants everything")
 	}
 }
+
+func TestInheritedObjectTypeDoesNotLimitEffectiveACE(t *testing.T) {
+	trustee, _ := windowssecurity.ParseStringSID("S-1-5-21-1-2-3-1001")
+	userClass, _ := uuid.FromString("bf967aba-0de6-11d0-a285-00aa003049e2")
+	acl := ACL{Entries: []ACE{{
+		Type: ACETYPE_ACCESS_ALLOWED_OBJECT, Flags: INHERITED_OBJECT_TYPE_PRESENT,
+		InheritedObjectType: userClass, Mask: RIGHT_WRITE_DACL, SID: trustee,
+	}}}
+	group := NewNode(Name, "a group, not a user")
+	if !acl.IsObjectClassAccessAllowed(0, group, RIGHT_WRITE_DACL, uuid.Nil, NewIndexedGraph()) {
+		t.Fatal("an effective ACE applies regardless of its inherited object type")
+	}
+}

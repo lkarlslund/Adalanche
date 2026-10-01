@@ -1066,7 +1066,7 @@ func init() {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
-			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
+			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
 				out.AddTag(o, kerberoast)
 			}
 			return true
@@ -1084,7 +1084,7 @@ func init() {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
-			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 {
+			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
 				out.Add(authusers, o, activedirectory.EdgeHasSPN, false)
 			}
 			return true
@@ -1232,26 +1232,6 @@ func init() {
 				return true
 			}
 			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSetGroupMembership, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddMemberGroupAttr)
-				}
-			}
-			return true
-		})
-	}, "Permission to add a member to a group (via attribute set)", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for groups
-			if o.Type() != engine.NodeTypeGroup {
-				return true
-			}
-			// It's a group
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
 				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
 					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddSelfMember)
 				}
@@ -1361,8 +1341,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) ||
-					sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
+				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
 					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateEnroll)
 				}
 			}
@@ -1381,29 +1360,13 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateAutoEnroll, ao) ||
-					sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
+				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateAutoEnroll, ao) {
 					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateAutoEnroll)
 				}
 			}
 			return true
 		})
 	}, "Permission to auto-enroll into a certificate template", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_VOODOO_BIT, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeVoodooBit)
-				}
-			}
-			return true
-		})
-	}, "Has the Voodoo Bit set", engine.BeforeMergeFinal)
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		addDomainDNSDCSyncEdges(ao)
@@ -2039,4 +2002,11 @@ func init() {
 		// Needs the AffectedByGPO edges, which are added earlier at AfterMerge.
 		engine.AfterMerge,
 	)
+}
+
+// accountDisabled reports whether userAccountControl marks the account
+// disabled. The KDC issues no service tickets for a disabled account.
+func accountDisabled(o *engine.Node) bool {
+	uac, ok := o.AttrInt(activedirectory.UserAccountControl)
+	return ok && uac&engine.UAC_ACCOUNTDISABLE != 0
 }

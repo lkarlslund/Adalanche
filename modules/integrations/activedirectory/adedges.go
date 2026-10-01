@@ -60,7 +60,6 @@ var (
 	EdgeWriteAllowedToAct        = engine.NewEdge("WriteAllowedToAct").Tag("Pivot")
 	EdgeWriteAllowedToDelegateTo = engine.NewEdge("WriteAllowedToDelegTo").Tag("Pivot")
 	EdgeAddMember                = engine.NewEdge("AddMember").Tag("Pivot")
-	EdgeAddMemberGroupAttr       = engine.NewEdge("AddMemberGroupAttr").Tag("Pivot")
 	EdgeAddSelfMember            = engine.NewEdge("AddSelfMember").Tag("Pivot")
 	EdgeReadGMSAPassword         = engine.NewEdge("ReadGMSAPassword").Tag("Pivot")
 	EdgeHasMSA                   = engine.NewEdge("HasMSA").Tag("Granted")
@@ -104,5 +103,4 @@ var (
 	EdgeWriteScriptPath                      = engine.NewEdge("WriteScriptPath").Tag("Pivot")
 	EdgeCertificateEnroll                    = engine.NewEdge("CertificateEnroll").Tag("Granted")
 	EdgeCertificateAutoEnroll                = engine.NewEdge("CertificateAutoEnroll").Tag("Granted")
-	EdgeVoodooBit                            = engine.NewEdge("VoodooBit").SetDefault(false, false, false).Tag("Internal").Hidden()
 )
