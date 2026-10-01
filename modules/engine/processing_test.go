@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -109,17 +112,14 @@ func TestMergeGraphsAssignsOrphansToOrphanContainer(t *testing.T) {
 	}
 }
 
-func TestProcessRunsGraphMutatorsBeforeNodePatchProcessors(t *testing.T) {
+func TestProcessorsRunAfterTheProductsTheyNeed(t *testing.T) {
 	withProgressDisabled(t)
 	withRegisteredProcessorsSnapshot(t)
 
 	const loaderID LoaderID = 4242
 	var sawBeta bool
 
-	loaderID.AddGraphMutator(func(ao *IndexedGraph) {
-		ao.AddNew(Name, "beta", SAMAccountName, "BETA")
-	}, "add beta", AfterMerge)
-
+	// Registered after its consumer, so only the dependency orders them.
 	loaderID.AddNodePatchProcessor(func(view *FrozenGraph, out *NodePatchSet) {
 		beta, found := view.Find(Name, NV("beta"))
 		if !found {
@@ -127,10 +127,14 @@ func TestProcessRunsGraphMutatorsBeforeNodePatchProcessors(t *testing.T) {
 		}
 		sawBeta = true
 		out.Set(beta, DisplayName, NV("Beta display"))
-	}, "annotate beta", AfterMerge)
+	}, Processor{Description: "annotate beta", Phase: AfterMerge, Needs: []Product{"test/beta"}})
+
+	loaderID.AddProcessor(func(ao *IndexedGraph) {
+		ao.AddNew(Name, "beta", SAMAccountName, "BETA")
+	}, Processor{Description: "add beta", Phase: AfterMerge, Provides: []Product{"test/beta"}})
 
 	graph := testGraph(testNamedNode("alpha"))
-	if err := Process(graph, "test processors", loaderID, AfterMerge); err != nil {
+	if err := RunPhase(graph, loaderID, AfterMerge); err != nil {
 		t.Fatalf("process failed: %v", err)
 	}
 
@@ -173,14 +177,14 @@ func TestProcessAppliesEdgeDeltaProcessorsAfterFrozenAnalysis(t *testing.T) {
 		}
 		sawTarget = true
 		out.Add(source, target, canControl, true)
-	}, "add edge delta", AfterMerge)
+	}, Processor{Description: "add edge delta", Phase: AfterMerge})
 
 	graph := testGraph(
 		testNamedNode("source"),
 		testNamedNode("target"),
 	)
 
-	if err := Process(graph, "test edge delta", loaderID, AfterMerge); err != nil {
+	if err := RunPhase(graph, loaderID, AfterMerge); err != nil {
 		t.Fatalf("process failed: %v", err)
 	}
 	if !sawSource || !sawTarget {
@@ -192,5 +196,59 @@ func TestProcessAppliesEdgeDeltaProcessorsAfterFrozenAnalysis(t *testing.T) {
 	edge, found := graph.GetEdge(source, target)
 	if !found || !edge.IsSet(canControl) {
 		t.Fatal("expected edge delta to be applied")
+	}
+}
+
+func TestProcessorOrderingErrors(t *testing.T) {
+	withProgressDisabled(t)
+	withRegisteredProcessorsSnapshot(t)
+
+	const loaderID LoaderID = 4444
+	noop := func(*IndexedGraph) {}
+	loaderID.AddProcessor(noop, Processor{Description: "a", Phase: AfterMerge, Needs: []Product{"test/b"}, Provides: []Product{"test/a"}})
+	loaderID.AddProcessor(noop, Processor{Description: "b", Phase: AfterMerge, Needs: []Product{"test/a"}, Provides: []Product{"test/b"}})
+	if err := RunPhase(testGraph(), loaderID, AfterMerge); err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("expected a cycle error, got %v", err)
+	}
+
+	registeredProcessors = registeredProcessors[:len(registeredProcessors)-2]
+	loaderID.AddProcessor(noop, Processor{Description: "c", Phase: AfterMerge, Needs: []Product{"test/nobody"}})
+	if err := RunPhase(testGraph(), loaderID, AfterMerge); err == nil || !strings.Contains(err.Error(), "no processor provides") {
+		t.Fatalf("expected an unknown product error, got %v", err)
+	}
+}
+
+func TestProcessorOrderDoesNotDependOnRegistration(t *testing.T) {
+	withProgressDisabled(t)
+
+	const loaderID LoaderID = 4545
+	for _, reverse := range []bool{false, true} {
+		t.Run(fmt.Sprint(reverse), func(t *testing.T) {
+			withRegisteredProcessorsSnapshot(t)
+			var order []string
+			record := func(name string) ProcessorFunc {
+				return func(*IndexedGraph) { order = append(order, name) }
+			}
+			specs := []Processor{
+				{Description: "final", Phase: AfterMerge, Final: true},
+				{Description: "consumer", Phase: AfterMerge, Needs: []Product{"test/x"}},
+				{Description: "producer z", Phase: AfterMerge, Provides: []Product{"test/x"}},
+				{Description: "producer a", Phase: AfterMerge, Provides: []Product{"test/x"}},
+				{Description: "independent", Phase: AfterMerge},
+			}
+			if reverse {
+				slices.Reverse(specs)
+			}
+			for _, spec := range specs {
+				loaderID.AddProcessor(record(spec.Description), spec)
+			}
+			if err := RunPhase(testGraph(), loaderID, AfterMerge); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"independent", "producer a", "producer z", "consumer", "final"}
+			if !slices.Equal(order, want) {
+				t.Fatalf("ran %v, want %v", order, want)
+			}
+		})
 	}
 }

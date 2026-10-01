@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -78,6 +79,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	}
 
 	var trymerge []mergeinfo
+	var sidStubs []*Node
 	mergedNodesMap := make(map[*Node]*Node)
 	var mergeMutex sync.Mutex
 
@@ -106,7 +108,11 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 				}
 			}
 
-			if !node.HasAttr(DataSource) {
+			if isDomainSIDStub(node) {
+				mergeMutex.Lock()
+				sidStubs = append(sidStubs, node)
+				mergeMutex.Unlock()
+			} else if !node.HasAttr(DataSource) {
 				mergeMutex.Lock()
 				trymerge = append(trymerge, mergeinfo{graph: g, node: node})
 				mergeMutex.Unlock()
@@ -141,6 +147,8 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		}
 	}
 	pb.Finish()
+
+	mergeSIDStubs(superGraph, sidStubs, mergedNodesMap)
 
 	aftermergetotalobjects := superGraph.Order()
 	ui.Info().Msgf("After merge we have %v objects in the metaverse (merge eliminated %v objects)", aftermergetotalobjects, len(mergedNodesMap))
@@ -196,4 +204,45 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	}
 
 	return superGraph, nil
+}
+
+// isDomainSIDStub reports whether a node only stands for a domain or
+// machine account SID that a graph referred to without having the account:
+// it has a domain-style SID but no distinguished name or data source.
+func isDomainSIDStub(n *Node) bool {
+	sid := n.SID()
+	return !sid.IsBlank() && sid.Component(2) == 21 && sid.Component(3) != 0 &&
+		!n.HasAttr(DistinguishedName) && !n.HasAttr(DataSource) && n.Children().Len() == 0
+}
+
+// mergeSIDStubs merges the stubs for each SID into the one real node with
+// that SID. A domain account SID is unique across domains and forests, so
+// every graph that referred to the account meant this node. When there is
+// no such node, or several (machines cloned with the same machine SID), the
+// stubs merge into one stub that stands for the SID.
+func mergeSIDStubs(superGraph *IndexedGraph, stubs []*Node, mergedNodesMap map[*Node]*Node) {
+	slices.SortStableFunc(stubs, func(a, b *Node) int { return strings.Compare(string(a.SID()), string(b.SID())) })
+	for start := 0; start < len(stubs); {
+		end := start + 1
+		for end < len(stubs) && stubs[end].SID() == stubs[start].SID() {
+			end++
+		}
+		group := stubs[start:end]
+		start = end
+
+		if real, found := superGraph.FindMulti(ObjectSid, NV(group[0].SID())); found && real.Len() == 1 {
+			// The stubs carry nothing the real node lacks, so only their
+			// edges move over.
+			for _, stub := range group {
+				mergedNodesMap[stub] = real.First()
+			}
+			continue
+		}
+		target := group[0]
+		for _, stub := range group[1:] {
+			target.Absorb(stub)
+			mergedNodesMap[stub] = target
+		}
+		superGraph.Add(target)
+	}
 }

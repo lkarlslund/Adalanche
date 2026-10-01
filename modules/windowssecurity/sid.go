@@ -205,7 +205,6 @@ func (sid SID) AddComponent(component uint32) SID {
 	newsid := make([]byte, len(sid)+4)
 	copy(newsid, sid)
 	binary.LittleEndian.PutUint32(newsid[len(sid):], component)
-	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
 	return SID(newsid)
 }
 

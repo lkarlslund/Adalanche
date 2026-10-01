@@ -29,8 +29,8 @@ func AttributeReadRights(ao *engine.IndexedGraph, attribute uuid.UUID, confident
 
 // PrincipalsGranted returns each trustee in the DACL that the descriptor
 // grants all of mask for the object or attribute guid, counting rights spread
-// over several of its ACEs and honouring its denies. Like the other ACL edges,
-// it evaluates each trustee on its own, not a member's full token.
+// over several of its ACEs and honouring its denies, including denies for
+// Everyone and for groups in the trustee's token (see TrusteeToken).
 func PrincipalsGranted(sd *engine.SecurityDescriptor, o *engine.Node, mask engine.Mask, guid uuid.UUID, ao *engine.IndexedGraph) []windowssecurity.SID {
 	var granted []windowssecurity.SID
 	seen := map[windowssecurity.SID]struct{}{}
@@ -40,7 +40,7 @@ func PrincipalsGranted(sd *engine.SecurityDescriptor, o *engine.Node, mask engin
 		}
 		seen[ace.SID] = struct{}{}
 		sid := ace.SID
-		if sd.AccessCheck(func(s windowssecurity.SID) bool { return s == sid }, o, mask, guid, ao) {
+		if TrusteeGranted(ao, sd, sid, o, mask, guid) {
 			granted = append(granted, sid)
 		}
 	}

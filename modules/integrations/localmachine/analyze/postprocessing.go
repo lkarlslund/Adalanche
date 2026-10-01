@@ -44,7 +44,11 @@ func init() {
 			}
 			return true
 		})
-	}, "Link local users and groups to machines", engine.BeforeMergeLow)
+	}, engine.Processor{
+		Description: "Link local users and groups to machines",
+		Phase:       engine.BeforeMerge,
+		Provides:    []engine.Product{ProductLocalTree},
+	})
 
 	loader.AddReadOnlyProcessor(func(view *engine.FrozenGraph) {
 		var warns int
@@ -75,7 +79,9 @@ func init() {
 			return true
 		})
 	},
-		"Detecting broken links",
-		engine.AfterMergeHigh,
-	)
+		engine.Processor{
+			Description: "Detecting broken links",
+			Phase:       engine.AfterMerge,
+			Final:       true,
+		})
 }

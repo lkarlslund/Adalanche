@@ -143,10 +143,8 @@ func TestGPOTargetingRunsAfterMembershipResolution(t *testing.T) {
 	computer.ChildOf(ou)
 	graph := newADTestGraph(gpo, ou, group, computer, machine)
 
-	for priority := engine.AfterMergeLow; priority <= engine.AfterMerge; priority++ {
-		if err := engine.Process(graph, "test", -1, priority); err != nil {
-			t.Fatal(err)
-		}
+	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AfterMerge); err != nil {
+		t.Fatal(err)
 	}
 	requireEdgeSet(t, graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
 }

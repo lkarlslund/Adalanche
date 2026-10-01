@@ -20,7 +20,11 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	var activeLoaders []Loader
 	gonk.SetGrowStrategy(gonk.Double)
 
-	overallprogress := ui.ProgressBar("Loading and analyzing", 8)
+	if err := ValidateProcessors(); err != nil {
+		return nil, err
+	}
+
+	overallprogress := ui.ProgressBar("Loading and analyzing", 5)
 
 	for _, lg := range loadergenerators {
 		loader := lg()
@@ -60,6 +64,8 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	overallprogress.Add(1)
 
 	var preprocessWG sync.WaitGroup
+	var preprocessErr error
+	var preprocessErrOnce sync.Once
 	var graphsToMerge []*IndexedGraph
 	for _, os := range allLoaderGraphs {
 		if os.Objects.Order() < 2 {
@@ -79,16 +85,18 @@ func Run(paths ...string) (*IndexedGraph, error) {
 				}
 			}
 
-			for priority := BeforeMergeLow; priority <= BeforeMergeFinal; priority++ {
-				status := fmt.Sprintf("Preprocessing %v priority %v with %v objects", lobj.Loader.Name(), priority.String(), lobj.Objects.Order())
-				ui.Debug().Msg(status)
-				Process(lobj.Objects, status, loaderid, priority)
+			ui.Debug().Msgf("Preprocessing %v with %v objects", lobj.Loader.Name(), lobj.Objects.Order())
+			if err := RunPhase(lobj.Objects, loaderid, BeforeMerge); err != nil {
+				preprocessErrOnce.Do(func() { preprocessErr = fmt.Errorf("preprocessing %v: %w", lobj.Loader.Name(), err) })
 			}
 
 			preprocessWG.Done()
 		}(os)
 	}
 	preprocessWG.Wait()
+	if preprocessErr != nil {
+		return nil, preprocessErr
+	}
 
 	runtime.GC()
 	debug.FreeOSMemory()
@@ -107,11 +115,13 @@ func Run(paths ...string) (*IndexedGraph, error) {
 
 	overallprogress.Add(1)
 
-	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
-		PostProcess(globalGraph, priority)
-		runtime.GC()
-		overallprogress.Add(1)
+	postprocessStart := time.Now()
+	if err := RunPhase(globalGraph, AnyLoader, AfterMerge); err != nil {
+		return nil, err
 	}
+	ui.Info().Msgf("Time to finish post-processing %v", time.Since(postprocessStart))
+	runtime.GC()
+	overallprogress.Add(1)
 
 	if err := calculateGraphAttributes(globalGraph); err != nil {
 		return nil, err
@@ -175,13 +185,4 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	overallprogress.Finish()
 
 	return globalGraph, err
-}
-
-func PostProcess(ao *IndexedGraph, priority ProcessPriority) {
-	starttime := time.Now()
-
-	// Do global post-processing
-	Process(ao, fmt.Sprintf("Postprocessing priority %v", priority.String()), -1, priority)
-
-	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
 }

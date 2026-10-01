@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
@@ -334,7 +333,19 @@ func ParseACLentry(odata []byte) (ACE, []byte, error) {
 var ExtendedRightCertificateEnroll, _ = uuid.FromString("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 var ExtendedRightCertificateAutoEnroll, _ = uuid.FromString("a05b8cc2-17bc-4802-a710-e7c15ab866a2")
 
+// IsObjectClassAccessAllowed reports whether the ACE at index grants mask for
+// guid on testObject, and no preceding deny ACE for the trustee itself or for
+// Everyone takes any of it away.
 func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph) bool {
+	return a.IsObjectClassAccessAllowedFor(index, testObject, mask, guid, ao, nil)
+}
+
+// IsObjectClassAccessAllowedFor is IsObjectClassAccessAllowed where denies
+// also count for every SID that trusteeToken reports. trusteeToken must only
+// report SIDs that are in the token of everyone who holds the trustee of the
+// ACE at index, such as the groups the trustee is a member of, so a deny it
+// matches refuses the grant to all of them. It may be nil.
+func (a ACL) IsObjectClassAccessAllowedFor(index int, testObject *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph, trusteeToken func(windowssecurity.SID) bool) bool {
 	grant := a.Entries[index]
 	if grant.Type != ACETYPE_ACCESS_ALLOWED && grant.Type != ACETYPE_ACCESS_ALLOWED_OBJECT {
 		return false
@@ -344,20 +355,29 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, 
 	}
 	if a.containsdeny {
 		// Only preceding deny ACEs can invalidate this grant, and one that
-		// denies any of the requested rights does (MS-DTYP 2.5.3.2). This
-		// evaluates the exact trustee, not a complete access token with its
-		// group memberships.
+		// denies any of the requested rights does (MS-DTYP 2.5.3.2).
 		for _, deny := range a.Entries[:index] {
 			if deny.Type != ACETYPE_ACCESS_DENIED && deny.Type != ACETYPE_ACCESS_DENIED_OBJECT {
 				continue
 			}
-			if deny.SID == grant.SID && deny.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE == 0 &&
-				deny.Mask&mask != 0 && deny.appliesTo(testObject, guid, ao) {
+			if deny.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 || deny.Mask&mask == 0 {
+				continue
+			}
+			if !inTrusteeToken(deny.SID, grant.SID, trusteeToken) {
+				continue
+			}
+			if deny.appliesTo(testObject, guid, ao) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+// inTrusteeToken reports whether sid is in the token of everyone holding
+// trustee: the trustee itself, Everyone, or what trusteeToken reports.
+func inTrusteeToken(sid, trustee windowssecurity.SID, trusteeToken func(windowssecurity.SID) bool) bool {
+	return sid == trustee || sid == windowssecurity.EveryoneSID || (trusteeToken != nil && trusteeToken(sid))
 }
 
 // AccessCheck evaluates the DACL for a principal whose token holds the SIDs
@@ -368,21 +388,36 @@ func (a ACL) IsObjectClassAccessAllowed(index int, testObject *Node, mask Mask, 
 // privileges and conditional ACEs are not evaluated, so conditional allows
 // grant nothing.
 func (sd *SecurityDescriptor) AccessCheck(inToken func(windowssecurity.SID) bool, o *Node, requested Mask, g uuid.UUID, ao *IndexedGraph) bool {
+	return sd.accessCheck(inToken, inToken, o, requested, g, ao)
+}
+
+// TrusteeAccessCheck is AccessCheck for the rights the trustee's own ACEs
+// grant: only its allow ACEs count, while deny ACEs count for the trustee,
+// Everyone and every SID trusteeToken reports (see
+// IsObjectClassAccessAllowedFor). trusteeToken may be nil.
+func (sd *SecurityDescriptor) TrusteeAccessCheck(trustee windowssecurity.SID, trusteeToken func(windowssecurity.SID) bool, o *Node, requested Mask, g uuid.UUID, ao *IndexedGraph) bool {
+	return sd.accessCheck(
+		func(sid windowssecurity.SID) bool { return sid == trustee },
+		func(sid windowssecurity.SID) bool { return inTrusteeToken(sid, trustee, trusteeToken) },
+		o, requested, g, ao)
+}
+
+func (sd *SecurityDescriptor) accessCheck(allowFor, denyFor func(windowssecurity.SID) bool, o *Node, requested Mask, g uuid.UUID, ao *IndexedGraph) bool {
 	if sd.Control&CONTROLFLAG_DACL_PRESENT == 0 {
 		return true
 	}
 	remaining := requested
 	for _, ace := range sd.DACL.Entries {
-		if ace.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 || !inToken(ace.SID) {
+		if ace.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 {
 			continue
 		}
 		switch ace.Type {
 		case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
-			if ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
+			if denyFor(ace.SID) && ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
 				return false
 			}
 		case ACETYPE_ACCESS_ALLOWED, ACETYPE_ACCESS_ALLOWED_OBJECT:
-			if ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
+			if allowFor(ace.SID) && ace.Mask&remaining != 0 && ace.appliesTo(o, g, ao) {
 				remaining &^= ace.Mask
 				if remaining == 0 {
 					return true
@@ -393,7 +428,54 @@ func (sd *SecurityDescriptor) AccessCheck(inToken func(windowssecurity.SID) bool
 	return false
 }
 
-var objectSecurityGUIDcache gsync.MapOf[uuid.UUID, uuid.UUID]
+// propertySet returns the property set an attribute GUID belongs to according
+// to the schema of o's forest, or UnknownGUID. The merged graph holds one
+// schema per forest; when they agree, which is the normal case, the answer is
+// cached per attribute.
+func (ao *IndexedGraph) propertySet(o *Node, attribute uuid.UUID) uuid.UUID {
+	if ao == nil {
+		return UnknownGUID
+	}
+	if set, found := ao.propertySets.Load(attribute); found {
+		return set
+	}
+	schemas, _ := ao.FindMulti(SchemaIDGUID, NV(attribute))
+	set := UnknownGUID
+	agreed := true
+	var bestSuffix int
+	var forestSet uuid.UUID
+	domainContext := ""
+	if o != nil {
+		domainContext = strings.ToLower(o.OneAttrString(DomainContext))
+	}
+	first := true
+	schemas.Iterate(func(schema *Node) bool {
+		candidate := UnknownGUID
+		if found, ok := schema.OneAttrGUID(AttributeSecurityGUID); ok && !found.IsNil() {
+			candidate = found
+		}
+		if first {
+			set, first = candidate, false
+		} else if candidate != set {
+			agreed = false
+		}
+		// The schema lives in CN=Schema,CN=Configuration,<forest root>,
+		// and every domain of the forest ends with the forest root.
+		if _, root, ok := strings.Cut(strings.ToLower(schema.DN()), ",cn=schema,cn=configuration,"); ok && domainContext != "" &&
+			(domainContext == root || strings.HasSuffix(domainContext, ","+root)) && len(root) > bestSuffix {
+			bestSuffix, forestSet = len(root), candidate
+		}
+		return true
+	})
+	if agreed {
+		ao.propertySets.Store(attribute, set)
+		return set
+	}
+	if bestSuffix > 0 {
+		return forestSet
+	}
+	return UnknownGUID
+}
 
 // Is the ACE something that allows or denies this type of GUID?
 func (a ACE) matchObjectClassAndGUID(o *Node, requestedAccess Mask, g uuid.UUID, ao *IndexedGraph) bool {
@@ -419,22 +501,9 @@ func (a ACE) appliesTo(o *Node, g uuid.UUID, ao *IndexedGraph) bool {
 	if !a.ObjectType.IsNil() {
 		typematch := a.ObjectType == g
 		if !typematch {
-			// Lets chack if this requested guid is part of a group which is allowed
-			cachedset, found := objectSecurityGUIDcache.Load(g)
-			if !found {
-				// Not in cache, let's populate it
-				cachedset = UnknownGUID // Assume failure
-				if s, found := ao.Find(SchemaIDGUID, NV(g)); found {
-					if set, ok := s.OneAttrGUID(AttributeSecurityGUID); ok {
-						cachedset = set
-						if cachedset.IsNil() {
-							cachedset = UnknownGUID
-						}
-					}
-				}
-				objectSecurityGUIDcache.Store(g, cachedset)
-			}
-			if a.ObjectType == cachedset {
+			// The ACE may name the property set the requested attribute
+			// belongs to.
+			if a.ObjectType == ao.propertySet(o, g) {
 				typematch = true
 			}
 		}

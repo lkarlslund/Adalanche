@@ -5,8 +5,6 @@ import (
 )
 
 var (
-	EdgeForeignIdentity = engine.NewEdge("ForeignIdentity")
-
 	DistinguishedName                       = engine.NewAttribute("distinguishedName").Tag("AD").Flag(engine.Unique).Flag(engine.Single)
 	ObjectClass                             = engine.NewAttribute("objectClass").Tag("AD")
 	ObjectCategory                          = engine.NewAttribute("objectCategory").Tag("AD").Flag(engine.Single)

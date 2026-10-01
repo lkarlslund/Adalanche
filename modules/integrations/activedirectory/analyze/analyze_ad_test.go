@@ -324,7 +324,7 @@ func TestWriteDACLAddsEdge(t *testing.T) {
 	)))
 
 	graph := newADTestGraph(target)
-	addWriteDACLEdges(graph)
+	addACLRuleEdges(graph)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -354,7 +354,7 @@ func TestResetPasswordOnlyTargetsAccounts(t *testing.T) {
 	)))
 
 	graph := newADTestGraph(account, ou)
-	addResetPasswordEdges(graph)
+	addACLRuleEdges(graph)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -506,7 +506,7 @@ func TestWriteAllowedToActAndRBCDAddEdges(t *testing.T) {
 	)))
 
 	graph := newADTestGraph(target)
-	addWriteAllowedToActEdges(graph)
+	addACLRuleEdges(graph)
 	addRBCDEdges(graph)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
@@ -538,7 +538,7 @@ func TestWriteKeyCredentialLinkOnlyTargetsUsersAndComputers(t *testing.T) {
 	)))
 
 	graph := newADTestGraph(user, group)
-	addWriteKeyCredentialLinkEdges(graph)
+	addACLRuleEdges(graph)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -569,7 +569,7 @@ func TestAllExtendedRightsAddsEdgeAndSkipsWrongMask(t *testing.T) {
 	)))
 
 	graph := newADTestGraph(allowed, wrongMask)
-	addAllExtendedRightsEdges(graph)
+	addACLRuleEdges(graph)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {

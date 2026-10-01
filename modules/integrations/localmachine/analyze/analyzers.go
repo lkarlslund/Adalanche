@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	adanalyze "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -67,9 +68,12 @@ func LinkSCCMProcessor(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 func init() {
 	loader.AddEdgeDeltaProcessor(
 		LinkSCCMProcessor,
-		"Link SCCM and WSUS servers to controlled computers",
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Link SCCM and WSUS servers to controlled computers",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{adanalyze.ProductMachines},
+			Provides:    []engine.Product{ProductUpdateControl},
+		})
 	loader.AddEdgeDeltaProcessor(
 
 		func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
@@ -104,7 +108,9 @@ func init() {
 			}
 
 		},
-		"Local SID collisions",
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Local SID collisions",
+			Phase:       engine.AfterMerge,
+			Provides:    []engine.Product{ProductSIDCollisions},
+		})
 }

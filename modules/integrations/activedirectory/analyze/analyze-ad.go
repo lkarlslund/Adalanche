@@ -348,18 +348,18 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 
 		for index, acl := range sd.DACL.Entries {
 			granted := rights[acl.SID]
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize, ao) {
+			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
 				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
 			}
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges, ao) {
+			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
 				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
 				granted.changes = true
 			}
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll, ao) {
+			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
 				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
 				granted.changesAll = true
 			}
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet, ao) {
+			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
 				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 			}
 
@@ -516,14 +516,9 @@ func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowss
 	if sid := computer.SID(); !sid.IsBlank() {
 		token[sid] = struct{}{}
 	}
-
-	ao.EdgeIteratorRecursive(computer, engine.Out, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, target *engine.Node, edge engine.EdgeBitmap, depth int) bool {
-		if sid := target.SID(); !sid.IsBlank() {
-			token[sid] = struct{}{}
-		}
-		return true
-	})
-
+	for sid := range memberSIDs(ao, computer) {
+		token[sid] = struct{}{}
+	}
 	return token
 }
 
@@ -538,7 +533,7 @@ func addGMSAPasswordReadEdges(ao *engine.IndexedGraph) {
 		o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
 			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
 				for _, acl := range sd.DACL.Entries {
-					if sd.AccessCheck(func(sid windowssecurity.SID) bool { return sid == acl.SID }, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil, ao) {
+					if TrusteeGranted(ao, sd, acl.SID, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil) {
 						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
 					}
 				}
@@ -638,57 +633,6 @@ func resolveMemberOfAndMember(ao *engine.IndexedGraph) {
 	})
 }
 
-func addWriteDACLEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		sd, err := o.SecurityDescriptor()
-		if err != nil {
-			return true
-		}
-		for index, acl := range sd.DACL.Entries {
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_DACL, uuid.Nil, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteDACL)
-			}
-		}
-		return true
-	})
-}
-
-func addResetPasswordEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		if o.Type() != engine.NodeTypeUser && o.Type() != engine.NodeTypeComputer {
-			return true
-		}
-		sd, err := o.SecurityDescriptor()
-		if err != nil {
-			return true
-		}
-		for index, acl := range sd.DACL.Entries {
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeResetPassword)
-			}
-		}
-		return true
-	})
-}
-
-func addWriteAllowedToActEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
-			return true
-		}
-		sd, err := o.SecurityDescriptor()
-		if err != nil {
-			return true
-		}
-		for index, acl := range sd.DACL.Entries {
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToAct)
-			}
-		}
-		return true
-	})
-}
-
 func addRBCDEdges(ao *engine.IndexedGraph) {
 	ao.Iterate(func(o *engine.Node) bool {
 		if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
@@ -697,46 +641,13 @@ func addRBCDEdges(ao *engine.IndexedGraph) {
 		o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil, ao) {
+					if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil) {
 						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, EdgeRBCD)
 					}
 				}
 			}
 			return true
 		})
-		return true
-	})
-}
-
-func addWriteKeyCredentialLinkEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		if o.Type() != engine.NodeTypeUser && o.Type() != engine.NodeTypeComputer {
-			return true
-		}
-		sd, err := o.SecurityDescriptor()
-		if err != nil {
-			return true
-		}
-		for index, acl := range sd.DACL.Entries {
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteKeyCredentialLink)
-			}
-		}
-		return true
-	})
-}
-
-func addAllExtendedRightsEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		sd, err := o.SecurityDescriptor()
-		if err != nil {
-			return true
-		}
-		for index, acl := range sd.DACL.Entries {
-			if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAllExtendedRights)
-			}
-		}
 		return true
 	})
 }
@@ -806,9 +717,19 @@ func init() {
 			}
 			return true
 		})
-	}, "Reading local admin passwords via LAPS v1", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Reading local admin passwords via LAPS v1",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships, ProductMachines},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
-	LoaderID.AddProcessor(addLAPSv2Edges, "Reading local admin passwords via LAPS v2", engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addLAPSv2Edges, engine.Processor{
+		Description: "Reading local admin passwords via LAPS v2",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships, ProductMachines},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.IterateStable(func(o *engine.Node) bool {
@@ -823,7 +744,12 @@ func init() {
 			}
 			return true
 		})
-	}, "Indicator that object inherits security from the container it is within", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicator that object inherits security from the container it is within",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 		view.Iterate(func(o *engine.Node) bool {
@@ -838,7 +764,12 @@ func init() {
 			out.Add(p, o, activedirectory.PartOfGPO, false)
 			return true
 		})
-	}, "Machine configurations that are part of a GPO", engine.BeforeMergeHigh)
+	}, engine.Processor{
+		Description: "Machine configurations that are part of a GPO",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
+		Provides:    []engine.Product{ProductGPOStructure},
+	})
 
 	matchMSOLDescription := regexp.MustCompile(`Account created by Microsoft Azure Active Directory Connect with installation identifier ([0-9a-f]+) running on computer ([^ ]+) configured to synchronize to tenant ([^ ]+)\. `)
 
@@ -868,7 +799,12 @@ func init() {
 			out.Add(machine, o, EdgeSessionService, false)
 			return true
 		})
-	}, "Link MSOL_* accounts to computers running it from description", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Link MSOL_* accounts to computers running it from description",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
+		Provides:    []engine.Product{ProductAccountLinks},
+	})
 
 	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 		view.Iterate(func(o *engine.Node) bool {
@@ -883,7 +819,19 @@ func init() {
 			out.Add(p, o, activedirectory.PartOfGPO, false)
 			return true
 		})
-	}, "User configurations that are part of a GPO", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "User configurations that are part of a GPO",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
+		Provides:    []engine.Product{ProductGPOStructure},
+	})
+
+	LoaderID.AddProcessor(addACLRuleEdges, engine.Processor{
+		Description: "Rights granted by ACLs (see aclEdgeRules)",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
@@ -899,7 +847,12 @@ func init() {
 			}
 			return true
 		})
-	}, "Indicator for possible false positives, as the ACL contains DENY entries", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicator for possible false positives, as the ACL contains DENY entries",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
@@ -932,131 +885,12 @@ func init() {
 			ao.EdgeTo(ao.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
 			return true
 		})
-	}, "Indicator that someone owns an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_ALL, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeGenericAll)
-				}
-			}
-			return true
-		})
-	}, "Indicator that someone has full permissions on an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_GENERIC_WRITE, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAll)
-				}
-			}
-			return true
-		})
-	}, "Indicator that someone can write to all attributes and do all validated writes on an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWritePropertyAll)
-				}
-			}
-			return true
-		})
-	}, "Indicator that someone can write to all attributes of an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteExtendedAll)
-				}
-			}
-			return true
-		})
-	}, "Indicator that someone do all validated writes on an object", engine.BeforeMergeFinal)
-
-	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/c79a383c-2b3f-4655-abe7-dcbb7ce0cfbe IMPORTANT
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_WRITE_OWNER, uuid.Nil, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeTakeOwnership)
-				}
-			}
-			return true
-		})
-	}, "Indicator that someone is allowed to take ownership of an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addWriteDACLEdges(ao)
-	}, "Indicator that someone can change permissions on an object", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			sd, err := o.SecurityDescriptor()
-			if o.Type() != engine.NodeTypeAttributeSchema {
-				return true
-			}
-			// FIXME - check for SYSTEM ATTRIBUTES - these can NEVER be changed
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeSecurityGUIDGUID, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAttributeSecurityGUID) // Experimental, I've never run into this misconfiguration
-				}
-			}
-			return true
-		})
-	}, `Allows an attacker to modify the attribute security set of an attribute, promoting it to a weaker attribute set (experimental/wrong)`, engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addResetPasswordEdges(ao)
-	}, "Indicator that a group or user can reset the password of an account", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only group managed service accounts
-			if o.Type() != engine.NodeTypeGroupManagedServiceAccount {
-				return true
-			}
-
-			// Check who can reset the password
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_READ_PROPERTY, AttributeMSDSManagedPasswordId, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeReadPasswordId)
-				}
-			}
-			return true
-		})
-	}, "Indicator that a group or user can read the msDS-ManagedPasswordId for use in MGSA Golden attack", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicator that someone owns an object",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddNodePatchProcessor(func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
 		kerberoast := "kerberoast"
@@ -1071,7 +905,12 @@ func init() {
 			}
 			return true
 		})
-	}, "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes},
+		Provides:    []engine.Product{ProductAccountAttacks},
+	})
 
 	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 		authusers, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
@@ -1089,7 +928,12 @@ func init() {
 			}
 			return true
 		})
-	}, "Kerberoast relationship edge", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Kerberoast relationship edge",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
+		Provides:    []engine.Product{ProductAccountAttacks},
+	})
 
 	LoaderID.AddNodePatchProcessor(func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
 		anonymous, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
@@ -1109,7 +953,12 @@ func init() {
 			}
 			return true
 		})
-	}, "Indicator that a user has \"don't require preauth\" and can be ASREPRoasted", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicator that a user has \"don't require preauth\" and can be ASREPRoasted",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
+		Provides:    []engine.Product{ProductAccountAttacks},
+	})
 
 	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 		anonymous, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
@@ -1127,56 +976,28 @@ func init() {
 			}
 			return true
 		})
-	}, "ASREPRoast relationship edge", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only users
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, ValidateWriteSPN, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteSPN)
-				}
-			}
-			return true
-		})
-	}, "Indicator that a user can change the ServicePrincipalName attribute, and then Kerberoast the account", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only computers and users
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSPN, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteValidatedSPN)
-				}
-			}
-			return true
-		})
-	}, "Indicator that a user can change the ServicePrincipalName attribute (validate write), and then Kerberoast the account", engine.BeforeMergeFinal)
-
-	// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addWriteAllowedToActEdges(ao)
-	}, `Modify the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account to enable any SPN enabled user to impersonate it`, engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "ASREPRoast relationship edge",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
+		Provides:    []engine.Product{ProductAccountAttacks},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		addRBCDEdges(ao)
-	}, `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`, engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`,
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductDelegation},
+	})
 
-	LoaderID.AddProcessor(addConstrainedDelegationEdges, `Constrained delegation to a service; without protocol transition a suitable forwardable ticket is also required`, engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addConstrainedDelegationEdges, engine.Processor{
+		Description: `Constrained delegation to a service; without protocol transition a suitable forwardable ticket is also required`,
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext, ProductMachines},
+		Provides:    []engine.Product{ProductDelegation},
+	})
 
 	/*
 		// https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
@@ -1191,7 +1012,7 @@ func init() {
 					return true
 				}
 				for index, acl := range sd.DACL.Entries {
-					if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToDelegateTo, ao) {
+					if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToDelegateTo) {
 						// Also requires the SeEnableDelegationPrivilege set on the DC for the user doing it!!
 						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
 					}
@@ -1200,104 +1021,13 @@ func init() {
 			})
 		}, `Modify the msDS-AllowedToDelegateTo (Constrained Delegation) on a computer to enable any SPN enabled user to impersonate anyone else`, engine.BeforeMergeFinal)
 	*/
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for groups
-			if o.Type() != engine.NodeTypeGroup {
-				return true
-			}
-			// It's a group
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMember, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddMember)
-				}
-			}
-			return true
-		})
-	}, "Permission to add a member to a group", engine.BeforeMergeFinal)
+	LoaderID.AddProcessor(addGMSAPasswordReadEdges, engine.Processor{
+		Description: "Allows someone to read a password of a managed service account",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for groups
-			if o.Type() != engine.NodeTypeGroup {
-				return true
-			}
-			// It's a group
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, ValidateWriteSelfMembership, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeAddSelfMember)
-				}
-			}
-			return true
-		})
-	}, "Permission to add yourself to a group", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(addGMSAPasswordReadEdges, "Allows someone to read a password of a managed service account", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for users
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAltSecurityIdentities)
-				}
-			}
-			return true
-		})
-	}, "Allows an attacker to define a certificate that can be used to authenticate as the user", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for users
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeProfilePathGUID, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteProfilePath)
-				}
-			}
-			return true
-		})
-	}, "Change user profile path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for users
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeScriptPathGUID, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteScriptPath)
-				}
-			}
-			return true
-		})
-	}, "Change user script path (allows an attacker to trigger a user auth against an attacker controlled UNC path)", engine.BeforeMergeFinal)
 	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 		view.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
@@ -1308,11 +1038,11 @@ func init() {
 			})
 			return true
 		})
-	}, "Indicates that the object has a service account in use", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addWriteKeyCredentialLinkEdges(ao)
-	}, "Allows you to write your own cert to keyCredentialLink, and then auth as that user (no password reset needed)", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicates that the object has a service account in use",
+		Phase:       engine.BeforeMerge,
+		Provides:    []engine.Product{ProductAccountLinks},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		ao.Iterate(func(o *engine.Node) bool {
@@ -1324,53 +1054,21 @@ func init() {
 			})
 			return true
 		})
-	}, "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addAllExtendedRightsEdges(ao)
-	}, "Indicates that you have all extended rights", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.NodeTypeCertificateTemplate {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateEnroll, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateEnroll)
-				}
-			}
-			return true
-		})
-	}, "Permission to enroll into a certificate template", engine.BeforeMergeFinal)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			if o.Type() != engine.NodeTypeCertificateTemplate {
-				return true
-			}
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/211ab1e3-bad6-416d-9d56-8480b42617a4
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightCertificateAutoEnroll, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeCertificateAutoEnroll)
-				}
-			}
-			return true
-		})
-	}, "Permission to auto-enroll into a certificate template", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductDomainContext, ProductWellKnownPrincipals},
+		Provides:    []engine.Product{ProductAccountLinks},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		addDomainDNSDCSyncEdges(ao)
-	}, "Permissions on DomainDNS objects leading to DCsync attacks", engine.BeforeMergeFinal)
+	}, engine.Processor{
+		Description: "Permissions on DomainDNS objects leading to DCsync attacks",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{ProductMemberships},
+		Provides:    []engine.Product{ProductACLEdges},
+	})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Ensure everyone has a family
@@ -1400,8 +1098,12 @@ func init() {
 			return true
 		})
 	},
-		"creating Machine objects (representing the machine running the OS)",
-		engine.BeforeMerge)
+		engine.Processor{
+			Description: "creating Machine objects (representing the machine running the OS)",
+			Phase:       engine.BeforeMerge,
+			Needs:       []engine.Product{ProductNodeTypes},
+			Provides:    []engine.Product{ProductMachines},
+		})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Ensure everyone has a family
@@ -1445,21 +1147,34 @@ func init() {
 			}
 		})
 	},
-		"applying parent/child relationships",
-		engine.BeforeMergeHigh)
+		engine.Processor{
+			Description: "applying parent/child relationships",
+			Phase:       engine.BeforeMerge,
+			Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
+			Provides:    []engine.Product{ProductTree},
+		})
 
 	LoaderID.AddNodePatchProcessor(applyDownLevelLogonNamePatches,
-		"applying DownLevelLogonName attribute",
-		engine.BeforeMergeLow)
+		engine.Processor{
+			Description: "applying DownLevelLogonName attribute",
+			Phase:       engine.BeforeMerge,
+			Provides:    []engine.Product{ProductDownLevelLogonName},
+		})
 
 	LoaderID.AddNodePatchProcessor(applyDomainContextPatches,
-		"applying domain part attribute",
-		engine.BeforeMergeLow)
+		engine.Processor{
+			Description: "applying domain part attribute",
+			Phase:       engine.BeforeMerge,
+			Provides:    []engine.Product{ProductDomainContext},
+		})
 
 	LoaderID.AddProcessor(addAdminSDHolderEdges,
-		"AdminSDHolder rights propagation indicator",
-		// Needs group memberships, which are resolved at AfterMergeLow.
-		engine.AfterMerge)
+		engine.Processor{
+			Description: "AdminSDHolder rights propagation indicator",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductMemberships},
+			Provides:    []engine.Product{ProductAdminSDHolder},
+		})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Find domain object
@@ -1484,9 +1199,12 @@ func init() {
 			)
 		}
 	},
-		"missing well-known SIDs",
-		engine.BeforeMergeLow,
-	)
+		engine.Processor{
+			Description: "missing well-known SIDs",
+			Phase:       engine.BeforeMerge,
+			Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext},
+			Provides:    []engine.Product{ProductWellKnownPrincipals},
+		})
 
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		// Generate member of chains
@@ -1715,19 +1433,27 @@ func init() {
 			return true
 		})
 	},
-		"Active Directory objects and metadata",
-		engine.BeforeMergeHigh)
+		engine.Processor{
+			Description: "Active Directory objects and metadata",
+			Phase:       engine.BeforeMerge,
+			Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext, ProductWellKnownPrincipals, ProductMachines},
+			Provides:    []engine.Product{ProductAccountState, ProductMemberships},
+		})
 
 	LoaderID.AddNodePatchProcessor(applyObjectClassAndCategoryPatches,
-		"Set type (for Type call) to Active Directory objects",
-		engine.BeforeMergeLow,
-	)
+		engine.Processor{
+			Description: "Set type (for Type call) to Active Directory objects",
+			Phase:       engine.BeforeMerge,
+			Provides:    []engine.Product{ProductNodeTypes},
+		})
 
 	LoaderID.AddNodePatchProcessor(applyProtectedUserTags,
-		"Protected users meta attribute",
-		// Needs group memberships, which are resolved at AfterMergeLow.
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Protected users meta attribute",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductMemberships},
+			Provides:    []engine.Product{ProductProtectedUsers},
+		})
 
 	// Loader.AddProcessor(func(ao *engine.Objects) {
 	// 	// Find all the DomainDNS objects, and find the domain object
@@ -1777,14 +1503,19 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		addMachinesAffectedByGPO(ao)
 	},
-		"Machines affected by a GPO",
-		// Needs group memberships, which are resolved at AfterMergeLow.
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Machines affected by a GPO",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductMemberships, ProductMachines, ProductTree, ProductGPOStructure},
+			Provides:    []engine.Product{ProductGPOTargeting},
+		})
 
 	LoaderID.AddNodePatchProcessor(applyWellKnownSIDDisplayNames,
-		"Adding displayName to Well-Known SID objects that are missing them",
-		engine.AfterMergeLow)
+		engine.Processor{
+			Description: "Adding displayName to Well-Known SID objects that are missing them",
+			Phase:       engine.AfterMerge,
+			Provides:    []engine.Product{ProductWellKnownDisplayNames},
+		})
 
 	// CREATOR_OWNER is a template for new objects, so this was totally wrong
 	/*
@@ -1827,37 +1558,19 @@ func init() {
 	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
 		resolveMemberOfAndMember(ao)
 	},
-		"MemberOf and Member resolution",
-		// Memberships cross domains, and each domain is a separate graph
-		// until the merge, so this is the first step after it. Anything
-		// that follows group memberships must run at AfterMerge or later.
-		engine.AfterMergeLow,
-	)
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
-			// Only for containers and org units
-			if o.Type() != engine.NodeTypeUser {
-				return true
-			}
-
-			sd, err := o.SecurityDescriptor()
-			if err != nil {
-				return true
-			}
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeUserAccountControlGUID, ao) {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteUserAccountControl)
-				}
-			}
-			return true
+		engine.Processor{
+			Description: "MemberOf and Member resolution",
+			Phase:       engine.AfterMerge,
+			Provides:    []engine.Product{ProductMemberships},
 		})
-	}, "Permissions that lets someone modify userAccountControl", engine.BeforeMergeFinal)
 
 	LoaderID.AddNodePatchProcessor(applyIndirectMemberOfPatches,
-		"MemberOfIndirect resolution",
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "MemberOfIndirect resolution",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductMemberships},
+			Provides:    []engine.Product{ProductIndirectMemberships},
+		})
 
 	LoaderID.AddNodePatchProcessor(
 		func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
@@ -1917,91 +1630,20 @@ func init() {
 				return true
 			})
 		},
-		"Certificate template publishing status",
-		engine.AfterMerge,
-	)
-
-	/*
-		Loader.AddProcessor(func(ao *engine.Objects) {
-			ao.Filter(func(o *engine.Object) bool {
-				return o.Type() == engine.ObjectTypeForeignSecurityPrincipal
-			}).Iterate(func(foreign *engine.Object) bool {
-				sid := foreign.SID()
-				if sid.IsNull() {
-					ui.Error().Msgf("Found a foreign security principal with no SID %v", foreign.Label())
-					return true
-				}
-				if sid.Component(2) == 21 {
-					if sources, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sid)); found {
-						sources.Iterate(func(source *engine.Object) bool {
-							if source.Type() != engine.ObjectTypeForeignSecurityPrincipal {
-								source.EdgeToEx(foreign, activedirectory.EdgeForeignIdentity, true)
-							}
-							return true
-						})
-					}
-				} else {
-					ui.Warn().Msgf("Found a foreign security principal %v with an non type 21 SID %v", foreign.DN(), sid.String())
-				}
-				return true
-			})
-		}, "Link foreign security principals to their native objects",
-			engine.AfterMerge,
-		)
-	*/
-
-	type sidinfo struct {
-		domainContext string
-	}
-
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		// Find all domains, save info so we can see if an object is "local" or not
-		sidmap := make(map[windowssecurity.SID]sidinfo)
-		ao.Filter(func(o *engine.Node) bool {
-			return o.HasAttr(activedirectory.ObjectSid) && o.Type() == engine.NodeTypeDomainDNS
-		}).Iterate(func(domain *engine.Node) bool {
-			sid := domain.SID()
-			domainContext := domain.OneAttrString(engine.DomainContext)
-			sidmap[sid] = sidinfo{
-				domainContext: domainContext,
-			}
-			return true
+		engine.Processor{
+			Description: "Certificate template publishing status",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
+			Provides:    []engine.Product{ProductCertificateTemplates},
 		})
-
-		ao.Filter(func(o *engine.Node) bool {
-			return o.HasAttr(activedirectory.ObjectSid)
-		}).Iterate(func(object *engine.Node) bool {
-			sid := object.SID()
-			if object.HasAttr(engine.DomainContext) {
-				domainContext := object.OneAttrString(engine.DomainContext)
-				domaininfo, found := sidmap[sid.StripRID()]
-				if found && domaininfo.domainContext != domainContext {
-					// it's foreign, find the local one
-					nativeObjects, found := ao.FindTwoMulti(
-						engine.ObjectSid, engine.NV(sid),
-						engine.DomainContext, engine.NV(domainContext),
-					)
-					if found {
-						nativeobject := nativeObjects.First()
-						ao.EdgeTo(nativeobject, object, activedirectory.EdgeForeignIdentity)
-						// Inherit the type from the original
-						if !object.HasAttr(activedirectory.Type) {
-							object.SetFlex(activedirectory.Type, nativeobject.Attr(activedirectory.Type))
-						}
-					}
-				}
-			}
-			return true
-		})
-	}, "Link foreign security principals to their native objects",
-		engine.AfterMergeLow,
-	)
 
 	LoaderID.AddProcessor(resolveGPOLocalGroupMembers,
-		"Resolve GPO local group members given by name, expanding preference variables per machine",
-		// Needs the AffectedByGPO edges, which are added earlier at AfterMerge.
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Resolve GPO local group members given by name, expanding preference variables per machine",
+			Phase:       engine.AfterMerge,
+			Needs:       []engine.Product{ProductGPOTargeting},
+			Provides:    []engine.Product{ProductGPOLocalGroups},
+		})
 }
 
 // accountDisabled reports whether userAccountControl marks the account

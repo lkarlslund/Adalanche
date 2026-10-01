@@ -32,6 +32,10 @@ type IndexedGraph struct {
 	idLookup   gsync.MapOf[NodeID, *Node]    // node ID -> node, read without locking
 	nodes      []*Node                       // All objects, int -> *Node
 
+	// propertySets caches the property set (attributeSecurityGUID) each
+	// attribute GUID belongs to, as found in this graph's schema.
+	propertySets gsync.MapOf[uuid.UUID, uuid.UUID]
+
 	// Edge tracking
 	edgeCombos  *edgeComboTable
 	edges       [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
@@ -828,12 +832,23 @@ func (os *IndexedGraph) FindOrAddAdjacentSID(s windowssecurity.SID, r *Node, fle
 	return sidobject
 }
 
+// findSIDWithScope finds the node for a SID within one domain or machine.
+// When a scope already holds several nodes for the SID, it returns the one
+// added first, so lookups agree and never add yet another node.
 func (os *IndexedGraph) findSIDWithScope(scope Attribute, scopeValue AttributeValue, sidValue AttributeValue) (*Node, bool) {
 	nodes, found := os.GetMultiIndex(ObjectSid, scope).Lookup(sidValue, scopeValue)
-	if !found || nodes.Len() != 1 {
+	if !found || nodes.Len() == 0 {
 		return nil, false
 	}
-	return nodes.First(), true
+	var first *Node
+	var firstIndex NodeIndex
+	nodes.Iterate(func(n *Node) bool {
+		if index, ok := os.nodeLookup.Load(n); ok && (first == nil || index < firstIndex) {
+			first, firstIndex = n, index
+		}
+		return true
+	})
+	return first, first != nil
 }
 
 func (os *IndexedGraph) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
@@ -875,6 +890,12 @@ func (os *IndexedGraph) findAdjacentSID(s windowssecurity.SID, relativeTo *Node)
 		}
 	}
 
+	// Builtin and well-known SIDs mean a different principal in every
+	// domain and on every machine, so a scoped lookup never falls back to
+	// another scope's node.
+	if !domainContext.IsNil() || !dataSource.IsNil() {
+		return nil, false
+	}
 	return os.Find(ObjectSid, sidValue)
 }
 
@@ -904,12 +925,21 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 		return result.First(), found
 	}
 
-	no, found := os.FindOrAdd(ObjectSid, sidValue,
+	domainContext := relativeTo.OneAttr(DomainContext)
+	if domainContext.IsNil() && dataSource.IsNil() {
+		return os.FindOrAdd(ObjectSid, sidValue)
+	}
+	// Not in this scope yet: add it to the scope, even if another domain or
+	// machine has a node for the same SID. flexinit is not applied here, as
+	// before; attributes such as a shared DN would merge scopes again.
+	no := NewNode(
 		IgnoreBlanks,
-		DomainContext, relativeTo.OneAttr(DomainContext),
+		ObjectSid, sidValue,
+		DomainContext, domainContext,
 		DataSource, dataSource,
 	)
-	return no, found
+	os.Add(no)
+	return no, false
 }
 
 func (os *IndexedGraph) FindGUID(g uuid.UUID) (o *Node, found bool) {

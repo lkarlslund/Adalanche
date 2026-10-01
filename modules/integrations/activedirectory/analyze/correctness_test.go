@@ -163,7 +163,7 @@ func TestKerberoastSkipsDisabledAccounts(t *testing.T) {
 			service := engine.NewNode(engine.Type, engine.NodeTypeUser.ValueString(), activedirectory.UserAccountControl, tt.uac,
 				activedirectory.ServicePrincipalName, "http/web.example.test")
 			graph := newADTestGraph(authenticated, service)
-			if err := engine.Process(graph, "test", LoaderID, engine.BeforeMergeFinal); err != nil {
+			if err := engine.RunProviders(graph, LoaderID, engine.BeforeMerge, ProductAccountAttacks); err != nil {
 				t.Fatal(err)
 			}
 			edges, _ := graph.GetEdge(authenticated, service)
@@ -182,7 +182,7 @@ func TestMembershipPropertySetGrantsAddMember(t *testing.T) {
 	group := engine.NewNode(engine.Type, engine.NodeTypeGroup.ValueString(),
 		engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(allowACE(writer, engine.RIGHT_DS_WRITE_PROPERTY, membershipSet))))
 	graph := newADTestGraph(schema, principal, group)
-	if err := engine.Process(graph, "test", LoaderID, engine.BeforeMergeFinal); err != nil {
+	if err := engine.RunProviders(graph, LoaderID, engine.AfterMerge, ProductACLEdges); err != nil {
 		t.Fatal(err)
 	}
 	requireEdgeSet(t, graph, principal, group, activedirectory.EdgeAddMember)

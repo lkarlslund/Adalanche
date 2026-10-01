@@ -205,7 +205,7 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 					activedirectory.UserAccountControl, uac,
 					activedirectory.PwdLastSet, user.PasswordLastSet,
 					activedirectory.LastLogon, user.LastLogon,
-					engine.DownLevelLogonName, cinfo.Machine.Name+"\\"+user.Name,
+					engine.DownLevelLogonName, downLevelLogonName(cinfo.Machine.Name, user.Name),
 					activedirectory.BadPwdCount, user.BadPasswordCount,
 					activedirectory.LogonCount, user.NumberOfLogins,
 					engine.DataSource, uniquesource,
@@ -413,7 +413,9 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 		var username string
 		if !strings.Contains(login.Domain, ".") {
 			username = login.Domain + "\\" + login.User
-			loggedin.Set(engine.DownLevelLogonName, engine.NV(username))
+			if name := downLevelLogonName(login.Domain, login.User); name != "" {
+				loggedin.Set(engine.DownLevelLogonName, engine.NV(name))
+			}
 		} else {
 			// user.Set(engine.SAMAccountName, engine.NewAttributeValueString(login.User))
 			username = login.User + "@" + login.Domain
@@ -618,17 +620,14 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 				case "NT AUTHORITY\\NETWORK SERVICE":
 					serviceaccountSID = windowssecurity.NetworkServiceSID
 				default:
-					if strings.Contains(service.Account, "\\") {
-						nameparts := strings.Split(service.Account, "\\")
-
-						if nameparts[0] == "." {
-							nameparts[0] = cinfo.Machine.Name
+					if domain, user, found := strings.Cut(service.Account, "\\"); found {
+						if domain == "." {
+							domain = cinfo.Machine.Name
 						}
-
-						svcaccount, _ = ao.FindOrAdd(engine.DownLevelLogonName, engine.NV(nameparts[0]+"\\"+nameparts[1]))
-
-						if !strings.EqualFold(nameparts[0], cinfo.Machine.Domain) {
-							if svcaccount.Parent() == nil {
+						user, _, _ = strings.Cut(user, "\\")
+						if name := downLevelLogonName(domain, user); name != "" {
+							svcaccount, _ = ao.FindOrAdd(engine.DownLevelLogonName, engine.NV(name))
+							if !strings.EqualFold(domain, cinfo.Machine.Domain) && svcaccount.Parent() == nil {
 								svcaccount.ChildOf(machine)
 							}
 						}
@@ -930,4 +929,15 @@ func ImportCollectorInfo(ao *engine.IndexedGraph, cinfo localmachine.Info) (*eng
 	}
 	importPolicyProvenance(ao, machine, cinfo)
 	return machine, nil
+}
+
+// downLevelLogonName joins a domain and an account name into DOMAIN\account.
+// It returns "" when either part is missing, as collectors sometimes report,
+// since a partial name would match unrelated accounts.
+func downLevelLogonName(domain, account string) string {
+	domain, account = strings.TrimSpace(domain), strings.TrimSpace(account)
+	if domain == "" || account == "" || strings.HasSuffix(account, "\\") {
+		return ""
+	}
+	return domain + "\\" + account
 }

@@ -249,13 +249,6 @@ function registerDefaultEdgeColorRules() {
     priority: 90,
   });
   registerEdgeColorRule({
-    methods: ["ForeignIdentity"],
-    color: "#90ee90",
-    label: "Foreign Identity",
-    description: "Relationships involving foreign security identities.",
-    priority: 80,
-  });
-  registerEdgeColorRule({
     methods: ["ResetPassword"],
     color: "#ef4444",
     label: "Reset Password",

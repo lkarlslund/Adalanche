@@ -34,11 +34,13 @@ func importTaskExecution(g *engine.IndexedGraph, machine, taskNode *engine.Node,
 	default:
 		if sid, err := windowssecurity.ParseStringSID(name); err == nil {
 			account = g.FindOrAddAdjacentSID(sid, machine)
-		} else if strings.Contains(name, `\`) {
-			if strings.HasPrefix(name, `.\`) {
-				name = machine.Label() + name[1:]
+		} else if domain, user, found := strings.Cut(name, `\`); found {
+			if domain == "." {
+				domain = machine.Label()
 			}
-			account, _ = g.FindOrAdd(engine.DownLevelLogonName, engine.NV(name))
+			if name := downLevelLogonName(domain, user); name != "" {
+				account, _ = g.FindOrAdd(engine.DownLevelLogonName, engine.NV(name))
+			}
 		} else if strings.Contains(name, "@") {
 			account, _ = g.FindOrAdd(engine.UserPrincipalName, engine.NV(name))
 		}
