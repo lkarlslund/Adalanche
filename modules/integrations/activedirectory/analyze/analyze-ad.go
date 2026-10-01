@@ -748,6 +748,7 @@ func init() {
 			ui.Debug().Msg("Microsoft LAPS V1 not detected, skipping tests for this")
 			return
 		}
+		readRights := AttributeReadRights(ao, lapsGUID, true)
 
 		ao.Iterate(func(o *engine.Node) bool {
 			// Only for computers
@@ -778,10 +779,10 @@ func init() {
 			}
 			machine.Tag("laps")
 
-			for index, acl := range sd.DACL.Entries {
-				if sd.DACL.IsObjectClassAccessAllowed(index, o, engine.RIGHT_DS_CONTROL_ACCESS, lapsGUID, ao) {
-					ao.EdgeTo(ao.FindOrAddAdjacentSID(acl.SID, o), machine, activedirectory.EdgeReadLAPSPassword)
-				}
+			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
+			// control access rights.
+			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, ao) {
+				ao.EdgeTo(ao.FindOrAddAdjacentSID(sid, o), machine, activedirectory.EdgeReadLAPSPassword)
 			}
 			return true
 		})
