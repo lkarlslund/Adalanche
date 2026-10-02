@@ -15,10 +15,7 @@ func TestScopedSIDsStayInTheirScope(t *testing.T) {
 	targetB := NewNode(Name, "target", DistinguishedName, "CN=target,DC=b", DomainContext, "DC=b", DataSource, "b")
 	b.add(targetB)
 
-	g, err := MergeGraphs([]*IndexedGraph{a, b})
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := loadGraphs(a, b)
 	if found, ok := g.FindAdjacentSID(system, targetB); ok {
 		t.Fatalf("SYSTEM for domain b resolved to %q", found.Label())
 	}
@@ -55,10 +52,7 @@ func TestDomainSIDStubsMergeIntoTheAccount(t *testing.T) {
 		graphs = append(graphs, g)
 	}
 
-	g, err := MergeGraphs(graphs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := loadGraphs(graphs...)
 	if nodes, _ := g.FindMulti(ObjectSid, NV(userSID)); nodes.Len() != 1 {
 		t.Fatalf("alice's SID is on %d nodes", nodes.Len())
 	}
@@ -89,10 +83,7 @@ func TestStubsForAmbiguousSIDsAreNotGuessed(t *testing.T) {
 	ref.add(target)
 	stub := ref.findOrAddAdjacentSID(sid, target)
 
-	g, err := MergeGraphs([]*IndexedGraph{m1, m2, ref})
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := loadGraphs(m1, m2, ref)
 	if !g.Contains(stub) || !g.Contains(admin1) || !g.Contains(admin2) {
 		t.Fatal("a stub for a SID held by two accounts was merged into one of them")
 	}

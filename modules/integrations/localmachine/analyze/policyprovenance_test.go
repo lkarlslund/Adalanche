@@ -108,10 +108,7 @@ func TestReportedGPOMergesIntoDirectoryGPO(t *testing.T) {
 				enginetest.Add(filler, engine.NewNode(engine.Name, fmt.Sprintf("filler %d", i), engine.DataSource, "FILLER"))
 			}
 
-			merged, err := engine.MergeGraphs([]*engine.IndexedGraph{ad, local})
-			if err != nil {
-				t.Fatal(err)
-			}
+			merged := enginetest.Load(ad, local)
 			gpos, _ := merged.FindMulti(activedirectory.GPOIdentity, engine.NV(activedirectory.GPOIdentityFromDN(dn)))
 			if gpos.Len() != 1 {
 				t.Fatalf("%d GPO nodes after merge, want 1", gpos.Len())

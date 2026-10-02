@@ -96,6 +96,25 @@ func TestLAPSv2DSRMPasswordOnDomainControllers(t *testing.T) {
 	}
 }
 
+// Each forest has its own schema; an object's rights come from the schema of
+// the dump it came from, even with several dumps loaded.
+func TestAttributeReadRightsFollowTheObjectsSchema(t *testing.T) {
+	guid := uuid.Must(uuid.FromString("c576124b-743e-4c14-95c8-8f3198376c09"))
+	graph := newADTestGraph()
+	for source, flags := range map[string]int64{"ONE": 904, "TWO": 1} {
+		enginetest.Add(graph, engine.NewNode(engine.SchemaIDGUID, engine.NV(guid), activedirectory.SearchFlags, flags, engine.DataSource, source))
+	}
+	for source, want := range map[string]engine.Mask{
+		"ONE": engine.RIGHT_DS_READ_PROPERTY | engine.RIGHT_DS_CONTROL_ACCESS,
+		"TWO": engine.RIGHT_DS_READ_PROPERTY,
+	} {
+		computer := engine.NewNode(engine.Name, "computer", engine.DataSource, source)
+		if got := AttributeReadRights(graph, computer, guid, false); got != want {
+			t.Fatalf("dump %v: got %#x, want %#x", source, got, want)
+		}
+	}
+}
+
 func TestAttributeReadRightsFollowSchema(t *testing.T) {
 	guid := uuid.Must(uuid.FromString("c576124b-743e-4c14-95c8-8f3198376c09"))
 	readControl := engine.Mask(engine.RIGHT_DS_READ_PROPERTY | engine.RIGHT_DS_CONTROL_ACCESS)
@@ -115,7 +134,7 @@ func TestAttributeReadRightsFollowSchema(t *testing.T) {
 			if tt.schema != nil {
 				enginetest.Add(graph, engine.NewNode(tt.schema...))
 			}
-			if got := AttributeReadRights(graph, guid, tt.fallback); got != tt.want {
+			if got := AttributeReadRights(graph, engine.NewNode(engine.Name, "computer"), guid, tt.fallback); got != tt.want {
 				t.Fatalf("got %#x, want %#x", got, tt.want)
 			}
 		})

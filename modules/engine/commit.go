@@ -3,8 +3,11 @@ package engine
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -12,7 +15,68 @@ import (
 
 // Commit applies the transaction's writes to the graph.
 func (tx *Tx) Commit() error {
+	if tx.collection && !tx.writesToGraph() {
+		return tx.g.commitCollection(tx)
+	}
 	return tx.g.Commit(tx)
+}
+
+// writesToGraph reports whether the transaction writes to nodes already in
+// the graph.
+func (tx *Tx) writesToGraph() bool {
+	return slices.ContainsFunc(tx.pending, func(p *pendingNode) bool { return p.kind == pendingBase })
+}
+
+// commitCollection commits a collection that only adds nodes. Its
+// identities resolve among its own nodes only, so they are resolved, and
+// its writes applied, in a graph of the collection's own without the commit
+// lock; only adding the nodes, parent claims and edges take it. Loading
+// thousands of machine collections is otherwise serialized on the lock.
+func (g *IndexedGraph) commitCollection(tx *Tx) error {
+	private := &IndexedGraph{
+		DefaultValues: g.DefaultValues,
+		multiindexes:  map[AttributePair]*MultiIndex{},
+		edgeCombos:    g.edgeCombos,
+	}
+	staged := committer{g: private, loadOnly: true, changedAttrs: map[Attribute]struct{}{}}
+	tx.g = private
+	staged.resolveNodes(tx)
+	tx.g = g
+
+	requested := time.Now()
+	g.commitMutex.Lock()
+	locked := time.Now()
+	defer func() {
+		g.commitStats.commits.Add(1)
+		g.commitStats.waiting.Add(int64(locked.Sub(requested)))
+		g.commitStats.holding.Add(int64(time.Since(locked)))
+		g.commitMutex.Unlock()
+	}()
+	g.joinLoadRoot(tx)
+	g.nodeMutex.Lock()
+	for _, n := range private.nodes {
+		// Default values were given in the collection's graph.
+		g.addUnlockedWith(n, false)
+	}
+	g.nodeMutex.Unlock()
+	c := committer{g: g, loadOnly: true, changedAttrs: map[Attribute]struct{}{}}
+	c.applyParents(tx)
+	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(c.appendEdgeWrites(tx, nil)))
+	if conflicts := append(staged.conflicts, c.conflicts...); len(conflicts) > 0 {
+		return fmt.Errorf("invalid writes:\n%s", strings.Join(conflicts, "\n"))
+	}
+	return nil
+}
+
+// joinLoadRoot adds a loader's root with its first commit.
+func (g *IndexedGraph) joinLoadRoot(tx *Tx) {
+	if tx.loadRoot != nil && !g.Contains(tx.loadRoot) {
+		g.add(tx.loadRoot)
+		g.loadRoots = append(g.loadRoots, tx.loadRoot)
+		if g.Root() != nil {
+			tx.loadRoot.childOf(g.Root())
+		}
+	}
 }
 
 // Commit applies transactions to the graph in the order given. Nodes that
@@ -21,11 +85,21 @@ func (tx *Tx) Commit() error {
 // single-valued attribute of a node to different values is a conflict: it
 // means a missing dependency between them, and the commit reports it.
 func (g *IndexedGraph) Commit(txs ...*Tx) error {
+	requested := time.Now()
 	g.commitMutex.Lock()
-	defer g.commitMutex.Unlock()
-	c := committer{g: g, changedAttrs: map[Attribute]struct{}{}, lookupAttrs: map[Attribute]struct{}{
+	locked := time.Now()
+	defer func() {
+		g.commitStats.commits.Add(1)
+		g.commitStats.waiting.Add(int64(locked.Sub(requested)))
+		g.commitStats.holding.Add(int64(time.Since(locked)))
+		g.commitMutex.Unlock()
+	}()
+	c := committer{g: g, loadOnly: !slices.ContainsFunc(txs, func(tx *Tx) bool { return !tx.load }), changedAttrs: map[Attribute]struct{}{}, lookupAttrs: map[Attribute]struct{}{
 		DistinguishedName: {}, ObjectSid: {}, DomainContext: {}, DataSource: {},
 	}}
+	for _, tx := range txs {
+		g.joinLoadRoot(tx)
+	}
 	if !sameTransaction(txs) {
 		// Writes can only conflict between transactions; forks of one
 		// transaction are one.
@@ -45,7 +119,7 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 	// attribute writes right away: a node staged later, such as a SID
 	// relative to a machine, is resolved against the attributes earlier
 	// writes gave that machine. Parent links follow once all nodes exist.
-	if c.setBy == nil && !hasIdentityWork(txs) {
+	if c.setBy == nil && !hasIdentityWork(txs) && !slices.ContainsFunc(txs, func(tx *Tx) bool { return tx.load }) {
 		// Nothing is resolved by identity, so attribute writes to nodes in
 		// the graph cannot change how other nodes resolve: apply them in
 		// parallel, each node's writes in order.
@@ -83,9 +157,13 @@ type setRecord struct {
 type committer struct {
 	g            *IndexedGraph
 	lookupAttrs  map[Attribute]struct{} // attributes this commit finds nodes by
-	changedAttrs map[Attribute]struct{}
-	setBy        map[setKey]setRecord
-	conflicts    []string
+	changedAttrs map[Attribute]struct{} // attributes whose indexes may be stale, dropped at the end
+	// loadOnly: every transaction is a load. Its writes mostly add values,
+	// so indexes are kept up to date instead of dropped, which would make
+	// every following loader commit rebuild them over the whole graph.
+	loadOnly  bool
+	setBy     map[setKey]setRecord
+	conflicts []string
 }
 
 func (c *committer) resolve(ep endpoint) *Node {
@@ -98,32 +176,147 @@ func (c *committer) resolve(ep endpoint) *Node {
 func (c *committer) resolveNodes(tx *Tx) {
 	g := c.g
 	for _, p := range tx.pending {
-		c.resolveNode(g, p)
+		c.resolveNode(g, tx, p)
 		c.applyAttributeWrites(tx, p)
 	}
 }
 
-func (c *committer) resolveNode(g *IndexedGraph, p *pendingNode) {
-	{
-		switch p.kind {
-		case pendingBase:
-			p.resolved = p.base
-			if !g.Contains(p.base) {
-				c.conflicts = append(c.conflicts, fmt.Sprintf("a write to %v, which is not in the graph", p.base.Label()))
+func (c *committer) resolveNode(g *IndexedGraph, tx *Tx, p *pendingNode) {
+	switch p.kind {
+	case pendingBase:
+		p.resolved, p.existed = p.base, true
+		if !g.Contains(p.base) {
+			c.conflicts = append(c.conflicts, fmt.Sprintf("a write to %v, which is not in the graph", p.base.Label()))
+		}
+	case pendingNew:
+		g.add(p.view)
+		p.resolved = p.view
+		tx.remember(p.view)
+	case pendingKeyed:
+		if tx.loader != "" {
+			c.resolveLoaded(g, tx, p, p.key.attr1, p.key.value1, p.key.attr2, p.key.value2)
+			return
+		}
+		init := p.init
+		nodes, found := g.findTwoMultiOrAdd(p.key.attr1, p.key.value1, p.key.attr2, p.key.value2, func() *Node {
+			if p.adopt != nil {
+				return p.adopt
 			}
-		case pendingNew:
-			g.add(p.view)
-			p.resolved = p.view
-		case pendingKeyed:
-			init := p.init
-			nodes, _ := g.findTwoMultiOrAdd(p.key.attr1, p.key.value1, p.key.attr2, p.key.value2, func() *Node {
-				return NewNode(init...)
-			})
-			p.resolved = nodes.First()
-		case pendingSID:
-			p.resolved, _ = g.findOrAddAdjacentSIDFound(p.key.sid, c.resolve(p.relativeTo), p.init...)
+			return NewNode(init...)
+		})
+		p.resolved, p.existed = nodes.First(), found
+		if found && tx.load {
+			// What the loader states about the node is merged in, whoever
+			// created it.
+			for _, v := range expandFlexInit(init...) {
+				c.union(p.resolved, v.attr, v.values)
+			}
+		}
+	case pendingSID:
+		if tx.loader != "" {
+			// The scope was decided when the SID was staged, from what this
+			// loader knew, so it does not depend on other loaders' nodes.
+			attr2, value2 := p.key.scopeAttr, p.key.scope
+			if value2.IsNil() {
+				attr2 = NonExistingAttribute
+			}
+			c.resolveLoaded(g, tx, p, ObjectSid, NVSID(p.key.sid), attr2, value2)
+			return
+		}
+		p.resolved, p.existed = g.findOrAddAdjacentSIDFound(p.key.sid, c.resolve(p.relativeTo), p.init...)
+	}
+}
+
+// resolveLoaded resolves a keyed or SID node of a transaction scoped to a
+// loader (a load, or a before-merge processor) among that loader's nodes: what other loaders committed is joined by
+// reference resolution once loading is done, so the result does not depend
+// on the order loaders commit in.
+func (c *committer) resolveLoaded(g *IndexedGraph, tx *Tx, p *pendingNode, attr1 Attribute, value1 AttributeValue, attr2 Attribute, value2 AttributeValue) {
+	var candidates NodeSlice
+	if attr2 == NonExistingAttribute {
+		candidates, _ = g.FindMulti(attr1, value1)
+	} else {
+		candidates, _ = g.FindTwoMulti(attr1, value1, attr2, value2)
+	}
+	loader := NV(tx.loader)
+	var found *Node
+	candidates.Iterate(func(n *Node) bool {
+		// A collection's identities only meet nodes of the same collection.
+		_, own := tx.created[n]
+		if (tx.collection && own) || (!tx.collection && n.HasAttrValue(DataLoader, loader)) {
+			found = n
+			return false
+		}
+		return true
+	})
+	if found != nil {
+		p.resolved, p.existed = found, true
+		if tx.load {
+			for _, v := range expandFlexInit(p.init...) {
+				c.union(found, v.attr, v.values)
+			}
+		}
+		return
+	}
+	node := p.adopt
+	if node == nil {
+		if p.kind == pendingSID {
+			node = NewNode(IgnoreBlanks, ObjectSid, NVSID(p.key.sid), p.key.scopeAttr, p.key.scope)
+			if p.key.scopeAttr == DomainContext {
+				// Like IndexedGraph.FindOrAddAdjacentSIDFound: a SID scoped to a
+				// domain also carries the referring node's data source.
+				if rel := c.resolve(p.relativeTo); rel != nil {
+					node.setFlex(IgnoreBlanks, DataSource, rel.OneAttr(DataSource))
+				}
+			}
+			if p.key.scope.IsNil() {
+				// As in IndexedGraph.FindOrAddAdjacentSIDFound, only a global
+				// SID gets the caller's values; scoped ones would share them
+				// (such as a DN) across scopes.
+				node.setFlex(p.init...)
+			}
+			node.setFlex(tx.loadValues...)
+		} else {
+			node = NewNode(p.init...)
 		}
 	}
+	// The staged writes are replayed on the new node like on any other.
+	g.add(node)
+	p.resolved = node
+	tx.remember(node)
+}
+
+// remember records a node a collection's commit added.
+func (tx *Tx) remember(n *Node) {
+	if !tx.collection {
+		return
+	}
+	if tx.created == nil {
+		tx.created = map[*Node]struct{}{}
+	}
+	tx.created[n] = struct{}{}
+}
+
+// union merges values into an attribute of a node, as a load transaction's
+// writes to a node that already exists are applied. It only adds values, so
+// the node's index entries are added to rather than dropped.
+func (c *committer) union(node *Node, attr Attribute, values AttributeValues) {
+	if node.union(attr, values) {
+		c.g.reindexAttributes(node, []Attribute{attr})
+	}
+}
+
+// applyIndexed applies a write in a load-only commit and keeps indexes up to
+// date: values the write replaces are taken off the indexes first, and the
+// node's values afterwards are added.
+func (c *committer) applyIndexed(node *Node, op nodeOp) {
+	var one [1]Attribute
+	attrs := op.touched(&one)
+	if op.kind == nodeOpSet || op.kind == nodeOpSetMany || op.kind == nodeOpClear {
+		c.g.unindexAttributes(node, attrs)
+	}
+	applyNodeOp(node, op, nil)
+	c.g.reindexAttributes(node, attrs)
 }
 
 // applyAttributeWrites replays a pending node's attribute writes on the node
@@ -133,6 +326,10 @@ func (c *committer) applyAttributeWrites(tx *Tx, p *pendingNode) {
 		return
 	}
 	node := p.resolved
+	if tx.load && p.existed {
+		c.applyLoadWrites(p)
+		return
+	}
 	var changed []Attribute
 	var one [1]Attribute
 	for _, op := range p.ops {
@@ -144,6 +341,10 @@ func (c *committer) applyAttributeWrites(tx *Tx, p *pendingNode) {
 				c.checkConflict(tx, node, a, op.values[i:i+1])
 			}
 		case nodeOpChildOf:
+			continue
+		}
+		if c.loadOnly {
+			c.applyIndexed(node, op)
 			continue
 		}
 		applyNodeOp(node, op, nil)
@@ -161,8 +362,41 @@ func (c *committer) applyAttributeWrites(tx *Tx, p *pendingNode) {
 	}
 }
 
+// applyLoadWrites applies a load transaction's writes to a node that
+// already existed: values are merged in as unions, so the result does not
+// depend on which loader committed first.
+func (c *committer) applyLoadWrites(p *pendingNode) {
+	for _, op := range p.ops {
+		switch op.kind {
+		case nodeOpSet, nodeOpAdd:
+			c.union(p.resolved, op.attr, op.values)
+		case nodeOpSetMany:
+			for i, a := range op.attrs {
+				c.union(p.resolved, a, op.values[i:i+1])
+			}
+		case nodeOpTag:
+			c.union(p.resolved, Tag, AttributeValues{NV(op.tag)})
+		case nodeOpClear:
+			c.applyIndexed(p.resolved, op)
+		}
+	}
+}
+
 func (c *committer) applyParents(tx *Tx) {
 	for _, p := range tx.pending {
+		if tx.load {
+			// Loaders claim parents; the claims are applied once every
+			// loader is done and the directory has placed its own objects,
+			// so the tree does not depend on which loader came first.
+			for _, op := range p.ops {
+				if op.kind == nodeOpChildOf {
+					if parent := c.resolve(op.parent); parent != nil {
+						c.g.claimParent(p.resolved, parent)
+					}
+				}
+			}
+			continue
+		}
 		for _, op := range p.ops {
 			if op.kind == nodeOpChildOf {
 				applyNodeOp(p.resolved, op, c.resolve)
@@ -271,16 +505,41 @@ func (g *IndexedGraph) dropIndexesFor(attrs map[Attribute]struct{}) {
 	}
 }
 
+// indexedAttributes adds the attributes whose rendered values depend on the
+// given ones.
+func indexedAttributes(attrs []Attribute) []Attribute {
+	if slices.Contains(attrs, Type) && !slices.Contains(attrs, ObjectCategory) {
+		// AttrRendered indexes ObjectCategory through Type.
+		return append(slices.Clip(attrs), ObjectCategory)
+	}
+	return attrs
+}
+
 // reindexAttributes adds a node to the existing indexes over the given
-// attributes. Values it no longer has stay until the indexes are dropped.
+// attributes. Values it no longer has stay until the indexes are dropped,
+// unless unindexAttributes took them off first.
 func (g *IndexedGraph) reindexAttributes(o *Node, attrs []Attribute) {
+	g.visitIndexed(o, indexedAttributes(attrs),
+		func(index *Index, value AttributeValue) { index.Add(value, o, true) },
+		func(index *MultiIndex, value, value2 AttributeValue) { index.Add(value, value2, o, true) })
+}
+
+// unindexAttributes takes a node off the existing indexes for its current
+// values of the given attributes, before they are replaced.
+func (g *IndexedGraph) unindexAttributes(o *Node, attrs []Attribute) {
+	g.visitIndexed(o, indexedAttributes(attrs),
+		func(index *Index, value AttributeValue) { index.Remove(value, o) },
+		func(index *MultiIndex, value, value2 AttributeValue) { index.Remove(value, value2, o) })
+}
+
+func (g *IndexedGraph) visitIndexed(o *Node, attrs []Attribute, single func(*Index, AttributeValue), multi func(*MultiIndex, AttributeValue, AttributeValue)) {
 	g.indexlock.RLock()
 	defer g.indexlock.RUnlock()
 	for _, attr := range attrs {
 		if int(attr) < len(g.indexes) {
 			if index := g.indexes[attr]; index != nil {
 				o.AttrRendered(attr).Iterate(func(value AttributeValue) bool {
-					index.Add(value, o, true)
+					single(index, value)
 					return true
 				})
 			}
@@ -291,7 +550,7 @@ func (g *IndexedGraph) reindexAttributes(o *Node, attrs []Attribute) {
 			}
 			o.Attr(pair.attribute1).Iterate(func(value AttributeValue) bool {
 				o.Attr(pair.attribute2).Iterate(func(value2 AttributeValue) bool {
-					index.Add(value, value2, o, true)
+					multi(index, value, value2)
 					return true
 				})
 				return true
@@ -328,7 +587,7 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 	var base []*pendingNode
 	for _, tx := range txs {
 		for _, p := range tx.pending {
-			c.resolveNode(c.g, p)
+			c.resolveNode(c.g, tx, p)
 			if p.kind == pendingBase && len(p.ops) > 0 {
 				base = append(base, p)
 			}
@@ -371,4 +630,15 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 			c.changedAttrs[a] = struct{}{}
 		}
 	}
+}
+
+// commitStats measures how commits share the commit lock.
+type commitStats struct {
+	commits          atomic.Int64
+	waiting, holding atomic.Int64 // nanoseconds
+}
+
+// takeCommitStats returns and resets the counts since the last call.
+func (g *IndexedGraph) takeCommitStats() (commits int64, waiting, holding time.Duration) {
+	return g.commitStats.commits.Swap(0), time.Duration(g.commitStats.waiting.Swap(0)), time.Duration(g.commitStats.holding.Swap(0))
 }

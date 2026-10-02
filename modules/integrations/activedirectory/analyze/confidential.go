@@ -11,12 +11,13 @@ import (
 const searchFlagConfidential = 0x80
 
 // AttributeReadRights returns the rights needed to read the attribute with
-// this schemaIDGUID. Confidential attributes need RIGHT_DS_CONTROL_ACCESS as
+// this schemaIDGUID, in the schema of the dump that of came from.
+// Confidential attributes need RIGHT_DS_CONTROL_ACCESS as
 // well as RIGHT_DS_READ_PROPERTY (MS-ADTS 3.1.1.4.4). The schema decides when
 // it was collected; otherwise confidentialByDefault does.
-func AttributeReadRights(ao engine.GraphReader, attribute uuid.UUID, confidentialByDefault bool) engine.Mask {
+func AttributeReadRights(ao engine.GraphReader, of *engine.Node, attribute uuid.UUID, confidentialByDefault bool) engine.Mask {
 	confidential := confidentialByDefault
-	if schema, found := ao.Find(activedirectory.SchemaIDGUID, engine.NV(attribute)); found {
+	if schema, found := schemaObject(ao, of, activedirectory.SchemaIDGUID, engine.NV(attribute)); found {
 		if flags, ok := schema.AttrInt(activedirectory.SearchFlags); ok {
 			confidential = flags&searchFlagConfidential != 0
 		}

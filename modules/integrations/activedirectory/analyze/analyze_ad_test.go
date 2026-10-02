@@ -22,7 +22,8 @@ func mustSID(t *testing.T, value string) windowssecurity.SID {
 }
 
 func newADTestGraph(nodes ...*engine.Node) *engine.IndexedGraph {
-	tg := engine.NewLoaderObjects(&ADLoader{})
+	tg := engine.NewIndexedGraph()
+	tg.AddDefaultFlex(engine.DataLoader, engine.NV((&ADLoader{}).Name()))
 	for _, node := range nodes {
 		enginetest.Add(tg, node)
 	}
@@ -144,7 +145,6 @@ func TestMachinesAffectedByGPOAddsAffectedByGPOEdge(t *testing.T) {
 		engine.DataSource, "example",
 	)
 
-
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
 	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
 		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
@@ -203,7 +203,6 @@ func TestMachinesAffectedByGPORequiresApplyGroupPolicy(t *testing.T) {
 		engine.DataSource, "example",
 	)
 
-
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
 	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
 		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
@@ -253,7 +252,6 @@ func TestMachinesAffectedByGPORequiresReadAccess(t *testing.T) {
 		engine.DomainContext, "example.com",
 		engine.DataSource, "example",
 	)
-
 
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
 	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(

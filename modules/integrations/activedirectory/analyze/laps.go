@@ -8,9 +8,10 @@ import (
 )
 
 // lapsSchemaGUID returns the schemaIDGUID of a Windows LAPS attribute, found
-// by its schema object name (cn), or nil if the schema lacks it.
-func lapsSchemaGUID(ao engine.GraphReader, cn string) uuid.UUID {
-	lapsobject, found := ao.FindTwo(engine.Name, engine.NV(cn), engine.ObjectClass, engine.NV("attributeSchema"))
+// by its schema object name (cn) in the schema of o's dump, or nil if the
+// schema lacks it.
+func lapsSchemaGUID(ao engine.GraphReader, o *engine.Node, cn string) uuid.UUID {
+	lapsobject, found := schemaObjectTwo(ao, o, engine.Name, engine.NV(cn), engine.ObjectClass, engine.NV("attributeSchema"))
 	if !found {
 		return uuid.Nil
 	}
@@ -22,44 +23,55 @@ func lapsSchemaGUID(ao engine.GraphReader, cn string) uuid.UUID {
 	return guid
 }
 
-func addLAPSv2Edges(tx *engine.Tx) {
-	passwordGUID := lapsSchemaGUID(tx, "ms-LAPS-Password")
-	encryptedGUID := lapsSchemaGUID(tx, "ms-LAPS-EncryptedPassword")
-	dsrmGUID := lapsSchemaGUID(tx, "ms-LAPS-EncryptedDSRMPassword")
+// lapsv2Grant is an attribute whose read access gives an edge.
+type lapsv2Grant struct {
+	attribute uuid.UUID
+	edge      engine.Edge
+	forDC     bool
+	rights    engine.Mask
+}
+
+// lapsv2Grants returns the Windows LAPS grants in the schema of o's dump, or
+// none if that schema lacks Windows LAPS.
+func lapsv2Grants(tx *engine.Tx, o *engine.Node) []lapsv2Grant {
+	passwordGUID := lapsSchemaGUID(tx, o, "ms-LAPS-Password")
+	encryptedGUID := lapsSchemaGUID(tx, o, "ms-LAPS-EncryptedPassword")
+	dsrmGUID := lapsSchemaGUID(tx, o, "ms-LAPS-EncryptedDSRMPassword")
 	if passwordGUID.IsNil() && encryptedGUID.IsNil() && dsrmGUID.IsNil() {
 		ui.Debug().Msg("LAPS v2 schema not detected, skipping analysis")
-		return
+		return nil
 	}
 
 	// The password attributes are confidential, so reading them takes both
 	// read and control access rights (MS-ADTS 3.1.1.4.4).
-	type grant struct {
-		attribute uuid.UUID
-		edge      engine.Edge
-		forDC     bool
-	}
-	var grants []grant
-	for _, g := range []grant{
+	var grants []lapsv2Grant
+	for _, g := range []lapsv2Grant{
 		// Plaintext access is evaluated independently. An encrypted-attribute
 		// grant alone does not prove the trustee can decrypt the password.
-		{passwordGUID, activedirectory.EdgeReadLAPSPassword, false},
-		{encryptedGUID, activedirectory.EdgeReadEncryptedLAPSPassword, false},
-		{msLAPSEncryptedPasswordAttributesGUID, activedirectory.EdgeReadEncryptedLAPSPassword, false},
+		{attribute: passwordGUID, edge: activedirectory.EdgeReadLAPSPassword},
+		{attribute: encryptedGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
+		{attribute: msLAPSEncryptedPasswordAttributesGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
 		// Domain controllers back up their DSRM password instead.
-		{dsrmGUID, activedirectory.EdgeReadEncryptedLAPSPassword, true},
+		{attribute: dsrmGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword, forDC: true},
 	} {
 		if !g.attribute.IsNil() {
+			g.rights = AttributeReadRights(tx, o, g.attribute, true)
 			grants = append(grants, g)
 		}
 	}
-	rights := make(map[uuid.UUID]engine.Mask, len(grants))
-	for _, g := range grants {
-		rights[g.attribute] = AttributeReadRights(tx, g.attribute, true)
-	}
+	return grants
+}
+
+func addLAPSv2Edges(tx *engine.Tx) {
+	grantsFor := newPerDump(func(o *engine.Node) []lapsv2Grant { return lapsv2Grants(tx, o) })
 
 	tx.Iterate(func(o *engine.Node) bool {
 		// Only computers that have Windows LAPS
 		if o.Type() != engine.NodeTypeComputer || !o.HasAttr(activedirectory.MSLAPSPasswordExpirationTime) {
+			return true
+		}
+		grants := grantsFor.For(o)
+		if len(grants) == 0 {
 			return true
 		}
 		sd, err := o.SecurityDescriptor()
@@ -85,7 +97,7 @@ func addLAPSv2Edges(tx *engine.Tx) {
 			if g.forDC != isDC {
 				continue
 			}
-			for _, sid := range PrincipalsGranted(sd, o, rights[g.attribute], g.attribute, tx) {
+			for _, sid := range PrincipalsGranted(sd, o, g.rights, g.attribute, tx) {
 				trustee := aceTrustee(tx, sd, sid, o)
 				for _, machine := range machines {
 					tx.EdgeTo(trustee, machine, g.edge)

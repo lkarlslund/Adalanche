@@ -188,3 +188,30 @@ func syntheticEdgeForStep(step int) Edge {
 		return testEdge("synthetic-session")
 	}
 }
+
+// loadGraphs is enginetest.Load for the engine's own tests.
+func loadGraphs(graphs ...*IndexedGraph) *IndexedGraph {
+	g := NewAnalysisGraph()
+	for _, src := range graphs {
+		tx := NewLoadTarget(g, "test loader").Begin("test")
+		handles := map[*Node]TxNode{}
+		src.IterateStable(func(n *Node) bool {
+			handles[n] = tx.AddIdentified(n, DistinguishedName)
+			return true
+		})
+		src.IterateStable(func(n *Node) bool {
+			src.IterateEdges(n, Out, func(to *Node, eb EdgeBitmap) bool {
+				tx.SetEdge(handles[n], handles[to], eb, true)
+				return true
+			})
+			return true
+		})
+		if err := tx.Commit(); err != nil {
+			panic(err)
+		}
+	}
+	if err := g.FinishLoading(); err != nil {
+		panic(err)
+	}
+	return g
+}

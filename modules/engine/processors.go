@@ -333,7 +333,7 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 		}
 		switch {
 		case len(batch) > 0:
-			if err := runBatch(ao, processors, batch, random); err != nil {
+			if err := runBatch(ao, phase, processors, batch, random); err != nil {
 				return err
 			}
 		case len(exclusive) > 0:
@@ -358,7 +358,7 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 // runBatch runs transaction processors in parallel. None of them changes
 // the graph while they run; their transactions are committed afterwards in
 // processor order, so the result does not depend on which finished first.
-func runBatch(ao *IndexedGraph, processors []processorInfo, batch []int, random *rand.Rand) error {
+func runBatch(ao *IndexedGraph, phase Phase, processors []processorInfo, batch []int, random *rand.Rand) error {
 	txs := make([]*Tx, len(batch))
 
 	start := slices.Clone(batch)
@@ -378,6 +378,10 @@ func runBatch(ao *IndexedGraph, processors []processorInfo, batch []int, random 
 			ui.Debug().Msgf("Running %v", p.Description)
 			defer recordTiming(p, time.Now())
 			txs[n] = ao.Begin(p.Description)
+			if scope := ao.loaderScopes[p.loader]; phase == BeforeMerge && scope != "" {
+				// Before the merge, a loader's processors see its own nodes.
+				txs[n].scopeTo(scope)
+			}
 			p.tx(txs[n])
 		}()
 	}

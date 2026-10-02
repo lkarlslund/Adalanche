@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -26,24 +25,32 @@ func Run(paths ...string) (*IndexedGraph, error) {
 
 	overallprogress := ui.ProgressBar("Loading and analyzing", 5)
 
+	// One graph for everything: loaders write into it through load
+	// transactions, each under its own root node.
+	globalGraph := NewAnalysisGraph()
+
 	for _, lg := range loadergenerators {
 		loader := lg()
 
 		ui.Debug().Msgf("Initializing loader for %v", loader.Name())
-		err := loader.Init()
+		target := newLoadTarget(globalGraph, LoaderID(len(activeLoaders)), loader.Name())
+		err := loader.Init(target)
 		if err != nil {
 			ui.Fatal().Msgf("Loader %v init failure: %v", loader.Name(), err.Error())
 		}
 		activeLoaders = append(activeLoaders, loader)
 	}
 
+	phaseStart := time.Now()
+	timed := func(phase string) {
+		commits, waiting, holding := globalGraph.takeCommitStats()
+		ui.Info().Msgf("Phase %v took %v (%v commits holding the commit lock %v, waiting for it %v)", phase, time.Since(phaseStart), commits, holding, waiting)
+		phaseStart = time.Now()
+	}
+
 	// Load everything
 	loadbar := ui.ProgressBar("Loading data", 0)
-
-	var allLoaderGraphs []loaderGraphInfo
-
-	// Process each data folder
-	los, err := loadWithLoaders(activeLoaders, paths, func(cur, max int) {
+	err := loadWithLoaders(globalGraph, activeLoaders, paths, func(cur, max int) {
 		if max > 0 {
 			loadbar.ChangeMax(int64(max))
 		} else if max < 0 {
@@ -58,64 +65,27 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	if err != nil {
 		return nil, err
 	}
-	allLoaderGraphs = append(allLoaderGraphs, los...)
 	loadbar.Finish()
-
 	overallprogress.Add(1)
+	timed("loading")
 
-	var preprocessWG sync.WaitGroup
-	var preprocessErr error
-	var preprocessErrOnce sync.Once
-	var graphsToMerge []*IndexedGraph
-	for _, os := range allLoaderGraphs {
-		if os.Objects.Order() < 2 {
-			// Don't bother with empty objects
-			continue
-		}
-
-		graphsToMerge = append(graphsToMerge, os.Objects)
-
-		preprocessWG.Add(1)
-		go func(lobj loaderGraphInfo) {
-			var loaderid LoaderID
-			for i, loader := range activeLoaders {
-				if loader == lobj.Loader {
-					loaderid = LoaderID(i)
-					break
-				}
-			}
-
-			ui.Debug().Msgf("Preprocessing %v with %v objects", lobj.Loader.Name(), lobj.Objects.Order())
-			if err := RunPhase(lobj.Objects, loaderid, BeforeMerge); err != nil {
-				preprocessErrOnce.Do(func() { preprocessErr = fmt.Errorf("preprocessing %v: %w", lobj.Loader.Name(), err) })
-			}
-
-			preprocessWG.Done()
-		}(os)
+	if err := RunPhase(globalGraph, AnyLoader, BeforeMerge); err != nil {
+		return nil, fmt.Errorf("preprocessing: %w", err)
 	}
-	preprocessWG.Wait()
-	if preprocessErr != nil {
-		return nil, preprocessErr
-	}
-
+	timed("before-merge processors")
 	runtime.GC()
 	debug.FreeOSMemory()
 	overallprogress.Add(1)
+	timed("garbage collection")
 
-	if err := prepareMerge(graphsToMerge); err != nil {
+	if err := globalGraph.FinishLoading(); err != nil {
 		return nil, err
 	}
+	timed("finishing loading")
 
-	// Merging all subgraphs into the globalGraph
-	globalGraph, err := MergeGraphs(graphsToMerge)
-	if err != nil {
-		return nil, err
-	}
-
-	clear(graphsToMerge)
-	clear(allLoaderGraphs)
 	runtime.GC()
 	debug.FreeOSMemory()
+	timed("garbage collection")
 
 	overallprogress.Add(1)
 
@@ -124,15 +94,19 @@ func Run(paths ...string) (*IndexedGraph, error) {
 		return nil, err
 	}
 	ui.Info().Msgf("Time to finish post-processing %v", time.Since(postprocessStart))
+	phaseStart = time.Now()
 	runtime.GC()
 	overallprogress.Add(1)
+	timed("garbage collection")
 
 	if err := calculateGraphAttributes(globalGraph); err != nil {
 		return nil, err
 	}
+	timed("graph attributes")
 	if err := finalizeGraph(globalGraph); err != nil {
 		return nil, err
 	}
+	timed("finalizing")
 	captureMemoryStatistics(globalGraph)
 	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
 

@@ -34,14 +34,53 @@ func indexKeyEqual(a, b AttributeValue) bool {
 	return false
 }
 
-func containsNode(ns NodeSlice, o *Node) bool {
-	return slices.Contains(ns.nodes, o)
+// indexNodes are the nodes under one index key. Keys such as a loader name
+// hold millions of nodes, so membership goes through a set once the list is
+// long.
+type indexNodes struct {
+	nodes   NodeSlice
+	members map[*Node]struct{}
+}
+
+const indexMembersFrom = 64
+
+func (e *indexNodes) contains(o *Node) bool {
+	if e.members != nil {
+		_, found := e.members[o]
+		return found
+	}
+	return slices.Contains(e.nodes.nodes, o)
+}
+
+func (e *indexNodes) add(o *Node, undupe bool) {
+	if undupe && e.contains(o) {
+		return
+	}
+	e.nodes.Add(o)
+	if e.members != nil {
+		e.members[o] = struct{}{}
+	} else if e.nodes.Len() >= indexMembersFrom {
+		e.members = make(map[*Node]struct{}, e.nodes.Len()*2)
+		for _, n := range e.nodes.nodes {
+			e.members[n] = struct{}{}
+		}
+	}
+}
+
+func (e *indexNodes) remove(o *Node) {
+	if !e.contains(o) {
+		return
+	}
+	e.nodes.Remove(o)
+	if e.members != nil {
+		delete(e.members, o)
+	}
 }
 
 type indexEntry struct {
-	key   AttributeValue
-	nodes NodeSlice
-	next  *indexEntry // another key with the same hash
+	key AttributeValue
+	indexNodes
+	next *indexEntry // another key with the same hash
 }
 
 type Index struct {
@@ -80,13 +119,20 @@ func (i *Index) Add(key AttributeValue, o *Node, undupe bool) {
 	defer i.Unlock()
 	e := i.find(key, hash)
 	if e == nil {
-		e = &indexEntry{key: key, nodes: NewNodeSlice(0), next: i.lookup[hash]}
+		e = &indexEntry{key: key, next: i.lookup[hash]}
 		i.lookup[hash] = e
 	}
-	if undupe && containsNode(e.nodes, o) {
-		return
+	e.add(o, undupe)
+}
+
+// Remove takes a node off a key, if it is there.
+func (i *Index) Remove(key AttributeValue, o *Node) {
+	hash := indexHash(key)
+	i.Lock()
+	defer i.Unlock()
+	if e := i.find(key, hash); e != nil {
+		e.remove(o)
 	}
-	e.nodes.Add(o)
 }
 
 // Iterate visits each distinct key (the first value added for it) and its nodes.
@@ -104,8 +150,8 @@ func (i *Index) Iterate(each func(key AttributeValue, objects NodeSlice) bool) {
 
 type multiIndexEntry struct {
 	key, key2 AttributeValue
-	nodes     NodeSlice
-	next      *multiIndexEntry
+	indexNodes
+	next *multiIndexEntry
 }
 
 type MultiIndex struct {
@@ -148,13 +194,20 @@ func (i *MultiIndex) Add(key, key2 AttributeValue, o *Node, undupe bool) {
 	defer i.Unlock()
 	e := i.find(key, key2, hash)
 	if e == nil {
-		e = &multiIndexEntry{key: key, key2: key2, nodes: NewNodeSlice(0), next: i.lookup[hash]}
+		e = &multiIndexEntry{key: key, key2: key2, next: i.lookup[hash]}
 		i.lookup[hash] = e
 	}
-	if undupe && containsNode(e.nodes, o) {
-		return
+	e.add(o, undupe)
+}
+
+// Remove takes a node off a key pair, if it is there.
+func (i *MultiIndex) Remove(key, key2 AttributeValue, o *Node) {
+	hash := multiIndexHash(key, key2)
+	i.Lock()
+	defer i.Unlock()
+	if e := i.find(key, key2, hash); e != nil {
+		e.remove(o)
 	}
-	e.nodes.Add(o)
 }
 
 func (i *MultiIndex) Iterate(each func(key, key2 AttributeValue, objects NodeSlice) bool) {

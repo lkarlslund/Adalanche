@@ -55,16 +55,18 @@ var attributeinfos []attributeinfo
 var (
 	NonExistingAttribute = ^Attribute(0)
 
-	DistinguishedName     = NewAttribute("distinguishedName").Flag(Single, Unique, Merge)
-	ObjectClass           = NewAttribute("objectClass")
-	ObjectCategory        = NewAttribute("objectCategory").Flag(Single)
-	Type                  = NewAttribute("type").Flag(Single)
-	Name                  = NewAttribute("name").Flag(Single)
-	DisplayName           = NewAttribute("displayName").Flag(Single)
-	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Flag(Single)
-	Description           = NewAttribute("description")
-	SAMAccountName        = NewAttribute("sAMAccountName").Flag(Single)
-	ObjectSid             = NewAttribute("objectSid").Flag(Single) // Single, but not unique! Strange yes, but in the final results there are multiple objects with the same SID
+	DistinguishedName = NewAttribute("distinguishedName").Flag(Single, Unique, Merge)
+	ObjectClass       = NewAttribute("objectClass")
+	ObjectCategory    = NewAttribute("objectCategory").Flag(Single)
+	Type              = NewAttribute("type").Flag(Single)
+	Name              = NewAttribute("name").Flag(Single)
+	DisplayName       = NewAttribute("displayName").Flag(Single)
+	LDAPDisplayName   = NewAttribute("lDAPDisplayName").Flag(Single)
+	Description       = NewAttribute("description")
+	SAMAccountName    = NewAttribute("sAMAccountName").Flag(Single)
+	// ObjectSid is single-valued but not unique: builtin and machine SIDs
+	// repeat per domain and machine, so references by SID carry a scope.
+	ObjectSid             = NewAttribute("objectSid").Flag(Single, Merge)
 	ObjectGUID            = NewAttribute("objectGUID").Flag(Single, Merge, Unique)
 	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Flag(Single)
 	SchemaIDGUID          = NewAttribute("schemaIDGUID")
@@ -84,9 +86,11 @@ var (
 
 	IPAddress          = NewAttribute("iPAddress").Flag(Merge, Fuzzy)
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Flag(Merge, Single)
-	UserPrincipalName  = NewAttribute("userPrincipalName").Flag(Merge, Single)
-	NetbiosDomain      = NewAttribute("netbiosDomain").Flag(Single) // Used to merge users with - if we only have a DOMAIN\USER type of info
-	DomainContext      = NewAttribute("domainContext").Flag(Single)
+	// An account logs on under several names in UPN form (its explicit
+	// UPN, the implicit sAMAccountName@dnsdomain), so this is not single.
+	UserPrincipalName = NewAttribute("userPrincipalName").Flag(Merge)
+	NetbiosDomain     = NewAttribute("netbiosDomain").Flag(Single) // Used to merge users with - if we only have a DOMAIN\USER type of info
+	DomainContext     = NewAttribute("domainContext").Flag(Single)
 
 	Tag = NewAttribute("tag")
 )

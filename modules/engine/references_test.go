@@ -12,6 +12,12 @@ var (
 	testFuzzyKey  = NewAttribute("test-fuzzy-key").Flag(Merge, Fuzzy)
 )
 
+func addRefs(g *IndexedGraph, refs ...*Node) {
+	for _, r := range refs {
+		g.add(r)
+	}
+}
+
 func real(flex ...any) *Node {
 	return NewNode(append([]any{DataSource, "real"}, flex...)...)
 }
@@ -21,8 +27,8 @@ func TestReferenceFoldsOnlyIntoTheOneMatch(t *testing.T) {
 	twinA, twinB := real(testStrictKey, "b"), real(testStrictKey, "b")
 	g := testGraph(one, twinA, twinB)
 	toOne, toTwins := NewNode(testStrictKey, "a"), NewNode(testStrictKey, "b")
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{toOne, toTwins}, merged)
+	addRefs(g, toOne, toTwins)
+	merged := resolveReferences(g)
 	if merged[toOne] != one {
 		t.Error("reference with one match not folded")
 	}
@@ -35,8 +41,8 @@ func TestReferenceTypesMustAgree(t *testing.T) {
 	machine := real(Type, "Machine", testFuzzyKey, "host")
 	g := testGraph(machine, real(Type, "Computer", testFuzzyKey, "host"))
 	typed, untyped := NewNode(Type, "Machine", testFuzzyKey, "host"), NewNode(testFuzzyKey, "host")
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{typed, untyped}, merged)
+	addRefs(g, typed, untyped)
+	merged := resolveReferences(g)
 	if merged[typed] != machine {
 		t.Error("typed reference did not fold into the node of its type")
 	}
@@ -51,8 +57,8 @@ func TestStrictKeysDecideBeforeFuzzy(t *testing.T) {
 	g := testGraph(byStrict, byFuzzy, twinA, twinB)
 	both := NewNode(testStrictKey, "s", testFuzzyKey, "f")
 	ambiguous := NewNode(testStrictKey, "dup", testFuzzyKey, "f")
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{both, ambiguous}, merged)
+	addRefs(g, both, ambiguous)
+	merged := resolveReferences(g)
 	if merged[both] != byStrict {
 		t.Error("fuzzy key decided before the strict one")
 	}
@@ -67,8 +73,8 @@ func TestLaterRoundsSeeEarlierFolds(t *testing.T) {
 	// The directory's machine knows the host name; the scanner only that.
 	directory := NewNode(Type, "Machine", testStrictKey, "account", testFuzzyKey, "host.example")
 	scanner := NewNode(Type, "Machine", testFuzzyKey, "host.example")
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{scanner, directory}, merged)
+	addRefs(g, scanner, directory)
+	merged := resolveReferences(g)
 	if merged[directory] != collection || merged[scanner] != collection {
 		t.Error("references did not both reach the collection")
 	}
@@ -88,7 +94,8 @@ func TestUnresolvedReferencesGroupTheSameInAnyOrder(t *testing.T) {
 		refs := build()
 		rand.New(rand.NewPCG(seed, 0)).Shuffle(len(refs), func(i, j int) { refs[i], refs[j] = refs[j], refs[i] })
 		g := testGraph()
-		resolveReferences(g, refs, map[*Node]*Node{})
+		addRefs(g, refs...)
+		resolveReferences(g)
 		var out []string
 		g.Iterate(func(n *Node) bool {
 			keys := n.Attr(testFuzzyKey).StringSlice()
@@ -117,8 +124,8 @@ func TestDomainScopedReferenceSkipsUnscopedNodes(t *testing.T) {
 	machineAdmins := real(testStrictKey, "S-1-5-32-544")
 	g := testGraph(domainAdmins, machineAdmins)
 	ref := NewNode(testStrictKey, "S-1-5-32-544", DomainContext, "DC=b,DC=test")
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{ref}, merged)
+	addRefs(g, ref)
+	merged := resolveReferences(g)
 	if merged[ref] != domainAdmins {
 		t.Error("domain-scoped reference did not resolve to the domain's node")
 	}

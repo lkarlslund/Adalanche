@@ -58,8 +58,9 @@ func syntheticDomain(t *testing.T, dn, netbios, sid string) []*activedirectory.R
 	}
 }
 
-// The AD loader stages each folder's objects in a transaction and commits it
-// on Close, marking every object with the domain it was collected from.
+// The AD loader stages each folder's objects in a load transaction and
+// commits it into the shared graph on Close, marking every object with the
+// domain it was collected from.
 func TestADLoaderCommitsShardsWithDataSource(t *testing.T) {
 	dir := t.TempDir()
 	domains := map[string]string{"ONE": "DC=one,DC=test", "TWO": "DC=two,DC=test"}
@@ -69,7 +70,8 @@ func TestADLoaderCommitsShardsWithDataSource(t *testing.T) {
 	}
 
 	var ld ADLoader
-	if err := ld.Init(); err != nil {
+	g := engine.NewAnalysisGraph()
+	if err := ld.Init(engine.NewLoadTarget(g, ld.Name())); err != nil {
 		t.Fatal(err)
 	}
 	for nb := range domains {
@@ -77,43 +79,29 @@ func TestADLoaderCommitsShardsWithDataSource(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	graphs, err := ld.Close()
-	if err != nil {
+	if err := ld.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if len(graphs) != 2 {
-		t.Fatalf("got %v graphs, want 2", len(graphs))
-	}
-	for _, g := range graphs {
-		var source string
-		count := 0
-		g.Iterate(func(o *engine.Node) bool {
-			count++
-			ds := o.OneAttrString(engine.DataSource)
-			if source == "" {
-				source = ds
-			}
-			if ds == "" || ds != source {
-				t.Errorf("node %v has data source %q, want %q", o.Label(), ds, source)
-			}
-			return true
-		})
-		if count != 4 { // root plus three objects
-			t.Errorf("graph has %v nodes, want 4", count)
+	perSource := map[string]int{}
+	g.Iterate(func(o *engine.Node) bool {
+		if o.HasAttr(engine.DistinguishedName) {
+			perSource[o.OneAttrString(engine.DataSource)]++
 		}
-		dn, found := domains[source]
-		if !found {
-			t.Fatalf("unexpected data source %q", source)
+		return true
+	})
+	for nb, dn := range domains {
+		if perSource[nb] != 3 {
+			t.Errorf("%v: %v objects with its data source, want 3", nb, perSource[nb])
 		}
 		user, found := g.Find(engine.DistinguishedName, engine.NV("CN=Someone,CN=Users,"+dn))
 		if !found {
 			t.Fatal("user not found by DN after commit")
 		}
-		if user.SID().String() != sids[source]+"-1105" {
-			t.Errorf("user SID %v", user.SID())
+		if user.OneAttrString(engine.DataSource) != nb {
+			t.Errorf("user has data source %q, want %q", user.OneAttrString(engine.DataSource), nb)
 		}
-		if got, found := g.Find(engine.ObjectSid, engine.NVSID(user.SID())); !found || got != user {
-			t.Error("user not found by SID after commit")
+		if user.SID().String() != sids[nb]+"-1105" {
+			t.Errorf("user SID %v", user.SID())
 		}
 	}
 }

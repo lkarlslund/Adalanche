@@ -28,9 +28,9 @@ type IndexedGraph struct {
 
 	// Node tracking
 	nodeMutex  sync.RWMutex
-	nodeLookup gsync.MapOf[*Node, NodeIndex] // map to index in objects
-	idLookup   gsync.MapOf[NodeID, *Node]    // node ID -> node, read without locking
-	nodes      []*Node                       // All objects, int -> *Node
+	nodeLookup shardedMap[*Node, NodeIndex] // map to index in objects
+	idLookup   shardedMap[NodeID, *Node]    // node ID -> node
+	nodes      []*Node                      // All objects, int -> *Node
 
 	commitMutex sync.Mutex // one commit at a time
 
@@ -48,8 +48,21 @@ type IndexedGraph struct {
 	indexlock    sync.RWMutex
 	indexes      []*Index                      // Uses atribute directly as slice offset for performance
 	multiindexes map[AttributePair]*MultiIndex // Uses a map for storage considerations
+	indexBuilds  map[any]chan struct{}         // indexes being built, by Attribute or AttributePair
+
+	commitStats commitStats
 
 	typecount typestatistics
+	orphans   *Node // container for nodes without a parent, see FinishLoading
+
+	// The loader each LoaderID's before-merge processors see, by name.
+	loaderScopes map[LoaderID]string
+	loadRoots    []*Node // loaders' root nodes, added with their first commit
+
+	// Parent links loaders claimed for nodes another loader created,
+	// applied by applyParentClaims.
+	parentClaimsMutex sync.Mutex
+	parentClaims      []parentClaim
 
 	canonicalMutex sync.Mutex
 	canonicalRanks []uint32 // see CanonicalRanks
@@ -81,55 +94,63 @@ func (os *IndexedGraph) AddDefaultFlex(data ...any) {
 
 func (os *IndexedGraph) GetIndex(attribute Attribute) *Index {
 	os.indexlock.RLock()
-
-	// No room for index for this attribute
-	if len(os.indexes) <= int(attribute) {
-		os.indexlock.RUnlock()
-		os.indexlock.Lock()
-		// Someone might have beaten us to it?
-		if len(os.indexes) <= int(attribute) {
-			newindexes := make([]*Index, attribute+1)
-			copy(newindexes, os.indexes)
-			os.indexes = newindexes
-		}
-		os.indexlock.Unlock()
-
-		os.indexlock.RLock()
-	}
-
-	index := os.indexes[attribute]
-
-	// No index for this attribute
-	if index == nil {
-		os.indexlock.RUnlock()
-
-		os.indexlock.Lock()
-		if len(os.indexes) <= int(attribute) {
-			newindexes := make([]*Index, attribute+1)
-			copy(newindexes, os.indexes)
-			os.indexes = newindexes
-		}
-		index = os.indexes[attribute]
-		os.indexlock.Unlock()
-		if index != nil {
+	if int(attribute) < len(os.indexes) {
+		if index := os.indexes[attribute]; index != nil {
+			os.indexlock.RUnlock()
 			return index
 		}
-
-		index = &Index{}
-		os.refreshIndex(attribute, index)
-
-		os.indexlock.Lock()
-		existing := os.indexes[attribute]
-		if existing == nil {
-			os.indexes[attribute] = index
-		} else {
-			index = existing
-		}
-		os.indexlock.Unlock()
-		return index
 	}
 	os.indexlock.RUnlock()
-	return index
+
+	for {
+		os.indexlock.Lock()
+		if len(os.indexes) <= int(attribute) {
+			newindexes := make([]*Index, attribute+1)
+			copy(newindexes, os.indexes)
+			os.indexes = newindexes
+		}
+		if index := os.indexes[attribute]; index != nil {
+			os.indexlock.Unlock()
+			return index
+		}
+		if !os.claimIndexBuild(attribute) {
+			continue
+		}
+		index := &Index{}
+		os.refreshIndex(attribute, index)
+		os.indexlock.Lock()
+		os.indexes[attribute] = index
+		os.finishIndexBuild(attribute)
+		return index
+	}
+}
+
+// claimIndexBuild is called holding indexlock and releases it. It returns
+// true when the caller is to build the index; otherwise another caller is
+// building it, and it returns once that build is done. Building an index
+// scans the whole graph, so concurrent lookups of a missing index build it
+// once instead of once each.
+func (os *IndexedGraph) claimIndexBuild(key any) bool {
+	if wait, building := os.indexBuilds[key]; building {
+		os.indexlock.Unlock()
+		<-wait
+		return false
+	}
+	if os.indexBuilds == nil {
+		os.indexBuilds = map[any]chan struct{}{}
+	}
+	os.indexBuilds[key] = make(chan struct{})
+	os.indexlock.Unlock()
+	return true
+}
+
+// finishIndexBuild is called holding indexlock, after storing the index,
+// and releases it.
+func (os *IndexedGraph) finishIndexBuild(key any) {
+	done := os.indexBuilds[key]
+	delete(os.indexBuilds, key)
+	os.indexlock.Unlock()
+	close(done)
 }
 
 func (os *IndexedGraph) GetMultiIndex(attribute, attribute2 Attribute) *MultiIndex {
@@ -142,41 +163,30 @@ func (os *IndexedGraph) GetMultiIndex(attribute, attribute2 Attribute) *MultiInd
 		panic("Cannot create multi-index with non-existing attribute")
 	}
 
-	os.indexlock.RLock()
-
-	// No room for index for this attribute
 	indexkey := AttributePair{attribute, attribute2}
-
+	os.indexlock.RLock()
 	index, found := os.multiindexes[indexkey]
-	if found {
-		os.indexlock.RUnlock()
-		return index
-	}
-
 	os.indexlock.RUnlock()
-	os.indexlock.Lock()
-
-	index, found = os.multiindexes[indexkey]
 	if found {
-		// Someone beat us to it
-		os.indexlock.Unlock()
 		return index
 	}
-	os.indexlock.Unlock()
 
-	index = &MultiIndex{}
-	os.refreshMultiIndex(attribute, attribute2, index)
-
-	os.indexlock.Lock()
-	existing, found := os.multiindexes[indexkey]
-	if found {
-		index = existing
-	} else {
+	for {
+		os.indexlock.Lock()
+		if index, found := os.multiindexes[indexkey]; found {
+			os.indexlock.Unlock()
+			return index
+		}
+		if !os.claimIndexBuild(indexkey) {
+			continue
+		}
+		index := &MultiIndex{}
+		os.refreshMultiIndex(attribute, attribute2, index)
+		os.indexlock.Lock()
 		os.multiindexes[indexkey] = index
+		os.finishIndexBuild(indexkey)
+		return index
 	}
-	os.indexlock.Unlock()
-
-	return index
 }
 
 func (os *IndexedGraph) refreshIndex(attribute Attribute, index *Index) {
@@ -359,9 +369,13 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 }
 
 func (os *IndexedGraph) addUnlocked(newNode *Node) {
+	os.addUnlockedWith(newNode, true)
+}
+
+func (os *IndexedGraph) addUnlockedWith(newNode *Node, defaults bool) {
 	index := NodeIndex(len(os.nodes))
 	if _, found := os.nodeLookup.LoadOrStore(newNode, index); !found {
-		if os.DefaultValues != nil {
+		if defaults && os.DefaultValues != nil {
 			newNode.setFlex(os.DefaultValues...)
 		}
 		os.nodes = append(os.nodes, newNode)

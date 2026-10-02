@@ -45,8 +45,8 @@ func TestMergeKeepsTargetID(t *testing.T) {
 
 	source := NewNode(mergeOn, NV("shared"), Name, NV("from source"))
 	sourceID := source.ID()
-	merged := map[*Node]*Node{}
-	resolveReferences(g, []*Node{source}, merged)
+	addRefs(g, source)
+	merged := resolveReferences(g)
 	if merged[source] != target {
 		t.Fatal("source was not merged into the target")
 	}

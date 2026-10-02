@@ -24,16 +24,16 @@ type loaderQueueItem struct {
 }
 
 type OpenGraphLoader struct {
-	graphs []*engine.IndexedGraph
+	target engine.LoadTarget
 	queue  chan loaderQueueItem
 	done   sync.WaitGroup
-	mutex  sync.Mutex
 }
 
 func (ld *OpenGraphLoader) Name() string {
 	return Loadername
 }
-func (ld *OpenGraphLoader) Init() error {
+func (ld *OpenGraphLoader) Init(target engine.LoadTarget) error {
+	ld.target = target
 	ld.queue = make(chan loaderQueueItem, 128)
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
@@ -54,8 +54,7 @@ func (ld *OpenGraphLoader) Init() error {
 				}
 				r.Close()
 
-				g := engine.NewLoaderObjects(ld)
-				tx := g.Begin("graph " + queueItem.path)
+				tx := ld.target.BeginCollection("graph " + queueItem.path)
 				err = processOpenGraphData(tx, ogd)
 				if err == nil {
 					err = tx.Commit()
@@ -64,21 +63,16 @@ func (ld *OpenGraphLoader) Init() error {
 					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
 				}
-
-				ld.mutex.Lock()
-				ld.graphs = append(ld.graphs, g)
-				ld.mutex.Unlock()
 			}
 			ld.done.Done()
 		}()
 	}
 	return nil
 }
-func (ld *OpenGraphLoader) Close() ([]*engine.IndexedGraph, error) {
+func (ld *OpenGraphLoader) Close() error {
 	close(ld.queue)
 	ld.done.Wait()
-
-	return ld.graphs, nil
+	return nil
 }
 
 func (ld *OpenGraphLoader) Load(path string, cb engine.ProgressCallbackFunc) error {

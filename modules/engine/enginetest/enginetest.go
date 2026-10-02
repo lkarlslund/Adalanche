@@ -3,6 +3,8 @@
 package enginetest
 
 import (
+	"fmt"
+
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -76,4 +78,36 @@ func FindOrAddAdjacentSID(g *engine.IndexedGraph, s windowssecurity.SID, relativ
 	var h engine.TxNode
 	Update(g, func(tx *engine.Tx) { h = tx.FindOrAddAdjacentSID(s, relativeTo) })
 	return h.Node()
+}
+
+// Load puts graphs built by hand into one analysis graph the way Run does,
+// each as a separate loader committing through a load transaction, then
+// finishes loading: parent claims, merge preparers and reference resolution.
+// Nodes keep their identity; nodes with the same distinguished name become
+// one.
+func Load(graphs ...*engine.IndexedGraph) *engine.IndexedGraph {
+	g := engine.NewAnalysisGraph()
+	for i, src := range graphs {
+		target := engine.NewLoadTarget(g, fmt.Sprintf("test loader %d", i))
+		tx := target.Begin("test")
+		handles := map[*engine.Node]engine.TxNode{}
+		src.IterateStable(func(n *engine.Node) bool {
+			handles[n] = tx.AddIdentified(n, engine.DistinguishedName)
+			return true
+		})
+		src.IterateStable(func(n *engine.Node) bool {
+			src.IterateEdges(n, engine.Out, func(to *engine.Node, eb engine.EdgeBitmap) bool {
+				tx.SetEdge(handles[n], handles[to], eb, true)
+				return true
+			})
+			return true
+		})
+		if err := tx.Commit(); err != nil {
+			panic(err)
+		}
+	}
+	if err := g.FinishLoading(); err != nil {
+		panic(err)
+	}
+	return g
 }

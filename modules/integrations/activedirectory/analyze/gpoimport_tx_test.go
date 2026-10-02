@@ -138,10 +138,7 @@ func TestExposedPasswordsStayUnderTheirFile(t *testing.T) {
 			t.Error("exposed password not under its file")
 		}
 	}
-	merged, err := engine.MergeGraphs([]*engine.IndexedGraph{g, graph()})
-	if err != nil {
-		t.Fatal(err)
-	}
+	merged := enginetest.Load(g, graph())
 	if exposed, _ := merged.FindMulti(engine.Type, engine.NV("ExposedPassword")); exposed.Len() != 6 {
 		t.Errorf("got %v exposed passwords after merging two copies, want 6", exposed.Len())
 	}
@@ -159,7 +156,7 @@ func TestGPOCollectionResolvesToItsDomain(t *testing.T) {
 	adminsB := engine.NewNode(engine.Name, "Administrators", engine.Type, engine.NodeTypeGroup.ValueString(),
 		engine.ObjectSid, engine.NVSID(windowssecurity.AdministratorsSID), engine.DomainContext, "DC=b,DC=test", engine.DataSource, "B")
 	gpo := engine.NewNode(engine.DistinguishedName, dn, engine.Type, engine.NodeTypeGroupPolicyContainer.ValueString(),
-		engine.DataSource, "B", activedirectory.GPOIdentity, activedirectory.GPOIdentityFromDN(dn))
+		engine.DataSource, "B", engine.DomainContext, "DC=b,DC=test", activedirectory.GPOIdentity, activedirectory.GPOIdentityFromDN(dn))
 	enginetest.Add(directory, adminsA, adminsB, gpo)
 
 	collected := engine.NewIndexedGraph()
@@ -172,10 +169,7 @@ func TestGPOCollectionResolvesToItsDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	merged, err := engine.MergeGraphs([]*engine.IndexedGraph{directory, collected})
-	if err != nil {
-		t.Fatal(err)
-	}
+	merged := enginetest.Load(directory, collected)
 	gpos, _ := merged.FindMulti(activedirectory.GPOIdentity, engine.NV(activedirectory.GPOIdentityFromDN(dn)))
 	if gpos.Len() != 1 || gpos.First() != gpo {
 		t.Fatalf("got %v GPO nodes, want the collection folded into the directory's", gpos.Len())

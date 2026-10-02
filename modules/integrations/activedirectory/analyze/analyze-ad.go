@@ -183,7 +183,7 @@ func applyObjectClassAndCategoryPatches(tx *engine.Tx) {
 		if objectclasses.Len() > 0 {
 			guids := make([]engine.AttributeValue, 0, objectclasses.Len())
 			objectclasses.Iterate(func(class engine.AttributeValue) bool {
-				if oto, found := tx.Find(engine.LDAPDisplayName, class); found {
+				if oto, found := schemaObject(tx, object, engine.LDAPDisplayName, class); found {
 					if guid := oto.OneAttr(activedirectory.SchemaIDGUID); guid.IsNil() {
 						ui.Debug().Msgf("%v", oto)
 						ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
@@ -669,23 +669,24 @@ func init() {
 	})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		// Find LAPS or return
-		var lapsGUID uuid.UUID
-		if lapsobject, found := tx.FindTwo(engine.Name, engine.NV("ms-Mcs-AdmPwd"),
-			engine.ObjectClass, engine.NV("attributeSchema")); found {
-			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
-				ui.Debug().Msg("Detected LAPS schema extension GUID")
-				lapsGUID = objectGUID
-			} else {
-				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
+		// LAPS v1 extends each forest's schema with its own GUID.
+		type lapsSchema struct {
+			guid       uuid.UUID
+			readRights engine.Mask
+		}
+		schemas := newPerDump(func(o *engine.Node) lapsSchema {
+			lapsobject, found := schemaObjectTwo(tx, o, engine.Name, engine.NV("ms-Mcs-AdmPwd"),
+				engine.ObjectClass, engine.NV("attributeSchema"))
+			if !found {
+				return lapsSchema{}
 			}
-		}
-
-		if lapsGUID.IsNil() {
-			ui.Debug().Msg("Microsoft LAPS V1 not detected, skipping tests for this")
-			return
-		}
-		readRights := AttributeReadRights(tx, lapsGUID, true)
+			guid, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID)
+			if !ok {
+				ui.Error().Msgf("Could not read LAPS schema extension GUID from %v", lapsobject.DN())
+				return lapsSchema{}
+			}
+			return lapsSchema{guid, AttributeReadRights(tx, o, guid, true)}
+		})
 
 		tx.Iterate(func(o *engine.Node) bool {
 			// Only for computers
@@ -695,6 +696,10 @@ func init() {
 
 			// ... that has LAPS installed
 			if !o.HasAttr(activedirectory.MSmcsAdmPwdExpirationTime) {
+				return true
+			}
+			schema := schemas.For(o)
+			if schema.guid.IsNil() {
 				return true
 			}
 
@@ -720,7 +725,7 @@ func init() {
 
 			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
 			// control access rights.
-			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, tx) {
+			for _, sid := range PrincipalsGranted(sd, o, schema.readRights, schema.guid, tx) {
 				trustee := aceTrustee(tx, sd, sid, o)
 				for _, machine := range machines {
 					tx.EdgeTo(trustee, machine, activedirectory.EdgeReadLAPSPassword)
@@ -799,8 +804,13 @@ func init() {
 			// Extract the first match
 			machineName := string(match[2])
 
-			machine, found := tx.FindTwo(engine.Type, ObjectTypeMachine.ValueString(),
+			// Short names repeat across domains: prefer the account's own.
+			machines, _ := tx.FindTwoMulti(engine.Type, ObjectTypeMachine.ValueString(),
 				engine.Name, engine.NV(machineName))
+			if machines.Len() > 1 {
+				machines = sameDump(machines, o)
+			}
+			machine, found := oneOf(machines)
 
 			if !found {
 				ui.Warn().Msgf("%v detected as Azure Connect running on %v, but machine not found - not linking", o.OneAttrString(engine.Name), machineName)
@@ -924,18 +934,17 @@ func init() {
 	})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		authusers, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
-		if !found {
-			ui.Error().Msgf("Could not locate Authenticated Users")
-			return
-		}
-
 		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
-				tx.EdgeTo(authusers, o, activedirectory.EdgeHasSPN)
+				// Authenticated Users of the account's own domain
+				if authusers, found := tx.FindAdjacentSID(windowssecurity.AuthenticatedUsersSID, o); found {
+					tx.EdgeTo(authusers, o, activedirectory.EdgeHasSPN)
+				} else {
+					ui.Error().Msgf("Could not locate Authenticated Users for %v", o.DN())
+				}
 			}
 			return true
 		})
@@ -947,13 +956,6 @@ func init() {
 	})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		anonymous, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
-		if !found {
-			ui.Error().Msgf("Could not locate Anonymous Logon")
-			return
-		}
-
-		_ = anonymous
 		tx.Iterate(func(o *engine.Node) bool {
 			// Only users
 			if o.Type() != engine.NodeTypeUser {
@@ -972,18 +974,15 @@ func init() {
 	})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		anonymous, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
-		if !found {
-			ui.Error().Msgf("Could not locate Anonymous Logon")
-			return
-		}
-
 		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-				tx.EdgeTo(anonymous, o, activedirectory.EdgeDontReqPreauth)
+				// Anonymous Logon of the account's own domain
+				if anonymous, found := tx.FindAdjacentSID(windowssecurity.AnonymousLogonSID, o); found {
+					tx.EdgeTo(anonymous, o, activedirectory.EdgeDontReqPreauth)
+				}
 			}
 			return true
 		})
@@ -1189,26 +1188,22 @@ func init() {
 		})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		// Find domain object
-		domain, err := FindDomainNode(tx)
-		if err != nil {
-			ui.Fatal().Msgf("Could not find domain node: %v", err)
-		}
-
-		// Add our known SIDs if they're missing
-		for sid, name := range windowssecurity.KnownSIDs {
-			binsid, err := windowssecurity.ParseStringSID(sid)
-			if err != nil {
-				ui.Fatal().Msgf("Problem parsing SID %v", sid)
+		// Add our known SIDs to every domain that lacks them
+		for _, domain := range FindDomainNodes(tx) {
+			for sid, name := range windowssecurity.KnownSIDs {
+				binsid, err := windowssecurity.ParseStringSID(sid)
+				if err != nil {
+					ui.Fatal().Msgf("Problem parsing SID %v", sid)
+				}
+				dn := "CN=" + name + ",CN=microsoft-builtin"
+				tx.FindOrAddAdjacentSID(binsid, domain,
+					engine.DistinguishedName, engine.NV(dn),
+					engine.Name, engine.NV(name),
+					engine.ObjectSid, engine.NV(binsid),
+					engine.ObjectClass, engine.NV("person"), engine.NV("user"), engine.NV("top"),
+					engine.Type, engine.NV("Group"),
+				)
 			}
-			dn := "CN=" + name + ",CN=microsoft-builtin"
-			tx.FindOrAddAdjacentSID(binsid, domain,
-				engine.DistinguishedName, engine.NV(dn),
-				engine.Name, engine.NV(name),
-				engine.ObjectSid, engine.NV(binsid),
-				engine.ObjectClass, engine.NV("person"), engine.NV("user"), engine.NV("top"),
-				engine.Type, engine.NV("Group"),
-			)
 		}
 	},
 		engine.Processor{
@@ -1219,44 +1214,42 @@ func init() {
 		})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		// Generate member of chains
-		domainNode, err := FindDomainNode(tx)
-		if err != nil {
-			ui.Fatal().Msgf("Could not find domain node: %v", err)
+		// Generate member of chains, per domain
+		type domainParts struct {
+			authenticatedUsers engine.TxNode
+			dcsync             engine.TxNode
 		}
+		domains := map[windowssecurity.SID]domainParts{}
+		dnsRootOf := map[string]string{} // naming context -> DNS root
+		for _, domainNode := range FindDomainNodes(tx) {
+			ncname, netbiosname, dnsroot, domainsid, err := GetDomainInfo(domainNode, tx)
+			if err != nil {
+				ui.Warn().Msgf("Could not get needed domain information (%v), skipping domain", err)
+				continue
+			}
+			everyone := tx.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
+			authenticatedusers := tx.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
+			tx.EdgeTo(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup)
 
-		everyone := tx.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
-		if !everyone.Valid() {
-			ui.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
+			dcsync, _ := tx.FindTwoOrAdd(
+				engine.Name, engine.NV("DCsync"),
+				engine.DomainContext, engine.NV(ncname),
+				engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
+			)
+			dcsync.Tag("hvt")
+			domains[domainsid] = domainParts{authenticatedusers, dcsync}
+			dnsRootOf[strings.ToLower(ncname)] = strings.ToLower(dnsroot)
+
+			TrustMap.Store(TrustPair{
+				SourceNCName:  ncname,
+				SourceDNSRoot: strings.ToLower(dnsroot),
+				SourceNetbios: netbiosname,
+				SourceSID:     domainsid.String(),
+			}, TrustInfo{})
 		}
-
-		authenticatedusers := tx.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
-		if !authenticatedusers.Valid() {
-			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
-		}
-
-		tx.EdgeTo(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup)
-
-		ncname, netbiosname, dnsroot, domainsid, err := FindDomain(tx)
-		if err != nil {
-			ui.Fatal().Msgf("Could not get needed domain information (%v), aborting", err)
-		}
-
-		DCsyncObject, _ := tx.FindTwoOrAdd(
-			engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
-			engine.Name, engine.NV("DCsync"),
-		)
-		DCsyncObject.Tag("hvt")
-
-		dnsroot = strings.ToLower(dnsroot)
-		TrustMap.Store(TrustPair{
-			SourceNCName:  ncname,
-			SourceDNSRoot: dnsroot,
-			SourceNetbios: netbiosname,
-			SourceSID:     domainsid.String(),
-		}, TrustInfo{})
 
 		tx.Iterate(func(object *engine.Node) bool {
+			domain, inCollectedDomain := domains[object.SID().StripRID()]
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {
@@ -1268,9 +1261,8 @@ func init() {
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
-			if object.SID().Components() == 7 && object.SID().StripRID() == domainsid && object.Type() != engine.NodeTypeGroup {
-				// if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
-				tx.EdgeTo(object, authenticatedusers, activedirectory.EdgeMemberOfGroup)
+			if object.SID().Components() == 7 && inCollectedDomain && object.Type() != engine.NodeTypeGroup {
+				tx.EdgeTo(object, domain.authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
@@ -1307,7 +1299,9 @@ func init() {
 					// All DCs are members of Enterprise Domain Controllers
 					tx.EdgeTo(object, tx.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
 
-					tx.EdgeTo(object, DCsyncObject, activedirectory.EdgeCall)
+					if inCollectedDomain {
+						tx.EdgeTo(object, domain.dcsync, activedirectory.EdgeCall)
+					}
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
@@ -1421,6 +1415,7 @@ func init() {
 				attr, _ := object.AttrInt(activedirectory.TrustAttributes)
 
 				partner := object.OneAttrString(activedirectory.TrustPartner)
+				dnsroot := dnsRootOf[strings.ToLower(object.OneAttrString(engine.DomainContext))]
 
 				ui.Info().Msgf("Domain %v has a %v trust with %v", dnsroot, direction, partner)
 

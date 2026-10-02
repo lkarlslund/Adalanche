@@ -28,16 +28,16 @@ type loaderQueueItem struct {
 
 type LocalMachineLoader struct {
 	failed     atomic.Uint64
-	graphs     []*engine.IndexedGraph
+	target     engine.LoadTarget
 	infostoadd chan loaderQueueItem
 	done       sync.WaitGroup
-	mutex      sync.Mutex
 }
 
 func (ld *LocalMachineLoader) Name() string {
 	return Loadername
 }
-func (ld *LocalMachineLoader) Init() error {
+func (ld *LocalMachineLoader) Init(target engine.LoadTarget) error {
+	ld.target = target
 	ld.infostoadd = make(chan loaderQueueItem, 128)
 	for i := 0; i < min(runtime.GOMAXPROCS(0), 4); i++ {
 		ld.done.Add(1)
@@ -50,8 +50,7 @@ func (ld *LocalMachineLoader) Init() error {
 					continue
 				}
 
-				g := engine.NewLoaderObjects(ld)
-				tx := g.Begin("machine collection " + queueItem.path)
+				tx := ld.target.BeginCollection("machine collection " + queueItem.path)
 				computerobject, err := ImportCollectorInfo(tx, cinfo)
 
 				if err != nil {
@@ -70,9 +69,6 @@ func (ld *LocalMachineLoader) Init() error {
 					ui.Warn().Msgf("Problem committing machine collection %v: %v", queueItem.path, err)
 					continue
 				}
-				ld.mutex.Lock()
-				ld.graphs = append(ld.graphs, g)
-				ld.mutex.Unlock()
 
 				// Add progress
 				queueItem.cb(-estimatedNodesGenerated, 0)
@@ -82,14 +78,14 @@ func (ld *LocalMachineLoader) Init() error {
 	}
 	return nil
 }
-func (ld *LocalMachineLoader) Close() ([]*engine.IndexedGraph, error) {
+func (ld *LocalMachineLoader) Close() error {
 	close(ld.infostoadd)
 	ld.done.Wait()
 
 	if failures := ld.failed.Load(); failures != 0 {
-		return ld.graphs, fmt.Errorf("%d machine collections failed to import", failures)
+		return fmt.Errorf("%d machine collections failed to import", failures)
 	}
-	return ld.graphs, nil
+	return nil
 }
 
 func (ld *LocalMachineLoader) Estimate(path string, cb engine.ProgressCallbackFunc) error {

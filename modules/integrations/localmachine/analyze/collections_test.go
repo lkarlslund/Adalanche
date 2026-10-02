@@ -64,10 +64,7 @@ func TestCollectionsClaimingOneAccountAreKeptAndTagged(t *testing.T) {
 
 	// The same machines come out whatever order the graphs are merged in.
 	count := func(order []*engine.IndexedGraph) (machines int, mergedWithDirectory bool) {
-		merged, err := engine.MergeGraphs(order)
-		if err != nil {
-			t.Fatal(err)
-		}
+		merged := enginetest.Load(order...)
 		for _, m := range adanalyze.MachinesForComputer(merged, windowssecurity.MustParseStringSID(sharedAccount)) {
 			machines++
 			if m.HasTag(TagCollectionCurrent) && m.OneAttrString(engine.Name) == "WS01" {
@@ -93,10 +90,7 @@ func TestSingleCollectionMergesWithTheDirectoryMachine(t *testing.T) {
 	if machine.HasTag(TagComputerAccountShared) {
 		t.Error("a lone collection is tagged as sharing its account")
 	}
-	merged, err := engine.MergeGraphs([]*engine.IndexedGraph{directory, g})
-	if err != nil {
-		t.Fatal(err)
-	}
+	merged := enginetest.Load(directory, g)
 	machines := adanalyze.MachinesForComputer(merged, windowssecurity.MustParseStringSID(sharedAccount))
 	if len(machines) != 1 || !machines[0].HasAttr(lm.CollectedSettings) || machines[0].OneAttrString(engine.Name) != "WS01" {
 		t.Fatalf("got %v machines, want the collection merged with the directory's machine", len(machines))

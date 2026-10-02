@@ -2,9 +2,11 @@ package engine
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
@@ -19,8 +21,8 @@ import (
 //     each in attribute order. The first key with any match decides.
 //   - A reference folds into a real node only when exactly one compatible
 //     real node matches: the same type (or either is untyped), the same
-//     domain context when the reference has one, and no conflicting
-//     single-valued attribute. Several matches leave the
+//     domain context when the reference has one, and no single-valued
+//     attribute whose value the node lacks. Several matches leave the
 //     reference on its own, counted as ambiguous.
 //   - Matching runs in rounds against the real nodes as they were at the
 //     start of the round, so folds in one round never steer others in it.
@@ -28,18 +30,30 @@ import (
 //     directory folding into its collection brings its host name).
 //   - References that resolve to nothing are grouped with references of
 //     the same type sharing a key value, and each group becomes one node.
-func resolveReferences(g *IndexedGraph, refs []*Node, merged map[*Node]*Node) {
+//
+// It works in place: folded references leave the graph, and their edges
+// move to the node they stand for. It returns what was folded into what.
+func resolveReferences(g *IndexedGraph) map[*Node]*Node {
+	return resolveReferencesRemoving(g, nil)
+}
+
+// resolveReferencesRemoving is resolveReferences that also removes the given
+// nodes in the same compaction.
+func resolveReferencesRemoving(g *IndexedGraph, remove []*Node) map[*Node]*Node {
 	keys := referenceKeys()
 	conflicts := getConflictAttributes()
+	merged := map[*Node]*Node{}
+	for _, n := range remove {
+		merged[n] = nil
+	}
 
 	var unresolved []*Node
-	for _, ref := range refs {
-		if hasAnyKey(ref, keys) {
-			unresolved = append(unresolved, ref)
-		} else {
-			g.add(ref)
+	g.Iterate(func(n *Node) bool {
+		if isReference(n) && hasAnyKey(n, keys) {
+			unresolved = append(unresolved, n)
 		}
-	}
+		return true
+	})
 
 	folded := map[Attribute]int{}
 	ambiguous := map[Attribute]int{}
@@ -85,16 +99,16 @@ func resolveReferences(g *IndexedGraph, refs []*Node, merged map[*Node]*Node) {
 	}
 
 	groups := groupReferences(unresolved, keys, conflicts)
-	var grouped int
 	for _, group := range groups {
 		rep := group[0]
 		for _, other := range group[1:] {
 			rep.foldInto(other)
 			merged[other] = rep
-			grouped++
 		}
-		g.add(rep)
 	}
+	compactStart := time.Now()
+	g.compact(merged)
+	ui.Info().Msgf("Finishing loading: compaction took %v", time.Since(compactStart))
 
 	for a, n := range folded {
 		ui.Info().Msgf("References resolved by %v: %v", a.String(), n)
@@ -103,6 +117,13 @@ func resolveReferences(g *IndexedGraph, refs []*Node, merged map[*Node]*Node) {
 		ui.Warn().Msgf("References left on their own because %v matched several nodes: %v", a.String(), n)
 	}
 	ui.Info().Msgf("Unresolved references: %v, joined into %v nodes", len(unresolved), len(groups))
+	return merged
+}
+
+// isReference reports whether a node only stands for something: it has no
+// data source of its own.
+func isReference(n *Node) bool {
+	return !n.HasAttr(DataSource)
 }
 
 // referenceKeys lists the merge keys, strict before fuzzy.
@@ -143,9 +164,11 @@ func compatibleReference(ref, node *Node, conflicts []Attribute) bool {
 	if rc := ref.OneAttr(DomainContext); !rc.IsNil() && !CompareAttributeValues(rc, node.OneAttr(DomainContext)) {
 		return false
 	}
+	// A single-valued attribute conflicts when the reference's value is not
+	// among the node's (which can hold several after earlier folds).
 	for _, a := range conflicts {
 		rv, nv := ref.Attr(a), node.Attr(a)
-		if rv.Len() > 0 && nv.Len() > 0 && !CompareAttributeValues(rv.First(), nv.First()) {
+		if rv.Len() > 0 && nv.Len() > 0 && !slices.ContainsFunc(nv, func(v AttributeValue) bool { return CompareAttributeValues(v, rv.First()) }) {
 			return false
 		}
 	}
@@ -165,7 +188,7 @@ func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*N
 		values.Iterate(func(v AttributeValue) bool {
 			if found, ok := g.FindMulti(a, v); ok {
 				found.Iterate(func(n *Node) bool {
-					if n != match && compatibleReference(ref, n, conflicts) {
+					if n != match && !isReference(n) && compatibleReference(ref, n, conflicts) {
 						match = n
 						count++
 					}
@@ -188,6 +211,8 @@ func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*N
 // a key value. The order of references within and between groups comes
 // from their content, so the result does not depend on arrival order.
 func groupReferences(refs []*Node, keys, conflicts []Attribute) [][]*Node {
+	// Keys first, then everything else about the node, so that which node
+	// of a group is kept never comes from arrival order.
 	sortKey := func(n *Node) string {
 		var b strings.Builder
 		b.WriteString(n.Type().String())
@@ -198,6 +223,12 @@ func groupReferences(refs []*Node, keys, conflicts []Attribute) [][]*Node {
 				b.WriteByte(1)
 				return true
 			})
+		}
+		b.WriteByte(2)
+		b.WriteString(fmt.Sprint(n.ValueMap()))
+		if p := n.Parent(); p != nil {
+			b.WriteByte(3)
+			b.WriteString(p.DN() + "\x00" + p.Label())
 		}
 		return b.String()
 	}

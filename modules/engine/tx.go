@@ -1,7 +1,11 @@
 package engine
 
 import (
+	"cmp"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"github.com/lkarlslund/adalanche/modules/util"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -21,6 +25,17 @@ type Tx struct {
 	readOnly bool // no writes allowed
 	noReads  bool // write-only: no reads of the graph allowed
 	origin   *Tx  // the transaction this one was forked from, if any
+
+	// A load transaction (BeginLoad) reads only what it staged itself, and
+	// its writes to nodes that already exist are merged in as unions, so
+	// loaders committing in any order give the same graph.
+	load       bool
+	collection bool               // a load of one self-contained collection: identities resolve only within it
+	created    map[*Node]struct{} // nodes this transaction's commit added, for a collection
+	loader     string             // the loader's name, its dataLoader value; set, the transaction sees only that loader's nodes
+	loaderNV   AttributeValue
+	loadRoot   *Node // the loader's root node
+	loadValues []any // default values for nodes the loader creates
 
 	pending []*pendingNode               // in creation order, for a deterministic commit
 	byNode  map[*Node]*pendingNode       // base nodes this transaction writes to
@@ -61,6 +76,8 @@ type pendingNode struct {
 	ops []nodeOp // writes, replayed on the resolved node at commit
 
 	resolved *Node // set at commit
+	existed  bool  // the node was already in the graph when resolved
+	adopt    *Node // pendingKeyed from AddIdentified: the node to add when the identity is new
 }
 
 type nodeOpKind uint8
@@ -135,6 +152,52 @@ func (g *IndexedGraph) Begin(name string) *Tx {
 		byKey:  map[pendingKey]*pendingNode{},
 		edges:  map[[2]endpoint]*pendingEdge{},
 	}
+}
+
+// defaultValues are the values new nodes get: the loader's for a load
+// transaction, otherwise the graph's.
+func (tx *Tx) defaultValues() []any {
+	if tx.loader != "" {
+		return tx.loadValues
+	}
+	return tx.g.DefaultValues
+}
+
+// BeginLoad starts a load transaction for a loader: lookups see only what
+// the transaction staged, new nodes get values (such as the loader's name),
+// root is the loader's root node, and writes onto nodes another loader
+// already committed are merged in as unions.
+func (g *IndexedGraph) BeginLoad(name, loader string, root *Node) *Tx {
+	tx := g.Begin(name)
+	tx.load, tx.loadRoot = true, root
+	tx.scopeTo(loader)
+	return tx
+}
+
+// scopeTo limits a transaction to one loader's nodes: iteration and lookups
+// see only nodes with that data loader, nodes it creates get it, and
+// identities resolve among them. Before-merge processors run this way, as if
+// each loader had a graph of its own.
+func (tx *Tx) scopeTo(loader string) {
+	tx.loader, tx.loaderNV, tx.loadValues = loader, NV(loader), []any{DataLoader, NV(loader)}
+}
+
+func (tx *Tx) inScope(n *Node) bool {
+	return tx.loader == "" || n.HasAttrValue(DataLoader, tx.loaderNV)
+}
+
+func (tx *Tx) scoped(nodes NodeSlice) NodeSlice {
+	if tx.loader == "" {
+		return nodes
+	}
+	var result NodeSlice
+	nodes.Iterate(func(n *Node) bool {
+		if tx.inScope(n) {
+			result.Add(n)
+		}
+		return true
+	})
+	return result
 }
 
 // BeginWriteOnly starts a transaction that only writes, such as a loader:
@@ -321,8 +384,8 @@ func (tx *Tx) stage(p *pendingNode, view *Node) TxNode {
 // AddNew stages a new node with no identity: it is always added.
 func (tx *Tx) AddNew(flexinit ...any) TxNode {
 	view := NewNode(flexinit...)
-	if tx.g.DefaultValues != nil {
-		view.setFlex(tx.g.DefaultValues...)
+	if d := tx.defaultValues(); d != nil {
+		view.setFlex(d...)
 	}
 	return tx.stage(&pendingNode{kind: pendingNew}, view)
 }
@@ -330,10 +393,38 @@ func (tx *Tx) AddNew(flexinit ...any) TxNode {
 // Add stages a node built outside the graph, such as by a loader. It is
 // always added.
 func (tx *Tx) Add(o *Node) TxNode {
-	if tx.g.DefaultValues != nil {
-		o.setFlex(tx.g.DefaultValues...)
+	if d := tx.defaultValues(); d != nil {
+		o.setFlex(d...)
 	}
 	return tx.stage(&pendingNode{kind: pendingNew}, o)
+}
+
+// AddIdentified stages a node built outside the graph under an identity: the
+// value it has for key. Within the transaction, and at commit against the
+// graph, it becomes one node with any other holding that value; in a load
+// transaction its values are then merged in as unions. A node without a
+// value for key is staged as a new node.
+func (tx *Tx) AddIdentified(o *Node, key Attribute) TxNode {
+	value := o.OneAttr(key)
+	if value.IsNil() {
+		return tx.Add(o)
+	}
+	var flex []any
+	o.AttrIterator(func(attr Attribute, values AttributeValues) bool {
+		flex = append(flex, attr, values)
+		return true
+	})
+	k := pendingKey{attr1: key, value1: value, attr2: NonExistingAttribute}
+	if p, found := tx.byKey[k]; found {
+		return TxNode{tx: tx, p: p}.SetFlex(flex...)
+	}
+	if d := tx.defaultValues(); d != nil {
+		o.setFlex(d...)
+		flex = append(flex, d...)
+	}
+	p := &pendingNode{kind: pendingKeyed, key: k, init: flex, adopt: o}
+	tx.byKey[k] = p
+	return tx.stage(p, o)
 }
 
 // FindOrAdd returns the node with attribute set to value, or stages a new
@@ -353,7 +444,7 @@ func (tx *Tx) findOrAddKeyed(attribute Attribute, value AttributeValue, attribut
 		attribute, attribute2 = attribute2, attribute
 		value, value2 = value2, value
 	}
-	if !tx.noReads {
+	if !tx.noReads && !tx.load {
 		var found NodeSlice
 		var ok bool
 		if attribute2 == NonExistingAttribute {
@@ -375,9 +466,12 @@ func (tx *Tx) findOrAddKeyed(attribute Attribute, value AttributeValue, attribut
 	} else {
 		init = append(init, attribute, value)
 	}
+	if tx.loader != "" {
+		init = append(init, tx.loadValues...)
+	}
 	view := NewNode(init...)
-	if tx.g.DefaultValues != nil {
-		view.setFlex(tx.g.DefaultValues...)
+	if d := tx.defaultValues(); d != nil {
+		view.setFlex(d...)
 	}
 	p := &pendingNode{kind: pendingKeyed, key: key, init: init}
 	tx.byKey[key] = p
@@ -399,8 +493,8 @@ func (tx *Tx) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo NodeRe
 		rel = relativeTo.endpointIn(tx)
 		relNode = tx.endpointView(rel)
 	}
-	if !tx.noReads && (relNode == nil || rel.p == nil || rel.p.kind == pendingBase) {
-		if found, ok := tx.g.findAdjacentSID(s, relNode); ok {
+	if !tx.noReads && !tx.load && (relNode == nil || rel.p == nil || rel.p.kind == pendingBase) {
+		if found, ok := tx.baseAdjacentSID(s, relNode); ok {
 			return tx.handleFor(found), true
 		}
 	}
@@ -413,8 +507,8 @@ func (tx *Tx) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo NodeRe
 	}
 	view := NewNode(IgnoreBlanks, ObjectSid, NVSID(s), key.scopeAttr, key.scope)
 	view.setFlex(flexinit...)
-	if tx.g.DefaultValues != nil {
-		view.setFlex(tx.g.DefaultValues...)
+	if d := tx.defaultValues(); d != nil {
+		view.setFlex(d...)
 	}
 	p := &pendingNode{kind: pendingSID, key: key, init: slices.Clone(flexinit), relativeTo: rel}
 	tx.byKey[key] = p
@@ -519,7 +613,13 @@ func (tx *Tx) stagedLookup(a Attribute, v AttributeValue) NodeSlice {
 
 func (tx *Tx) Graph() *IndexedGraph { return tx.g }
 
-func (tx *Tx) Root() *Node { tx.checkRead(); return tx.g.Root() }
+func (tx *Tx) Root() *Node {
+	tx.checkRead()
+	if tx.loadRoot != nil {
+		return tx.loadRoot
+	}
+	return tx.g.Root()
+}
 
 func (tx *Tx) Order() int { tx.checkRead(); return tx.g.Order() }
 
@@ -527,6 +627,14 @@ func (tx *Tx) Order() int { tx.checkRead(); return tx.g.Order() }
 // began; nodes the transaction adds are not visited.
 func (tx *Tx) Iterate(each func(o *Node) bool) {
 	tx.checkRead()
+	if tx.loader != "" {
+		for _, o := range tx.scopeNodes() {
+			if !each(o) {
+				return
+			}
+		}
+		return
+	}
 	tx.g.IterateStable(each)
 }
 
@@ -534,7 +642,55 @@ func (tx *Tx) Iterate(each func(o *Node) bool) {
 // write to the transaction; use Fork for parallel writes.
 func (tx *Tx) IterateParallel(each func(o *Node) bool, parallelFuncs int) {
 	tx.checkRead()
+	if tx.loader != "" {
+		nodes := tx.scopeNodes()
+		if parallelFuncs == 0 {
+			parallelFuncs = runtime.NumCPU()
+		}
+		var next atomic.Int64
+		var stop atomic.Bool
+		var wg sync.WaitGroup
+		for range parallelFuncs {
+			wg.Go(func() {
+				for !stop.Load() {
+					i := next.Add(1) - 1
+					if i >= int64(len(nodes)) {
+						return
+					}
+					if !each(nodes[i]) {
+						stop.Store(true)
+					}
+				}
+			})
+		}
+		wg.Wait()
+		return
+	}
 	tx.g.IterateParallelStable(each, parallelFuncs)
+}
+
+// scopeNodes returns the nodes of the transaction's loader in graph order,
+// found through the loader index instead of a scan of the whole graph.
+func (tx *Tx) scopeNodes() []*Node {
+	found, _ := tx.g.FindMulti(DataLoader, tx.loaderNV)
+	type positioned struct {
+		at   NodeIndex
+		node *Node
+	}
+	nodes := make([]positioned, 0, found.Len())
+	found.Iterate(func(n *Node) bool {
+		// The index can hold values a node no longer has.
+		if at, ok := tx.g.nodeToIndex(n); ok && tx.inScope(n) {
+			nodes = append(nodes, positioned{at, n})
+		}
+		return true
+	})
+	slices.SortFunc(nodes, func(a, b positioned) int { return cmp.Compare(a.at, b.at) })
+	result := make([]*Node, len(nodes))
+	for i, p := range nodes {
+		result[i] = p.node
+	}
+	return result
 }
 
 func (tx *Tx) Find(attribute Attribute, value AttributeValue) (*Node, bool) {
@@ -547,7 +703,13 @@ func (tx *Tx) Find(attribute Attribute, value AttributeValue) (*Node, bool) {
 
 func (tx *Tx) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
 	tx.checkRead()
-	nodes, found := tx.g.FindMulti(attribute, value)
+	var nodes NodeSlice
+	var found bool
+	if !tx.load {
+		nodes, _ = tx.g.FindMulti(attribute, value)
+		nodes = tx.scoped(nodes)
+		found = nodes.Len() > 0
+	}
 	if staged := tx.stagedLookup(attribute, value); staged.Len() > 0 {
 		nodes = joinNodeSlices(nodes, staged)
 		found = true
@@ -565,7 +727,13 @@ func (tx *Tx) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attr
 
 func (tx *Tx) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (NodeSlice, bool) {
 	tx.checkRead()
-	nodes, found := tx.g.FindTwoMulti(attribute, value, attribute2, value2)
+	var nodes NodeSlice
+	var found bool
+	if !tx.load {
+		nodes, _ = tx.g.FindTwoMulti(attribute, value, attribute2, value2)
+		nodes = tx.scoped(nodes)
+		found = nodes.Len() > 0
+	}
 	staged := tx.stagedLookup(attribute, value)
 	if staged.Len() > 0 {
 		var both NodeSlice
@@ -591,8 +759,10 @@ func joinNodeSlices(a, b NodeSlice) NodeSlice {
 
 func (tx *Tx) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
 	tx.checkRead()
-	if found, ok := tx.g.findAdjacentSID(s, relativeTo); ok {
-		return found, true
+	if !tx.load {
+		if found, ok := tx.baseAdjacentSID(s, relativeTo); ok {
+			return found, true
+		}
 	}
 	if p, found := tx.byKey[sidKey(s, relativeTo)]; found {
 		return p.view, true
@@ -603,7 +773,27 @@ func (tx *Tx) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, b
 // findStagedAdjacentSID finds a staged node for a SID as seen from
 // relativeTo, with the scopes of IndexedGraph.FindAdjacentSID.
 func (tx *Tx) findStagedAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
-	candidates := tx.stagedLookup(ObjectSid, NVSID(s))
+	return adjacentSIDAmong(tx.stagedLookup(ObjectSid, NVSID(s)), s, relativeTo)
+}
+
+// findScopedAdjacentSID finds a node of the transaction's loader for a SID
+// as seen from relativeTo, ignoring other loaders' nodes for the same SID.
+func (tx *Tx) findScopedAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
+	nodes, _ := tx.g.FindMulti(ObjectSid, NVSID(s))
+	return adjacentSIDAmong(tx.scoped(nodes), s, relativeTo)
+}
+
+// baseAdjacentSID looks a SID up in the graph, as the transaction may see it.
+func (tx *Tx) baseAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
+	if tx.loader != "" {
+		return tx.findScopedAdjacentSID(s, relativeTo)
+	}
+	return tx.g.findAdjacentSID(s, relativeTo)
+}
+
+// adjacentSIDAmong picks the node for a SID as seen from relativeTo among
+// candidates with that SID, with the scopes of IndexedGraph.FindAdjacentSID.
+func adjacentSIDAmong(candidates NodeSlice, s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
 	if candidates.Len() == 0 {
 		return nil, false
 	}
@@ -650,8 +840,10 @@ func (tx *Tx) findStagedAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*N
 
 func (tx *Tx) DistinguishedParent(o *Node) (*Node, bool) {
 	tx.checkRead()
-	if parent, found := tx.g.DistinguishedParent(o); found {
-		return parent, true
+	if !tx.load {
+		if parent, found := tx.g.DistinguishedParent(o); found && tx.inScope(parent) {
+			return parent, true
+		}
 	}
 	if parentDN := parentDistinguishedName(o.DN()); parentDN != "" {
 		return tx.Find(DistinguishedName, NV(parentDN))
@@ -752,6 +944,10 @@ func (tx *Tx) Fork(count int) []*Tx {
 		forks[i] = tx.g.Begin(tx.name)
 		forks[i].noReads, forks[i].readOnly = tx.noReads, tx.readOnly
 		forks[i].origin = tx.root()
+		forks[i].load, forks[i].loadRoot = tx.load, tx.loadRoot
+		if tx.loader != "" {
+			forks[i].scopeTo(tx.loader)
+		}
 	}
 	return forks
 }

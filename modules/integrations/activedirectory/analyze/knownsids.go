@@ -61,6 +61,21 @@ func FindDomain(ao engine.GraphReader) (domaincontext, netbiosname, dnssuffix st
 	return GetDomainInfo(domain, ao)
 }
 
+// FindDomainNodes returns the domain objects in the graph: the domainDNS
+// objects with a SID.
+func FindDomainNodes(ao engine.GraphReader) []*engine.Node {
+	var domains []*engine.Node
+	if found, ok := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS")); ok {
+		found.Iterate(func(n *engine.Node) bool {
+			if n.HasAttr(engine.ObjectSid) {
+				domains = append(domains, n)
+			}
+			return true
+		})
+	}
+	return domains
+}
+
 func FindDomainNode(ao engine.GraphReader) (domain *engine.Node, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {

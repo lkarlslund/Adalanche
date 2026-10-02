@@ -80,8 +80,8 @@ func TestReferenceFoldMovesRelationshipsAndValues(t *testing.T) {
 	source.adopt(child)
 
 	graph := testGraph(parent, target, child)
-	merged := map[*Node]*Node{}
-	resolveReferences(graph, []*Node{source}, merged)
+	addRefs(graph, source)
+	merged := resolveReferences(graph)
 	if merged[source] != target {
 		t.Fatal("expected the reference to fold into the real node")
 	}

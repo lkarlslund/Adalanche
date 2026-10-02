@@ -85,7 +85,23 @@ func (o *Node) runlock() {
 // foldInto merges a reference into the node it stands for: its values,
 // its place in the tree and its children. The reference is discarded.
 func (target *Node) foldInto(source *Node) {
+	// Attributes both had end up sorted, so folding A into B and B into A
+	// give the same values.
+	var both []Attribute
+	source.AttrIterator(func(attr Attribute, _ AttributeValues) bool {
+		if target.HasAttr(attr) {
+			both = append(both, attr)
+		}
+		return true
+	})
 	target.absorb(source)
+	for _, attr := range both {
+		if values := target.Attr(attr); values.Len() > 1 {
+			sorted := slices.Clone(values)
+			sorted.Sort()
+			target.set(attr, sorted...)
+		}
+	}
 	if source.parent != nil {
 		parent := source.parent
 		if target.parent == nil {
@@ -572,6 +588,32 @@ func hasTag(tags AttributeValues, found bool, v string) bool {
 		return true
 	})
 	return exists
+}
+
+// union adds the values an attribute does not have yet. When the node
+// already had values, the result is sorted, so the same values arrive at the
+// same order whichever came first. It reports whether anything changed.
+func (o *Node) union(a Attribute, values AttributeValues) bool {
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	existing, _ := o.values.get(a)
+	var missing AttributeValues
+	for _, v := range values {
+		if !slices.ContainsFunc(existing, func(e AttributeValue) bool { return CompareAttributeValues(e, v) }) &&
+			!slices.ContainsFunc(missing, func(e AttributeValue) bool { return CompareAttributeValues(e, v) }) {
+			missing = append(missing, v)
+		}
+	}
+	if len(missing) == 0 {
+		return false
+	}
+	merged := make(AttributeValues, 0, len(existing)+len(missing))
+	merged = append(append(merged, existing...), missing...)
+	if len(existing) > 0 {
+		merged.Sort()
+	}
+	o.setNoLock(a, merged)
+	return true
 }
 
 func (o *Node) add(a Attribute, values ...AttributeValue) {

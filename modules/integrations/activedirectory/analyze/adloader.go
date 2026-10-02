@@ -39,10 +39,10 @@ type convertqueueitem struct {
 	shard  *adShard
 }
 
-// adShard is the graph for one folder of AD data, filled through a single
-// transaction committed when loading is done.
+// adShard is one folder of AD data, staged in one load transaction that is
+// committed when loading is done. Objects are identified by DN, so an object
+// seen from several domains (such as the schema) becomes one node.
 type adShard struct {
-	ao      *engine.IndexedGraph
 	lock    sync.Mutex
 	tx      *engine.Tx
 	handles []engine.TxNode
@@ -50,12 +50,13 @@ type adShard struct {
 
 func (s *adShard) add(o *engine.Node) {
 	s.lock.Lock()
-	s.handles = append(s.handles, s.tx.Add(o))
+	s.handles = append(s.handles, s.tx.AddIdentified(o, engine.DistinguishedName))
 	s.lock.Unlock()
 }
 
 type ADLoader struct {
 	failed atomic.Uint64
+	target engine.LoadTarget
 
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
@@ -79,7 +80,8 @@ func (ld *ADLoader) Name() string {
 	return adsource.String()
 }
 
-func (ld *ADLoader) Init() error {
+func (ld *ADLoader) Init(target engine.LoadTarget) error {
+	ld.target = target
 	ld.importcnf = *importcnf
 	ld.importdel = *importdel
 
@@ -150,8 +152,7 @@ func (ld *ADLoader) getShard(path string) *adShard {
 	if shard, found := ld.shardobjects.Load(folder); found {
 		return shard
 	}
-	ao := engine.NewLoaderObjects(ld)
-	shard, _ := ld.shardobjects.LoadOrStore(folder, &adShard{ao: ao, tx: ao.Begin("AD objects from " + folder)})
+	shard, _ := ld.shardobjects.LoadOrStore(folder, &adShard{tx: ld.target.Begin("AD objects from " + folder)})
 	return shard
 }
 
@@ -252,11 +253,10 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) (resultErr
 	return engine.ErrUninterested
 }
 
-func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
+func (ld *ADLoader) Close() error {
 	close(ld.objectstoconvert)
 	ld.done.Wait()
 
-	var aos []*engine.IndexedGraph
 	var commitErr error
 	failures := ld.failed.Load()
 	ld.shardobjects.Range(func(path string, shard *adShard) bool {
@@ -267,7 +267,6 @@ func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
 			} else {
 				// Indicate from which domain we saw this if we have the data
 				nb := engine.NV(netbiosname)
-				shard.tx.Node(shard.ao.Root()).SetFlex(engine.DataSource, nb)
 				for _, h := range shard.handles {
 					h.SetFlex(engine.DataSource, nb)
 				}
@@ -277,31 +276,27 @@ func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
 			commitErr = err
 		}
 		shard.handles = nil
-		aos = append(aos, shard.ao)
 		return true // next
 	})
 	if failures != 0 {
-		return aos, fmt.Errorf("%d AD collections failed to import", failures)
+		return fmt.Errorf("%d AD collections failed to import", failures)
 	}
 	if commitErr != nil {
-		return aos, commitErr
+		return commitErr
 	}
 
-	if len(aos) > 0 && len(ld.usernamesfiles) > 0 {
+	if len(ld.usernamesfiles) > 0 {
 		// Add special object to find the files later
 		var v engine.AttributeValues
 		for _, uf := range ld.usernamesfiles {
 			v = append(v, engine.NV(uf))
 		}
-		tx := aos[0].BeginWriteOnly("AD usernames files")
+		tx := ld.target.Begin("AD usernames files")
 		tx.AddNew(
 			engine.Name, engine.NV("$$USERNAMEFILES$$"),
 			engine.A("files"), v,
 		)
-		if err := tx.Commit(); err != nil {
-			return aos, err
-		}
+		return tx.Commit()
 	}
-
-	return aos, nil
+	return nil
 }

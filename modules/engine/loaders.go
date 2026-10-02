@@ -18,16 +18,81 @@ type LoaderID int
 type Loader interface {
 	Name() string
 
-	// Init is called before any loads are done
-	Init() error
+	// Init is called before any loads are done, with where to load to.
+	Init(target LoadTarget) error
 
 	// Load will be offered a file, and can either return UnininterestedError, nil or any error it
 	// wishes. UninterestedError will pass the file to the next loader, Nil means it accepted and processed the file,
 	// and any other error will stop processing the file and display an error
 	Load(path string, cb ProgressCallbackFunc) error
 
-	// Close signals that no more files are coming
-	Close() ([]*IndexedGraph, error)
+	// Close signals that no more files are coming. Everything the loader
+	// staged must be committed when it returns.
+	Close() error
+}
+
+// LoadTarget is where a loader writes: the shared graph, through load
+// transactions (see BeginLoad), under the loader's own root node.
+type LoadTarget struct {
+	graph *IndexedGraph
+	id    LoaderID
+	root  *Node
+	name  string
+}
+
+// NewLoadTarget makes a root node for a loader and returns the target for
+// it. The root joins g with the loader's first commit, so a loader that finds
+// nothing leaves nothing behind.
+func NewLoadTarget(g *IndexedGraph, loaderName string) LoadTarget {
+	return newLoadTarget(g, -1, loaderName)
+}
+
+func newLoadTarget(g *IndexedGraph, id LoaderID, loaderName string) LoadTarget {
+	root := NewNode(Name, NV(loaderName), DataLoader, NV(loaderName))
+	t := LoadTarget{graph: g, id: id, root: root, name: loaderName}
+	t.register()
+	return t
+}
+
+// register records whose nodes the loader's before-merge processors see.
+func (t LoadTarget) register() {
+	if t.id < 0 {
+		return
+	}
+	if t.graph.loaderScopes == nil {
+		t.graph.loaderScopes = map[LoaderID]string{}
+	}
+	t.graph.loaderScopes[t.id] = t.name
+}
+
+// Begin starts a load transaction for the loader. Its identities resolve
+// among everything the loader committed, such as the same directory object
+// seen from several domains.
+func (t LoadTarget) Begin(name string) *Tx {
+	return t.graph.BeginLoad(name, t.name, t.root)
+}
+
+// BeginCollection starts a load transaction for one self-contained
+// collection, such as one machine's: the identities it stages resolve only
+// within it, never with another collection's, even when they look alike
+// (two machines with the same name). Other data joins it when references are
+// resolved after loading.
+func (t LoadTarget) BeginCollection(name string) *Tx {
+	tx := t.graph.BeginLoad(name, t.name, t.root)
+	tx.collection = true
+	return tx
+}
+
+// Root is the loader's root node.
+func (t LoadTarget) Root() *Node { return t.root }
+
+// As returns the target under another loader name: its nodes carry that
+// name as their data loader and resolve identities among that loader's
+// nodes, for a loader that loads another's kind of data.
+func (t LoadTarget) As(loaderName string) LoadTarget {
+	t.name = loaderName
+	t.register()
+	return t
 }
 
 type LoaderEstimator interface {
@@ -47,25 +112,8 @@ func AddLoader(lg LoaderGenerator) LoaderID {
 	return LoaderID(len(loadergenerators) - 1)
 }
 
-func NewLoaderObjects(ld Loader) *IndexedGraph {
-	aos := NewIndexedGraph()
-	aos.AddDefaultFlex(DataLoader, NV(ld.Name()))
-
-	// Add the root node
-	rootnode := NewNode(Name, ld.Name())
-	aos.add(rootnode)
-	aos.setRoot(rootnode)
-
-	return aos
-}
-
-type loaderGraphInfo struct {
-	Loader  Loader
-	Objects *IndexedGraph
-}
-
 // loadWithLoaders runs all registered loaders
-func loadWithLoaders(loaders []Loader, paths []string, cb ProgressCallbackFunc) ([]loaderGraphInfo, error) {
+func loadWithLoaders(g *IndexedGraph, loaders []Loader, paths []string, cb ProgressCallbackFunc) error {
 	type fs struct {
 		filename string
 		size     int64
@@ -155,31 +203,16 @@ func loadWithLoaders(loaders []Loader, paths []string, cb ProgressCallbackFunc) 
 	fileQueueWG.Wait()
 
 	var globalerr error
-	var totalNodes int
-
 	ui.Info().Msgf("Loaded %v files, skipped %v files", len(files)-int(skipped), skipped)
-
-	var aos []loaderGraphInfo
-
+	before := g.Order()
 	for _, loader := range loaders {
-		los, err := loader.Close()
-		if err != nil {
+		if err := loader.Close(); err != nil {
 			globalerr = err
 		}
-
-		var loaderproduced int
-
-		for _, lo := range los {
-			loaderproduced += lo.Order()
-			totalNodes += lo.Order()
-			aos = append(aos, loaderGraphInfo{loader, lo})
-		}
-		ui.Info().Msgf("Loader %v produced %v nodes in %v graphs", loader.Name(), loaderproduced, len(los))
+		ui.Info().Msgf("Loader %v done, graph has %v nodes", loader.Name(), g.Order())
 	}
-	ui.Info().Msgf("Loaded a total of %v nodes", totalNodes)
-	if totalNodes == 0 {
+	if g.Order() == before {
 		globalerr = errors.New("no nodes loaded")
 	}
-
-	return aos, globalerr
+	return globalerr
 }
