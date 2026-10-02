@@ -5,6 +5,7 @@ import (
 
 	"github.com/gobwas/glob"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 )
 
 func TestNodeFilterExecuteUsesIndexWhenAvailable(t *testing.T) {
@@ -13,8 +14,8 @@ func TestNodeFilterExecuteUsesIndexWhenAvailable(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "Alpha")
 	beta := engine.NewNode(engine.Name, "Beta")
 	graph := engine.NewIndexedGraph()
-	graph.Add(alpha)
-	graph.Add(beta)
+	enginetest.Add(graph, alpha)
+	enginetest.Add(graph, beta)
 
 	result := NodeFilterExecute(FilterOneAttribute{
 		Attribute: engine.Name,
@@ -34,8 +35,8 @@ func TestNodeFilterExecuteFallsBackForNonIndexedFilter(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "Alpha")
 	beta := engine.NewNode(engine.Name, "Beta")
 	graph := engine.NewIndexedGraph()
-	graph.Add(alpha)
-	graph.Add(beta)
+	enginetest.Add(graph, alpha)
+	enginetest.Add(graph, beta)
 
 	result := NodeFilterExecute(FilterOneAttribute{
 		Attribute: engine.Name,

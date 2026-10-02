@@ -13,7 +13,7 @@ func TestIndexedGraphEdgeRoundTripAndClear(t *testing.T) {
 	to := testNamedNode("to")
 	graph := testGraph(from, to)
 
-	graph.EdgeTo(from, to, canControl)
+	graph.edgeTo(from, to, canControl)
 
 	edge, found := graph.GetEdge(from, to)
 	if !found || !edge.IsSet(canControl) {
@@ -23,7 +23,7 @@ func TestIndexedGraphEdgeRoundTripAndClear(t *testing.T) {
 		t.Fatal("expected reverse inbound edge to be visible")
 	}
 
-	graph.EdgeClear(from, to, canControl)
+	graph.edgeClear(from, to, canControl)
 	edge, found = graph.GetEdge(from, to)
 	if found || !edge.IsBlank() {
 		t.Fatal("expected cleared edge to be removed")
@@ -40,17 +40,17 @@ func TestIndexedGraphEdgeSkipsSelfLoopsAndSameSIDUnlessForced(t *testing.T) {
 	peer := testNode(Name, "peer", ObjectSid, sid)
 	graph := testGraph(node, peer)
 
-	graph.EdgeTo(node, node, edgeType)
+	graph.edgeTo(node, node, edgeType)
 	if graph.Edges(node, Out).Len() != 0 {
 		t.Fatal("expected self-loop to be ignored")
 	}
 
-	graph.EdgeTo(node, peer, edgeType)
+	graph.edgeTo(node, peer, edgeType)
 	if graph.Edges(node, Out).Len() != 0 {
 		t.Fatal("expected same-SID edge to be ignored without force")
 	}
 
-	graph.EdgeToEx(node, peer, edgeType, true)
+	graph.edgeToEx(node, peer, edgeType, true)
 	edge, found := graph.GetEdge(node, peer)
 	if !found || !edge.IsSet(edgeType) {
 		t.Fatal("expected forced same-SID edge to be stored")
@@ -64,8 +64,8 @@ func TestIndexedGraphSetEdgeMerge(t *testing.T) {
 	to := testNamedNode("to")
 	graph := testGraph(from, to)
 
-	graph.SetEdge(from, to, EdgeBitmap{}.Set(first), false)
-	graph.SetEdge(from, to, EdgeBitmap{}.Set(second), true)
+	graph.setEdge(from, to, EdgeBitmap{}.Set(first), false)
+	graph.setEdge(from, to, EdgeBitmap{}.Set(second), true)
 
 	edge, found := graph.GetEdge(from, to)
 	if !found {
@@ -83,8 +83,8 @@ func TestIndexedGraphSetEdgeOverwriteAndBlankRemoval(t *testing.T) {
 	to := testNamedNode("to")
 	graph := testGraph(from, to)
 
-	graph.SetEdge(from, to, EdgeBitmap{}.Set(first), false)
-	graph.SetEdge(from, to, EdgeBitmap{}.Set(second), false)
+	graph.setEdge(from, to, EdgeBitmap{}.Set(first), false)
+	graph.setEdge(from, to, EdgeBitmap{}.Set(second), false)
 
 	edge, found := graph.GetEdge(from, to)
 	if !found {
@@ -94,13 +94,13 @@ func TestIndexedGraphSetEdgeOverwriteAndBlankRemoval(t *testing.T) {
 		t.Fatalf("expected overwrite to replace prior bitmap, got %v", edge.Edges())
 	}
 
-	graph.SetEdge(from, to, EdgeBitmap{}, false)
+	graph.setEdge(from, to, EdgeBitmap{}, false)
 	edge, found = graph.GetEdge(from, to)
 	if found || !edge.IsBlank() {
 		t.Fatal("expected blank bitmap to remove edge")
 	}
 
-	graph.SetEdge(from, to, EdgeBitmap{}, false)
+	graph.setEdge(from, to, EdgeBitmap{}, false)
 	edge, found = graph.GetEdge(from, to)
 	if found || !edge.IsBlank() {
 		t.Fatal("expected repeated blank overwrite to remain removed")
@@ -141,7 +141,7 @@ func TestIndexedGraphConcurrentEdgeWritesAndReads(t *testing.T) {
 			for j := range 200 {
 				from := nodes[(worker+j)%len(nodes)]
 				to := nodes[(worker+j+1)%len(nodes)]
-				graph.EdgeToEx(from, to, canControl, true)
+				graph.edgeToEx(from, to, canControl, true)
 				_, _ = graph.GetEdge(from, to)
 			}
 		}(i)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/graph"
 )
 
@@ -145,9 +146,9 @@ func TestPathArenaCommitAndFlush(t *testing.T) {
 	a := engine.NewNode(engine.Name, "A")
 	b := engine.NewNode(engine.Name, "B")
 	c := engine.NewNode(engine.Name, "C")
-	ao.Add(a)
-	ao.Add(b)
-	ao.Add(c)
+	enginetest.Add(ao, a)
+	enginetest.Add(ao, b)
+	enginetest.Add(ao, c)
 	ia, _ := ao.NodeIndexOf(a)
 	ib, _ := ao.NodeIndexOf(b)
 	ic, _ := ao.NodeIndexOf(c)

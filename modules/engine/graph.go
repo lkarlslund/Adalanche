@@ -32,6 +32,8 @@ type IndexedGraph struct {
 	idLookup   gsync.MapOf[NodeID, *Node]    // node ID -> node, read without locking
 	nodes      []*Node                       // All objects, int -> *Node
 
+	commitMutex sync.Mutex // one commit at a time
+
 	// propertySets caches the property set (attributeSecurityGUID) each
 	// attribute GUID belongs to, as found in this graph's schema.
 	propertySets gsync.MapOf[uuid.UUID, uuid.UUID]
@@ -213,7 +215,7 @@ func (os *IndexedGraph) refreshMultiIndex(attribute, attribute2 Attribute, index
 	})
 }
 
-func (os *IndexedGraph) SetRoot(ro *Node) {
+func (os *IndexedGraph) setRoot(ro *Node) {
 	os.root = ro
 }
 
@@ -234,7 +236,7 @@ func (os *IndexedGraph) DropIndex(attribute Attribute) {
 	os.indexlock.Unlock()
 }
 
-func (os *IndexedGraph) ReindexObject(o *Node, isnew bool) {
+func (os *IndexedGraph) reindexObject(o *Node, isnew bool) {
 	// Single attribute indexes
 	os.indexlock.RLock()
 	for i, index := range os.indexes {
@@ -293,37 +295,53 @@ func (os *IndexedGraph) Filter(evaluate func(o *Node) bool) *IndexedGraph {
 
 	os.IterateStable(func(n *Node) bool {
 		if evaluate(n) {
-			result.Add(n)
+			result.add(n)
 		}
 		return true
 	})
 	return result
 }
 
-func (os *IndexedGraph) AddNew(flexinit ...any) *Node {
+// NewResultGraph returns a graph holding nodes of another graph, such as the
+// results of a query. The nodes are shared, not copied, and a node listed
+// more than once is held once. It has no edges.
+func NewResultGraph(nodes ...NodeSlice) *IndexedGraph {
+	result := NewIndexedGraph()
+	for _, ns := range nodes {
+		ns.Iterate(func(n *Node) bool {
+			if !result.Contains(n) {
+				result.add(n)
+			}
+			return true
+		})
+	}
+	return result
+}
+
+func (os *IndexedGraph) addNew(flexinit ...any) *Node {
 	o := NewNode(flexinit...)
 	if os.DefaultValues != nil {
 		o.setFlex(os.DefaultValues...)
 	}
-	os.AddMerge(nil, nil, o)
+	os.addMerge(nil, nil, o)
 	return o
 }
 
-func (os *IndexedGraph) Add(obs *Node) {
+func (os *IndexedGraph) add(obs *Node) {
 	os.nodeMutex.Lock() // This is due to FindOrAdd consistency
-	os.add(obs)
+	os.addUnlocked(obs)
 	os.nodeMutex.Unlock()
 }
 
-func (os *IndexedGraph) AddMerge(mergeAttr, conflictAttr []Attribute, nodes ...*Node) {
+func (os *IndexedGraph) addMerge(mergeAttr, conflictAttr []Attribute, nodes ...*Node) {
 	for _, inconingNode := range nodes {
 		var processed bool
 		if len(mergeAttr) > 0 {
-			_, processed = os.Merge(mergeAttr, conflictAttr, inconingNode)
+			_, processed = os.merge(mergeAttr, conflictAttr, inconingNode)
 		}
 		if !processed {
 			os.nodeMutex.Lock() // This is due to FindOrAdd consistency
-			os.add(inconingNode)
+			os.addUnlocked(inconingNode)
 			os.nodeMutex.Unlock()
 		}
 	}
@@ -355,7 +373,7 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 }
 
 // Attemps to merge the node into the objects
-func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node) (*Node, bool) {
+func (os *IndexedGraph) merge(attrtomerge, singleattrs []Attribute, source *Node) (*Node, bool) {
 	var mergedTo *Node
 	var merged bool
 
@@ -418,9 +436,9 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
 						attributeinfos[int(mergeattr)].mergeSuccesses.Add(1)
 
-						target.Absorb(source)
+						target.absorb(source)
 
-						os.ReindexObject(target, false)
+						os.reindexObject(target, false)
 						mergedTo = target
 						merged = true
 						return false
@@ -476,7 +494,7 @@ func (os *IndexedGraph) Merge(attrtomerge, singleattrs []Attribute, source *Node
 	return mergedTo, merged
 }
 
-func (os *IndexedGraph) add(newNode *Node) {
+func (os *IndexedGraph) addUnlocked(newNode *Node) {
 	index := NodeIndex(len(os.nodes))
 	if _, found := os.nodeLookup.LoadOrStore(newNode, index); !found {
 		if os.DefaultValues != nil {
@@ -486,14 +504,14 @@ func (os *IndexedGraph) add(newNode *Node) {
 		if newNode.id != InvalidNodeID {
 			os.idLookup.Store(newNode.id, newNode)
 		}
-		os.ReindexObject(newNode, true)
+		os.reindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	} else {
 		panic("Node already exists in graph, so we can't add it")
 	}
 }
 
-func (os *IndexedGraph) AddRelaxed(newNode *Node) {
+func (os *IndexedGraph) addRelaxed(newNode *Node) {
 	os.nodeMutex.Lock()
 	index := NodeIndex(len(os.nodes))
 	if _, found := os.nodeLookup.LoadOrStore(newNode, index); !found {
@@ -504,7 +522,7 @@ func (os *IndexedGraph) AddRelaxed(newNode *Node) {
 		if newNode.id != InvalidNodeID {
 			os.idLookup.Store(newNode.id, newNode)
 		}
-		os.ReindexObject(newNode, true)
+		os.reindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	}
 	os.nodeMutex.Unlock()
@@ -648,37 +666,15 @@ func (os *IndexedGraph) IterateParallelStable(each func(o *Node) bool, parallelF
 	wg.Wait()
 }
 
-func (os *IndexedGraph) MergeOrAdd(attribute Attribute, value AttributeValue, flexinit ...any) (*Node, bool) {
-	results, found := os.FindMultiOrAdd(attribute, value, func() *Node {
-		// Add this is not found
-		return NewNode(append(flexinit, attribute, value)...)
-	})
-	if found {
-		eatme := NewNode(append(flexinit, attribute, value)...)
-		// Use the first one found
-		target := results.First()
-		target.Absorb(eatme)
-		return target, true
-	}
-	return results.First(), false
-}
-
-func (os *IndexedGraph) FindOrAddObject(o *Node) bool {
-	_, found := os.FindMultiOrAdd(DistinguishedName, o.OneAttr(DistinguishedName), func() *Node {
-		return o
-	})
-	return found
-}
-
-func (os *IndexedGraph) FindOrAdd(attribute Attribute, value AttributeValue, flexinit ...any) (*Node, bool) {
-	o, found := os.FindMultiOrAdd(attribute, value, func() *Node {
+func (os *IndexedGraph) findOrAdd(attribute Attribute, value AttributeValue, flexinit ...any) (*Node, bool) {
+	o, found := os.findMultiOrAdd(attribute, value, func() *Node {
 		return NewNode(append(flexinit, attribute, value)...)
 	})
 	return o.First(), found
 }
 
 func (os *IndexedGraph) Find(attribute Attribute, value AttributeValue) (o *Node, found bool) {
-	v, found := os.FindMultiOrAdd(attribute, value, nil)
+	v, found := os.findMultiOrAdd(attribute, value, nil)
 	if v.Len() != 1 {
 		return nil, false
 	}
@@ -693,8 +689,8 @@ func (os *IndexedGraph) FindTwo(attribute Attribute, value AttributeValue, attri
 	return results.First(), results.Len() == 1
 }
 
-func (os *IndexedGraph) FindTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...any) (o *Node, found bool) {
-	results, found := os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, func() *Node {
+func (os *IndexedGraph) findTwoOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, flexinit ...any) (o *Node, found bool) {
+	results, found := os.findTwoMultiOrAdd(attribute, value, attribute2, value2, func() *Node {
 		return NewNode(append(flexinit, attribute, value, attribute2, value2)...)
 	})
 	if !found {
@@ -704,18 +700,18 @@ func (os *IndexedGraph) FindTwoOrAdd(attribute Attribute, value AttributeValue, 
 }
 
 func (os *IndexedGraph) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (o NodeSlice, found bool) {
-	return os.FindTwoMultiOrAdd(attribute, value, attribute2, value2, nil)
+	return os.findTwoMultiOrAdd(attribute, value, attribute2, value2, nil)
 }
 
 func (os *IndexedGraph) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
-	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, nil)
+	return os.findTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, nil)
 }
 
-func (os *IndexedGraph) FindMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
-	return os.FindTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, addifnotfound)
+func (os *IndexedGraph) findMultiOrAdd(attribute Attribute, value AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
+	return os.findTwoMultiOrAdd(attribute, value, NonExistingAttribute, AttributeValue{}, addifnotfound)
 }
 
-func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
+func (os *IndexedGraph) findTwoMultiOrAdd(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue, addifnotfound func() *Node) (NodeSlice, bool) {
 	if attribute > attribute2 {
 		attribute, attribute2 = attribute2, attribute
 		value, value2 = value2, value
@@ -765,9 +761,9 @@ func (os *IndexedGraph) FindTwoMultiOrAdd(attribute Attribute, value AttributeVa
 	no := addifnotfound()
 	if no != nil {
 		if len(os.DefaultValues) > 0 {
-			no.SetFlex(os.DefaultValues...)
+			no.setFlex(os.DefaultValues...)
 		}
-		os.add(no)
+		os.addUnlocked(no)
 		os.nodeMutex.Unlock()
 		nos := NewNodeSlice(1)
 		nos.Add(no)
@@ -814,21 +810,8 @@ func (os *IndexedGraph) Subordinates(o *Node) *IndexedGraph {
 	})
 }
 
-func (os *IndexedGraph) FindOrAddSID(s windowssecurity.SID) *Node {
-	o, _ := os.FindMultiOrAdd(ObjectSid, NV(s), func() *Node {
-		no := NewNode(
-			ObjectSid, NV(s),
-		)
-		if os.DefaultValues != nil {
-			no.SetFlex(os.DefaultValues...)
-		}
-		return no
-	})
-	return o.First()
-}
-
-func (os *IndexedGraph) FindOrAddAdjacentSID(s windowssecurity.SID, r *Node, flexinit ...any) *Node {
-	sidobject, _ := os.FindOrAddAdjacentSIDFound(s, r, flexinit...)
+func (os *IndexedGraph) findOrAddAdjacentSID(s windowssecurity.SID, r *Node, flexinit ...any) *Node {
+	sidobject, _ := os.findOrAddAdjacentSIDFound(s, r, flexinit...)
 	return sidobject
 }
 
@@ -899,27 +882,27 @@ func (os *IndexedGraph) findAdjacentSID(s windowssecurity.SID, relativeTo *Node)
 	return os.Find(ObjectSid, sidValue)
 }
 
-func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo *Node, flexinit ...any) (*Node, bool) {
+func (os *IndexedGraph) findOrAddAdjacentSIDFound(s windowssecurity.SID, relativeTo *Node, flexinit ...any) (*Node, bool) {
 	if found, ok := os.findAdjacentSID(s, relativeTo); ok {
 		return found, true
 	}
 
 	sidValue := NVSID(s)
 	if relativeTo == nil {
-		return os.FindOrAdd(ObjectSid, sidValue)
+		return os.findOrAdd(ObjectSid, sidValue)
 	}
 
 	dataSource := relativeTo.OneAttr(DataSource)
 	if relativeTo.Type() == NodeTypeMachine && !dataSource.IsNil() && s.StripRID() == relativeTo.SID() {
-		return os.FindTwoOrAdd(ObjectSid, sidValue, DataSource, dataSource)
+		return os.findTwoOrAdd(ObjectSid, sidValue, DataSource, dataSource)
 	}
 
 	if s.Component(2) == 21 && s.Component(3) != 0 {
-		result, found := os.FindMultiOrAdd(ObjectSid, sidValue, func() *Node {
+		result, found := os.findMultiOrAdd(ObjectSid, sidValue, func() *Node {
 			no := NewNode(
 				ObjectSid, sidValue,
 			)
-			no.SetFlex(flexinit...)
+			no.setFlex(flexinit...)
 			return no
 		})
 		return result.First(), found
@@ -927,7 +910,7 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 
 	domainContext := relativeTo.OneAttr(DomainContext)
 	if domainContext.IsNil() && dataSource.IsNil() {
-		return os.FindOrAdd(ObjectSid, sidValue)
+		return os.findOrAdd(ObjectSid, sidValue)
 	}
 	// Not in this scope yet: add it to the scope, even if another domain or
 	// machine has a node for the same SID. flexinit is not applied here, as
@@ -938,7 +921,7 @@ func (os *IndexedGraph) FindOrAddAdjacentSIDFound(s windowssecurity.SID, relativ
 		DomainContext, domainContext,
 		DataSource, dataSource,
 	)
-	os.Add(no)
+	os.add(no)
 	return no, false
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	graphpkg "github.com/lkarlslund/adalanche/modules/graph"
 )
 
@@ -13,9 +14,9 @@ func TestGenerateCytoscapeJSUsesNodeIDsForElementIDs(t *testing.T) {
 	target := engine.NewNode(engine.Name, engine.NV("target"))
 
 	g := engine.NewIndexedGraph()
-	g.Add(source)
-	g.Add(target)
-	g.EdgeTo(source, target, engine.NewEdge("unit-test-export"))
+	enginetest.Add(g, source)
+	enginetest.Add(g, target)
+	enginetest.EdgeTo(g, source, target, engine.NewEdge("unit-test-export"))
 
 	result := graphpkg.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	result.AddNode(source)

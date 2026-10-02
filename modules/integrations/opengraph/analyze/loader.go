@@ -55,8 +55,11 @@ func (ld *OpenGraphLoader) Init() error {
 				r.Close()
 
 				g := engine.NewLoaderObjects(ld)
-				err = processOpenGraphData(g, ogd)
-
+				tx := g.Begin("graph " + queueItem.path)
+				err = processOpenGraphData(tx, ogd)
+				if err == nil {
+					err = tx.Commit()
+				}
 				if err != nil {
 					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue

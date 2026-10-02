@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
@@ -47,26 +48,26 @@ func affectedGPOs(t *testing.T, sc siteScenario) map[string]bool {
 	}
 	reported := gpo("gpo-reported")
 	ou := engine.NewNode(engine.DistinguishedName, "OU=Computers,"+domainDN)
-	if sc.blockOU {
-		ou.Set(activedirectory.GPOptions, engine.NV("1"))
-	}
 	computer := engine.NewNode(engine.Type, engine.NodeTypeComputer.ValueString(), engine.ObjectSid, engine.NV(computerSID),
 		engine.DistinguishedName, "CN=WS01,OU=Computers,"+domainDN, engine.DomainContext, domainDN)
-	computer.ChildOf(ou)
 	machine := engine.NewNode(engine.Type, ObjectTypeMachine.ValueString(), DomainJoinedSID, engine.NV(computerSID), attrs.DomainJoinedSID, engine.NV(computerSID))
-	if sc.reportedSite != "" {
-		machine.Set(localmachine.ADSite, engine.NV(sc.reportedSite))
-	}
-	if sc.collected {
-		machine.Set(localmachine.GPOResultsCollected, engine.NV(true))
-	}
 	authenticated := engine.NewNode(engine.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
 
 	graph := newADTestGraph(append(nodes, reported, ou, computer, machine, authenticated)...)
-	if sc.reported {
-		graph.EdgeTo(reported, machine, activedirectory.EdgeAffectedByGPO)
+	if sc.blockOU {
+		enginetest.Set(graph, ou, activedirectory.GPOptions, engine.NV("1"))
 	}
-	addMachinesAffectedByGPO(graph)
+	enginetest.ChildOf(graph, computer, ou)
+	if sc.reportedSite != "" {
+		enginetest.Set(graph, machine, localmachine.ADSite, engine.NV(sc.reportedSite))
+	}
+	if sc.collected {
+		enginetest.Set(graph, machine, localmachine.GPOResultsCollected, engine.NV(true))
+	}
+	if sc.reported {
+		enginetest.EdgeTo(graph, reported, machine, activedirectory.EdgeAffectedByGPO)
+	}
+	runTx(graph, addMachinesAffectedByGPO)
 
 	got := map[string]bool{}
 	graph.Edges(machine, engine.In).Iterate(func(source *engine.Node, eb engine.EdgeBitmap) bool {

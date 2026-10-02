@@ -11,10 +11,10 @@ func TestIndexesBelongToGraph(t *testing.T) {
 	a, b, c := testNamedNode("a"), testNamedNode("b"), testNamedNode("c")
 	g := testGraph(a, b, c)
 	edge := testEdge("graph-local-index")
-	g.EdgeToEx(a, b, edge, true)
-	view := g.Freeze()
+	g.edgeToEx(a, b, edge, true)
+	view := g.freeze()
 	temporary := testGraph(c, a) // Different positions; b is not a member.
-	temporary.EdgeToEx(c, a, edge, true)
+	temporary.edgeToEx(c, a, edge, true)
 	for node, want := range map[*Node]NodeIndex{a: 0, b: 1, c: 2} {
 		if got, found := g.nodeToIndex(node); !found || got != want {
 			t.Fatalf("main graph: %s index %d, found %t, want %d", node.Label(), got, found, want)
@@ -56,8 +56,8 @@ func TestImpactResultsStayBoundToSnapshot(t *testing.T) {
 	a, b, c := testNamedNode("a"), testNamedNode("b"), testNamedNode("c")
 	g := testGraph(a, b, c)
 	edge := testEdge("impact-snapshot")
-	g.EdgeToEx(a, b, edge, true)
-	result, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{
+	g.edgeToEx(a, b, edge, true)
+	result, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{
 		Edges: EdgeBitmap{}.Set(edge), RequiredProbability: 100, Categories: 1, Workers: 4,
 		Classify: func(*Node) int { return 0 },
 	})
@@ -66,7 +66,7 @@ func TestImpactResultsStayBoundToSnapshot(t *testing.T) {
 	}
 	_ = testGraph(c, b, a)
 	extra := testNamedNode("added after snapshot")
-	g.Add(extra)
+	g.add(extra)
 	if result.Counts(extra) != nil {
 		t.Fatal("result accepted a node added after analysis")
 	}

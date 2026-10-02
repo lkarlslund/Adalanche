@@ -87,7 +87,7 @@ func TestSyntheticGraphGeneratorIsDeterministic(t *testing.T) {
 
 func TestFrozenGraphIterateMatchesIndexedGraphIterate(t *testing.T) {
 	graph := buildSyntheticGraph(mediumSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	got := collectNodeNames(view.Iterate)
 	want := collectNodeNames(graph.Iterate)
@@ -98,7 +98,7 @@ func TestFrozenGraphIterateMatchesIndexedGraphIterate(t *testing.T) {
 
 func TestFrozenGraphIterateParallelMatchesIndexedGraphIterate(t *testing.T) {
 	graph := buildSyntheticGraph(mediumSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	got := collectParallelNodeNames(view.IterateParallel)
 	want := collectNodeNames(graph.Iterate)
@@ -109,7 +109,7 @@ func TestFrozenGraphIterateParallelMatchesIndexedGraphIterate(t *testing.T) {
 
 func TestFrozenGraphIterateEdgesMatchesIndexedGraph(t *testing.T) {
 	graph := buildSyntheticGraph(smallSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	var source *Node
 	graph.Iterate(func(node *Node) bool {
@@ -133,10 +133,10 @@ func TestFrozenGraphSnapshotIsStableAfterEdgeMutation(t *testing.T) {
 	to := testNamedNode("to")
 	other := testNamedNode("other")
 	graph := testGraph(from, to, other)
-	graph.EdgeToEx(from, to, edge, true)
+	graph.edgeToEx(from, to, edge, true)
 
-	view := graph.Freeze()
-	graph.EdgeToEx(from, other, edge, true)
+	view := graph.freeze()
+	graph.edgeToEx(from, other, edge, true)
 
 	got := collectOutgoingEdges(view.IterateEdges, from)
 	want := []string{fmt.Sprintf("from->to:%v", EdgeBitmap{}.Set(edge).Edges())}
@@ -154,7 +154,7 @@ func TestCalculateGraphValuesMatchesFrozenGraph(t *testing.T) {
 	got := CalculateGraphValues(graph, matchEdges, 0, "indexed synthetic", func(node *Node) int {
 		return len(node.OneAttrString(Name)) % 7
 	})
-	want := CalculateGraphValues(graph.Freeze(), matchEdges, 0, "frozen synthetic", func(node *Node) int {
+	want := CalculateGraphValues(graph.freeze(), matchEdges, 0, "frozen synthetic", func(node *Node) int {
 		return len(node.OneAttrString(Name)) % 7
 	})
 
@@ -171,11 +171,11 @@ func TestCalculateGraphValuesPropagatesSCCSuccessorScores(t *testing.T) {
 	b2 := testNamedNode("b2")
 
 	graph := testGraph(a1, a2, b1, b2)
-	graph.EdgeToEx(a1, a2, edge, true)
-	graph.EdgeToEx(a2, a1, edge, true)
-	graph.EdgeToEx(b1, b2, edge, true)
-	graph.EdgeToEx(b2, b1, edge, true)
-	graph.EdgeToEx(a1, b1, edge, true)
+	graph.edgeToEx(a1, a2, edge, true)
+	graph.edgeToEx(a2, a1, edge, true)
+	graph.edgeToEx(b1, b2, edge, true)
+	graph.edgeToEx(b2, b1, edge, true)
+	graph.edgeToEx(a1, b1, edge, true)
 
 	values := CalculateGraphValues(graph, matchEdges, 0, "scc propagation", func(*Node) int {
 		return 1

@@ -52,7 +52,7 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 	return windowssecurity.SID(""), errors.New("localized group name not found")
 }
 
-func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func FindDomain(ao engine.GraphReader) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	var domain *engine.Node
 	domain, err = FindDomainNode(ao)
 	if err != nil {
@@ -61,7 +61,7 @@ func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix 
 	return GetDomainInfo(domain, ao)
 }
 
-func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
+func FindDomainNode(ao engine.GraphReader) (domain *engine.Node, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {
 		err = errors.New("no domain info found in collection")
@@ -86,7 +86,7 @@ func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 	return
 }
 
-func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func GetDomainInfo(domain *engine.Node, ao engine.GraphReader) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	if domain.HasAttr(engine.ObjectSid) {
 		if domaincontext != "" {
 			err = errors.New("found multiple domainDNS in same path - please place each set of domain objects in their own subpath")

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 )
 
 func TestNodeDetailsIdentity(t *testing.T) {
@@ -33,7 +34,7 @@ func TestRawNodeDetailsAreUntruncated(t *testing.T) {
 	attribute := engine.NewAttribute("detailsTestLongValue")
 	value := strings.Repeat("sample", 100)
 	node := engine.NewNode(engine.Name, "Sample", attribute, value)
-	ws.SuperGraph.Add(node)
+	enginetest.Add(ws.SuperGraph, node)
 	for _, raw := range []bool{false, true} {
 		url := fmt.Sprintf("/api/details/nodeid/%d", node.ID())
 		if raw {

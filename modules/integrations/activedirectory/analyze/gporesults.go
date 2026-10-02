@@ -7,7 +7,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 )
 
-func retainPolicyResults(node *engine.Node, common basedata.Common, results basedata.CollectionResults) error {
+func retainPolicyResults(node engine.TxNode, common basedata.Common, results basedata.CollectionResults) error {
 	if len(results) == 0 {
 		return nil
 	} // Older data has unknown acquisition history.

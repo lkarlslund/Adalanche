@@ -13,15 +13,15 @@ type frozenEdge struct {
 	edge   EdgeBitmap
 }
 
-type FrozenGraph struct {
+type frozenGraph struct {
 	graph *IndexedGraph
 	root  *Node
 	nodes []*Node
 	edges [2][][]frozenEdge
 }
 
-func (g *IndexedGraph) Freeze() *FrozenGraph {
-	fg := &FrozenGraph{graph: g}
+func (g *IndexedGraph) freeze() *frozenGraph {
+	fg := &frozenGraph{graph: g}
 
 	g.nodeMutex.RLock()
 	fg.root = g.root
@@ -77,19 +77,19 @@ func freezeAdjacency(edges map[NodeIndex]map[NodeIndex]EdgeCombo, combos []EdgeB
 	return adjacency
 }
 
-func (fg *FrozenGraph) IndexedGraph() *IndexedGraph {
+func (fg *frozenGraph) IndexedGraph() *IndexedGraph {
 	return fg.graph
 }
 
-func (fg *FrozenGraph) Order() int {
+func (fg *frozenGraph) Order() int {
 	return len(fg.nodes)
 }
 
-func (fg *FrozenGraph) Root() *Node {
+func (fg *frozenGraph) Root() *Node {
 	return fg.root
 }
 
-func (fg *FrozenGraph) Iterate(each func(o *Node) bool) {
+func (fg *frozenGraph) Iterate(each func(o *Node) bool) {
 	for _, n := range fg.nodes {
 		if !each(n) {
 			return
@@ -97,7 +97,7 @@ func (fg *FrozenGraph) Iterate(each func(o *Node) bool) {
 	}
 }
 
-func (fg *FrozenGraph) IterateParallel(each func(o *Node) bool, parallelFuncs int) {
+func (fg *frozenGraph) IterateParallel(each func(o *Node) bool, parallelFuncs int) {
 	if parallelFuncs == 0 {
 		parallelFuncs = runtime.NumCPU()
 	}
@@ -128,31 +128,31 @@ func (fg *FrozenGraph) IterateParallel(each func(o *Node) bool, parallelFuncs in
 	wg.Wait()
 }
 
-func (fg *FrozenGraph) Find(attribute Attribute, value AttributeValue) (*Node, bool) {
+func (fg *frozenGraph) Find(attribute Attribute, value AttributeValue) (*Node, bool) {
 	return fg.graph.Find(attribute, value)
 }
 
-func (fg *FrozenGraph) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
+func (fg *frozenGraph) FindMulti(attribute Attribute, value AttributeValue) (NodeSlice, bool) {
 	return fg.graph.FindMulti(attribute, value)
 }
 
-func (fg *FrozenGraph) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (*Node, bool) {
+func (fg *frozenGraph) FindTwo(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (*Node, bool) {
 	return fg.graph.FindTwo(attribute, value, attribute2, value2)
 }
 
-func (fg *FrozenGraph) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (NodeSlice, bool) {
+func (fg *frozenGraph) FindTwoMulti(attribute Attribute, value AttributeValue, attribute2 Attribute, value2 AttributeValue) (NodeSlice, bool) {
 	return fg.graph.FindTwoMulti(attribute, value, attribute2, value2)
 }
 
-func (fg *FrozenGraph) DistinguishedParent(o *Node) (*Node, bool) {
+func (fg *frozenGraph) DistinguishedParent(o *Node) (*Node, bool) {
 	return fg.graph.DistinguishedParent(o)
 }
 
-func (fg *FrozenGraph) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
+func (fg *frozenGraph) FindAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
 	return fg.graph.FindAdjacentSID(s, relativeTo)
 }
 
-func (fg *FrozenGraph) IterateEdges(node *Node, direction EdgeDirection, iter func(target *Node, ebm EdgeBitmap) bool) {
+func (fg *frozenGraph) IterateEdges(node *Node, direction EdgeDirection, iter func(target *Node, ebm EdgeBitmap) bool) {
 	if direction > In {
 		return
 	}
@@ -170,7 +170,7 @@ func (fg *FrozenGraph) IterateEdges(node *Node, direction EdgeDirection, iter fu
 	}
 }
 
-func (fg *FrozenGraph) EdgeIteratorRecursive(node *Node, direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, goDeeperFunc func(source, target *Node, edge EdgeBitmap, depth int) bool) {
+func (fg *frozenGraph) EdgeIteratorRecursive(node *Node, direction EdgeDirection, edgeMatch EdgeBitmap, excludemyself bool, goDeeperFunc func(source, target *Node, edge EdgeBitmap, depth int) bool) {
 	seenObjects := make(map[*Node]struct{})
 	if excludemyself {
 		seenObjects[node] = struct{}{}
@@ -178,7 +178,7 @@ func (fg *FrozenGraph) EdgeIteratorRecursive(node *Node, direction EdgeDirection
 	fg.edgeIteratorRecursive(node, direction, edgeMatch, goDeeperFunc, seenObjects, 1)
 }
 
-func (fg *FrozenGraph) edgeIteratorRecursive(node *Node, direction EdgeDirection, edgeMatch EdgeBitmap, goDeeperFunc func(source, target *Node, edge EdgeBitmap, depth int) bool, appliedTo map[*Node]struct{}, depth int) {
+func (fg *frozenGraph) edgeIteratorRecursive(node *Node, direction EdgeDirection, edgeMatch EdgeBitmap, goDeeperFunc func(source, target *Node, edge EdgeBitmap, depth int) bool, appliedTo map[*Node]struct{}, depth int) {
 	fg.IterateEdges(node, direction, func(target *Node, edge EdgeBitmap) bool {
 		if _, found := appliedTo[target]; found {
 			return true

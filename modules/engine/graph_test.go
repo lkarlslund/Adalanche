@@ -34,7 +34,7 @@ func TestIndexedGraphAddNewAppliesDefaultsAndIndexes(t *testing.T) {
 	graph := NewIndexedGraph()
 	graph.AddDefaultFlex(DataSource, "loader")
 
-	node := graph.AddNew(Name, "Alpha")
+	node := graph.addNew(Name, "Alpha")
 
 	if got := node.OneAttrString(DataSource); got != "loader" {
 		t.Fatalf("expected default datasource, got %q", got)
@@ -75,11 +75,11 @@ func TestIndexedGraphMergeMovesRelationshipsAndValues(t *testing.T) {
 	source := testNode(Name, "Shared", Description, "Source description")
 	child := testNamedNode("Child")
 
-	source.ChildOf(parent)
-	source.Adopt(child)
+	source.childOf(parent)
+	source.adopt(child)
 
 	graph := testGraph(parent, target, source, child)
-	mergedTo, merged := graph.Merge([]Attribute{Name}, nil, source)
+	mergedTo, merged := graph.merge([]Attribute{Name}, nil, source)
 	if !merged {
 		t.Fatal("expected merge to happen")
 	}
@@ -109,7 +109,7 @@ func TestIndexedGraphConcurrentAddRelaxedAndIndexReads(t *testing.T) {
 		go func(worker int) {
 			defer writers.Done()
 			for i := range 100 {
-				graph.AddRelaxed(testNode(
+				graph.addRelaxed(testNode(
 					Name, fmt.Sprintf("node-%d-%d", worker, i),
 					SAMAccountName, fmt.Sprintf("NODE-%d-%d", worker, i),
 				))
@@ -134,7 +134,7 @@ func TestIndexedGraphConcurrentAddRelaxedAndIndexReads(t *testing.T) {
 func TestIndexedGraphIterateStableMatchesIterate(t *testing.T) {
 	graph := NewIndexedGraph()
 	for i := range 16 {
-		graph.Add(testNamedNode(fmt.Sprintf("node-%02d", i)))
+		graph.add(testNamedNode(fmt.Sprintf("node-%02d", i)))
 	}
 
 	var want []string
@@ -157,7 +157,7 @@ func TestIndexedGraphIterateStableMatchesIterate(t *testing.T) {
 func TestIndexedGraphIterateParallelStableMatchesIterate(t *testing.T) {
 	graph := NewIndexedGraph()
 	for i := range 128 {
-		graph.Add(testNamedNode(fmt.Sprintf("node-%03d", i)))
+		graph.add(testNamedNode(fmt.Sprintf("node-%03d", i)))
 	}
 
 	var want []string

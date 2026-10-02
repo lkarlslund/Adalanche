@@ -90,21 +90,21 @@ func (g *IndexedGraph) EdgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
 type CompressedEdgeSubSlice []byte
 
 // Register that this object can pwn another object using the given method
-func (g *IndexedGraph) EdgeTo(from, to *Node, edge Edge) {
-	g.EdgeToEx(from, to, edge, false)
+func (g *IndexedGraph) edgeTo(from, to *Node, edge Edge) {
+	g.edgeToEx(from, to, edge, false)
 }
 
 // Clear the edge from one object to another
-func (g *IndexedGraph) EdgeClear(from, to *Node, edge Edge) {
-	g.edgeToEx(from, to, edge, false, true, true)
+func (g *IndexedGraph) edgeClear(from, to *Node, edge Edge) {
+	g.mutateEdge(from, to, edge, false, true, true)
 }
 
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (g *IndexedGraph) EdgeToEx(from, to *Node, edge Edge, force bool) {
-	g.edgeToEx(from, to, edge, force, false, true)
+func (g *IndexedGraph) edgeToEx(from, to *Node, edge Edge, force bool) {
+	g.mutateEdge(from, to, edge, force, false, true)
 }
 
-func (g *IndexedGraph) edgeToEx(from, to *Node, edge Edge, force, clear, merge bool) {
+func (g *IndexedGraph) mutateEdge(from, to *Node, edge Edge, force, clear, merge bool) {
 	op, ok := g.resolveSingleEdgeMutation(nodeEdgeMutation{
 		From:  from,
 		To:    to,
@@ -146,7 +146,7 @@ func (g *IndexedGraph) GetEdge(from, to *Node) (EdgeBitmap, bool) {
 	return eb, found
 }
 
-func (g *IndexedGraph) SetEdge(from, to *Node, eb EdgeBitmap, merge bool) {
+func (g *IndexedGraph) setEdge(from, to *Node, eb EdgeBitmap, merge bool) {
 	op := g.resolveBitmapMutation(nodeEdgeMutation{
 		From:       from,
 		To:         to,

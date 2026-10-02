@@ -7,11 +7,11 @@ import (
 
 func TestNodeSetDownLevelLogonNameDoesNotDeadlockWithDataSource(t *testing.T) {
 	node := NewNode()
-	node.Set(DataSource, NV("HOST01"))
+	node.set(DataSource, NV("HOST01"))
 
 	done := make(chan struct{})
 	go func() {
-		node.Set(DownLevelLogonName, NV("HOST01\\alice"))
+		node.set(DownLevelLogonName, NV("HOST01\\alice"))
 		close(done)
 	}()
 

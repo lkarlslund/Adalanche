@@ -3,7 +3,10 @@ package engine
 import (
 	"cmp"
 	"fmt"
+	"math/rand/v2"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,10 +16,14 @@ import (
 
 type ProgressCallbackFunc func(progress int, totalprogress int)
 
-type ProcessorFunc func(ao *IndexedGraph)
-type ReadOnlyProcessorFunc func(view *FrozenGraph)
-type NodePatchProcessorFunc func(view *FrozenGraph, out *NodePatchSet)
-type EdgeDeltaProcessorFunc func(view *FrozenGraph, out *EdgeDelta)
+// ProcessorFunc is a processor that reads the graph and writes through a
+// transaction, committed when the processors running with it are done.
+type ProcessorFunc func(tx *Tx)
+
+// ExclusiveProcessorFunc is a processor that runs alone and needs to see its
+// own changes as it goes. It changes the graph only through transactions it
+// begins and commits itself.
+type ExclusiveProcessorFunc func(g *IndexedGraph)
 
 // Phase says which graph a processor works on.
 type Phase int
@@ -55,23 +62,11 @@ type Processor struct {
 	Final       bool
 }
 
-type ProcessorKind int
-
-const (
-	ProcessorKindGraphMutator ProcessorKind = iota
-	ProcessorKindReadOnly
-	ProcessorKindNodePatch
-	ProcessorKindEdgeDelta
-)
-
 type processorInfo struct {
 	Processor
 	loader    LoaderID
-	kind      ProcessorKind
-	mutator   ProcessorFunc
-	readOnly  ReadOnlyProcessorFunc
-	nodePatch NodePatchProcessorFunc
-	edgeDelta EdgeDeltaProcessorFunc
+	tx        ProcessorFunc
+	exclusive ExclusiveProcessorFunc
 }
 
 var registeredProcessors []processorInfo
@@ -102,20 +97,49 @@ func recordTiming(p processorInfo, start time.Time) {
 	timingsMutex.Unlock()
 }
 
+// AddProcessor registers a processor that works through a transaction.
+// Processors that are ready at the same time run in parallel, and their
+// transactions are committed together.
 func (l LoaderID) AddProcessor(pf ProcessorFunc, p Processor) {
-	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, kind: ProcessorKindGraphMutator, mutator: pf})
+	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, tx: pf})
 }
 
-func (l LoaderID) AddReadOnlyProcessor(pf ReadOnlyProcessorFunc, p Processor) {
-	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, kind: ProcessorKindReadOnly, readOnly: pf})
+// AddExclusiveProcessor registers a processor that runs alone.
+func (l LoaderID) AddExclusiveProcessor(pf ExclusiveProcessorFunc, p Processor) {
+	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, exclusive: pf})
 }
 
-func (l LoaderID) AddNodePatchProcessor(pf NodePatchProcessorFunc, p Processor) {
-	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, kind: ProcessorKindNodePatch, nodePatch: pf})
+// processorSeed orders processors that are free to run at the same time.
+// With complete dependencies the result is the same for every seed.
+var (
+	processorSeedMutex sync.Mutex
+	processorSeed      uint64
+	processorSeedSet   bool
+)
+
+// SetProcessorSeed fixes the order of processors that are free to run at
+// the same time, to reproduce a run.
+func SetProcessorSeed(seed uint64) {
+	processorSeedMutex.Lock()
+	processorSeed, processorSeedSet = seed, true
+	processorSeedMutex.Unlock()
 }
 
-func (l LoaderID) AddEdgeDeltaProcessor(pf EdgeDeltaProcessorFunc, p Processor) {
-	registeredProcessors = append(registeredProcessors, processorInfo{Processor: p, loader: l, kind: ProcessorKindEdgeDelta, edgeDelta: pf})
+func currentProcessorSeed() uint64 {
+	processorSeedMutex.Lock()
+	defer processorSeedMutex.Unlock()
+	if !processorSeedSet {
+		if env := os.Getenv("ADALANCHE_PROCESSOR_SEED"); env != "" {
+			if seed, err := strconv.ParseUint(env, 10, 64); err == nil {
+				processorSeed, processorSeedSet = seed, true
+			}
+		}
+		if !processorSeedSet {
+			processorSeed, processorSeedSet = uint64(time.Now().UnixNano()), true
+		}
+		ui.Info().Msgf("Processor order seed %v (set ADALANCHE_PROCESSOR_SEED to reproduce)", processorSeed)
+	}
+	return processorSeed
 }
 
 // AnyLoader selects the processors of every loader.
@@ -292,32 +316,33 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 		return true
 	}
 
+	random := rand.New(rand.NewPCG(currentProcessorSeed(), uint64(phase)))
 	for remaining := len(processors); remaining > 0; {
-		// Everything ready that only reads a frozen view runs together;
-		// otherwise the first ready mutator runs alone.
-		var batch []int
-		mutator := -1
+		// Every ready transaction processor runs together; otherwise one
+		// ready exclusive processor runs alone.
+		var batch, exclusive []int
 		for i := range processors {
 			if !ready(i) {
 				continue
 			}
-			if processors[i].kind == ProcessorKindGraphMutator {
-				if mutator < 0 {
-					mutator = i
-				}
+			if processors[i].exclusive != nil {
+				exclusive = append(exclusive, i)
 				continue
 			}
 			batch = append(batch, i)
 		}
 		switch {
 		case len(batch) > 0:
-			runFrozenBatch(ao, processors, batch)
-		case mutator >= 0:
-			ui.Debug().Msgf("Running %v", processors[mutator].Description)
+			if err := runBatch(ao, processors, batch, random); err != nil {
+				return err
+			}
+		case len(exclusive) > 0:
+			alone := exclusive[random.IntN(len(exclusive))]
+			ui.Debug().Msgf("Running %v", processors[alone].Description)
 			start := time.Now()
-			processors[mutator].mutator(ao)
-			recordTiming(processors[mutator], start)
-			batch = []int{mutator}
+			processors[alone].exclusive(ao)
+			recordTiming(processors[alone], start)
+			batch = []int{alone}
 		default:
 			return fmt.Errorf("no processor can run, %v are waiting", remaining)
 		}
@@ -330,40 +355,39 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 	return nil
 }
 
-func runFrozenBatch(ao *IndexedGraph, processors []processorInfo, batch []int) {
-	view := ao.Freeze()
-	nodePatches := make([]NodePatchSet, len(batch))
-	edgeDeltas := make([]EdgeDelta, len(batch))
+// runBatch runs transaction processors in parallel. None of them changes
+// the graph while they run; their transactions are committed afterwards in
+// processor order, so the result does not depend on which finished first.
+func runBatch(ao *IndexedGraph, processors []processorInfo, batch []int, random *rand.Rand) error {
+	txs := make([]*Tx, len(batch))
+
+	start := slices.Clone(batch)
+	random.Shuffle(len(start), func(a, b int) { start[a], start[b] = start[b], start[a] })
+	position := map[int]int{}
+	for n, i := range batch {
+		position[i] = n
+	}
 
 	var wg sync.WaitGroup
-	for n, i := range batch {
+	for _, i := range start {
+		n := position[i]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			p := processors[i]
 			ui.Debug().Msgf("Running %v", p.Description)
 			defer recordTiming(p, time.Now())
-			switch p.kind {
-			case ProcessorKindReadOnly:
-				p.readOnly(view)
-			case ProcessorKindNodePatch:
-				p.nodePatch(view, &nodePatches[n])
-			case ProcessorKindEdgeDelta:
-				p.edgeDelta(view, &edgeDeltas[n])
-			}
+			txs[n] = ao.Begin(p.Description)
+			p.tx(txs[n])
 		}()
 	}
 	wg.Wait()
 
-	var dropIndexes bool
-	for n := range nodePatches {
-		nodePatches[n].Apply(ao)
-		dropIndexes = dropIndexes || nodePatches[n].HasOperations()
+	var commits []*Tx
+	for _, tx := range txs {
+		if tx.HasWrites() {
+			commits = append(commits, tx)
+		}
 	}
-	if dropIndexes {
-		ao.DropIndexes()
-	}
-	for n := range edgeDeltas {
-		edgeDeltas[n].Apply(ao)
-	}
+	return ao.Commit(commits...)
 }

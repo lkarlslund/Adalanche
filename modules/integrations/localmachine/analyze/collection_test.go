@@ -18,7 +18,7 @@ func TestImportRetainsCollectionSettingsWithoutTaskPayloads(t *testing.T) {
 		CollectionResults: basedata.CollectionResults{"registry/value/denied": {Status: basedata.CollectionAccessDenied, ErrorCode: "errno:5"}},
 	}
 	info.Tasks = []localmachine.RegisteredTask{{Definition: localmachine.TaskDefinition{XMLText: "synthetic-secret-marker"}}}
-	node, err := ImportCollectorInfo(g, info)
+	node, err := importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,12 +37,5 @@ func TestImportRetainsCollectionSettingsWithoutTaskPayloads(t *testing.T) {
 	if raw != node.OneAttrString(localmachine.CollectedSettings) {
 		t.Fatal("retained mutable caller state")
 	}
-	other := engine.NewNode()
-	if err := importCollectionSettings(other, localmachine.Info{RegistryData: localmachine.RegistryData{"zero": uint64(1)}}); err != nil {
-		t.Fatal(err)
-	}
-	node.Absorb(other)
-	if node.Attr(localmachine.CollectedSettings).Len() != 2 {
-		t.Fatal("merge discarded a capture")
-	}
 }
+

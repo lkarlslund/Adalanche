@@ -72,9 +72,9 @@ var aclEdgeRules = []aclEdgeRule{
 
 // addACLRuleEdges reads every object's security descriptor once and adds an
 // edge for each rule an ACE grants, from the ACE's trustee to the object.
-func addACLRuleEdges(ao *engine.IndexedGraph) {
+func addACLRuleEdges(tx *engine.Tx) {
 	var rules []aclEdgeRule
-	ao.Iterate(func(o *engine.Node) bool {
+	tx.Iterate(func(o *engine.Node) bool {
 		sd, err := o.SecurityDescriptor()
 		if err != nil {
 			return true
@@ -94,20 +94,20 @@ func addACLRuleEdges(ao *engine.IndexedGraph) {
 			for _, rule := range rules {
 				// A grant needs every requested bit in this one ACE, so
 				// skip the full check when they are not all there.
-				if ace.Mask&rule.mask == rule.mask && ACEGrants(ao, sd, index, o, rule.mask, rule.guid) {
+				if ace.Mask&rule.mask == rule.mask && ACEGrants(tx, sd, index, o, rule.mask, rule.guid) {
 					granted = granted.Set(rule.edge)
 				}
 			}
 			if granted.IsBlank() {
 				continue
 			}
-			trustee := aceTrustee(ao, sd, ace.SID, o)
+			trustee := aceTrustee(tx, sd, ace.SID, o)
 			// The same exclusions as EdgeTo: no edges to itself, from SELF,
 			// or between nodes for the same SID.
-			if trustee == o || trustee.SID() == windowssecurity.SelfSID || (!trustee.SID().IsBlank() && trustee.SID() == o.SID()) {
+			if t := trustee.Node(); t == o || t.SID() == windowssecurity.SelfSID || (!t.SID().IsBlank() && t.SID() == o.SID()) {
 				continue
 			}
-			ao.SetEdge(trustee, o, granted, true)
+			tx.SetEdge(trustee, o, granted, true)
 		}
 		return true
 	})

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -27,7 +28,6 @@ func gpoFilteringAffects(t *testing.T, chain []windowssecurity.SID, aces ...engi
 	computerSID := mustSID(t, "S-1-5-21-111-222-333-1001")
 	gpoDN := "CN={44444444-4444-4444-4444-444444444444},CN=Policies,CN=System,DC=example,DC=com"
 	gpo := engine.NewNode(engine.Name, "Filtered Policy", engine.DistinguishedName, gpoDN)
-	gpo.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(aces...)))
 	ou := engine.NewNode(
 		engine.Name, "Workstations",
 		engine.DistinguishedName, "OU=Workstations,DC=example,DC=com",
@@ -45,7 +45,6 @@ func gpoFilteringAffects(t *testing.T, chain []windowssecurity.SID, aces ...engi
 		DomainJoinedSID, computerSID,
 		attrs.DomainJoinedSID, computerSID,
 	)
-	computer.ChildOf(ou)
 
 	nodes := []*engine.Node{gpo, ou, computer, machine}
 	var groups []*engine.Node
@@ -55,13 +54,15 @@ func gpoFilteringAffects(t *testing.T, chain []windowssecurity.SID, aces ...engi
 		nodes = append(nodes, group)
 	}
 	graph := newADTestGraph(nodes...)
+	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(aces...)))
+	enginetest.ChildOf(graph, computer, ou)
 	member := computer
 	for _, group := range groups {
-		graph.EdgeTo(member, group, activedirectory.EdgeMemberOfGroup)
+		enginetest.EdgeTo(graph, member, group, activedirectory.EdgeMemberOfGroup)
 		member = group
 	}
 
-	addMachinesAffectedByGPO(graph)
+	runTx(graph, addMachinesAffectedByGPO)
 	edges, found := graph.GetEdge(gpo, machine)
 	return found && edges.IsSet(activedirectory.EdgeAffectedByGPO)
 }
@@ -112,10 +113,6 @@ func TestGPOTargetingRunsAfterMembershipResolution(t *testing.T) {
 	groupDN := "CN=Kiosks,OU=Groups,DC=example,DC=com"
 
 	gpo := engine.NewNode(engine.Name, "Kiosk Policy", engine.DistinguishedName, gpoDN)
-	gpo.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(windowssecurity.AuthenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
-		allowACE(groupSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
-	)))
 	ou := engine.NewNode(
 		engine.Name, "Workstations",
 		engine.DistinguishedName, "OU=Workstations,DC=example,DC=com",
@@ -140,8 +137,12 @@ func TestGPOTargetingRunsAfterMembershipResolution(t *testing.T) {
 		DomainJoinedSID, computerSID,
 		attrs.DomainJoinedSID, computerSID,
 	)
-	computer.ChildOf(ou)
 	graph := newADTestGraph(gpo, ou, group, computer, machine)
+	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(windowssecurity.AuthenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
+		allowACE(groupSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
+	)))
+	enginetest.ChildOf(graph, computer, ou)
 
 	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AfterMerge); err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/graph"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -31,14 +32,14 @@ func aqlEdgeMatcher(edge engine.Edge) EdgeMatcher {
 
 func singleNodeGraph(node *engine.Node) *engine.IndexedGraph {
 	graph := engine.NewIndexedGraph()
-	graph.Add(node)
+	enginetest.Add(graph, node)
 	return graph
 }
 
 func TestAQLResolveSingleSourceAddsReference(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	ao := engine.NewIndexedGraph()
-	ao.Add(alpha)
+	enginetest.Add(ao, alpha)
 
 	resolver := AQLquery{
 		datasource: ao,
@@ -67,9 +68,9 @@ func TestAQLResolveWalkRequiresMaxIterationLimit(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	beta := engine.NewNode(engine.Name, "beta")
 	ao := engine.NewIndexedGraph()
-	ao.Add(alpha)
-	ao.Add(beta)
-	ao.EdgeToEx(alpha, beta, edgeType, true)
+	enginetest.Add(ao, alpha)
+	enginetest.Add(ao, beta)
+	enginetest.Edge(ao, alpha, beta, edgeType)
 
 	resolver := AQLquery{
 		datasource: ao,
@@ -94,9 +95,9 @@ func TestAQLResolveTrailBlocksReusingSameEdgeInReverse(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	beta := engine.NewNode(engine.Name, "beta")
 	ao := engine.NewIndexedGraph()
-	ao.Add(alpha)
-	ao.Add(beta)
-	ao.EdgeToEx(alpha, beta, edgeType, true)
+	enginetest.Add(ao, alpha)
+	enginetest.Add(ao, beta)
+	enginetest.Edge(ao, alpha, beta, edgeType)
 
 	newResolver := func(mode QueryMode) AQLquery {
 		return AQLquery{
@@ -133,10 +134,10 @@ func TestAQLResolveAcyclicBlocksReturningToVisitedNode(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	beta := engine.NewNode(engine.Name, "beta")
 	ao := engine.NewIndexedGraph()
-	ao.Add(alpha)
-	ao.Add(beta)
-	ao.EdgeToEx(alpha, beta, edgeType, true)
-	ao.EdgeToEx(beta, alpha, edgeType, true)
+	enginetest.Add(ao, alpha)
+	enginetest.Add(ao, beta)
+	enginetest.Edge(ao, alpha, beta, edgeType)
+	enginetest.Edge(ao, beta, alpha, edgeType)
 
 	newResolver := func(mode QueryMode) AQLquery {
 		return AQLquery{
@@ -173,9 +174,9 @@ func TestAQLResolveMinIterationsZeroAllowsZeroHopMatch(t *testing.T) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	beta := engine.NewNode(engine.Name, "beta")
 	ao := engine.NewIndexedGraph()
-	ao.Add(alpha)
-	ao.Add(beta)
-	ao.EdgeToEx(alpha, beta, edgeType, true)
+	enginetest.Add(ao, alpha)
+	enginetest.Add(ao, beta)
+	enginetest.Edge(ao, alpha, beta, edgeType)
 
 	resolver := AQLquery{
 		datasource: ao,
@@ -209,7 +210,7 @@ func BenchmarkCommitToGraph(b *testing.B) {
 	nodes := make([]*engine.Node, 64)
 	for i := range nodes {
 		nodes[i] = engine.NewNode(engine.Name, "node-"+engine.NV(i).String())
-		ao.Add(nodes[i])
+		enginetest.Add(ao, nodes[i])
 	}
 
 	combo := ao.EdgeBitmapToEdgeCombo(engine.EdgeBitmap{}.Set(edgeType))
@@ -250,11 +251,11 @@ func BenchmarkResolveSmallAcyclic(b *testing.B) {
 	alpha := engine.NewNode(engine.Name, "alpha")
 	beta := engine.NewNode(engine.Name, "beta")
 	gamma := engine.NewNode(engine.Name, "gamma")
-	ao.Add(alpha)
-	ao.Add(beta)
-	ao.Add(gamma)
-	ao.EdgeToEx(alpha, beta, edgeType, true)
-	ao.EdgeToEx(beta, gamma, edgeType, true)
+	enginetest.Add(ao, alpha)
+	enginetest.Add(ao, beta)
+	enginetest.Add(ao, gamma)
+	enginetest.Edge(ao, alpha, beta, edgeType)
+	enginetest.Edge(ao, beta, gamma, edgeType)
 
 	resolver := AQLquery{
 		datasource: ao,
@@ -284,11 +285,11 @@ func BenchmarkResolveHubGraph(b *testing.B) {
 	edgeType := engine.NewEdge("unit-test-bench-resolve-hub")
 	ao := engine.NewIndexedGraph()
 	hub := engine.NewNode(engine.Name, "hub")
-	ao.Add(hub)
+	enginetest.Add(ao, hub)
 	for i := 0; i < 128; i++ {
 		node := engine.NewNode(engine.Name, "leaf-"+engine.NV(i).String())
-		ao.Add(node)
-		ao.EdgeToEx(hub, node, edgeType, true)
+		enginetest.Add(ao, node)
+		enginetest.Edge(ao, hub, node, edgeType)
 	}
 
 	resolver := AQLquery{

@@ -12,7 +12,7 @@ func TestRankedAdjacencyIsOrderedAndFollowsChanges(t *testing.T) {
 		nodes := map[string]*Node{}
 		for _, name := range names {
 			nodes[name] = NewNode(Name, name)
-			g.Add(nodes[name])
+			g.add(nodes[name])
 		}
 		return g, nodes
 	}
@@ -28,7 +28,7 @@ func TestRankedAdjacencyIsOrderedAndFollowsChanges(t *testing.T) {
 	for _, order := range [][]string{{"hub", "c", "a", "b"}, {"b", "a", "hub", "c"}} {
 		g, n := build(order...)
 		for _, target := range []string{"c", "a", "b"} {
-			g.EdgeTo(n["hub"], n[target], edge)
+			g.edgeTo(n["hub"], n[target], edge)
 		}
 		if got := labels(g, g.RankedAdjacency(), n["hub"]); !slices.Equal(got, []string{"a", "b", "c"}) {
 			t.Fatalf("built in order %v: neighbours %v, want [a b c]", order, got)
@@ -39,8 +39,8 @@ func TestRankedAdjacencyIsOrderedAndFollowsChanges(t *testing.T) {
 			t.Fatal("unchanged graph rebuilt its adjacency")
 		}
 		extra := NewNode(Name, "0first")
-		g.Add(extra)
-		g.EdgeTo(n["hub"], extra, edge)
+		g.add(extra)
+		g.edgeTo(n["hub"], extra, edge)
 		if got := labels(g, g.RankedAdjacency(), n["hub"]); !slices.Equal(got, []string{"0first", "a", "b", "c"}) {
 			t.Fatalf("after adding a node and edge: neighbours %v", got)
 		}

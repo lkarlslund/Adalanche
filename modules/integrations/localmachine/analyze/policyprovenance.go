@@ -15,7 +15,7 @@ import (
 // becomes a node keyed only by its SYSVOL path (gPCFileSysPath), which the
 // merge folds into the directory's GPO object; GPOs from domains that were
 // not collected stay visible on their own.
-func importPolicyProvenance(ao *engine.IndexedGraph, machine *engine.Node, info lm.Info) {
+func importPolicyProvenance(tx *engine.Tx, machine engine.TxNode, info lm.Info) {
 	if info.AssessmentData == "" {
 		return
 	}
@@ -62,13 +62,13 @@ func importPolicyProvenance(ao *engine.IndexedGraph, machine *engine.Node, info 
 			}
 			// No distinguished name or data source: either would make the
 			// merge treat this as the authoritative object.
-			gpo, _ := ao.FindOrAdd(activedirectory.GPCFileSysPath, engine.NV(path),
+			gpo, _ := tx.FindOrAdd(activedirectory.GPCFileSysPath, engine.NV(path),
 				engine.IgnoreBlanks,
 				engine.Type, engine.NodeTypeGroupPolicyContainer.ValueString(),
 				engine.Name, engine.NV(r.GUIDName),
 				engine.DisplayName, engine.NV(r.Name),
 			)
-			ao.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+			tx.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
 		}
 	}
 }

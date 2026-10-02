@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -39,9 +40,9 @@ func TestAdminSDHolderProtectedSet(t *testing.T) {
 
 	graph := newADTestGraph(domain, holder, heuristics, da, admin, nested, nestedUser, foreign, accountOps, operator, backupOps, backup, dcs, dc, krbtgt, other)
 	for _, m := range [][2]*engine.Node{{admin, da}, {nested, da}, {nestedUser, nested}, {foreign, da}, {operator, accountOps}, {backup, backupOps}, {dc, dcs}} {
-		graph.EdgeTo(m[0], m[1], activedirectory.EdgeMemberOfGroup)
+		enginetest.EdgeTo(graph, m[0], m[1], activedirectory.EdgeMemberOfGroup)
 	}
-	addAdminSDHolderEdges(graph)
+	runTx(graph, addAdminSDHolderEdges)
 
 	for _, tt := range []struct {
 		node *engine.Node
@@ -77,7 +78,7 @@ func TestOwnerRightsAndHeuristics(t *testing.T) {
 	sd.Owner = owner
 	ownerNode := engine.NewNode(engine.ObjectSid, engine.NV(owner))
 	graph := newADTestGraph(ownerNode)
-	if got := aceTrustee(graph, sd, windowssecurity.OwnerSID, nil); got != ownerNode {
+	if got := aceTrustee(graph.Begin("test"), sd, windowssecurity.OwnerSID, nil).Node(); got != ownerNode {
 		t.Error("OWNER RIGHTS grants belong to the owner")
 	}
 
@@ -111,9 +112,9 @@ func TestMembershipConsumersRunAfterResolution(t *testing.T) {
 	admin := engine.NewNode(engine.Type, engine.NodeTypeUser.ValueString(), engine.DistinguishedName, "CN=admin,CN=Users,"+domainDN,
 		engine.ObjectSid, engine.NV(mustSID(t, "S-1-5-21-1-2-3-1001")), engine.DomainContext, domainDN,
 		activedirectory.MemberOf, daDN)
-	admin.Add(activedirectory.MemberOf, engine.NV(protectedDN))
 
 	graph := newADTestGraph(domain, holder, da, protectedUsers, admin)
+	enginetest.AddValues(graph, admin, activedirectory.MemberOf, engine.NV(protectedDN))
 	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AfterMerge); err != nil {
 		t.Fatal(err)
 	}

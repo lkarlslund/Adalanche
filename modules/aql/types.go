@@ -33,12 +33,7 @@ func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {
 		}
 		n.Skip(nq.Skip)
 		n.Limit(nq.Limit)
-		no := engine.NewIndexedGraph()
-		n.Iterate(func(o *engine.Node) bool {
-			no.Add(o)
-			return true
-		})
-		result = no
+		result = engine.NewResultGraph(n)
 	}
 	return result
 }

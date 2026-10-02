@@ -5,12 +5,13 @@ import (
 
 	"github.com/gobwas/glob"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 )
 
 func benchmarkQueryGraph() *engine.IndexedGraph {
 	graph := engine.NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(engine.NewNode(
+		enginetest.Add(graph, engine.NewNode(
 			engine.Name, "node-"+engine.NV(i).String(),
 			engine.DisplayName, "Node",
 		))

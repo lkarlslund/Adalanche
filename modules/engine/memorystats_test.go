@@ -11,9 +11,9 @@ func TestMemoryStatisticsSharedDescriptors(t *testing.T) {
 	g := NewIndexedGraph()
 	a, b := NewNode(Name, "synthetic-a"), NewNode(Name, "synthetic-b")
 	a.sdcache, b.sdcache = sd, sd
-	g.Add(a)
-	g.Add(b)
-	g.EdgeTo(a, b, testEdge("memory-statistics"))
+	g.add(a)
+	g.add(b)
+	g.edgeTo(a, b, testEdge("memory-statistics"))
 	s := g.EstimateMemory()
 	if s.Nodes != 2 || s.DescriptorReferences != 2 || s.CachedDescriptors != before.CachedDescriptors+1 || s.CachedACEs != before.CachedACEs+2 {
 		t.Fatalf("unexpected aggregate counts: %+v", s)
@@ -33,7 +33,7 @@ func TestMemoryStatisticsSharedDescriptors(t *testing.T) {
 func BenchmarkMemoryStatistics(b *testing.B) {
 	g := NewIndexedGraph()
 	for range 10000 {
-		g.Add(NewNode())
+		g.add(NewNode())
 	}
 	b.ReportAllocs()
 	b.ResetTimer()

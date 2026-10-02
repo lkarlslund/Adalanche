@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 )
@@ -64,15 +65,13 @@ func TestExpandComputerVariables(t *testing.T) {
 func TestGPOLocalGroupMembersResolveByNameAndPerMachine(t *testing.T) {
 	computerSID := mustSID(t, "S-1-5-21-111-222-333-1001")
 	gpo := engine.NewNode(engine.Name, "Local Admins", engine.DistinguishedName, "CN={66666666-6666-6666-6666-666666666666},CN=Policies,CN=System,DC=example,DC=com", engine.DomainContext, "DC=example,DC=com")
-	for _, v := range []string{
+	members := []string{
 		`S-1-5-32-544|EXAMPLE\%ComputerName%_Admins`,
 		`S-1-5-32-555|%DomainName%\RDP_%ComputerName%`,
 		`S-1-5-32-544|Helpdesk`,
 		`S-1-5-32-544|%<ComputerName>%_Admins`,
 		`S-1-5-32-544|%LogonUser%`,
 		`S-1-5-32-544|EXAMPLE\Nobody`,
-	} {
-		gpo.Add(GPOLocalGroupMember, engine.NV(v))
 	}
 	crossref := engine.NewNode(engine.ObjectClass, "crossRef", NCName, "DC=example,DC=com", NetBIOSName, "EXAMPLE")
 	computer := engine.NewNode(engine.Type, engine.NodeTypeComputer.ValueString(), engine.ObjectSid, computerSID, engine.SAMAccountName, "WS01$", engine.DownLevelLogonName, `EXAMPLE\WS01$`, engine.DomainContext, "DC=example,DC=com")
@@ -82,8 +81,11 @@ func TestGPOLocalGroupMembersResolveByNameAndPerMachine(t *testing.T) {
 	helpdesk := engine.NewNode(engine.Name, "Helpdesk", engine.Type, engine.NodeTypeGroup.ValueString(), engine.SAMAccountName, "Helpdesk", engine.DownLevelLogonName, `EXAMPLE\Helpdesk`)
 
 	graph := newADTestGraph(gpo, crossref, computer, machine, admins, rdp, helpdesk)
-	graph.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
-	resolveGPOLocalGroupMembers(graph)
+	for _, v := range members {
+		enginetest.AddValues(graph, gpo, GPOLocalGroupMember, engine.NV(v))
+	}
+	enginetest.EdgeTo(graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
+	runTx(graph, resolveGPOLocalGroupMembers)
 
 	requireEdgeSet(t, graph, admins, machine, activedirectory.EdgeLocalAdminRights)
 	requireEdgeSet(t, graph, rdp, machine, activedirectory.EdgeLocalRDPRights)

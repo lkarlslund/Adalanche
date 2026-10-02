@@ -10,15 +10,8 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func LinkSCCM(ao *engine.IndexedGraph) {
-	view := ao.Freeze()
-	var delta engine.EdgeDelta
-	LinkSCCMProcessor(view, &delta)
-	delta.Apply(ao)
-}
-
-func LinkSCCMProcessor(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-	view.Iterate(func(o *engine.Node) bool {
+func LinkSCCMProcessor(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		if o.HasAttr(WUServer) || o.HasAttr(SCCMServer) {
 			var hosts []string
 			controltype := "unknown"
@@ -32,13 +25,13 @@ func LinkSCCMProcessor(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 
 			for _, host := range hosts {
 				// Try full DNS name
-				servers, found := view.FindTwoMulti(
+				servers, found := tx.FindTwoMulti(
 					DNSHostname, engine.NV(host),
 					engine.Type, engine.NV("Machine"),
 				)
 				// .. or fallback to just the name
 				if !found {
-					servers, found = view.FindTwoMulti(
+					servers, found = tx.FindTwoMulti(
 						engine.Name, engine.NV(host),
 						engine.Type, engine.NV("Machine"),
 					)
@@ -56,7 +49,7 @@ func LinkSCCMProcessor(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 					continue
 				}
 				servers.Iterate(func(server *engine.Node) bool {
-					out.Add(server, o, EdgeControlsUpdates, false)
+					tx.EdgeTo(server, o, EdgeControlsUpdates)
 					return true
 				})
 			}
@@ -66,7 +59,7 @@ func LinkSCCMProcessor(view *engine.FrozenGraph, out *engine.EdgeDelta) {
 }
 
 func init() {
-	loader.AddEdgeDeltaProcessor(
+	loader.AddProcessor(
 		LinkSCCMProcessor,
 		engine.Processor{
 			Description: "Link SCCM and WSUS servers to controlled computers",
@@ -74,12 +67,12 @@ func init() {
 			Needs:       []engine.Product{adanalyze.ProductMachines},
 			Provides:    []engine.Product{ProductUpdateControl},
 		})
-	loader.AddEdgeDeltaProcessor(
+	loader.AddProcessor(
 
-		func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
+		func(tx *engine.Tx) {
 			var mut sync.Mutex
 			sids := make(map[windowssecurity.SID][]*engine.Node)
-			view.IterateParallel(func(o *engine.Node) bool {
+			tx.IterateParallel(func(o *engine.Node) bool {
 				if o.Type() != engine.NodeTypeMachine {
 					return true
 				}
@@ -102,7 +95,7 @@ func init() {
 						if i == j {
 							continue
 						}
-						out.Add(nodes[i], nodes[j], EdgeSIDCollision, false)
+						tx.EdgeTo(nodes[i], nodes[j], EdgeSIDCollision)
 					}
 				}
 			}

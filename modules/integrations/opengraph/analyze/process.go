@@ -9,7 +9,7 @@ import (
 // It is kept as an ordinary attribute; engine node IDs are process-local.
 var attributeOpenGraphID = engine.NewAttribute("id")
 
-func processOpenGraphData(g *engine.IndexedGraph, ogd opengraph.Model) error {
+func processOpenGraphData(tx *engine.Tx, ogd opengraph.Model) error {
 	// process nodes
 	for _, node := range ogd.Graph.Nodes {
 		data := make([]any, 0, len(node.Properties)*2+4)
@@ -21,7 +21,7 @@ func processOpenGraphData(g *engine.IndexedGraph, ogd opengraph.Model) error {
 			attr := engine.NewAttribute(attrName)
 			data = append(data, attr, value)
 		}
-		g.AddNew(data...)
+		tx.AddNew(data...)
 	}
 
 	// process edges
@@ -30,8 +30,8 @@ func processOpenGraphData(g *engine.IndexedGraph, ogd opengraph.Model) error {
 		startAttr := engine.NewAttribute(edge.Start.MatchBy)
 		endAttr := engine.NewAttribute(edge.End.MatchBy)
 
-		startNode, startFound := g.FindOrAdd(startAttr, engine.NV(edge.Start.MatchBy))
-		endNode, endFound := g.FindOrAdd(endAttr, engine.NV(edge.End.MatchBy))
+		startNode, startFound := tx.FindOrAdd(startAttr, engine.NV(edge.Start.Value))
+		endNode, endFound := tx.FindOrAdd(endAttr, engine.NV(edge.End.Value))
 
 		if _, seen := seenMatchAttrs[startAttr]; !seen && !startFound {
 			startAttr.Flag(engine.Merge)
@@ -43,7 +43,7 @@ func processOpenGraphData(g *engine.IndexedGraph, ogd opengraph.Model) error {
 		}
 
 		edge := engine.NewEdge(edge.Kind)
-		g.EdgeTo(startNode, endNode, edge)
+		tx.EdgeTo(startNode, endNode, edge)
 	}
 
 	return nil

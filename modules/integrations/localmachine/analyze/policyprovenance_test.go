@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	lm "github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 )
@@ -42,8 +43,8 @@ const sysvol = `\\example.test\SysVol\example.test\Policies\`
 func TestImportPolicyProvenance(t *testing.T) {
 	g := engine.NewIndexedGraph()
 	machine := engine.NewNode(engine.Name, "WS01")
-	g.Add(machine)
-	importPolicyProvenance(g, machine, provenanceInfo(t,
+	enginetest.Add(g, machine)
+	info := provenanceInfo(t,
 		map[string]any{"Class": "MachineSite", "DynamicSiteName": "Discovered", "SiteName": "Override"},
 		rsopGPO("{A}", sysvol+`{A}\Machine`, true, false, true),
 		rsopGPO("{B}", sysvol+`{B}`, true, true, true),
@@ -51,7 +52,8 @@ func TestImportPolicyProvenance(t *testing.T) {
 		rsopGPO("{D}", sysvol+`{D}`, false, false, true),
 		rsopGPO("LocalGPO", `C:\Windows\System32\GroupPolicy\Machine`, true, false, true),
 		map[string]any{"Class": "RSOP_GPO", "Scope": "user", "guidName": "{E}", "fileSystemPath": sysvol + `{E}`, "enabled": true, "filterAllowed": true},
-	))
+	)
+	runTx(g, func(tx *engine.Tx) { importPolicyProvenance(tx, tx.Node(machine), info) })
 
 	if got := machine.OneAttrString(lm.ADSite); got != "Override" {
 		t.Errorf("site %q, want the administrator override", got)
@@ -72,8 +74,9 @@ func TestImportPolicyProvenance(t *testing.T) {
 
 	// No policy results at all: inference stays in charge.
 	other := engine.NewNode(engine.Name, "WS02")
-	g.Add(other)
-	importPolicyProvenance(g, other, provenanceInfo(t, map[string]any{"Class": "MachineSite", "DynamicSiteName": "Discovered"}))
+	enginetest.Add(g, other)
+	info = provenanceInfo(t, map[string]any{"Class": "MachineSite", "DynamicSiteName": "Discovered"})
+	runTx(g, func(tx *engine.Tx) { importPolicyProvenance(tx, tx.Node(other), info) })
 	if other.HasAttr(lm.GPOResultsCollected) || other.OneAttrString(lm.ADSite) != "Discovered" {
 		t.Error("site only collection handled wrongly")
 	}
@@ -86,21 +89,22 @@ func TestReportedGPOMergesIntoDirectoryGPO(t *testing.T) {
 		t.Run(fmt.Sprintf("local graph larger: %v", localFirst), func(t *testing.T) {
 			dn := "CN={A},CN=Policies,CN=System,DC=example,DC=test"
 			ad := engine.NewIndexedGraph()
-			ad.Add(engine.NewNode(engine.DistinguishedName, dn, engine.DataSource, "EXAMPLE",
+			enginetest.Add(ad, engine.NewNode(engine.DistinguishedName, dn, engine.DataSource, "EXAMPLE",
 				activedirectory.GPCFileSysPath, `\\EXAMPLE.TEST\sysvol\example.test\Policies\{A}`,
 				activedirectory.GPLink, "kept"))
 
 			local := engine.NewIndexedGraph()
 			machine := engine.NewNode(engine.Name, "WS01", engine.DataSource, "WS01")
-			local.Add(machine)
-			importPolicyProvenance(local, machine, provenanceInfo(t, rsopGPO("{A}", sysvol+`{A}\Machine`, true, false, true)))
+			enginetest.Add(local, machine)
+			info := provenanceInfo(t, rsopGPO("{A}", sysvol+`{A}\Machine`, true, false, true))
+			runTx(local, func(tx *engine.Tx) { importPolicyProvenance(tx, tx.Node(machine), info) })
 
 			filler, other := ad, local
 			if localFirst {
 				filler, other = local, ad
 			}
 			for i := 0; i < 5+other.Order(); i++ {
-				filler.Add(engine.NewNode(engine.Name, fmt.Sprintf("filler %d", i), engine.DataSource, "FILLER"))
+				enginetest.Add(filler, engine.NewNode(engine.Name, fmt.Sprintf("filler %d", i), engine.DataSource, "FILLER"))
 			}
 
 			merged, err := engine.MergeGraphs([]*engine.IndexedGraph{ad, local})

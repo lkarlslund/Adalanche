@@ -178,7 +178,14 @@ func (r *ImpactResult) IterateMetricsParallel(each func(*Node, ImpactMetrics)) {
 // propagation, without traversing the graph separately for every starting node.
 // The graph and probability/classification inputs must not change during the call.
 // Cancellation or a set-budget failure returns no result and modifies no nodes.
-func CalculateImpact(ctx context.Context, view *FrozenGraph, options ImpactOptions) (*ImpactResult, error) {
+func CalculateImpact(ctx context.Context, g *IndexedGraph, options ImpactOptions) (*ImpactResult, error) {
+	if g == nil {
+		return nil, errors.New("invalid impact options")
+	}
+	return calculateImpact(ctx, g.freeze(), options)
+}
+
+func calculateImpact(ctx context.Context, view *frozenGraph, options ImpactOptions) (*ImpactResult, error) {
 	if view == nil || options.Classify == nil || options.Categories < 1 || options.Categories > 256 || options.Workers < 0 {
 		return nil, errors.New("invalid impact options")
 	}
@@ -331,7 +338,7 @@ func (g impactCSR) reverse() impactCSR {
 	return r
 }
 
-func impactAdjacency(ctx context.Context, view *FrozenGraph, options ImpactOptions) (impactCSR, error) {
+func impactAdjacency(ctx context.Context, view *frozenGraph, options ImpactOptions) (impactCSR, error) {
 	g := impactCSR{offsets: make([]int, len(view.nodes)+1)}
 	capacity := 0
 	for _, row := range view.edges[Out] {

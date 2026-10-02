@@ -14,7 +14,7 @@ const searchFlagConfidential = 0x80
 // this schemaIDGUID. Confidential attributes need RIGHT_DS_CONTROL_ACCESS as
 // well as RIGHT_DS_READ_PROPERTY (MS-ADTS 3.1.1.4.4). The schema decides when
 // it was collected; otherwise confidentialByDefault does.
-func AttributeReadRights(ao *engine.IndexedGraph, attribute uuid.UUID, confidentialByDefault bool) engine.Mask {
+func AttributeReadRights(ao engine.GraphReader, attribute uuid.UUID, confidentialByDefault bool) engine.Mask {
 	confidential := confidentialByDefault
 	if schema, found := ao.Find(activedirectory.SchemaIDGUID, engine.NV(attribute)); found {
 		if flags, ok := schema.AttrInt(activedirectory.SearchFlags); ok {
@@ -31,7 +31,7 @@ func AttributeReadRights(ao *engine.IndexedGraph, attribute uuid.UUID, confident
 // grants all of mask for the object or attribute guid, counting rights spread
 // over several of its ACEs and honouring its denies, including denies for
 // Everyone and for groups in the trustee's token (see TrusteeToken).
-func PrincipalsGranted(sd *engine.SecurityDescriptor, o *engine.Node, mask engine.Mask, guid uuid.UUID, ao *engine.IndexedGraph) []windowssecurity.SID {
+func PrincipalsGranted(sd *engine.SecurityDescriptor, o *engine.Node, mask engine.Mask, guid uuid.UUID, ao engine.GraphReader) []windowssecurity.SID {
 	var granted []windowssecurity.SID
 	seen := map[windowssecurity.SID]struct{}{}
 	for _, ace := range sd.DACL.Entries {

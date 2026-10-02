@@ -10,7 +10,7 @@ import (
 
 // importCollectionSettings preserves each capture as an indivisible value so
 // merging machines cannot combine values and outcomes from different captures.
-func importCollectionSettings(machine *engine.Node, info localmachine.Info) error {
+func importCollectionSettings(machine engine.TxNode, info localmachine.Info) error {
 	data, err := json.Marshal(localmachine.CollectionSettings{
 		Common: info.Common, RegistryData: info.RegistryData,
 		CollectionResults: info.CollectionResults, UnprivilegedCollection: info.UnprivilegedCollection,

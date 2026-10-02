@@ -17,15 +17,15 @@ var trusteeTokens sync.Map // *engine.Node -> map[windowssecurity.SID]struct{}
 // ACEGrants reports whether the ACE at index in the DACL of sd grants mask for
 // guid on o, and no preceding deny ACE refuses any of it to its trustee: one
 // for the trustee itself, for Everyone, or for a group in the trustee's token.
-func ACEGrants(ao *engine.IndexedGraph, sd *engine.SecurityDescriptor, index int, o *engine.Node, mask engine.Mask, guid uuid.UUID) bool {
-	return sd.DACL.IsObjectClassAccessAllowedFor(index, o, mask, guid, ao, TrusteeToken(ao, sd, sd.DACL.Entries[index].SID, o))
+func ACEGrants(ao engine.GraphReader, sd *engine.SecurityDescriptor, index int, o *engine.Node, mask engine.Mask, guid uuid.UUID) bool {
+	return sd.DACL.IsObjectClassAccessAllowedFor(index, o, mask, guid, ao.Graph(), TrusteeToken(ao, sd, sd.DACL.Entries[index].SID, o))
 }
 
 // TrusteeGranted reports whether the trustee's own ACEs grant all of mask
 // for guid on o, counting rights spread over several ACEs, with denies
 // counted as in ACEGrants.
-func TrusteeGranted(ao *engine.IndexedGraph, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node, mask engine.Mask, guid uuid.UUID) bool {
-	return sd.TrusteeAccessCheck(sid, TrusteeToken(ao, sd, sid, o), o, mask, guid, ao)
+func TrusteeGranted(ao engine.GraphReader, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node, mask engine.Mask, guid uuid.UUID) bool {
+	return sd.TrusteeAccessCheck(sid, TrusteeToken(ao, sd, sid, o), o, mask, guid, ao.Graph())
 }
 
 // TrusteeToken returns a membership test for SIDs that are in the token of
@@ -33,7 +33,7 @@ func TrusteeGranted(ao *engine.IndexedGraph, sd *engine.SecurityDescriptor, sid 
 // is a member of, directly or through nesting, following MemberOfGroup edges.
 // A deny for any of them refuses a grant to the trustee for all of its
 // members. The token is built on first use, as most ACLs have no denies.
-func TrusteeToken(ao *engine.IndexedGraph, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) func(windowssecurity.SID) bool {
+func TrusteeToken(ao engine.GraphReader, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) func(windowssecurity.SID) bool {
 	var token map[windowssecurity.SID]struct{}
 	return func(member windowssecurity.SID) bool {
 		if token == nil {
@@ -75,7 +75,7 @@ func memberSIDs(g membershipGraph, n *engine.Node) map[windowssecurity.SID]struc
 }
 
 func init() {
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		trusteeTokens.Clear()
 	}, engine.Processor{
 		Description: "Release cached trustee tokens",

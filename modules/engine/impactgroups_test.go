@@ -40,7 +40,7 @@ func TestImpactPartitionsAgainstTraversal(t *testing.T) {
 			if edge == takeover {
 				capabilities[a][b] = true
 			}
-			graph.EdgeToEx(nodes[a], nodes[b], edge, true)
+			graph.edgeToEx(nodes[a], nodes[b], edge, true)
 		}
 		classify := func(n *Node) int {
 			if n.Type() == NodeTypeGroup {
@@ -51,7 +51,7 @@ func TestImpactPartitionsAgainstTraversal(t *testing.T) {
 		options := ImpactOptions{Edges: EdgeBitmap{}.Set(membership).Set(takeover), RequiredProbability: 100,
 			Classify: classify, Categories: 2, SourceClassify: classify, SourceCategories: 2,
 			KeepConnections: true, Workers: 1 + trial%4, GroupMembershipEdges: EdgeBitmap{}.Set(membership)}
-		result, err := CalculateImpact(context.Background(), graph.Freeze(), options)
+		result, err := calculateImpact(context.Background(), graph.freeze(), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -204,12 +204,12 @@ func TestGroupExposureEmptyAndDisabled(t *testing.T) {
 	member := testEdge("impact-empty-membership").RegisterFixedProbability(100)
 	options := ImpactOptions{Edges: EdgeBitmap{}.Set(member), RequiredProbability: 100, Classify: func(*Node) int { return 0 }, Categories: 1,
 		SourceClassify: func(*Node) int { return 0 }, SourceCategories: 1, GroupMembershipEdges: EdgeBitmap{}.Set(member), KeepConnections: true}
-	if _, err := CalculateImpact(context.Background(), testGraph().Freeze(), options); err != nil {
+	if _, err := calculateImpact(context.Background(), testGraph().freeze(), options); err != nil {
 		t.Fatal(err)
 	}
 	node := testNamedNode("sample")
 	options.GroupMembershipEdges = EdgeBitmap{}
-	result, err := CalculateImpact(context.Background(), testGraph(node).Freeze(), options)
+	result, err := calculateImpact(context.Background(), testGraph(node).freeze(), options)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ func testNamedNode(name string, attrs ...any) *Node {
 func testGraph(nodes ...*Node) *IndexedGraph {
 	g := NewIndexedGraph()
 	for _, node := range nodes {
-		g.Add(node)
+		g.add(node)
 	}
 	return g
 }
@@ -153,7 +153,7 @@ func buildSyntheticGraph(cfg syntheticGraphConfig) *IndexedGraph {
 		}
 
 		node := NewNode(attrs...)
-		graph.Add(node)
+		graph.add(node)
 		nodes[i] = node
 	}
 
@@ -164,7 +164,7 @@ func buildSyntheticGraph(cfg syntheticGraphConfig) *IndexedGraph {
 			if from == target {
 				continue
 			}
-			graph.EdgeToEx(from, target, syntheticEdgeForStep(step), true)
+			graph.edgeToEx(from, target, syntheticEdgeForStep(step), true)
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	lm "github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -20,14 +21,14 @@ func TestTaskExecutablePermissions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := engine.NewIndexedGraph()
-			machine := g.AddNew(engine.Type, "Machine", engine.Name, "synthetic", engine.DataSource, "synthetic")
-			node := g.AddNew(engine.Type, "ScheduledTask", engine.Name, "task")
+			machine := enginetest.AddNew(g, engine.Type, "Machine", engine.Name, "synthetic", engine.DataSource, "synthetic")
+			node := enginetest.AddNew(g, engine.Type, "ScheduledTask", engine.Name, "task")
 			aces := []engine.ACE{{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: user, Mask: engine.FILE_WRITE_DATA}}
 			if tc.deny {
 				aces = append(aces, engine.ACE{Type: engine.ACETYPE_ACCESS_DENIED, SID: user, Mask: engine.FILE_WRITE_DATA})
 			}
 			task := lm.RegisteredTask{Enabled: tc.enabled, Definition: lm.TaskDefinition{Settings: lm.TaskSettings{Enabled: tc.enabled}, Principal: lm.Principal{UserID: "SYSTEM", LogonType: TASK_LOGON_SERVICE_ACCOUNT, RunLevel: 1}, Actions: []lm.TaskAction{{PathDACL: serviceTestACL(aces...)}}}}
-			importTaskExecution(g, machine, node, task)
+			runTx(g, func(tx *engine.Tx) { importTaskExecution(tx, tx.Node(machine), tx.Node(node), task) })
 			found := false
 			g.IterateEdges(node, engine.In, func(source *engine.Node, edges engine.EdgeBitmap) bool {
 				found = found || edges.IsSet(EdgeTaskActionWrite)
@@ -52,9 +53,11 @@ func TestLocalDenyIncludesNestedLocalGroups(t *testing.T) {
 
 func TestLocalEvidenceOmitsCommandsAndRetainsCounts(t *testing.T) {
 	g := engine.NewIndexedGraph()
-	n := g.AddNew(engine.Type, "Machine")
+	n := enginetest.AddNew(g, engine.Type, "Machine")
 	info := lm.Info{Software: []lm.Software{{DisplayName: "sample", UninstallString: "secret command"}}, LoginInfos: []lm.LogonInfo{{Count: 100, LastSeen: time.Now().UTC()}}}
-	if err := importLocalEvidence(n, info); err != nil {
+	var err error
+	runTx(g, func(tx *engine.Tx) { err = importLocalEvidence(tx.Node(n), info) })
+	if err != nil {
 		t.Fatal(err)
 	}
 	var got LocalEvidenceCapture

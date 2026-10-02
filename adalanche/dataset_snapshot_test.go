@@ -119,10 +119,24 @@ func TestDatasetSnapshot(t *testing.T) {
 	fmt.Printf("STAT nodes_total %d\n", nodeCount)
 	fmt.Printf("STAT edges_total %d\n", edgeCount)
 
-	// Every predefined query with the UI's default node limit.
-	queries, closeQueries := create("queries.tsv")
+	// Every predefined query with the UI's default node limit, and the
+	// ACYCLIC ones again in REACH mode, whose result does not depend on
+	// node order (numbered from 1000).
+	type namedQuery struct {
+		index int
+		text  string
+	}
+	var all []namedQuery
 	for i, qd := range aql.PredefinedQueries {
-		resolver, err := aql.ParseAQLQuery(qd.Query, ao)
+		all = append(all, namedQuery{i, qd.Query})
+		if mode, rest, found := strings.Cut(qd.Query, " "); found && mode == "ACYCLIC" {
+			all = append(all, namedQuery{1000 + i, "REACH " + rest})
+		}
+	}
+	queries, closeQueries := create("queries.tsv")
+	for _, q := range all {
+		i := q.index
+		resolver, err := aql.ParseAQLQuery(q.text, ao)
 		if err != nil {
 			fmt.Fprintf(queries, "%d\terror\tparse\n", i)
 			continue

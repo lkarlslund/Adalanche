@@ -28,14 +28,14 @@ func TestImpactBothDirectionsAgainstBFS(t *testing.T) {
 			if trial%2 == 0 && a > b {
 				continue
 			}
-			g.EdgeToEx(nodes[a], nodes[b], edge, true)
+			g.edgeToEx(nodes[a], nodes[b], edge, true)
 			matrix[a][b] = true
 		}
 		for _, workers := range []int{1, 4} {
 			opts := ImpactOptions{Edges: EdgeBitmap{}.Set(edge), RequiredProbability: 100, Workers: workers,
 				Categories: 3, Classify: func(n *Node) int { return index[n]%4 - 1 },
 				SourceCategories: 4, SourceClassify: func(n *Node) int { return index[n]%5 - 1 }, KeepConnections: true}
-			result, err := CalculateImpact(context.Background(), g.Freeze(), opts)
+			result, err := calculateImpact(context.Background(), g.freeze(), opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,10 +146,10 @@ func TestImpactPathEdgePolicy(t *testing.T) {
 	target := testNode(Type, NodeTypeUser.ValueString())
 	g := testGraph(root, group, target)
 	for _, edge := range []Edge{member, control, denied, companion, dynamic} {
-		g.EdgeToEx(root, group, edge, true)
-		g.EdgeToEx(group, target, edge, true)
+		g.edgeToEx(root, group, edge, true)
+		g.edgeToEx(group, target, edge, true)
 	}
-	r, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{
+	r, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{
 		Edges: EdgeBitmap{}.Set(member).Set(control).Set(denied).Set(dynamic), GroupMembershipEdges: EdgeBitmap{}.Set(member),
 		RequiredProbability: 100, Classify: func(*Node) int { return 0 }, Categories: 1,
 		SourceClassify: func(*Node) int { return 0 }, SourceCategories: 1, KeepConnections: true,
@@ -186,7 +186,7 @@ func TestImpactInspectionBounds(t *testing.T) {
 	view, opts := impactBenchmarkGraph(1500, 1500)
 	opts.KeepConnections = true
 	opts.SourceClassify, opts.SourceCategories = opts.Classify, opts.Categories
-	r, err := CalculateImpact(context.Background(), view, opts)
+	r, err := calculateImpact(context.Background(), view, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func BenchmarkImpactBidirectional(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := CalculateImpact(context.Background(), view, opts); err != nil {
+		if _, err := calculateImpact(context.Background(), view, opts); err != nil {
 			b.Fatal(err)
 		}
 	}

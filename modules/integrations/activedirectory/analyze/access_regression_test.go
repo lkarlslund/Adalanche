@@ -24,7 +24,7 @@ func TestDCSyncCombinesOnlySameTrusteeRights(t *testing.T) {
 			domain := engine.NewNode(engine.Type, engine.NodeTypeDomainDNS.ValueString(), engine.DistinguishedName, "DC=example,DC=test", activedirectory.SystemFlags, int64(1), engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(tt.aces...)))
 			principal := engine.NewNode(engine.ObjectSid, engine.NV(a))
 			graph := newADTestGraph(domain, principal)
-			addDomainDNSDCSyncEdges(graph)
+			runTx(graph, addDomainDNSDCSyncEdges)
 			service, found := graph.FindTwo(engine.Type, engine.NodeTypeCallableServicePoint.ValueString(), engine.Name, engine.NV("DCsync"))
 			if !found {
 				t.Fatal("missing DCSync service")
@@ -46,8 +46,8 @@ func TestDCSyncServicesAreDomainScoped(t *testing.T) {
 	principalA := engine.NewNode(engine.ObjectSid, engine.NV(a))
 	principalB := engine.NewNode(engine.ObjectSid, engine.NV(b))
 	graph := newADTestGraph(first, second, principalA, principalB)
-	addDomainDNSDCSyncEdges(graph)
-	addDomainDNSDCSyncEdges(graph)
+	runTx(graph, addDomainDNSDCSyncEdges)
+	runTx(graph, addDomainDNSDCSyncEdges)
 	var services []*engine.Node
 	graph.Iterate(func(o *engine.Node) bool {
 		if o.Type() == engine.NodeTypeCallableServicePoint {
@@ -94,7 +94,7 @@ func TestRBCDRequiresControlAccess(t *testing.T) {
 			principal := engine.NewNode(engine.ObjectSid, engine.NV(mustSID(t, sid)))
 			computer := engine.NewNode(engine.Type, engine.NodeTypeComputer.ValueString(), activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, engine.NV(&engine.SecurityDescriptor{Control: engine.CONTROLFLAG_DACL_PRESENT, DACL: acl}))
 			graph := newADTestGraph(principal, computer)
-			addRBCDEdges(graph)
+			runTx(graph, addRBCDEdges)
 			if tt.want {
 				requireEdgeSet(t, graph, principal, computer, EdgeRBCD)
 			} else {
@@ -118,7 +118,7 @@ func TestDCSyncDeniedReplicationDoesNotCreateCall(t *testing.T) {
 	)
 	principal := engine.NewNode(engine.ObjectSid, engine.NV(mustSID(t, sid)))
 	graph := newADTestGraph(domain, principal)
-	addDomainDNSDCSyncEdges(graph)
+	runTx(graph, addDomainDNSDCSyncEdges)
 	service, found := graph.Find(engine.DistinguishedName, engine.NV("CN=DCsync,"+domain.DN()))
 	if !found {
 		t.Fatal("missing DCSync service")

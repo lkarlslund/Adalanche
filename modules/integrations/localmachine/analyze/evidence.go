@@ -33,7 +33,7 @@ type TaskEvidence struct {
 	Triggers            []string
 }
 
-func importLocalEvidence(machine *engine.Node, info lm.Info) error {
+func importLocalEvidence(machine engine.TxNode, info lm.Info) error {
 	e := LocalEvidenceCapture{Captured: info.Collected, Software: info.Software, Logins: info.LoginInfos, Privileges: info.Privileges, Availability: info.Availability}
 	for _, s := range info.Services {
 		e.Services = append(e.Services, ServiceEvidence{s.Name, s.ImageExecutable, s.AccountSID, s.Start, s.Type, s.RequiredPrivileges})

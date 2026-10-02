@@ -37,7 +37,7 @@ func TestMultiIndexAddLookupAndUndupe(t *testing.T) {
 func TestIndexedGraphConcurrentIndexCreationAndLookup(t *testing.T) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 256; i++ {
-		graph.Add(testNode(Name, fmt.Sprintf("node-%d", i), SAMAccountName, fmt.Sprintf("NODE-%d", i)))
+		graph.add(testNode(Name, fmt.Sprintf("node-%d", i), SAMAccountName, fmt.Sprintf("NODE-%d", i)))
 	}
 
 	var wg sync.WaitGroup

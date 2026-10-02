@@ -11,7 +11,7 @@ import (
 
 var EdgeTaskActionWrite = engine.NewEdge("TaskActionWrite").RegisterFixedProbability(100).Tag("Pivot").Describe("Can modify an executable used by an enabled task; activation still depends on its trigger")
 
-func importTaskExecution(g *engine.IndexedGraph, machine, taskNode *engine.Node, task lm.RegisteredTask) {
+func importTaskExecution(g *engine.Tx, machine, taskNode engine.TxNode, task lm.RegisteredTask) {
 	if !task.Enabled || !task.Definition.Settings.Enabled {
 		return
 	}
@@ -19,7 +19,7 @@ func importTaskExecution(g *engine.IndexedGraph, machine, taskNode *engine.Node,
 	if p.LogonType != TASK_LOGON_PASSWORD && p.LogonType != TASK_LOGON_SERVICE_ACCOUNT && p.LogonType != TASK_LOGON_INTERACTIVE_TOKEN && p.LogonType != TASK_LOGON_S4U && p.LogonType != TASK_LOGON_INTERACTIVE_TOKEN_OR_PASSWORD {
 		return
 	}
-	var account *engine.Node
+	var account engine.TxNode
 	name := p.UserID
 	switch strings.ToUpper(name) {
 	case "SYSTEM", "NT AUTHORITY\\SYSTEM":
@@ -36,7 +36,7 @@ func importTaskExecution(g *engine.IndexedGraph, machine, taskNode *engine.Node,
 			account = g.FindOrAddAdjacentSID(sid, machine)
 		} else if domain, user, found := strings.Cut(name, `\`); found {
 			if domain == "." {
-				domain = machine.Label()
+				domain = machine.Node().Label()
 			}
 			if name := downLevelLogonName(domain, user); name != "" {
 				account, _ = g.FindOrAdd(engine.DownLevelLogonName, engine.NV(name))
@@ -45,7 +45,7 @@ func importTaskExecution(g *engine.IndexedGraph, machine, taskNode *engine.Node,
 			account, _ = g.FindOrAdd(engine.UserPrincipalName, engine.NV(name))
 		}
 	}
-	if account == nil {
+	if !account.Valid() {
 		return
 	}
 	g.EdgeTo(taskNode, account, ad.EdgeAuthenticatesAs)

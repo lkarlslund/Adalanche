@@ -28,13 +28,13 @@ func TestImpactMatchesTraversal(t *testing.T) {
 			if trial%2 == 0 && from >= to {
 				continue
 			}
-			g.EdgeToEx(nodes[from], nodes[to], edge, true)
+			g.edgeToEx(nodes[from], nodes[to], edge, true)
 		}
-		view := g.Freeze()
+		view := g.freeze()
 		for _, workers := range []int{1, 4} {
 			options := ImpactOptions{Edges: EdgeBitmap{}.Set(edge), RequiredProbability: 100, Categories: 3, Workers: workers,
 				Classify: func(n *Node) int { return category[n] }}
-			result, err := CalculateImpact(context.Background(), view, options)
+			result, err := calculateImpact(context.Background(), view, options)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +51,7 @@ func TestImpactMatchesTraversal(t *testing.T) {
 	}
 }
 
-func referenceImpact(view *FrozenGraph, source *Node, options ImpactOptions) []uint32 {
+func referenceImpact(view *frozenGraph, source *Node, options ImpactOptions) []uint32 {
 	counts := make([]uint32, options.Categories)
 	seen := map[*Node]bool{source: true}
 	pending := []*Node{source}
@@ -90,12 +90,12 @@ func TestImpactProbabilityAndCompanionRights(t *testing.T) {
 	low := testEdge("impact-low").RegisterFixedProbability(80)
 	a, b, c, d := testNamedNode("a"), testNamedNode("b"), testNamedNode("c"), testNamedNode("d")
 	g := testGraph(a, b, c, d)
-	g.EdgeToEx(a, b, conditional, true)
-	g.EdgeToEx(a, b, companion, true)
-	g.EdgeToEx(b, c, conditional, true)
-	g.EdgeToEx(b, d, low, true)
+	g.edgeToEx(a, b, conditional, true)
+	g.edgeToEx(a, b, companion, true)
+	g.edgeToEx(b, c, conditional, true)
+	g.edgeToEx(b, d, low, true)
 	options := ImpactOptions{Edges: EdgeBitmap{}.Set(conditional).Set(low), RequiredProbability: 100, Categories: 1, Classify: func(*Node) int { return 0 }}
-	result, err := CalculateImpact(context.Background(), g.Freeze(), options)
+	result, err := calculateImpact(context.Background(), g.freeze(), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestImpactProbabilityAndCompanionRights(t *testing.T) {
 		t.Fatalf("got %d want 2", got)
 	}
 	options.RequiredProbability = 80
-	result, err = CalculateImpact(context.Background(), g.Freeze(), options)
+	result, err = calculateImpact(context.Background(), g.freeze(), options)
 	if err != nil || result.Counts(a)[0] != 3 {
 		t.Fatalf("lower threshold: %v, %v", result, err)
 	}
@@ -113,11 +113,11 @@ func TestImpactCancellationAndBudget(t *testing.T) {
 	view, options := impactBenchmarkGraph(2048, 64)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if result, err := CalculateImpact(ctx, view, options); result != nil || !errors.Is(err, context.Canceled) {
+	if result, err := calculateImpact(ctx, view, options); result != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled calculation: %v, %v", result, err)
 	}
 	options.MaxSetBytes = 1
-	if result, err := CalculateImpact(context.Background(), view, options); result != nil || err == nil {
+	if result, err := calculateImpact(context.Background(), view, options); result != nil || err == nil {
 		t.Fatalf("over-budget calculation: %v, %v", result, err)
 	}
 	options.MaxSetBytes = 0
@@ -127,19 +127,19 @@ func TestImpactCancellationAndBudget(t *testing.T) {
 		cancel()
 		return original(node)
 	}
-	if result, err := CalculateImpact(ctx, view, options); result != nil || !errors.Is(err, context.Canceled) {
+	if result, err := calculateImpact(ctx, view, options); result != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation during preparation: %v, %v", result, err)
 	}
 }
 
 func TestImpactEmptyAndInvalid(t *testing.T) {
 	options := ImpactOptions{Categories: 1, RequiredProbability: 100, Classify: func(*Node) int { return -1 }}
-	result, err := CalculateImpact(context.Background(), NewIndexedGraph().Freeze(), options)
+	result, err := calculateImpact(context.Background(), NewIndexedGraph().freeze(), options)
 	if err != nil || result.Statistics.Nodes != 0 {
 		t.Fatalf("empty graph: %v, %v", result, err)
 	}
 	options.Classify = func(*Node) int { return 1 }
-	if _, err := CalculateImpact(context.Background(), testGraph(testNamedNode("x")).Freeze(), options); err == nil {
+	if _, err := calculateImpact(context.Background(), testGraph(testNamedNode("x")).freeze(), options); err == nil {
 		t.Fatal("accepted out-of-range category")
 	}
 }
@@ -152,7 +152,7 @@ func TestImpactLongChainSharesSets(t *testing.T) {
 		}
 		return -1
 	}
-	result, err := CalculateImpact(context.Background(), view, options)
+	result, err := calculateImpact(context.Background(), view, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestImpactDenseOverlap(t *testing.T) {
 	}
 	for _, workers := range []int{1, 8} {
 		options.Workers = workers
-		result, err := CalculateImpact(context.Background(), view, options)
+		result, err := calculateImpact(context.Background(), view, options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,7 +186,7 @@ func TestImpactDenseOverlap(t *testing.T) {
 func TestImpactLargeCycle(t *testing.T) {
 	view, options := impactBenchmarkGraph(10000, 10000)
 	view.edges[Out][9999] = []frozenEdge{{target: 0, edge: options.Edges}}
-	result, err := CalculateImpact(context.Background(), view, options)
+	result, err := calculateImpact(context.Background(), view, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,10 +222,10 @@ func TestImpactSetRepresentations(t *testing.T) {
 
 // Disconnected overlapping DAGs, no SCC shortcut. Twenty percent of nodes are
 // targets; four forward connections per node exercise deduplication and sharing.
-func impactBenchmarkGraph(size, cluster int) (*FrozenGraph, ImpactOptions) {
+func impactBenchmarkGraph(size, cluster int) (*frozenGraph, ImpactOptions) {
 	edge := testEdge("impact-benchmark").RegisterFixedProbability(100)
 	ebm := EdgeBitmap{}.Set(edge)
-	view := &FrozenGraph{nodes: make([]*Node, size)}
+	view := &frozenGraph{nodes: make([]*Node, size)}
 	view.graph = &IndexedGraph{nodes: view.nodes}
 	view.edges[Out] = make([][]frozenEdge, size)
 	backing := make([]frozenEdge, 0, size*4)
@@ -260,7 +260,7 @@ func BenchmarkImpact(b *testing.B) {
 					b.ReportAllocs()
 					b.ResetTimer()
 					for range b.N {
-						result, err := CalculateImpact(context.Background(), view, options)
+						result, err := calculateImpact(context.Background(), view, options)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -280,7 +280,7 @@ func BenchmarkImpactWide(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				result, err := CalculateImpact(context.Background(), view, options)
+				result, err := calculateImpact(context.Background(), view, options)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -308,7 +308,7 @@ func BenchmarkImpactDenseChain(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		result, err := CalculateImpact(context.Background(), view, options)
+		result, err := calculateImpact(context.Background(), view, options)
 		if err != nil {
 			b.Fatal(err)
 		}

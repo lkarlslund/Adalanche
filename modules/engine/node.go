@@ -33,7 +33,7 @@ type Node struct {
 	id         NodeID
 	sdcache    *SecurityDescriptor
 	parent     *Node
-	sid        atomic.Value // windowssecurity.SID
+	sid        atomic.Pointer[windowssecurity.SID] // cached SID(), reset when objectSid changes
 	children   NodeSlice
 	values     AttributesAndValues
 	objecttype NodeType
@@ -82,19 +82,20 @@ func (o *Node) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
-func (o *Node) Absorb(source *Node) {
-	o.AbsorbEx(source, false)
+func (o *Node) absorb(source *Node) {
+	o.absorbEx(source, false)
 }
 
 // Absorbs data and edge relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Graph collection)
-func (target *Node) AbsorbEx(source *Node, fast bool) {
+func (target *Node) absorbEx(source *Node, fast bool) {
 	if target == source {
 		panic("Can't absorb myself")
 	}
 
 	newvalues := target.values.Merge(&source.values)
 	target.values.Replace(newvalues)
+	target.sid.Store(nil)
 }
 
 func mergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -297,6 +298,18 @@ func (o *Node) Get(attr Attribute) (AttributeValues, bool) {
 	return o.get(attr)
 }
 
+// Project returns a new node, in no graph, holding the given attributes of
+// this one, such as for exporting chosen fields.
+func (o *Node) Project(attrs ...Attribute) *Node {
+	no := NewNode()
+	for _, attr := range attrs {
+		if values, found := o.get(attr); found {
+			no.set(attr, values...)
+		}
+	}
+	return no
+}
+
 // Returns synthetic blank attribute value if it isn't set
 func (o *Node) attr(attr Attribute) AttributeValues {
 	if attrs, found := o.get(attr); found {
@@ -400,10 +413,6 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 }
 */
 
-func (o *Node) SetFlex(flexinit ...any) {
-	o.setFlex(flexinit...)
-}
-
 var avsPool = sync.Pool{
 	New: func() any {
 		avs := make(AttributeValues, 0, 16)
@@ -499,23 +508,12 @@ func (o *Node) setFlex(flexinit ...any) {
 	avsPool.Put(slice)
 }
 
-func (o *Node) Set(a Attribute, values ...AttributeValue) {
-	o.set(a, values...)
-}
-
-func (o *Node) Add(a Attribute, values ...AttributeValue) {
-	o.add(a, values...)
-}
-
-func (o *Node) Clear(a Attribute) {
+func (o *Node) clear(a Attribute) {
 	o.values.mu.Lock()
 	o.values.clear(a)
 	o.values.mu.Unlock()
-}
-
-func (o *Node) Tag(v string) {
-	if !o.HasTag(v) {
-		o.Add(Tag, NV(v))
+	if a == ObjectSid {
+		o.sid.Store(nil)
 	}
 }
 
@@ -570,6 +568,9 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 }
 
 func (o *Node) setNoLock(a Attribute, values AttributeValues) {
+	if a == ObjectSid {
+		o.sid.Store(nil)
+	}
 	if a.HasFlag(Single) && len(values) > 1 {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(AttributeValues(values).StringSlice(), ", "))
 	}
@@ -725,23 +726,17 @@ var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor
 
 // Return the object's SID
 func (o *Node) SID() windowssecurity.SID {
-	var sid windowssecurity.SID
-	cachedSid := o.sid.Load()
-	if cachedSid == nil {
-		if asid, ok := o.get(ObjectSid); ok {
-			if asid.Len() == 1 {
-				if sid, ok = asid.First().AsSID(); ok {
-					o.sid.Store(sid)
-					cachedSid = sid
-				}
-			}
-		}
-		if cachedSid == nil { // Still not found, so cache blank
-			o.sid.Store(BlankSID)
-			cachedSid = BlankSID
+	if cached := o.sid.Load(); cached != nil {
+		return *cached
+	}
+	sid := BlankSID // blank unless there is exactly one SID
+	if asid, ok := o.get(ObjectSid); ok && asid.Len() == 1 {
+		if s, ok := asid.First().AsSID(); ok {
+			sid = s
 		}
 	}
-	return cachedSid.(windowssecurity.SID)
+	o.sid.Store(&sid)
+	return sid
 }
 
 // Look up edge
@@ -754,7 +749,7 @@ func (o *Node) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
 	o.values.Iterate(f)
 }
 
-func (o *Node) ChildOf(parent *Node) {
+func (o *Node) childOf(parent *Node) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
 		ui.Trace().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
@@ -769,7 +764,7 @@ func (o *Node) ChildOf(parent *Node) {
 	parent.unlock()
 }
 
-func (o *Node) Adopt(child *Node) {
+func (o *Node) adopt(child *Node) {
 	o.lock()
 	if o.hasChild(child) {
 		panic("can't adopt same child twice")

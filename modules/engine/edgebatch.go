@@ -166,7 +166,7 @@ func (g *IndexedGraph) applyIndexedEdgeMutations(ops []indexedEdgeMutation) {
 		return
 	}
 
-	sort.Slice(ops, func(i, j int) bool {
+	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].From == ops[j].From {
 			return ops[i].To < ops[j].To
 		}

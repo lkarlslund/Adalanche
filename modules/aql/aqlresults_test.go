@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/graph"
 )
 
@@ -54,10 +55,10 @@ func testGraph(t *testing.T, seed uint64, lines ...string) *engine.IndexedGraph 
 	nodes := map[string]*engine.Node{}
 	for _, name := range names {
 		nodes[name] = engine.NewNode(engine.Name, name)
-		g.Add(nodes[name])
+		enginetest.Add(g, nodes[name])
 	}
 	for _, e := range edges {
-		g.EdgeToEx(nodes[e.from], nodes[e.to], testEdges[e.kind], true)
+		enginetest.Edge(g, nodes[e.from], nodes[e.to], testEdges[e.kind])
 	}
 	return g
 }
@@ -264,17 +265,17 @@ func TestESC1QueryMatchesOnlyIssuableTemplates(t *testing.T) {
 	g := engine.NewIndexedGraph()
 	user := engine.NewNode(engine.Name, "user", engine.Type, engine.NodeTypeUser.ValueString())
 	group := engine.NewNode(engine.Name, "enrollers", engine.Type, engine.NodeTypeGroup.ValueString())
-	g.Add(user)
-	g.Add(group)
-	g.EdgeToEx(user, group, memberOf, true)
+	enginetest.Add(g, user)
+	enginetest.Add(g, group)
+	enginetest.Edge(g, user, group, memberOf)
 
 	template := func(name string, published bool, flex ...any) {
 		n := engine.NewNode(append([]any{engine.Name, name, engine.Type, engine.NodeTypeCertificateTemplate.ValueString()}, flex...)...)
+		enginetest.Add(g, n)
 		if published {
-			n.Tag("published")
+			enginetest.Tag(g, n, "published")
 		}
-		g.Add(n)
-		g.EdgeToEx(group, n, enroll, true)
+		enginetest.Edge(g, group, n, enroll)
 	}
 	clientAuth := "1.3.6.1.5.5.7.3.2"
 	template("client auth", true, nameFlag, int64(1), eku, clientAuth)

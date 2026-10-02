@@ -6,6 +6,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -16,13 +17,13 @@ func TestConstrainedDelegationWithoutProtocolTransition(t *testing.T) {
 		source := engine.NewNode(engine.Type, engine.NodeTypeUser.ValueString(), activedirectory.UserAccountControl, uac, activedirectory.MSDSAllowedToDelegateTo, "cifs/server.example.test")
 		target := engine.NewNode(engine.Type, "Machine", DnsHostName, "server.example.test")
 		graph := newADTestGraph(source, target)
-		addConstrainedDelegationEdges(graph)
+		runTx(graph, addConstrainedDelegationEdges)
 		requireEdgeSet(t, graph, source, target, edgeConstrainedDelegation)
 	}
 	source := engine.NewNode(engine.Type, engine.NodeTypeUser.ValueString(), activedirectory.UserAccountControl, int64(engine.UAC_TRUSTED_TO_AUTH_FOR_DELEGATION))
 	target := engine.NewNode(engine.Type, "Machine", DnsHostName, "server.example.test")
 	graph := newADTestGraph(source, target)
-	addConstrainedDelegationEdges(graph)
+	runTx(graph, addConstrainedDelegationEdges)
 	requireNoEdgeSet(t, graph, source, target, edgeConstrainedDelegation)
 }
 
@@ -49,7 +50,7 @@ func TestGMSAPasswordReadAccess(t *testing.T) {
 			source := engine.NewNode(engine.ObjectSid, sid)
 			target := engine.NewNode(activedirectory.MSDSGroupMSAMembership, engine.NV(securityDescriptorWithACEs(tt.aces...)))
 			graph := newADTestGraph(source, target)
-			addGMSAPasswordReadEdges(graph)
+			runTx(graph, addGMSAPasswordReadEdges)
 			if tt.want {
 				requireEdgeSet(t, graph, source, target, activedirectory.EdgeReadGMSAPassword)
 			} else {
@@ -82,14 +83,14 @@ func TestComputerPolicyMetadata(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 			gpoDN := "CN=Policy,CN=Policies,CN=System,DC=example,DC=test"
-			gpo.Set(engine.DistinguishedName, engine.NV(gpoDN))
 			sid := mustSID(t, "S-1-5-21-1-2-3-1001")
 			ou := engine.NewNode(engine.DistinguishedName, "OU=Computers,DC=example,DC=test", activedirectory.GPLink, "[LDAP://"+gpoDN+";2]")
 			computer := engine.NewNode(engine.ObjectSid, sid, engine.Type, "Computer", engine.DistinguishedName, "CN=Host,OU=Computers,DC=example,DC=test")
 			machine := engine.NewNode(engine.Type, "Machine", attrs.DomainJoinedSID, sid)
-			computer.ChildOf(ou)
 			graph := newADTestGraph(gpo, ou, computer, machine)
-			addMachinesAffectedByGPO(graph)
+			enginetest.Set(graph, gpo, engine.DistinguishedName, engine.NV(gpoDN))
+			enginetest.ChildOf(graph, computer, ou)
+			runTx(graph, addMachinesAffectedByGPO)
 			edges, _ := graph.GetEdge(gpo, machine)
 			if got := edges.IsSet(activedirectory.EdgeAffectedByGPO); got != tt.want {
 				t.Fatalf("GPO edge %v, want %v", got, tt.want)

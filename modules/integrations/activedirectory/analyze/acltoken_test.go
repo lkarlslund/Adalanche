@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -58,10 +59,10 @@ func TestACLDeniesFollowTheTrusteeToken(t *testing.T) {
 			graph := newADTestGraph(append(all, authenticatedUsers)...)
 			// What the membership processors add: memberOf, the primary
 			// group, and Authenticated Users for accounts.
-			resolveMemberOfAndMember(graph)
-			graph.EdgeTo(nodes[alice], nodes[domainUsers], activedirectory.EdgeMemberOfGroup)
-			graph.EdgeTo(nodes[alice], authenticatedUsers, activedirectory.EdgeMemberOfGroup)
-			addACLRuleEdges(graph)
+			runTx(graph, resolveMemberOfAndMember)
+			enginetest.EdgeTo(graph, nodes[alice], nodes[domainUsers], activedirectory.EdgeMemberOfGroup)
+			enginetest.EdgeTo(graph, nodes[alice], authenticatedUsers, activedirectory.EdgeMemberOfGroup)
+			runTx(graph, addACLRuleEdges)
 			if tt.want {
 				requireEdgeSet(t, graph, nodes[tt.trustee], target, activedirectory.EdgeWriteDACL)
 			} else {

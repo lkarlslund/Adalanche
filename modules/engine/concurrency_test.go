@@ -17,7 +17,7 @@ func TestIndexedGraphConcurrentFindMultiOrAddReturnsSingleNode(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 32; i++ {
-				nodes, _ := graph.FindMultiOrAdd(Name, NV("shared-node"), func() *Node {
+				nodes, _ := graph.findMultiOrAdd(Name, NV("shared-node"), func() *Node {
 					return NewNode(Name, NV("shared-node"), SAMAccountName, NV("SHARED-NODE"))
 				})
 				results <- nodes.First()
@@ -58,7 +58,7 @@ func TestIndexedGraphConcurrentFindTwoMultiOrAddReturnsSingleNode(t *testing.T) 
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 32; i++ {
-				nodes, _ := graph.FindTwoMultiOrAdd(Name, NV("shared-node"), SAMAccountName, NV("shared-node"), func() *Node {
+				nodes, _ := graph.findTwoMultiOrAdd(Name, NV("shared-node"), SAMAccountName, NV("shared-node"), func() *Node {
 					return NewNode(Name, NV("shared-node"), SAMAccountName, NV("SHARED-NODE"))
 				})
 				results <- nodes.First()
@@ -131,7 +131,7 @@ func TestNodeConcurrentAdoptAndReadDistinctChildren(t *testing.T) {
 		wg.Add(1)
 		go func(child *Node) {
 			defer wg.Done()
-			parent.Adopt(child)
+			parent.adopt(child)
 			if child.Parent() != parent {
 				t.Errorf("expected child %q parent to be assigned", child.Label())
 			}

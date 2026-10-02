@@ -3,6 +3,7 @@ package activedirectory
 import (
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,11 +29,8 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
-	newobject := engine.NewNode()
-
-	newobject.SetFlex(
-		DistinguishedName, engine.NVString(r.DistinguishedName),
-	) // This is possibly repeated in member attributes, so dedup it
+	flex := make([]any, 0, 2+2*len(r.Attributes))
+	flex = append(flex, DistinguishedName, engine.NVString(r.DistinguishedName))
 
 	// Reusable slice
 	var convertedvalues []engine.AttributeValue
@@ -53,11 +51,11 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
 
 		convertedvalues = EncodeAttributeData(attribute, convertedvalues, values)
 		if len(convertedvalues) > 0 {
-			newobject.Set(attribute, convertedvalues...)
+			flex = append(flex, attribute, engine.AttributeValues(slices.Clone(convertedvalues)))
 		}
 	}
 
-	return newobject
+	return engine.NewNode(flex...)
 }
 
 func (item *RawObject) IngestLDAP(source *ldap.Entry) error {

@@ -62,8 +62,6 @@ var (
 	ObjectGuidOU, _              = uuid.FromString("{bf967aa5-0de6-11d0-a285-00aa003049e2")
 	ObjectGuidAttributeSchema, _ = uuid.FromString("{BF967A80-0DE6-11D0-A285-00AA003049E2}")
 
-	GPLinkCache = engine.NewAttribute("gpLinkCache")
-
 	NetBIOSName = engine.NewAttribute("nETBIOSName")
 	NCName      = engine.NewAttribute("nCName")
 	DNSRoot     = engine.NewAttribute("dnsRoot")
@@ -97,8 +95,8 @@ type downLevelDomainInfo struct {
 	name   string
 }
 
-func downLevelDomainMappings(view *engine.FrozenGraph) []downLevelDomainInfo {
-	results, found := view.FindMulti(engine.ObjectClass, engine.NV("crossRef"))
+func downLevelDomainMappings(tx *engine.Tx) []downLevelDomainInfo {
+	results, found := tx.FindMulti(engine.ObjectClass, engine.NV("crossRef"))
 	if !found {
 		ui.Error().Msg("No domainDNS object found, can't apply DownLevelLogonName to objects")
 		return nil
@@ -131,13 +129,13 @@ func downLevelDomainMappings(view *engine.FrozenGraph) []downLevelDomainInfo {
 	return domains
 }
 
-func applyDownLevelLogonNamePatches(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-	domains := downLevelDomainMappings(view)
+func applyDownLevelLogonNamePatches(tx *engine.Tx) {
+	domains := downLevelDomainMappings(tx)
 	if len(domains) == 0 {
 		return
 	}
 
-	view.Iterate(func(o *engine.Node) bool {
+	tx.Iterate(func(o *engine.Node) bool {
 		if !o.HasAttr(engine.SAMAccountName) {
 			return true
 		}
@@ -145,7 +143,7 @@ func applyDownLevelLogonNamePatches(view *engine.FrozenGraph, out *engine.NodePa
 		dn := o.DN()
 		for _, domain := range domains {
 			if strings.HasSuffix(dn, domain.suffix) {
-				out.Set(o, engine.DownLevelLogonName, engine.NV(domain.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
+				tx.Node(o).Set(engine.DownLevelLogonName, engine.NV(domain.name+"\\"+o.OneAttrString(engine.SAMAccountName)))
 				break
 			}
 		}
@@ -153,8 +151,8 @@ func applyDownLevelLogonNamePatches(view *engine.FrozenGraph, out *engine.NodePa
 	})
 }
 
-func applyDomainContextPatches(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-	view.Iterate(func(o *engine.Node) bool {
+func applyDomainContextPatches(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		if o.DN() == "" || o.HasAttr(engine.DomainContext) {
 			return true
 		}
@@ -173,19 +171,19 @@ func applyDomainContextPatches(view *engine.FrozenGraph, out *engine.NodePatchSe
 		}
 
 		if lastpart != -1 {
-			out.Set(o, engine.DomainContext, engine.NV(strings.Join(parts[lastpart:], ",")))
+			tx.Node(o).Set(engine.DomainContext, engine.NV(strings.Join(parts[lastpart:], ",")))
 		}
 		return true
 	})
 }
 
-func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-	view.Iterate(func(object *engine.Node) bool {
+func applyObjectClassAndCategoryPatches(tx *engine.Tx) {
+	tx.Iterate(func(object *engine.Node) bool {
 		objectclasses := object.Attr(engine.ObjectClass)
 		if objectclasses.Len() > 0 {
 			guids := make([]engine.AttributeValue, 0, objectclasses.Len())
 			objectclasses.Iterate(func(class engine.AttributeValue) bool {
-				if oto, found := view.Find(engine.LDAPDisplayName, class); found {
+				if oto, found := tx.Find(engine.LDAPDisplayName, class); found {
 					if guid := oto.OneAttr(activedirectory.SchemaIDGUID); guid.IsNil() {
 						ui.Debug().Msgf("%v", oto)
 						ui.Fatal().Msgf("Could not translate SchemaIDGUID for class %v - I need a Schema to work properly", class)
@@ -197,7 +195,7 @@ func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.No
 				}
 				return true
 			})
-			out.Set(object, engine.ObjectClassGUIDs, guids...)
+			tx.Node(object).Set(engine.ObjectClassGUIDs, guids...)
 		}
 
 		objectcategoryguid := engine.NV(engine.UnknownGUID)
@@ -205,7 +203,7 @@ func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.No
 		typedn := object.OneAttr(engine.ObjectCategory)
 
 		if !typedn.IsNil() {
-			if oto, found := view.Find(engine.DistinguishedName, typedn); found {
+			if oto, found := tx.Find(engine.DistinguishedName, typedn); found {
 				if _, ok := oto.OneAttrGUID(activedirectory.SchemaIDGUID); ok {
 					objectcategoryguid = oto.OneAttr(activedirectory.SchemaIDGUID)
 					simple = oto.OneAttr(activedirectory.Name)
@@ -217,21 +215,19 @@ func applyObjectClassAndCategoryPatches(view *engine.FrozenGraph, out *engine.No
 			}
 		}
 
-		out.SetFlex(
-			object,
-			engine.ObjectCategoryGUID, objectcategoryguid,
+		tx.Node(object).SetFlex(engine.ObjectCategoryGUID, objectcategoryguid,
 			engine.Type, simple,
 		)
 		return true
 	})
 }
 
-func applyProtectedUserTags(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-	view.Iterate(func(object *engine.Node) bool {
+func applyProtectedUserTags(tx *engine.Tx) {
+	tx.Iterate(func(object *engine.Node) bool {
 		if object.SID().Component(2) == 21 && object.SID().RID() == 525 {
-			view.EdgeIteratorRecursive(object, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Node, edge engine.EdgeBitmap, depth int) bool {
+			tx.EdgeIteratorRecursive(object, engine.In, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(source, member *engine.Node, edge engine.EdgeBitmap, depth int) bool {
 				if member.Type() == engine.NodeTypeComputer || member.Type() == engine.NodeTypeUser {
-					out.AddTag(member, "protected_user")
+					tx.Node(member).Tag("protected_user")
 				}
 				return true
 			})
@@ -240,23 +236,23 @@ func applyProtectedUserTags(view *engine.FrozenGraph, out *engine.NodePatchSet) 
 	})
 }
 
-func applyWellKnownSIDDisplayNames(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-	view.Iterate(func(o *engine.Node) bool {
+func applyWellKnownSIDDisplayNames(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		if o.HasAttr(engine.ObjectSid) && !o.HasAttr(engine.DisplayName) {
 			if name, found := windowssecurity.KnownSIDs[o.SID().String()]; found {
-				out.SetFlex(o, engine.DisplayName, name)
+				tx.Node(o).SetFlex(engine.DisplayName, name)
 			}
 		}
 		return true
 	})
 }
 
-func applyIndirectMemberOfPatches(view *engine.FrozenGraph, out *engine.NodePatchSet) {
+func applyIndirectMemberOfPatches(tx *engine.Tx) {
 	groupToMemberGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 
-	view.Iterate(func(group *engine.Node) bool {
+	tx.Iterate(func(group *engine.Node) bool {
 		if group.Type() == engine.NodeTypeGroup && group.HasAttr(activedirectory.DistinguishedName) {
-			view.IterateEdges(group, engine.In, func(member *engine.Node, edge engine.EdgeBitmap) bool {
+			tx.IterateEdges(group, engine.In, func(member *engine.Node, edge engine.EdgeBitmap) bool {
 				if edge.IsSet(activedirectory.EdgeMemberOfGroup) {
 					groupToMemberGraph.AddEdge(group, member, edge)
 				}
@@ -310,14 +306,14 @@ func applyIndirectMemberOfPatches(view *engine.FrozenGraph, out *engine.NodePatc
 			}
 
 			if len(groupList) > 0 {
-				out.Set(group, MemberOfIndirect, groupList...)
+				tx.Node(group).Set(MemberOfIndirect, groupList...)
 			}
 		}
 	}
 }
 
-func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
+func addDomainDNSDCSyncEdges(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		if o.Type() != engine.NodeTypeDomainDNS {
 			return true
 		}
@@ -329,16 +325,16 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 			return true
 		}
 
-		var dcsync *engine.Node
+		var dcsync engine.TxNode
 		if dn := o.DN(); dn != "" {
-			dcsync, _ = ao.FindTwoOrAdd(
+			dcsync, _ = tx.FindTwoOrAdd(
 				engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
 				engine.DistinguishedName, engine.NV("CN=DCsync,"+dn),
 			)
 			dcsync.Set(engine.Name, engine.NV("DCsync"))
 			dcsync.Set(engine.DomainContext, engine.NV(o.OneAttrString(engine.DomainContext)))
 			dcsync.Tag("hvt")
-			ao.EdgeTo(o, dcsync, activedirectory.EdgeControls)
+			tx.EdgeTo(o, dcsync, activedirectory.EdgeControls)
 		} else {
 			ui.Warn().Msg("Cannot scope DCSync service for a domain without a distinguished name; retaining replication rights only")
 		}
@@ -348,19 +344,19 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 
 		for index, acl := range sd.DACL.Entries {
 			granted := rights[acl.SID]
-			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
+			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
+				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
 			}
-			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
+			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
+				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
 				granted.changes = true
 			}
-			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
+			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
+				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
 				granted.changesAll = true
 			}
-			if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
-				ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
+			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
+				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
 			}
 
 			if granted.changes || granted.changesAll {
@@ -368,8 +364,8 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 			}
 		}
 		for sid, granted := range rights {
-			if dcsync != nil && granted.changes && granted.changesAll {
-				ao.EdgeTo(aceTrustee(ao, sd, sid, o), dcsync, activedirectory.EdgeCall)
+			if dcsync.Valid() && granted.changes && granted.changesAll {
+				tx.EdgeTo(aceTrustee(tx, sd, sid, o), dcsync, activedirectory.EdgeCall)
 			}
 		}
 
@@ -377,8 +373,10 @@ func addDomainDNSDCSyncEdges(ao *engine.IndexedGraph) {
 	})
 }
 
-func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
-	ao.IterateStable(func(machine *engine.Node) bool {
+func addMachinesAffectedByGPO(tx *engine.Tx) {
+	// The parsed gPLink of each scope of management, shared by all machines.
+	linkCache := map[*engine.Node]engine.AttributeValues{}
+	tx.Iterate(func(machine *engine.Node) bool {
 		if machine.Type() != ObjectTypeMachine {
 			return true
 		}
@@ -389,9 +387,9 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 			return true
 		}
 
-		computer, found := ao.Find(engine.ObjectSid, DomainJoinedSID)
+		computer, found := tx.Find(engine.ObjectSid, DomainJoinedSID)
 		if !found || computer == nil {
-			if computers, found := ao.FindMulti(engine.ObjectSid, DomainJoinedSID); found {
+			if computers, found := tx.FindMulti(engine.ObjectSid, DomainJoinedSID); found {
 				ui.Warn().Msgf("Machine %v with DomainJoinedSID %v has multiple computer accounts", machine.OneAttrString(engine.Name), DomainJoinedSID)
 				computers.Iterate(func(o *engine.Node) bool {
 					ui.Warn().Msgf("Computer - %v (id %v)", o.DN(), o.ID())
@@ -408,11 +406,11 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 		// they were collected, the import already linked the applied GPOs,
 		// and they replace what the directory implies.
 		if machine.HasAttr(localmachine.GPOResultsCollected) {
-			machine.Tag("gpo_results_collected")
+			tx.Node(machine).Tag("gpo_results_collected")
 			return true
 		}
 
-		computerToken := gpoAccessToken(computer, ao)
+		computerToken := gpoAccessToken(computer, tx)
 
 		allowEnforcedGPOsOnly := false
 		// applySOM applies the GPO links of one scope of management (an OU,
@@ -420,7 +418,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 		applySOM := func(som *engine.Node) {
 			var gpcachelinks engine.AttributeValues
 			var found bool
-			if gpcachelinks, found = som.Get(GPLinkCache); !found {
+			if gpcachelinks, found = linkCache[som]; !found {
 				gplinks := strings.Trim(som.OneAttrString(activedirectory.GPLink), " ")
 				if len(gplinks) != 0 {
 					if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
@@ -437,7 +435,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 							}
 							linkedgpodn := linkinfo[0][7:]
 
-							gpo, found := ao.Find(engine.DistinguishedName, engine.NV(linkedgpodn))
+							gpo, found := tx.Find(engine.DistinguishedName, engine.NV(linkedgpodn))
 							if !found {
 								if _, warned := warnedgpos[linkedgpodn]; !warned {
 									warnedgpos[linkedgpodn] = struct{}{}
@@ -451,7 +449,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 						gpcachelinks = collecteddata
 					}
 				}
-				som.Set(GPLinkCache, gpcachelinks...)
+				linkCache[som] = gpcachelinks
 			}
 
 			for i := 0; i < gpcachelinks.Len(); i += 2 {
@@ -467,10 +465,10 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 					continue
 				}
 
-				canRead := canReadGPO(gpo, computerToken, ao)
-				canApply := canApplyGPO(gpo, computerToken, ao)
+				canRead := canReadGPO(gpo, computerToken, tx)
+				canApply := canApplyGPO(gpo, computerToken, tx)
 				if canRead && canApply {
-					ao.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+					tx.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
 				}
 			}
 			if som.OneAttrString(activedirectory.GPOptions) == "1" {
@@ -486,7 +484,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 			if potentialParent != nil && potentialParent.DN() != "" && strings.HasSuffix(currentObject.DN(), potentialParent.DN()) {
 				currentObject = potentialParent
 			} else {
-				currentObject, hasparent = ao.DistinguishedParent(currentObject)
+				currentObject, hasparent = tx.DistinguishedParent(currentObject)
 				if !hasparent {
 					break
 				}
@@ -496,7 +494,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 		}
 
 		// The site comes last in the walk (MS-GPOL 3.2.5.1.4).
-		if site := machineSite(ao, machine, computer); site != nil {
+		if site := machineSite(tx, machine, computer); site != nil {
 			applySOM(site)
 		}
 
@@ -507,7 +505,7 @@ func addMachinesAffectedByGPO(ao *engine.IndexedGraph) {
 // gpoAccessToken approximates the security token the computer presents when
 // it reads its policy: its own SID, every group it is a member of directly or
 // transitively, and the well-known groups every authenticated computer has.
-func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowssecurity.SID]struct{} {
+func gpoAccessToken(computer *engine.Node, ao engine.GraphReader) map[windowssecurity.SID]struct{} {
 	token := map[windowssecurity.SID]struct{}{
 		windowssecurity.EveryoneSID:           {},
 		windowssecurity.AuthenticatedUsersSID: {},
@@ -524,17 +522,17 @@ func gpoAccessToken(computer *engine.Node, ao *engine.IndexedGraph) map[windowss
 
 // canReadGPO reports whether the token can read the GPO's attributes, which
 // the client needs for the GPO to be returned by its search (MS-GPOL 3.2.5.1.5).
-func canReadGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph) bool {
+func canReadGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao engine.GraphReader) bool {
 	return tokenHasGPOAccess(gpo, token, ao, uuid.Nil, engine.RIGHT_DS_READ_PROPERTY)
 }
 
-func addGMSAPasswordReadEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
+func addGMSAPasswordReadEdges(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
 			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
 				for _, acl := range sd.DACL.Entries {
-					if TrusteeGranted(ao, sd, acl.SID, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil) {
-						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
+					if TrusteeGranted(tx, sd, acl.SID, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil) {
+						tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
 					}
 				}
 			}
@@ -562,11 +560,11 @@ func computerPolicyEnabled(gpo *engine.Node) bool {
 
 // canApplyGPO reports whether the token is granted, and not denied, the
 // Apply Group Policy extended right (MS-GPOL 3.2.5.1.6 step 3).
-func canApplyGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph) bool {
+func canApplyGPO(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao engine.GraphReader) bool {
 	return tokenHasGPOAccess(gpo, token, ao, ExtendedRightApplyGroupPolicy, engine.RIGHT_DS_CONTROL_ACCESS)
 }
 
-func tokenHasGPOAccess(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao *engine.IndexedGraph, guid uuid.UUID, mask engine.Mask) bool {
+func tokenHasGPOAccess(gpo *engine.Node, token map[windowssecurity.SID]struct{}, ao engine.GraphReader, guid uuid.UUID, mask engine.Mask) bool {
 	sd, err := gpo.SecurityDescriptor()
 	if err != nil || sd == nil {
 		return true
@@ -574,13 +572,13 @@ func tokenHasGPOAccess(gpo *engine.Node, token map[windowssecurity.SID]struct{},
 	return sd.AccessCheck(func(sid windowssecurity.SID) bool {
 		_, ok := token[sid]
 		return ok
-	}, gpo, mask, guid, ao)
+	}, gpo, mask, guid, ao.Graph())
 }
 
-func resolveMemberOfAndMember(ao *engine.IndexedGraph) {
-	ao.Iterate(func(object *engine.Node) bool {
+func resolveMemberOfAndMember(tx *engine.Tx) {
+	tx.Iterate(func(object *engine.Node) bool {
 		object.Attr(activedirectory.MemberOf).Iterate(func(memberof engine.AttributeValue) bool {
-			group, found := ao.Find(engine.DistinguishedName, memberof)
+			group, found := tx.Find(engine.DistinguishedName, memberof)
 			if !found {
 				var sid engine.AttributeValue
 				if stringsid, _, found := strings.Cut(memberof.String(), ",CN=ForeignSecurityPrincipals,"); found {
@@ -601,48 +599,50 @@ func resolveMemberOfAndMember(ao *engine.IndexedGraph) {
 					engine.ObjectSid, sid,
 					engine.DataLoader, engine.NV("Autogenerated"),
 				)
-				ao.Add(group)
+				tx.Add(group)
 			}
-			ao.EdgeTo(object, group, activedirectory.EdgeMemberOfGroup)
+			tx.EdgeTo(object, group, activedirectory.EdgeMemberOfGroup)
 			return true
 		})
 
 		object.Attr(activedirectory.Member).Iterate(func(member engine.AttributeValue) bool {
-			memberobject, found := ao.Find(engine.DistinguishedName, member)
-			if !found {
+			var memberobject engine.NodeRef
+			if found, ok := tx.Find(engine.DistinguishedName, member); ok {
+				memberobject = found
+			} else {
 				if stringsid, _, found := strings.Cut(member.String(), ",CN=ForeignSecurityPrincipals,"); found {
 					stringsid, _, _ = strings.Cut(stringsid[3:], "\\")
 
 					if sid, err := windowssecurity.ParseStringSID(stringsid); err == nil {
-						memberobject = ao.FindOrAddAdjacentSID(sid, object)
+						memberobject = tx.FindOrAddAdjacentSID(sid, object)
 					} else {
 						ui.Warn().Msgf("Could not extract SID from Foreign-Security-Principal %v: %v", member.String(), err)
 					}
 				}
 				if memberobject == nil {
 					ui.Warn().Msgf("Possible hardening? %v is a member of %v, which is not found - adding synthetic member. Your analysis will be degraded, try dumping with Domain Admin rights.", member, object.DN())
-					memberobject, _ = ao.FindOrAdd(engine.DistinguishedName, member,
+					memberobject, _ = tx.FindOrAdd(engine.DistinguishedName, member,
 						engine.DataLoader, "Autogenerated",
 					)
 				}
 			}
-			ao.EdgeTo(memberobject, object, activedirectory.EdgeMemberOfGroup)
+			tx.EdgeTo(memberobject, object, activedirectory.EdgeMemberOfGroup)
 			return true
 		})
 		return true
 	})
 }
 
-func addRBCDEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
+func addRBCDEdges(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
 			return true
 		}
 		o.Attr(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity).Iterate(func(val engine.AttributeValue) bool {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
 				for index, acl := range sd.DACL.Entries {
-					if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil) {
-						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, EdgeRBCD)
+					if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil) {
+						tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, EdgeRBCD)
 					}
 				}
 			}
@@ -662,10 +662,10 @@ func init() {
 		return nil, nil
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Find LAPS or return
 		var lapsGUID uuid.UUID
-		if lapsobject, found := ao.FindTwo(engine.Name, engine.NV("ms-Mcs-AdmPwd"),
+		if lapsobject, found := tx.FindTwo(engine.Name, engine.NV("ms-Mcs-AdmPwd"),
 			engine.ObjectClass, engine.NV("attributeSchema")); found {
 			if objectGUID, ok := lapsobject.OneAttrRaw(activedirectory.SchemaIDGUID).(uuid.UUID); ok {
 				ui.Debug().Msg("Detected LAPS schema extension GUID")
@@ -679,9 +679,9 @@ func init() {
 			ui.Debug().Msg("Microsoft LAPS V1 not detected, skipping tests for this")
 			return
 		}
-		readRights := AttributeReadRights(ao, lapsGUID, true)
+		readRights := AttributeReadRights(tx, lapsGUID, true)
 
-		ao.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			// Only for computers
 			if o.Type() != engine.NodeTypeComputer {
 				return true
@@ -703,17 +703,17 @@ func init() {
 			if computerSid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := ao.Find(DomainJoinedSID, engine.NV(computerSid))
+			machine, found := tx.Find(DomainJoinedSID, engine.NV(computerSid))
 			if !found {
 				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", computerSid)
 				return true
 			}
-			machine.Tag("laps")
+			tx.Node(machine).Tag("laps")
 
 			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
 			// control access rights.
-			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, sid, o), machine, activedirectory.EdgeReadLAPSPassword)
+			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, tx) {
+				tx.EdgeTo(aceTrustee(tx, sd, sid, o), machine, activedirectory.EdgeReadLAPSPassword)
 			}
 			return true
 		})
@@ -731,15 +731,15 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.IterateStable(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() == engine.NodeTypeForeignSecurityPrincipal {
 				return true
 			}
 			if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
-				if parentobject, found := ao.DistinguishedParent(o); found {
+				if parentobject, found := tx.DistinguishedParent(o); found {
 					ui.Trace().Msgf("%v interits security from %v", o.DN(), parentobject.DN())
-					ao.EdgeTo(parentobject, o, EdgeInheritsSecurity)
+					tx.EdgeTo(parentobject, o, EdgeInheritsSecurity)
 				}
 			}
 			return true
@@ -751,17 +751,17 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		view.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeContainer || o.OneAttrString(engine.Name) != "Machine" {
 				return true
 			}
 			// Only for computers, you can't really pwn users this way
-			p, hasparent := view.DistinguishedParent(o)
+			p, hasparent := tx.DistinguishedParent(o)
 			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
-			out.Add(p, o, activedirectory.PartOfGPO, false)
+			tx.EdgeTo(p, o, activedirectory.PartOfGPO)
 			return true
 		})
 	}, engine.Processor{
@@ -773,8 +773,8 @@ func init() {
 
 	matchMSOLDescription := regexp.MustCompile(`Account created by Microsoft Azure Active Directory Connect with installation identifier ([0-9a-f]+) running on computer ([^ ]+) configured to synchronize to tenant ([^ ]+)\. `)
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		view.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeUser || !strings.HasPrefix(o.OneAttrString(engine.Name), "MSOL_") {
 				return true
 			}
@@ -788,7 +788,7 @@ func init() {
 			// Extract the first match
 			machineName := string(match[2])
 
-			machine, found := view.FindTwo(engine.Type, ObjectTypeMachine.ValueString(),
+			machine, found := tx.FindTwo(engine.Type, ObjectTypeMachine.ValueString(),
 				engine.Name, engine.NV(machineName))
 
 			if !found {
@@ -796,7 +796,7 @@ func init() {
 				return true
 			}
 
-			out.Add(machine, o, EdgeSessionService, false)
+			tx.EdgeTo(machine, o, EdgeSessionService)
 			return true
 		})
 	}, engine.Processor{
@@ -806,17 +806,17 @@ func init() {
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		view.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeContainer || o.OneAttrString(engine.Name) != "User" {
 				return true
 			}
 			// Only for users, you can't really pwn users this way
-			p, hasparent := view.DistinguishedParent(o)
+			p, hasparent := tx.DistinguishedParent(o)
 			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
-			out.Add(p, o, activedirectory.PartOfGPO, false)
+			tx.EdgeTo(p, o, activedirectory.PartOfGPO)
 			return true
 		})
 	}, engine.Processor{
@@ -833,8 +833,8 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			// It's a group
 			sd, err := o.SecurityDescriptor()
 			if err != nil {
@@ -842,7 +842,7 @@ func init() {
 			}
 			for _, acl := range sd.DACL.Entries {
 				if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-					ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
+					tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
 				}
 			}
 			return true
@@ -854,11 +854,11 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Find dsHeuristics, this defines groups EXCLUDED From AdminSDHolder application
 		// https://social.technet.microsoft.com/wiki/contents/articles/22331.adminsdholder-protected-groups-and-security-descriptor-propagator.aspx#What_is_a_protected_group
 		blocked := map[string]bool{} // per domain context
-		ao.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			sd, err := o.SecurityDescriptor()
 			if err != nil || sd.Owner.IsNull() {
 				return true
@@ -875,14 +875,14 @@ func init() {
 				domainContext := o.OneAttrString(engine.DomainContext)
 				block, known := blocked[domainContext]
 				if !known {
-					block = blocksOwnerImplicitRights(forestHeuristics(ao, domainContext))
+					block = blocksOwnerImplicitRights(forestHeuristics(tx, domainContext))
 					blocked[domainContext] = block
 				}
 				if block {
 					return true
 				}
 			}
-			ao.EdgeTo(ao.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
+			tx.EdgeTo(tx.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
 			return true
 		})
 	}, engine.Processor{
@@ -892,16 +892,16 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddNodePatchProcessor(func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		kerberoast := "kerberoast"
 
-		view.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			// Only computers and users
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
-				out.AddTag(o, kerberoast)
+				tx.Node(o).Tag(kerberoast)
 			}
 			return true
 		})
@@ -912,19 +912,19 @@ func init() {
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		authusers, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		authusers, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID))
 		if !found {
 			ui.Error().Msgf("Could not locate Authenticated Users")
 			return
 		}
 
-		view.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
-				out.Add(authusers, o, activedirectory.EdgeHasSPN, false)
+				tx.EdgeTo(authusers, o, activedirectory.EdgeHasSPN)
 			}
 			return true
 		})
@@ -935,21 +935,21 @@ func init() {
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
 
-	LoaderID.AddNodePatchProcessor(func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-		anonymous, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		anonymous, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
 		if !found {
 			ui.Error().Msgf("Could not locate Anonymous Logon")
 			return
 		}
 
 		_ = anonymous
-		view.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			// Only users
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-				out.AddTag(o, "asreproast")
+				tx.Node(o).Tag("asreproast")
 			}
 			return true
 		})
@@ -960,19 +960,19 @@ func init() {
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		anonymous, found := view.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		anonymous, found := tx.Find(activedirectory.ObjectSid, engine.NV(windowssecurity.AnonymousLogonSID))
 		if !found {
 			ui.Error().Msgf("Could not locate Anonymous Logon")
 			return
 		}
 
-		view.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.Type() != engine.NodeTypeUser {
 				return true
 			}
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
-				out.Add(anonymous, o, activedirectory.EdgeDontReqPreauth, false)
+				tx.EdgeTo(anonymous, o, activedirectory.EdgeDontReqPreauth)
 			}
 			return true
 		})
@@ -983,8 +983,8 @@ func init() {
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addRBCDEdges(ao)
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		addRBCDEdges(tx)
 	}, engine.Processor{
 		Description: `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`,
 		Phase:       engine.AfterMerge,
@@ -1028,11 +1028,11 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddEdgeDeltaProcessor(func(view *engine.FrozenGraph, out *engine.EdgeDelta) {
-		view.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
-				if targetmsa, found := view.Find(engine.DistinguishedName, dn); found {
-					out.Add(o, targetmsa, activedirectory.EdgeHasMSA, false)
+				if targetmsa, found := tx.Find(engine.DistinguishedName, dn); found {
+					tx.EdgeTo(o, targetmsa, activedirectory.EdgeHasMSA)
 				}
 				return true
 			})
@@ -1044,11 +1044,11 @@ func init() {
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.Iterate(func(o *engine.Node) bool {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
-					ao.EdgeTo(o, ao.FindOrAddAdjacentSID(sid, o), activedirectory.EdgeSIDHistoryEquality)
+					tx.EdgeTo(o, tx.FindOrAddAdjacentSID(sid, o), activedirectory.EdgeSIDHistoryEquality)
 				}
 				return true
 			})
@@ -1061,8 +1061,8 @@ func init() {
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addDomainDNSDCSyncEdges(ao)
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		addDomainDNSDCSyncEdges(tx)
 	}, engine.Processor{
 		Description: "Permissions on DomainDNS objects leading to DCsync attacks",
 		Phase:       engine.AfterMerge,
@@ -1070,9 +1070,9 @@ func init() {
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Ensure everyone has a family
-		ao.Iterate(func(computeraccount *engine.Node) bool {
+		tx.Iterate(func(computeraccount *engine.Node) bool {
 			if computeraccount.Type() != engine.NodeTypeComputer {
 				return true
 			}
@@ -1082,7 +1082,7 @@ func init() {
 				ui.Error().Msgf("Computer account without SID: %v", computeraccount.DN())
 				return true
 			}
-			machine, _ := ao.FindOrAdd(
+			machine, _ := tx.FindOrAdd(
 				DomainJoinedSID, sid,
 				engine.IgnoreBlanks,
 				engine.Name, computeraccount.Attr(engine.Name),
@@ -1091,8 +1091,8 @@ func init() {
 			)
 			// ui.Debug().Msgf("Added machine for SID %v", sid.String())
 
-			ao.EdgeTo(machine, computeraccount, EdgeAuthenticatesAs)
-			ao.EdgeTo(machine, computeraccount, EdgeMachineAccount)
+			tx.EdgeTo(machine, computeraccount, EdgeAuthenticatesAs)
+			tx.EdgeTo(machine, computeraccount, EdgeMachineAccount)
 			machine.ChildOf(computeraccount)
 
 			return true
@@ -1105,28 +1105,28 @@ func init() {
 			Provides:    []engine.Product{ProductMachines},
 		})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Ensure everyone has a family
-		ao.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			potentialorphan := o
 			for {
 				if potentialorphan.Parent() != nil {
 					return true
 				}
 
-				if potentialorphan == ao.Root() {
+				if potentialorphan == tx.Root() {
 					return true
 				}
 
-				if parent, found := ao.DistinguishedParent(potentialorphan); found {
-					potentialorphan.ChildOf(parent)
+				if parent, found := tx.DistinguishedParent(potentialorphan); found {
+					tx.Node(potentialorphan).ChildOf(parent)
 					return true
 				}
 
 				dn := potentialorphan.DN()
 				if potentialorphan.Type() == engine.NodeTypeDomainDNS && len(dn) > 3 && strings.EqualFold("dc=", dn[:3]) {
 					// Top of some AD we think, hook to top of browsable tree
-					o.ChildOf(ao.Root())
+					tx.Node(o).ChildOf(tx.Root())
 					return true
 				}
 
@@ -1138,12 +1138,12 @@ func init() {
 
 				ui.Debug().Msgf("AD object %v (%v) has no parent :-( - creating synthetic object", o.Label(), o.DN())
 
-				newparent := ao.AddNew(
+				newparent := tx.AddNew(
 					engine.DistinguishedName, parentdn,
 					engine.Description, "Synthetic parent object",
 				)
-				potentialorphan.ChildOf(newparent)
-				potentialorphan = newparent // loop, to ensure new objects also have parents
+				tx.Node(potentialorphan).ChildOf(newparent)
+				potentialorphan = newparent.Node() // loop, to ensure new objects also have parents
 			}
 		})
 	},
@@ -1154,14 +1154,14 @@ func init() {
 			Provides:    []engine.Product{ProductTree},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyDownLevelLogonNamePatches,
+	LoaderID.AddProcessor(applyDownLevelLogonNamePatches,
 		engine.Processor{
 			Description: "applying DownLevelLogonName attribute",
 			Phase:       engine.BeforeMerge,
 			Provides:    []engine.Product{ProductDownLevelLogonName},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyDomainContextPatches,
+	LoaderID.AddProcessor(applyDomainContextPatches,
 		engine.Processor{
 			Description: "applying domain part attribute",
 			Phase:       engine.BeforeMerge,
@@ -1176,9 +1176,9 @@ func init() {
 			Provides:    []engine.Product{ProductAdminSDHolder},
 		})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Find domain object
-		domain, err := FindDomainNode(ao)
+		domain, err := FindDomainNode(tx)
 		if err != nil {
 			ui.Fatal().Msgf("Could not find domain node: %v", err)
 		}
@@ -1190,7 +1190,7 @@ func init() {
 				ui.Fatal().Msgf("Problem parsing SID %v", sid)
 			}
 			dn := "CN=" + name + ",CN=microsoft-builtin"
-			ao.FindOrAddAdjacentSID(binsid, domain,
+			tx.FindOrAddAdjacentSID(binsid, domain,
 				engine.DistinguishedName, engine.NV(dn),
 				engine.Name, engine.NV(name),
 				engine.ObjectSid, engine.NV(binsid),
@@ -1206,31 +1206,31 @@ func init() {
 			Provides:    []engine.Product{ProductWellKnownPrincipals},
 		})
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
 		// Generate member of chains
-		domainNode, err := FindDomainNode(ao)
+		domainNode, err := FindDomainNode(tx)
 		if err != nil {
 			ui.Fatal().Msgf("Could not find domain node: %v", err)
 		}
 
-		everyone := ao.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
-		if everyone == nil {
+		everyone := tx.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
+		if !everyone.Valid() {
 			ui.Fatal().Msgf("Could not locate Everyone, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		authenticatedusers := ao.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
-		if authenticatedusers == nil {
+		authenticatedusers := tx.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
+		if !authenticatedusers.Valid() {
 			ui.Fatal().Msgf("Could not locate Authenticated Users, aborting - this should at least have been added during earlier preprocessing")
 		}
 
-		ao.EdgeTo(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup)
+		tx.EdgeTo(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup)
 
-		ncname, netbiosname, dnsroot, domainsid, err := FindDomain(ao)
+		ncname, netbiosname, dnsroot, domainsid, err := FindDomain(tx)
 		if err != nil {
 			ui.Fatal().Msgf("Could not get needed domain information (%v), aborting", err)
 		}
 
-		DCsyncObject, _ := ao.FindTwoOrAdd(
+		DCsyncObject, _ := tx.FindTwoOrAdd(
 			engine.Type, engine.NodeTypeCallableServicePoint.ValueString(),
 			engine.Name, engine.NV("DCsync"),
 		)
@@ -1244,58 +1244,58 @@ func init() {
 			SourceSID:     domainsid.String(),
 		}, TrustInfo{})
 
-		ao.Iterate(func(object *engine.Node) bool {
+		tx.Iterate(func(object *engine.Node) bool {
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {
 					sidbytes := []byte(sid)
 					binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
-					primarygroup := ao.FindOrAddAdjacentSID(windowssecurity.SID(sidbytes), object)
-					ao.EdgeTo(object, primarygroup, activedirectory.EdgeMemberOfGroup)
+					primarygroup := tx.FindOrAddAdjacentSID(windowssecurity.SID(sidbytes), object)
+					tx.EdgeTo(object, primarygroup, activedirectory.EdgeMemberOfGroup)
 				}
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
 			if object.SID().Components() == 7 && object.SID().StripRID() == domainsid && object.Type() != engine.NodeTypeGroup {
 				// if object.Type() == engine.ObjectTypeUser || object.Type() == engine.ObjectTypeComputer || object.Type() == engine.ObjectTypeManagedServiceAccount || object.Type() == engine.ObjectTypeGroupManagedServiceAccount {
-				ao.EdgeTo(object, authenticatedusers, activedirectory.EdgeMemberOfGroup)
+				tx.EdgeTo(object, authenticatedusers, activedirectory.EdgeMemberOfGroup)
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
-				object.Set(activedirectory.MetaLastLoginAge, engine.NV(int(time.Since(lastlogon)/time.Hour)))
+				tx.Node(object).Set(activedirectory.MetaLastLoginAge, engine.NV(int(time.Since(lastlogon)/time.Hour)))
 			}
 			if passwordlastset, ok := object.AttrTime(activedirectory.PwdLastSet); ok {
-				object.Set(activedirectory.MetaPasswordAge, engine.NV(int(time.Since(passwordlastset)/time.Hour)))
+				tx.Node(object).Set(activedirectory.MetaPasswordAge, engine.NV(int(time.Since(passwordlastset)/time.Hour)))
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "linux") {
-				object.Tag("linux")
+				tx.Node(object).Tag("linux")
 			}
 			if strings.Contains(strings.ToLower(object.OneAttrString(activedirectory.OperatingSystem)), "windows") {
-				object.Tag("windows")
+				tx.Node(object).Tag("windows")
 			}
 			if object.Attr(activedirectory.MSmcsAdmPwdExpirationTime).Len() > 0 {
-				object.Tag("laps")
+				tx.Node(object).Tag("laps")
 			}
 			if object.HasAttr(activedirectory.MSDSAllowedToDelegateTo) {
-				object.Tag("constrained")
+				tx.Node(object).Tag("constrained")
 			}
 			if uac, ok := object.AttrInt(activedirectory.UserAccountControl); ok {
 				if uac&engine.UAC_TRUSTED_FOR_DELEGATION != 0 {
-					object.Tag("unconstrained")
+					tx.Node(object).Tag("unconstrained")
 				}
 				if uac&engine.UAC_NOT_DELEGATED != 0 {
-					object.Tag("nodelegation")
+					tx.Node(object).Tag("nodelegation")
 				}
 				if uac&engine.UAC_WORKSTATION_TRUST_ACCOUNT != 0 {
-					object.Tag("computer_account")
+					tx.Node(object).Tag("computer_account")
 				}
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
-					object.Tag("domaincontroller_account")
+					tx.Node(object).Tag("domaincontroller_account")
 
 					// All DCs are members of Enterprise Domain Controllers
-					ao.EdgeTo(object, ao.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+					tx.EdgeTo(object, tx.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
 
-					ao.EdgeTo(object, DCsyncObject, activedirectory.EdgeCall)
+					tx.EdgeTo(object, DCsyncObject, activedirectory.EdgeCall)
 
 					// Also they can DCsync because of this membership ... FIXME
 				}
@@ -1303,72 +1303,72 @@ func init() {
 				var expired, disabled bool
 				disabled = uac&engine.UAC_ACCOUNTDISABLE != 0
 				if disabled {
-					object.Tag("account_disabled")
+					tx.Node(object).Tag("account_disabled")
 				} else {
-					object.Tag("account_enabled")
+					tx.Node(object).Tag("account_enabled")
 				}
 
 				if uac&engine.UAC_LOCKOUT != 0 {
-					object.Tag("account_locked")
+					tx.Node(object).Tag("account_locked")
 				}
 
 				if object.HasAttr(activedirectory.AccountExpires) {
 					if exp, ok := object.Attr(activedirectory.AccountExpires).First().Raw().(time.Time); ok {
 						if !exp.IsZero() && time.Now().After(exp) {
-							object.Tag("account_expired")
+							tx.Node(object).Tag("account_expired")
 							expired = true
 						}
 					}
 				}
 
 				if disabled || expired {
-					object.Tag("account_inactive")
+					tx.Node(object).Tag("account_inactive")
 				} else {
-					object.Tag("account_active")
+					tx.Node(object).Tag("account_active")
 				}
 				if uac&engine.UAC_PASSWD_CANT_CHANGE != 0 {
-					object.Tag("password_cant_change")
+					tx.Node(object).Tag("password_cant_change")
 				}
 				if uac&engine.UAC_DONT_EXPIRE_PASSWORD != 0 {
-					object.Tag("password_never_expires")
+					tx.Node(object).Tag("password_never_expires")
 				}
 				if uac&engine.UAC_PASSWD_NOTREQD != 0 {
-					object.Tag("password_not_required")
+					tx.Node(object).Tag("password_not_required")
 				}
 
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
 					// find the machine object for this
-					machine, found := ao.FindTwo(engine.Type, engine.NV("Machine"),
+					machine, found := tx.FindTwo(engine.Type, engine.NV("Machine"),
 						DomainJoinedSID, engine.NV(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
 					} else {
-						machine.Tag("role_domaincontroller")
-						machine.Tag("hvt")
+						tx.Node(machine).Tag("role_domaincontroller")
+						tx.Node(machine).Tag("hvt")
 
 						domainContext := object.OneAttr(engine.DomainContext)
 						if domainContext.IsNil() {
 							ui.Fatal().Msgf("DomainController %v has no DomainContext attribute", object.DN())
 						}
 
-						if administrators, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.AdministratorsSID),
+						if administrators, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.AdministratorsSID),
 							engine.DomainContext, domainContext); found {
-							ao.EdgeTo(administrators, machine, activedirectory.EdgeLocalAdminRights)
+							tx.EdgeTo(administrators, machine, activedirectory.EdgeLocalAdminRights)
 						} else {
 							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 						}
 
-						if remotedesktopusers, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.RemoteDesktopUsersSID),
+						if remotedesktopusers, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.RemoteDesktopUsersSID),
 							engine.DomainContext, domainContext); found {
-							ao.EdgeTo(remotedesktopusers, machine, activedirectory.EdgeLocalRDPRights)
+							tx.EdgeTo(remotedesktopusers, machine, activedirectory.EdgeLocalRDPRights)
 						} else {
 							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 						}
 
-						if distributeddcomusers, found := ao.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.DCOMUsersSID),
+						if distributeddcomusers, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.DCOMUsersSID),
 							engine.DomainContext, domainContext); found {
-							ao.EdgeTo(distributeddcomusers, machine, activedirectory.EdgeLocalDCOMRights)
+							tx.EdgeTo(distributeddcomusers, machine, activedirectory.EdgeLocalDCOMRights)
 						} else {
 							ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
 						}
@@ -1377,13 +1377,13 @@ func init() {
 
 				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.NV(521)) {
 					// Read Only Domain Controller
-					machine, found := ao.FindTwo(engine.Type, engine.NV("Machine"),
+					machine, found := tx.FindTwo(engine.Type, engine.NV("Machine"),
 						DomainJoinedSID, engine.NV(object.SID()))
 					if !found {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
 					} else {
-						machine.Tag("role_readonly_domaincontroller")
-						machine.Tag("hvt")
+						tx.Node(machine).Tag("role_readonly_domaincontroller")
+						tx.Node(machine).Tag("hvt")
 					}
 
 					// Figure out what hashes this machine has cached - FIXME!
@@ -1440,14 +1440,14 @@ func init() {
 			Provides:    []engine.Product{ProductAccountState, ProductMemberships},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyObjectClassAndCategoryPatches,
+	LoaderID.AddProcessor(applyObjectClassAndCategoryPatches,
 		engine.Processor{
 			Description: "Set type (for Type call) to Active Directory objects",
 			Phase:       engine.BeforeMerge,
 			Provides:    []engine.Product{ProductNodeTypes},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyProtectedUserTags,
+	LoaderID.AddProcessor(applyProtectedUserTags,
 		engine.Processor{
 			Description: "Protected users meta attribute",
 			Phase:       engine.AfterMerge,
@@ -1459,7 +1459,7 @@ func init() {
 	// 	// Find all the DomainDNS objects, and find the domain object
 	// 	domains := make(map[string]windowssecurity.SID)
 
-	// 	domaindnsobjects, found := ao.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("domainDNS"))
+	// 	domaindnsobjects, found := tx.FindMulti(engine.ObjectClass, engine.NewAttributeValueString("domainDNS"))
 
 	// 	if !found {
 	// 		ui.Error().Msg("Could not find any domainDNS objects")
@@ -1474,7 +1474,7 @@ func init() {
 	// 		return true
 	// 	})
 
-	// 	ao.Iterate(func(o *engine.Object) bool {
+	// 	tx.Iterate(func(o *engine.Object) bool {
 	// 		if o.HasAttr(engine.ObjectSid) && o.SID().Component(2) == 21 && !o.HasAttr(engine.DistinguishedName) && o.HasAttr(engine.DomainContext) {
 	// 			// An unknown SID, is it ours or from another domain?
 	// 			ourDomainDN := o.OneAttrString(engine.DomainContext)
@@ -1500,8 +1500,8 @@ func init() {
 	// 	"Creation of synthetic Foreign-Security-Principal objects",
 	// 	engine.AfterMergeLow)
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		addMachinesAffectedByGPO(ao)
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		addMachinesAffectedByGPO(tx)
 	},
 		engine.Processor{
 			Description: "Machines affected by a GPO",
@@ -1510,7 +1510,7 @@ func init() {
 			Provides:    []engine.Product{ProductGPOTargeting},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyWellKnownSIDDisplayNames,
+	LoaderID.AddProcessor(applyWellKnownSIDDisplayNames,
 		engine.Processor{
 			Description: "Adding displayName to Well-Known SID objects that are missing them",
 			Phase:       engine.AfterMerge,
@@ -1520,7 +1520,7 @@ func init() {
 	// CREATOR_OWNER is a template for new objects, so this was totally wrong
 	/*
 		Loader.AddProcessor(func(ao *engine.Objects) {
-			creatorowner, found := ao.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
+			creatorowner, found := tx.Find(engine.ObjectSid, engine.AttributeValueSID(windowssecurity.CreatorOwnerSID))
 			if !found {
 				ui.Warn().Msg("Could not find Creator Owner Well Known SID. Not doing post-merge fixup")
 				return
@@ -1530,7 +1530,7 @@ func init() {
 				// ACL grants CreatorOwnerSID something - so let's find the owner and give them the permissions
 				if sd, err := target.SecurityDescriptor(); err == nil {
 					if sd.Owner != windowssecurity.BlankSID {
-						if realowners, found := ao.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
+						if realowners, found := tx.FindMulti(engine.ObjectSid, engine.AttributeValueSID(sd.Owner)); found {
 							for _, realo := range realowners {
 								if realo.Type() == engine.ObjectTypeForeignSecurityPrincipal || realo.Type() == engine.ObjectTypeOther {
 									// Skip this
@@ -1555,8 +1555,8 @@ func init() {
 		)
 	*/
 
-	LoaderID.AddProcessor(func(ao *engine.IndexedGraph) {
-		resolveMemberOfAndMember(ao)
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		resolveMemberOfAndMember(tx)
 	},
 		engine.Processor{
 			Description: "MemberOf and Member resolution",
@@ -1564,7 +1564,7 @@ func init() {
 			Provides:    []engine.Product{ProductMemberships},
 		})
 
-	LoaderID.AddNodePatchProcessor(applyIndirectMemberOfPatches,
+	LoaderID.AddProcessor(applyIndirectMemberOfPatches,
 		engine.Processor{
 			Description: "MemberOfIndirect resolution",
 			Phase:       engine.AfterMerge,
@@ -1572,18 +1572,18 @@ func init() {
 			Provides:    []engine.Product{ProductIndirectMemberships},
 		})
 
-	LoaderID.AddNodePatchProcessor(
-		func(view *engine.FrozenGraph, out *engine.NodePatchSet) {
-			view.Iterate(func(enrollementService *engine.Node) bool {
+	LoaderID.AddProcessor(
+		func(tx *engine.Tx) {
+			tx.Iterate(func(enrollementService *engine.Node) bool {
 				if enrollementService.Type() == engine.NodeTypePKIEnrollmentService {
 					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); !cadns.IsNil() {
 						// find the CA machine object
-						if ca, found := view.FindTwo(
+						if ca, found := tx.FindTwo(
 							engine.Type, ObjectTypeMachine.ValueString(),
 							activedirectory.DNSHostName, cadns,
 						); found {
-							out.AddTag(ca, "role_certificate_authority")
-							out.AddTag(ca, "hvt")
+							tx.Node(ca).Tag("role_certificate_authority")
+							tx.Node(ca).Tag("hvt")
 						} else {
 							ui.Warn().Msgf("Couldn't locate dnsHostName %v acting as enrollmentservice", cadns)
 						}
@@ -1592,7 +1592,7 @@ func init() {
 					// Templates that is offered for enrollment
 					enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
 
-						templates, found := view.FindTwoMulti(engine.Name, templatename,
+						templates, found := tx.FindTwoMulti(engine.Name, templatename,
 							engine.ObjectClass, engine.NV("pKICertificateTemplate"))
 
 						if found {
@@ -1606,12 +1606,11 @@ func init() {
 									ui.Warn().Msgf("Found multiple templates for %s", templatename)
 								}
 
-								out.SetFlex(template,
-									PublishedBy, engine.NV(enrollementService.DN()),
+								tx.Node(template).SetFlex(PublishedBy, engine.NV(enrollementService.DN()),
 									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
 								)
 
-								out.AddTag(template, "published")
+								tx.Node(template).Tag("published")
 
 								// classify the template as ESC1 - 11
 

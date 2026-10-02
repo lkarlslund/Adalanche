@@ -14,7 +14,7 @@ func TestShareDirectoryUsesRawACL(t *testing.T) {
 	sid := windowssecurity.MustParseStringSID("S-1-5-21-1-2-3-1001")
 	acl := serviceTestACL(engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: sid, Mask: engine.FILE_WRITE_DATA})
 	info.Shares = []lm.Share{{Name: "synthetic", Path: `C:\synthetic`, DACL: serviceTestDescriptor(windowssecurity.SystemSID, acl), PathDACL: acl, PathOwner: windowssecurity.SystemSID.String()}}
-	machine, err := ImportCollectorInfo(g, info)
+	machine, err := importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,7 +12,7 @@ func BenchmarkGraphAddNodes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
 		for j := 0; j < 1000; j++ {
-			graph.Add(benchmarkNamedNode(j))
+			graph.add(benchmarkNamedNode(j))
 		}
 	}
 }
@@ -23,7 +23,7 @@ func BenchmarkGraphAddEdges(b *testing.B) {
 	nodes := make([]*Node, 1024)
 	for i := range nodes {
 		nodes[i] = benchmarkNamedNode(i)
-		graph.Add(nodes[i])
+		graph.add(nodes[i])
 	}
 
 	b.ResetTimer()
@@ -31,7 +31,7 @@ func BenchmarkGraphAddEdges(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		from := nodes[i%len(nodes)]
 		to := nodes[(i+1)%len(nodes)]
-		graph.EdgeToEx(from, to, edgeType, true)
+		graph.edgeToEx(from, to, edgeType, true)
 	}
 }
 
@@ -46,7 +46,7 @@ func BenchmarkEdgeImporterCommit(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
 		for _, node := range nodes {
-			graph.Add(node)
+			graph.add(node)
 		}
 		importer := NewEdgeImporter(len(nodes) - 1)
 		for j := 0; j < len(nodes)-1; j++ {
@@ -59,7 +59,7 @@ func BenchmarkEdgeImporterCommit(b *testing.B) {
 func BenchmarkGetIndexWarm(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
 	index := graph.GetIndex(Name)
 
@@ -75,7 +75,7 @@ func BenchmarkGetIndexCold(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
 		for j := 0; j < 5000; j++ {
-			graph.Add(benchmarkNamedNode(j))
+			graph.add(benchmarkNamedNode(j))
 		}
 		_ = graph.GetIndex(Name)
 	}
@@ -84,7 +84,7 @@ func BenchmarkGetIndexCold(b *testing.B) {
 func BenchmarkGetMultiIndexWarm(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
 	index := graph.GetMultiIndex(Name, SAMAccountName)
 
@@ -100,7 +100,7 @@ func BenchmarkGetMultiIndexCold(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
 		for j := 0; j < 5000; j++ {
-			graph.Add(benchmarkNamedNode(j))
+			graph.add(benchmarkNamedNode(j))
 		}
 		_ = graph.GetMultiIndex(Name, SAMAccountName)
 	}
@@ -111,9 +111,9 @@ func BenchmarkGetEdge(b *testing.B) {
 	graph := NewIndexedGraph()
 	from := benchmarkNamedNode(1)
 	to := benchmarkNamedNode(2)
-	graph.Add(from)
-	graph.Add(to)
-	graph.EdgeToEx(from, to, edgeType, true)
+	graph.add(from)
+	graph.add(to)
+	graph.edgeToEx(from, to, edgeType, true)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -141,7 +141,7 @@ func BenchmarkFindMultiOrAdd(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = graph.FindMultiOrAdd(Name, NV("node"), func() *Node {
+		_, _ = graph.findMultiOrAdd(Name, NV("node"), func() *Node {
 			return benchmarkNamedNode(i)
 		})
 	}
@@ -150,12 +150,12 @@ func BenchmarkFindMultiOrAdd(b *testing.B) {
 func BenchmarkFindOrAddHit(b *testing.B) {
 	graph := NewIndexedGraph()
 	node := benchmarkNamedNode(1)
-	graph.Add(node)
+	graph.add(node)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = graph.FindOrAdd(Name, NV("node-1"))
+		_, _ = graph.findOrAdd(Name, NV("node-1"))
 	}
 }
 
@@ -163,7 +163,7 @@ func BenchmarkFindOrAddMiss(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
-		_, _ = graph.FindOrAdd(Name, NV("node"), SAMAccountName, NV("NODE"))
+		_, _ = graph.findOrAdd(Name, NV("node"), SAMAccountName, NV("NODE"))
 	}
 }
 
@@ -173,7 +173,7 @@ func BenchmarkFindTwoMultiOrAdd(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
+		_, _ = graph.findTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
 			return NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
 		})
 	}
@@ -182,12 +182,12 @@ func BenchmarkFindTwoMultiOrAdd(b *testing.B) {
 func BenchmarkFindTwoMultiOrAddHit(b *testing.B) {
 	graph := NewIndexedGraph()
 	node := NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
-	graph.Add(node)
+	graph.add(node)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), nil)
+		_, _ = graph.findTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), nil)
 	}
 }
 
@@ -195,7 +195,7 @@ func BenchmarkFindTwoMultiOrAddMiss(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
-		_, _ = graph.FindTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
+		_, _ = graph.findTwoMultiOrAdd(Name, NV("node"), SAMAccountName, NV("node"), func() *Node {
 			return NewNode(Name, NV("node"), SAMAccountName, NV("NODE"))
 		})
 	}
@@ -217,19 +217,19 @@ func BenchmarkFindOrAddAdjacentSIDFoundUniqueHit(b *testing.B) {
 		DomainContext, NV("DC=example,DC=com"),
 		DataSource, NV("EXAMPLE"),
 	)
-	graph.Add(relative)
+	graph.add(relative)
 
 	sid := benchmarkMustSID("S-1-5-21-111-222-333-444")
 	existing := NewNode(
 		Name, NV("existing"),
 		ObjectSid, NV(sid),
 	)
-	graph.Add(existing)
+	graph.add(existing)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		node, found := graph.FindOrAddAdjacentSIDFound(sid, relative)
+		node, found := graph.findOrAddAdjacentSIDFound(sid, relative)
 		if !found || node != existing {
 			b.Fatal("expected existing global SID node")
 		}
@@ -246,19 +246,19 @@ func BenchmarkFindOrAddAdjacentSIDFoundMachineScopedHit(b *testing.B) {
 		ObjectSid, NV(machineSID),
 		DataSource, NV("HOST01"),
 	)
-	graph.Add(relative)
+	graph.add(relative)
 
 	existing := NewNode(
 		Name, NV("existing"),
 		ObjectSid, NV(accountSID),
 		DataSource, NV("HOST01"),
 	)
-	graph.Add(existing)
+	graph.add(existing)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		node, found := graph.FindOrAddAdjacentSIDFound(accountSID, relative)
+		node, found := graph.findOrAddAdjacentSIDFound(accountSID, relative)
 		if !found || node != existing {
 			b.Fatal("expected existing machine-scoped SID node")
 		}
@@ -275,10 +275,10 @@ func BenchmarkFindOrAddAdjacentSIDFoundMiss(b *testing.B) {
 			DomainContext, NV("DC=example,DC=com"),
 			DataSource, NV("EXAMPLE"),
 		)
-		graph.Add(relative)
+		graph.add(relative)
 
 		sid := benchmarkMustSID(fmt.Sprintf("S-1-5-21-111-222-333-%d", 1000+i))
-		node, found := graph.FindOrAddAdjacentSIDFound(sid, relative)
+		node, found := graph.findOrAddAdjacentSIDFound(sid, relative)
 		if found || node == nil {
 			b.Fatal("expected synthetic SID node to be created")
 		}
@@ -293,14 +293,14 @@ func BenchmarkFindAdjacentSIDUniqueHit(b *testing.B) {
 		DomainContext, NV("DC=example,DC=com"),
 		DataSource, NV("EXAMPLE"),
 	)
-	graph.Add(relative)
+	graph.add(relative)
 
 	sid := benchmarkMustSID("S-1-5-21-111-222-333-444")
 	existing := NewNode(
 		Name, NV("existing"),
 		ObjectSid, NV(sid),
 	)
-	graph.Add(existing)
+	graph.add(existing)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -315,7 +315,7 @@ func BenchmarkFindAdjacentSIDUniqueHit(b *testing.B) {
 func BenchmarkGraphIterate(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
 
 	b.ResetTimer()
@@ -330,7 +330,7 @@ func BenchmarkGraphIterate(b *testing.B) {
 func BenchmarkGraphIterateStable(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
 
 	b.ResetTimer()
@@ -345,7 +345,7 @@ func BenchmarkGraphIterateStable(b *testing.B) {
 func BenchmarkGraphIterateParallelStable(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
 
 	b.ResetTimer()
@@ -360,9 +360,9 @@ func BenchmarkGraphIterateParallelStable(b *testing.B) {
 func BenchmarkFrozenGraphFind(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(benchmarkNamedNode(i))
+		graph.add(benchmarkNamedNode(i))
 	}
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -377,12 +377,12 @@ func BenchmarkFrozenGraphFind(b *testing.B) {
 func BenchmarkFrozenGraphFindTwo(b *testing.B) {
 	graph := NewIndexedGraph()
 	for i := 0; i < 5000; i++ {
-		graph.Add(NewNode(
+		graph.add(NewNode(
 			Name, NV(fmt.Sprintf("node-%d", i)),
 			SAMAccountName, NV(fmt.Sprintf("node-%d", i)),
 		))
 	}
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -402,15 +402,15 @@ func BenchmarkFrozenGraphFindAdjacentSID(b *testing.B) {
 		DomainContext, NV("DC=example,DC=com"),
 		DataSource, NV("EXAMPLE"),
 	)
-	graph.Add(relative)
+	graph.add(relative)
 
 	sid := benchmarkMustSID("S-1-5-21-111-222-333-444")
 	existing := NewNode(
 		Name, NV("existing"),
 		ObjectSid, NV(sid),
 	)
-	graph.Add(existing)
-	view := graph.Freeze()
+	graph.add(existing)
+	view := graph.freeze()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -424,7 +424,7 @@ func BenchmarkFrozenGraphFindAdjacentSID(b *testing.B) {
 
 func BenchmarkFrozenGraphIterateLarge(b *testing.B) {
 	graph := buildSyntheticGraph(largeSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -441,13 +441,13 @@ func BenchmarkFreezeLarge(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = graph.Freeze()
+		_ = graph.freeze()
 	}
 }
 
 func BenchmarkFrozenGraphIterateEdgesLarge(b *testing.B) {
 	graph := buildSyntheticGraph(largeSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 	var source *Node
 	view.Iterate(func(node *Node) bool {
 		source = node
@@ -483,7 +483,7 @@ func BenchmarkCalculateGraphValuesSyntheticIndexedGraph(b *testing.B) {
 
 func BenchmarkCalculateGraphValuesSyntheticFrozenGraph(b *testing.B) {
 	graph := buildSyntheticGraph(mediumSyntheticGraphConfig())
-	view := graph.Freeze()
+	view := graph.freeze()
 	matchEdges := EdgeBitmap{}.
 		Set(testEdge("synthetic-member")).
 		Set(testEdge("synthetic-admin"))
@@ -502,7 +502,7 @@ func BenchmarkAddRelaxed(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		graph := NewIndexedGraph()
 		for j := 0; j < 1000; j++ {
-			graph.AddRelaxed(benchmarkNamedNode(j))
+			graph.addRelaxed(benchmarkNamedNode(j))
 		}
 	}
 }
@@ -513,14 +513,14 @@ func BenchmarkSetEdgeMerge(b *testing.B) {
 	graph := NewIndexedGraph()
 	from := benchmarkNamedNode(1)
 	to := benchmarkNamedNode(2)
-	graph.Add(from)
-	graph.Add(to)
-	graph.SetEdge(from, to, EdgeBitmap{}.Set(first), false)
+	graph.add(from)
+	graph.add(to)
+	graph.setEdge(from, to, EdgeBitmap{}.Set(first), false)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		graph.SetEdge(from, to, EdgeBitmap{}.Set(second), true)
+		graph.setEdge(from, to, EdgeBitmap{}.Set(second), true)
 	}
 }
 
@@ -562,7 +562,7 @@ func BenchmarkNodeSetFlex(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		node.SetFlex(
+		node.setFlex(
 			IgnoreBlanks,
 			Name, "Alpha",
 			DisplayName, "Alpha Node",
@@ -572,35 +572,24 @@ func BenchmarkNodeSetFlex(b *testing.B) {
 	}
 }
 
-func BenchmarkNodePatchSetApply(b *testing.B) {
+func BenchmarkTxCommitAttributeWrites(b *testing.B) {
 	graph := NewIndexedGraph()
-	node := benchmarkNamedNode(1)
-	graph.Add(node)
-
-	var patch NodePatchSet
-	patch.SetFlex(node, Description, NV("patched"))
-	patch.AddTag(node, "bench")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		patch.Apply(graph)
+	nodes := make([]*Node, 1000)
+	for i := range nodes {
+		nodes[i] = benchmarkNamedNode(i)
+		graph.add(nodes[i])
 	}
-}
-
-func BenchmarkNodePatchSetSetFlex(b *testing.B) {
-	node := benchmarkNamedNode(1)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		var patch NodePatchSet
-		patch.SetFlex(
-			node,
-			IgnoreBlanks,
-			Description, NV("patched"),
-			Tag, AttributeValues{NV("bench")},
-		)
+		tx := graph.Begin("bench")
+		for _, node := range nodes {
+			tx.Node(node).SetFlex(Description, NV("patched")).Tag("bench")
+		}
+		if err := tx.Commit(); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -617,7 +606,7 @@ func BenchmarkReindexObject(b *testing.B) {
 			Name, NV("node"),
 			SAMAccountName, NV("NODE"),
 		)
-		graph.Add(node)
+		graph.add(node)
 	}
 }
 
@@ -627,7 +616,7 @@ func BenchmarkNodeSet(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		node.Set(DisplayName, NV("Display"))
-		node.Set(Description, NV("Description"))
+		node.set(DisplayName, NV("Display"))
+		node.set(Description, NV("Description"))
 	}
 }

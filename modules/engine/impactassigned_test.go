@@ -10,22 +10,22 @@ func TestAssignedImpactExample(t *testing.T) {
 	member := testEdge("assigned-member").RegisterFixedProbability(100)
 	control := testEdge("assigned-control").RegisterFixedProbability(100)
 	graph := NewIndexedGraph()
-	root := graph.AddNew(Name, "operator", Type, NodeTypeUser.ValueString())
-	group := graph.AddNew(Name, "role", Type, NodeTypeGroup.ValueString())
-	nested := graph.AddNew(Name, "nested role", Type, NodeTypeGroup.ValueString())
-	graph.EdgeToEx(root, group, member, true)
-	graph.EdgeToEx(group, nested, member, true)
-	graph.EdgeToEx(nested, group, member, true)
+	root := graph.addNew(Name, "operator", Type, NodeTypeUser.ValueString())
+	group := graph.addNew(Name, "role", Type, NodeTypeGroup.ValueString())
+	nested := graph.addNew(Name, "nested role", Type, NodeTypeGroup.ValueString())
+	graph.edgeToEx(root, group, member, true)
+	graph.edgeToEx(group, nested, member, true)
+	graph.edgeToEx(nested, group, member, true)
 	for i := range 10 {
-		account := graph.AddNew(Name, fmt.Sprintf("account-%d", i), Type, NodeTypeUser.ValueString())
+		account := graph.addNew(Name, fmt.Sprintf("account-%d", i), Type, NodeTypeUser.ValueString())
 		if i < 2 {
-			graph.EdgeToEx(root, account, control, true)
+			graph.edgeToEx(root, account, control, true)
 		}
-		graph.EdgeToEx(nested, account, control, true) // overlapping assignments
+		graph.edgeToEx(nested, account, control, true) // overlapping assignments
 		for j := range 10 {
-			machine := graph.AddNew(Name, fmt.Sprintf("machine-%d-%d", i, j), Type, NodeTypeMachine.ValueString())
-			graph.EdgeToEx(account, machine, control, true)
-			graph.EdgeToEx(machine, root, control, true) // takeover cycle must not inflate assigned reach
+			machine := graph.addNew(Name, fmt.Sprintf("machine-%d-%d", i, j), Type, NodeTypeMachine.ValueString())
+			graph.edgeToEx(account, machine, control, true)
+			graph.edgeToEx(machine, root, control, true) // takeover cycle must not inflate assigned reach
 		}
 	}
 	classify := func(n *Node) int {
@@ -35,7 +35,7 @@ func TestAssignedImpactExample(t *testing.T) {
 		return 0
 	}
 	for _, workers := range []int{1, 4} {
-		r, err := CalculateImpact(context.Background(), graph.Freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(member).Set(control), RequiredProbability: 100,
+		r, err := calculateImpact(context.Background(), graph.freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(member).Set(control), RequiredProbability: 100,
 			GroupMembershipEdges: EdgeBitmap{}.Set(member), Classify: classify, Categories: 1, KeepConnections: true, Workers: workers})
 		if err != nil {
 			t.Fatal(err)
@@ -63,10 +63,10 @@ func TestAssignedImpactDistinguishesCompanionEdges(t *testing.T) {
 	control := testEdge("assigned-companion-control").RegisterFixedProbability(100)
 	root, group, target := testNamedNode("source"), testNode(Type, NodeTypeGroup.ValueString()), testNamedNode("target")
 	g := testGraph(root, group, target)
-	g.EdgeToEx(root, group, membership, true)
-	g.EdgeToEx(root, group, denied, true)
-	g.EdgeToEx(group, target, control, true)
-	r, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(membership).Set(denied).Set(control), RequiredProbability: 100,
+	g.edgeToEx(root, group, membership, true)
+	g.edgeToEx(root, group, denied, true)
+	g.edgeToEx(group, target, control, true)
+	r, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(membership).Set(denied).Set(control), RequiredProbability: 100,
 		GroupMembershipEdges: EdgeBitmap{}.Set(membership), Classify: func(*Node) int { return 0 }, Categories: 1, KeepConnections: true})
 	if err != nil {
 		t.Fatal(err)
@@ -85,18 +85,18 @@ func TestAssignedPathPaginationAndTruncation(t *testing.T) {
 	member := testEdge("assigned-long-member").RegisterFixedProbability(100)
 	control := testEdge("assigned-long-control").RegisterFixedProbability(100)
 	g := NewIndexedGraph()
-	root := g.AddNew(Name, "source", Type, NodeTypeUser.ValueString())
+	root := g.addNew(Name, "source", Type, NodeTypeUser.ValueString())
 	previous := root
 	for range 150 {
-		group := g.AddNew(Type, NodeTypeGroup.ValueString())
-		g.EdgeToEx(previous, group, member, true)
+		group := g.addNew(Type, NodeTypeGroup.ValueString())
+		g.edgeToEx(previous, group, member, true)
 		previous = group
 	}
 	for range 3 {
-		target := g.AddNew(Type, NodeTypeUser.ValueString())
-		g.EdgeToEx(previous, target, control, true)
+		target := g.addNew(Type, NodeTypeUser.ValueString())
+		g.edgeToEx(previous, target, control, true)
 	}
-	r, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(member).Set(control), RequiredProbability: 100,
+	r, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{Edges: EdgeBitmap{}.Set(member).Set(control), RequiredProbability: 100,
 		GroupMembershipEdges: EdgeBitmap{}.Set(member), Classify: func(n *Node) int {
 			if n.Type() == NodeTypeGroup {
 				return -1
@@ -136,8 +136,8 @@ func TestImpactViaGroupsWithoutMembershipPolicy(t *testing.T) {
 	control := testEdge("via-groups-no-membership").RegisterFixedProbability(100)
 	a, b := testNamedNode("source"), testNamedNode("target")
 	g := testGraph(a, b)
-	g.EdgeToEx(a, b, control, true)
-	r, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{
+	g.edgeToEx(a, b, control, true)
+	r, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{
 		Edges: EdgeBitmap{}.Set(control), RequiredProbability: 100,
 		Classify: func(*Node) int { return 0 }, Categories: 1, KeepConnections: true,
 	})
@@ -161,10 +161,10 @@ func TestImpactViaGroupsCycleWitness(t *testing.T) {
 	root, group := testNode(Type, NodeTypeGroup.ValueString()), testNode(Type, NodeTypeGroup.ValueString())
 	target := testNode(Type, NodeTypeUser.ValueString())
 	g := testGraph(root, group, target)
-	g.EdgeToEx(root, group, member, true)
-	g.EdgeToEx(group, root, member, true)
-	g.EdgeToEx(root, target, control, true)
-	r, err := CalculateImpact(context.Background(), g.Freeze(), ImpactOptions{
+	g.edgeToEx(root, group, member, true)
+	g.edgeToEx(group, root, member, true)
+	g.edgeToEx(root, target, control, true)
+	r, err := calculateImpact(context.Background(), g.freeze(), ImpactOptions{
 		Edges: EdgeBitmap{}.Set(member).Set(control), GroupMembershipEdges: EdgeBitmap{}.Set(member),
 		RequiredProbability: 100, Classify: func(n *Node) int {
 			if n == target {

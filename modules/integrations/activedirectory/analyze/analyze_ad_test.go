@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	attrs "github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -23,16 +24,18 @@ func mustSID(t *testing.T, value string) windowssecurity.SID {
 func newADTestGraph(nodes ...*engine.Node) *engine.IndexedGraph {
 	tg := engine.NewLoaderObjects(&ADLoader{})
 	for _, node := range nodes {
-		tg.Add(node)
+		enginetest.Add(tg, node)
 	}
 	return tg
 }
 
-func applyADNodePatchProcessor(graph *engine.IndexedGraph, processor func(*engine.FrozenGraph, *engine.NodePatchSet)) {
-	patches := &engine.NodePatchSet{}
-	processor(graph.Freeze(), patches)
-	patches.Apply(graph)
-	graph.DropIndexes()
+// runTx runs a processor in a transaction and commits it.
+func runTx(graph *engine.IndexedGraph, processor func(*engine.Tx)) {
+	tx := graph.Begin("test")
+	processor(tx)
+	if err := tx.Commit(); err != nil {
+		panic(err)
+	}
 }
 
 func requireEdgeSet(t *testing.T, graph *engine.IndexedGraph, source, target *engine.Node, edge engine.Edge) {
@@ -97,7 +100,7 @@ func TestMemberOfResolutionAddsMemberOfGroupEdge(t *testing.T) {
 	)
 
 	graph := newADTestGraph(user, group)
-	resolveMemberOfAndMember(graph)
+	runTx(graph, resolveMemberOfAndMember)
 
 	requireEdgeSet(t, graph, user, group, activedirectory.EdgeMemberOfGroup)
 }
@@ -111,10 +114,6 @@ func TestMachinesAffectedByGPOAddsAffectedByGPOEdge(t *testing.T) {
 		engine.Name, "Workstation Policy",
 		engine.DistinguishedName, "CN={11111111-1111-1111-1111-111111111111},CN=Policies,CN=System,DC=example,DC=com",
 	)
-	gpo.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
-		allowACE(authenticatedUsersSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
-	)))
 	authenticatedUsers := engine.NewNode(
 		engine.Name, "Authenticated Users",
 		engine.Type, engine.NodeTypeGroup.ValueString(),
@@ -145,10 +144,14 @@ func TestMachinesAffectedByGPOAddsAffectedByGPOEdge(t *testing.T) {
 		engine.DataSource, "example",
 	)
 
-	computer.ChildOf(ou)
 
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
-	graph.EdgeTo(computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
+	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
+		allowACE(authenticatedUsersSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
+	)))
+	enginetest.ChildOf(graph, computer, ou)
+	enginetest.EdgeTo(graph, computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
 	if computer.Type() != engine.NodeTypeComputer {
 		t.Fatalf("expected computer type %q, got %q", engine.NodeTypeComputer.String(), computer.Type().String())
 	}
@@ -156,7 +159,7 @@ func TestMachinesAffectedByGPOAddsAffectedByGPOEdge(t *testing.T) {
 		t.Fatalf("expected machine type %q, got %q", ObjectTypeMachine.String(), machine.Type().String())
 	}
 
-	addMachinesAffectedByGPO(graph)
+	runTx(graph, addMachinesAffectedByGPO)
 
 	requireEdgeSet(t, graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
 }
@@ -170,9 +173,6 @@ func TestMachinesAffectedByGPORequiresApplyGroupPolicy(t *testing.T) {
 		engine.Name, "Read Only Policy",
 		engine.DistinguishedName, "CN={22222222-2222-2222-2222-222222222222},CN=Policies,CN=System,DC=example,DC=com",
 	)
-	gpo.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
-	)))
 	authenticatedUsers := engine.NewNode(
 		engine.Name, "Authenticated Users",
 		engine.Type, engine.NodeTypeGroup.ValueString(),
@@ -203,11 +203,14 @@ func TestMachinesAffectedByGPORequiresApplyGroupPolicy(t *testing.T) {
 		engine.DataSource, "example",
 	)
 
-	computer.ChildOf(ou)
 
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
-	graph.EdgeTo(computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
-	addMachinesAffectedByGPO(graph)
+	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(authenticatedUsersSID, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil),
+	)))
+	enginetest.ChildOf(graph, computer, ou)
+	enginetest.EdgeTo(graph, computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
+	runTx(graph, addMachinesAffectedByGPO)
 
 	requireNoEdgeSet(t, graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
 }
@@ -221,9 +224,6 @@ func TestMachinesAffectedByGPORequiresReadAccess(t *testing.T) {
 		engine.Name, "Apply Only Policy",
 		engine.DistinguishedName, "CN={33333333-3333-3333-3333-333333333333},CN=Policies,CN=System,DC=example,DC=com",
 	)
-	gpo.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(authenticatedUsersSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
-	)))
 	authenticatedUsers := engine.NewNode(
 		engine.Name, "Authenticated Users",
 		engine.Type, engine.NodeTypeGroup.ValueString(),
@@ -254,11 +254,14 @@ func TestMachinesAffectedByGPORequiresReadAccess(t *testing.T) {
 		engine.DataSource, "example",
 	)
 
-	computer.ChildOf(ou)
 
 	graph := newADTestGraph(gpo, ou, computer, machine, authenticatedUsers)
-	graph.EdgeTo(computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
-	addMachinesAffectedByGPO(graph)
+	enginetest.Set(graph, gpo, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(authenticatedUsersSID, engine.RIGHT_DS_CONTROL_ACCESS, ExtendedRightApplyGroupPolicy),
+	)))
+	enginetest.ChildOf(graph, computer, ou)
+	enginetest.EdgeTo(graph, computer, authenticatedUsers, activedirectory.EdgeMemberOfGroup)
+	runTx(graph, addMachinesAffectedByGPO)
 
 	requireNoEdgeSet(t, graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
 }
@@ -288,10 +291,10 @@ func TestDomainDNSDCSyncProcessorAddsReplicationAndCallEdges(t *testing.T) {
 			},
 		},
 	}
-	domain.Set(engine.NTSecurityDescriptor, engine.NV(&sd))
 
 	graph := newADTestGraph(domain)
-	addDomainDNSDCSyncEdges(graph)
+	enginetest.Set(graph, domain, engine.NTSecurityDescriptor, engine.NV(&sd))
+	runTx(graph, addDomainDNSDCSyncEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(replicationSID))
 	if !found {
@@ -319,12 +322,12 @@ func TestWriteDACLAddsEdge(t *testing.T) {
 		engine.Type, engine.NodeTypeUser.ValueString(),
 		engine.DistinguishedName, "CN=Target,OU=Users,DC=example,DC=com",
 	)
-	target.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_WRITE_DACL, uuid.Nil),
-	)))
 
 	graph := newADTestGraph(target)
-	addACLRuleEdges(graph)
+	enginetest.Set(graph, target, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_WRITE_DACL, uuid.Nil),
+	)))
+	runTx(graph, addACLRuleEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -340,21 +343,21 @@ func TestResetPasswordOnlyTargetsAccounts(t *testing.T) {
 		engine.Type, engine.NodeTypeUser.ValueString(),
 		engine.DistinguishedName, "CN=Resettable,OU=Users,DC=example,DC=com",
 	)
-	account.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd),
-	)))
 
 	ou := engine.NewNode(
 		engine.Name, "Users",
 		engine.Type, engine.NodeTypeOrganizationalUnit.ValueString(),
 		engine.DistinguishedName, "OU=Users,DC=example,DC=com",
 	)
-	ou.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd),
-	)))
 
 	graph := newADTestGraph(account, ou)
-	addACLRuleEdges(graph)
+	enginetest.Set(graph, account, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd),
+	)))
+	enginetest.Set(graph, ou, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, ResetPwd),
+	)))
+	runTx(graph, addACLRuleEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -377,7 +380,7 @@ func TestApplyDownLevelLogonNamePatches(t *testing.T) {
 	)
 
 	graph := newADTestGraph(crossRef, user)
-	applyADNodePatchProcessor(graph, applyDownLevelLogonNamePatches)
+	runTx(graph, applyDownLevelLogonNamePatches)
 
 	if got := user.OneAttrString(engine.DownLevelLogonName); got != `EXAMPLE\alice` {
 		t.Fatalf("expected down-level logon name, got %q", got)
@@ -391,7 +394,7 @@ func TestApplyDomainContextPatches(t *testing.T) {
 	)
 
 	graph := newADTestGraph(user)
-	applyADNodePatchProcessor(graph, applyDomainContextPatches)
+	runTx(graph, applyDomainContextPatches)
 
 	if got := user.OneAttrString(engine.DomainContext); got != "DC=example,DC=com" {
 		t.Fatalf("expected domain context, got %q", got)
@@ -415,7 +418,7 @@ func TestApplyObjectClassAndCategoryPatches(t *testing.T) {
 	)
 
 	graph := newADTestGraph(schemaClass, objectCategory, user)
-	applyADNodePatchProcessor(graph, applyObjectClassAndCategoryPatches)
+	runTx(graph, applyObjectClassAndCategoryPatches)
 
 	if got := user.Attr(engine.ObjectClassGUIDs).Len(); got != 1 {
 		t.Fatalf("expected one object class guid, got %d", got)
@@ -438,9 +441,9 @@ func TestApplyProtectedUserTags(t *testing.T) {
 	)
 
 	graph := newADTestGraph(protectedUsers, user)
-	graph.EdgeTo(user, protectedUsers, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, user, protectedUsers, activedirectory.EdgeMemberOfGroup)
 
-	applyADNodePatchProcessor(graph, applyProtectedUserTags)
+	runTx(graph, applyProtectedUserTags)
 
 	if !user.HasTag("protected_user") {
 		t.Fatal("expected protected_user tag")
@@ -454,7 +457,7 @@ func TestApplyWellKnownSIDDisplayNames(t *testing.T) {
 	)
 
 	graph := newADTestGraph(group)
-	applyADNodePatchProcessor(graph, applyWellKnownSIDDisplayNames)
+	runTx(graph, applyWellKnownSIDDisplayNames)
 
 	if got := group.OneAttrString(engine.DisplayName); got == "" {
 		t.Fatal("expected display name to be filled from known SID")
@@ -479,10 +482,10 @@ func TestApplyIndirectMemberOfPatches(t *testing.T) {
 	)
 
 	graph := newADTestGraph(top, mid, leaf)
-	graph.EdgeTo(mid, top, activedirectory.EdgeMemberOfGroup)
-	graph.EdgeTo(leaf, mid, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, mid, top, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, leaf, mid, activedirectory.EdgeMemberOfGroup)
 
-	applyADNodePatchProcessor(graph, applyIndirectMemberOfPatches)
+	runTx(graph, applyIndirectMemberOfPatches)
 
 	indirect := top.Attr(MemberOfIndirect)
 	if indirect.Len() != 1 || indirect.First().String() != leaf.OneAttrString(engine.DistinguishedName) {
@@ -498,16 +501,16 @@ func TestWriteAllowedToActAndRBCDAddEdges(t *testing.T) {
 		activedirectory.Type, engine.NodeTypeComputer.ValueString(),
 		engine.DistinguishedName, "CN=APP01,OU=Servers,DC=example,DC=com",
 	)
-	target.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity),
-	)))
-	target.Set(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, engine.NV(securityDescriptorWithACEs(
-		engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, Mask: engine.RIGHT_GENERIC_ALL, SID: operatorSID},
-	)))
 
 	graph := newADTestGraph(target)
-	addACLRuleEdges(graph)
-	addRBCDEdges(graph)
+	enginetest.Set(graph, target, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToActOnBehalfOfOtherIdentity),
+	)))
+	enginetest.Set(graph, target, activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, engine.NV(securityDescriptorWithACEs(
+		engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, Mask: engine.RIGHT_GENERIC_ALL, SID: operatorSID},
+	)))
+	runTx(graph, addACLRuleEdges)
+	runTx(graph, addRBCDEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -524,21 +527,21 @@ func TestWriteKeyCredentialLinkOnlyTargetsUsersAndComputers(t *testing.T) {
 		engine.Type, engine.NodeTypeUser.ValueString(),
 		engine.DistinguishedName, "CN=KeyCred,OU=Users,DC=example,DC=com",
 	)
-	user.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink),
-	)))
 
 	group := engine.NewNode(
 		engine.Name, "Operators",
 		engine.Type, engine.NodeTypeGroup.ValueString(),
 		engine.DistinguishedName, "CN=Operators,OU=Groups,DC=example,DC=com",
 	)
-	group.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink),
-	)))
 
 	graph := newADTestGraph(user, group)
-	addACLRuleEdges(graph)
+	enginetest.Set(graph, user, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink),
+	)))
+	enginetest.Set(graph, group, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeMSDSKeyCredentialLink),
+	)))
+	runTx(graph, addACLRuleEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {
@@ -555,21 +558,21 @@ func TestAllExtendedRightsAddsEdgeAndSkipsWrongMask(t *testing.T) {
 		engine.Type, engine.NodeTypeUser.ValueString(),
 		engine.DistinguishedName, "CN=Allowed,OU=Users,DC=example,DC=com",
 	)
-	allowed.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil),
-	)))
 
 	wrongMask := engine.NewNode(
 		engine.Name, "Wrong Mask User",
 		engine.Type, engine.NodeTypeUser.ValueString(),
 		engine.DistinguishedName, "CN=WrongMask,OU=Users,DC=example,DC=com",
 	)
-	wrongMask.Set(engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
-		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, uuid.Nil),
-	)))
 
 	graph := newADTestGraph(allowed, wrongMask)
-	addACLRuleEdges(graph)
+	enginetest.Set(graph, allowed, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil),
+	)))
+	enginetest.Set(graph, wrongMask, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+		allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, uuid.Nil),
+	)))
+	runTx(graph, addACLRuleEdges)
 
 	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
 	if !found {

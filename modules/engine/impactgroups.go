@@ -7,7 +7,7 @@ import (
 )
 
 // Reuse the membership components for assigned impact and group exposure.
-func (r *ImpactResult) calculateMembershipImpact(ctx context.Context, view *FrozenGraph, capabilities impactCSR, options ImpactOptions) error {
+func (r *ImpactResult) calculateMembershipImpact(ctx context.Context, view *frozenGraph, capabilities impactCSR, options ImpactOptions) error {
 	started := time.Now()
 	membershipOptions := options
 	membershipOptions.Edges = options.Edges.Intersect(options.GroupMembershipEdges)

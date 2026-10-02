@@ -23,9 +23,9 @@ func adminSDHolderExclusions(heuristics string) int {
 // administrative groups, plus the Administrator and krbtgt accounts and the
 // Domain Controllers and Read-only Domain Controllers groups themselves.
 // It needs group memberships, so it runs after they are resolved.
-func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
+func addAdminSDHolderEdges(tx *engine.Tx) {
 	var holders []*engine.Node
-	ao.Iterate(func(o *engine.Node) bool {
+	tx.Iterate(func(o *engine.Node) bool {
 		if strings.HasPrefix(strings.ToLower(o.DN()), "cn=adminsdholder,cn=system,") {
 			holders = append(holders, o)
 		}
@@ -35,7 +35,7 @@ func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
 	member := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup)
 	for _, holder := range holders {
 		domainContext := holder.OneAttrString(engine.DomainContext)
-		domain, found := ao.Find(engine.DistinguishedName, engine.NV(domainContext))
+		domain, found := tx.Find(engine.DistinguishedName, engine.NV(domainContext))
 		if !found || domain.SID().IsBlank() {
 			continue
 		}
@@ -44,7 +44,7 @@ func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
 			sid := o.SID()
 			return !sid.IsBlank() && sid.Components() > 4 && sid.StripRID() == domainSID
 		}
-		excluded := adminSDHolderExclusions(forestHeuristics(ao, domainContext))
+		excluded := adminSDHolderExclusions(forestHeuristics(tx, domainContext))
 
 		// Collect first and add the edges afterwards: walking memberships
 		// holds the edge lock, so edges cannot be added during the walk.
@@ -54,7 +54,7 @@ func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
 		}
 		protectMembers := func(group *engine.Node) {
 			protect(group)
-			ao.EdgeIteratorRecursive(group, engine.In, member, true, func(_, m *engine.Node, _ engine.EdgeBitmap, _ int) bool {
+			tx.EdgeIteratorRecursive(group, engine.In, member, true, func(_, m *engine.Node, _ engine.EdgeBitmap, _ int) bool {
 				if inDomain(m) {
 					protect(m)
 				}
@@ -62,7 +62,7 @@ func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
 			})
 		}
 
-		ao.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			sid := o.SID()
 			if sid.IsBlank() || sid.Components() < 3 {
 				return true
@@ -113,7 +113,7 @@ func addAdminSDHolderEdges(ao *engine.IndexedGraph) {
 			return true
 		})
 		for _, o := range protected {
-			ao.EdgeTo(holder, o, activedirectory.EdgeOverwritesACL)
+			tx.EdgeTo(holder, o, activedirectory.EdgeOverwritesACL)
 		}
 	}
 }

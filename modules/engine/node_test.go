@@ -1,12 +1,16 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+)
 
 func TestNodeAbsorbMergesAndDeduplicatesAttributes(t *testing.T) {
 	target := testNode(Name, "Alpha", Description, "Shared")
 	source := testNode(Name, "Alpha", Description, "Shared", DisplayName, "Source")
 
-	target.Absorb(source)
+	target.absorb(source)
 
 	if got := target.Attr(Description); got.Len() != 1 || got.First().String() != "Shared" {
 		t.Fatalf("expected deduplicated description, got %v", got.StringSlice())
@@ -19,7 +23,7 @@ func TestNodeAbsorbMergesAndDeduplicatesAttributes(t *testing.T) {
 func TestNodeSetRejectsNilValue(t *testing.T) {
 	node := testNamedNode("Alpha")
 	requirePanic(t, func() {
-		node.Set(Name, AttributeValue{})
+		node.set(Name, AttributeValue{})
 	})
 }
 
@@ -28,7 +32,7 @@ func TestNodeAdoptMovesChildAndRejectsDuplicate(t *testing.T) {
 	parentB := testNamedNode("ParentB")
 	child := testNamedNode("Child")
 
-	parentA.Adopt(child)
+	parentA.adopt(child)
 	if child.Parent() != parentA {
 		t.Fatal("expected child parent to be set")
 	}
@@ -36,7 +40,7 @@ func TestNodeAdoptMovesChildAndRejectsDuplicate(t *testing.T) {
 		t.Fatal("expected parent to track adopted child")
 	}
 
-	parentB.Adopt(child)
+	parentB.adopt(child)
 	if child.Parent() != parentB {
 		t.Fatal("expected child parent to move on re-adoption")
 	}
@@ -48,19 +52,41 @@ func TestNodeAdoptMovesChildAndRejectsDuplicate(t *testing.T) {
 	}
 
 	requirePanic(t, func() {
-		parentB.Adopt(child)
+		parentB.adopt(child)
 	})
 }
 
 func TestNodeTypeCacheResetsOnTypeChange(t *testing.T) {
 	node := testNamedNode("Alpha")
-	node.Set(Type, NV(NodeTypeUser.Lookup()))
+	node.set(Type, NV(NodeTypeUser.Lookup()))
 	if node.Type() != NodeTypeUser {
 		t.Fatal("expected cached type lookup to resolve user type")
 	}
 
-	node.Set(Type, NV(NodeTypeOther.Lookup()))
+	node.set(Type, NV(NodeTypeOther.Lookup()))
 	if node.Type() != NodeTypeOther {
 		t.Fatal("expected type cache reset after Type attribute update")
+	}
+}
+
+// SID() reflects objectSid after it changes, even when it was read before.
+func TestNodeSIDFollowsObjectSidWrites(t *testing.T) {
+	first := windowssecurity.MustParseStringSID("S-1-5-21-1-2-3")
+	second := windowssecurity.MustParseStringSID("S-1-5-21-4-5-6")
+	n := NewNode(Name, "machine")
+	if !n.SID().IsBlank() {
+		t.Fatal("SID without objectSid")
+	}
+	n.set(ObjectSid, NVSID(first))
+	if n.SID() != first {
+		t.Fatal("SID cached from before objectSid was set")
+	}
+	n.set(ObjectSid, NVSID(second))
+	if n.SID() != second {
+		t.Fatal("SID cached from before objectSid changed")
+	}
+	n.clear(ObjectSid)
+	if !n.SID().IsBlank() {
+		t.Fatal("SID cached after objectSid was cleared")
 	}
 }

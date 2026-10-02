@@ -79,7 +79,7 @@ func BenchmarkImportCollectorInfo(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		graph := engine.NewIndexedGraph()
-		if _, err := ImportCollectorInfo(graph, info); err != nil {
+		if _, err := importMachine(graph, info); err != nil {
 			b.Fatal(err)
 		}
 	}

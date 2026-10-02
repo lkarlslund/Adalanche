@@ -16,8 +16,8 @@ func TestNodeIDAssignment(t *testing.T) {
 func TestLookupNodeByID(t *testing.T) {
 	first, second := NewIndexedGraph(), NewIndexedGraph()
 	node := NewNode()
-	first.Add(node)
-	second.Add(node)
+	first.add(node)
+	second.add(node)
 	for _, g := range []*IndexedGraph{first, second} {
 		if found, ok := g.LookupNodeByID(node.ID()); !ok || found != node {
 			t.Fatal("node not found by ID in a graph containing it")
@@ -30,7 +30,7 @@ func TestLookupNodeByID(t *testing.T) {
 		t.Fatal("a node outside the graph was found")
 	}
 	var unassigned Node
-	first.Add(&unassigned)
+	first.add(&unassigned)
 	if _, ok := first.LookupNodeByID(InvalidNodeID); ok {
 		t.Fatal("a node without an ID was registered under the invalid ID")
 	}
@@ -40,12 +40,12 @@ func TestMergeKeepsTargetID(t *testing.T) {
 	mergeOn := NewAttribute("test-merge-key").Flag(Merge)
 	g := NewIndexedGraph()
 	target := NewNode(mergeOn, NV("shared"))
-	g.Add(target)
+	g.add(target)
 	targetID := target.ID()
 
 	source := NewNode(mergeOn, NV("shared"), Name, NV("from source"))
 	sourceID := source.ID()
-	mergedTo, merged := g.Merge([]Attribute{mergeOn}, nil, source)
+	mergedTo, merged := g.merge([]Attribute{mergeOn}, nil, source)
 	if !merged || mergedTo != target {
 		t.Fatal("source was not merged into the target")
 	}

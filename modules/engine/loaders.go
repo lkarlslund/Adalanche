@@ -53,8 +53,8 @@ func NewLoaderObjects(ld Loader) *IndexedGraph {
 
 	// Add the root node
 	rootnode := NewNode(Name, ld.Name())
-	aos.Add(rootnode)
-	aos.SetRoot(rootnode)
+	aos.add(rootnode)
+	aos.setRoot(rootnode)
 
 	return aos
 }

@@ -11,8 +11,8 @@ import (
 
 var edgeConstrainedDelegation = engine.NewEdge("ConstrainedDeleg").Describe("Delegation to a configured service. Without protocol transition, requires a suitable forwardable service ticket.")
 
-func addConstrainedDelegationEdges(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
+func addConstrainedDelegationEdges(tx *engine.Tx) {
+	tx.Iterate(func(o *engine.Node) bool {
 		// Only computers and users
 		if o.Type() != engine.NodeTypeComputer && o.Type() != engine.NodeTypeUser {
 			return true
@@ -36,10 +36,10 @@ func addConstrainedDelegationEdges(ao *engine.IndexedGraph) {
 				ui.Debug().Msgf("Constrained delegation host name %v is not FQDN, adding domain context DNS", val.String())
 				host += "." + util.DomainContextToDomainSuffix(o.OneAttrString(engine.DomainContext))
 			}
-			if target, found := ao.FindTwo(DnsHostName, engine.NV(host),
+			if target, found := tx.FindTwo(DnsHostName, engine.NV(host),
 				engine.Type, engine.NV("Machine"),
 			); found {
-				ao.EdgeTo(o, target, edgeConstrainedDelegation)
+				tx.EdgeTo(o, target, edgeConstrainedDelegation)
 			} else {
 				ui.Error().Msgf("Could not find constrained delegation SPN %v target (looked for machine %v) in the AD", val.String(), host)
 			}

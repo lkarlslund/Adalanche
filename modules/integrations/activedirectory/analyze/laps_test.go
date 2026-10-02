@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 )
 
@@ -37,12 +38,12 @@ func TestLAPSv2EncryptedAccessDoesNotImplyDecryption(t *testing.T) {
 			computer := engine.NewNode(engine.Type, engine.NodeTypeComputer.ValueString(), engine.ObjectSid, engine.NV(computerSID), activedirectory.MSLAPSPasswordExpirationTime, int64(1), engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(allowACE(readerSID, tt.mask, tt.grant))))
 			graph := newADTestGraph(reader, machine, computer)
 			if tt.plainSchema {
-				graph.Add(engine.NewNode(engine.Name, "ms-LAPS-Password", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(plainGUID)))
+				enginetest.Add(graph, engine.NewNode(engine.Name, "ms-LAPS-Password", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(plainGUID)))
 			}
 			if tt.encryptedSchema {
-				graph.Add(engine.NewNode(engine.Name, "ms-LAPS-EncryptedPassword", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(encryptedGUID), engine.AttributeSecurityGUID, engine.NV(msLAPSEncryptedPasswordAttributesGUID)))
+				enginetest.Add(graph, engine.NewNode(engine.Name, "ms-LAPS-EncryptedPassword", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(encryptedGUID), engine.AttributeSecurityGUID, engine.NV(msLAPSEncryptedPasswordAttributesGUID)))
 			}
-			addLAPSv2Edges(graph)
+			runTx(graph, addLAPSv2Edges)
 			for edge, want := range map[engine.Edge]bool{activedirectory.EdgeReadLAPSPassword: tt.wantPlain, activedirectory.EdgeReadEncryptedLAPSPassword: tt.wantEncrypted} {
 				if want {
 					requireEdgeSet(t, graph, reader, machine, edge)
@@ -83,7 +84,7 @@ func TestLAPSv2DSRMPasswordOnDomainControllers(t *testing.T) {
 			graph := newADTestGraph(reader, machine, computer,
 				engine.NewNode(engine.Name, "ms-LAPS-Password", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(plainGUID)),
 				engine.NewNode(engine.Name, "ms-LAPS-EncryptedDSRMPassword", engine.ObjectClass, "attributeSchema", engine.SchemaIDGUID, engine.NV(dsrmGUID)))
-			addLAPSv2Edges(graph)
+			runTx(graph, addLAPSv2Edges)
 			for edge, want := range map[engine.Edge]bool{activedirectory.EdgeReadLAPSPassword: tt.wantPlain, activedirectory.EdgeReadEncryptedLAPSPassword: tt.wantDSRM} {
 				if want {
 					requireEdgeSet(t, graph, reader, machine, edge)
@@ -112,7 +113,7 @@ func TestAttributeReadRightsFollowSchema(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			graph := newADTestGraph()
 			if tt.schema != nil {
-				graph.Add(engine.NewNode(tt.schema...))
+				enginetest.Add(graph, engine.NewNode(tt.schema...))
 			}
 			if got := AttributeReadRights(graph, guid, tt.fallback); got != tt.want {
 				t.Fatalf("got %#x, want %#x", got, tt.want)

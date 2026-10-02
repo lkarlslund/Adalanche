@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	loader.AddProcessor(func(ao *engine.IndexedGraph) {
-		ao.IterateStable(func(o *engine.Node) bool {
+	loader.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
 
 				// We can do this with confidence as everything comes from this loader
@@ -20,21 +20,21 @@ func init() {
 					// We don't link that - it's either absorbed into the real computer object, or it's orphaned
 				case engine.NodeTypeUser:
 					// It's a User we added, find the machine
-					if machine, found := ao.FindTwo(
+					if machine, found := tx.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),
 						LocalMachineSID, engine.NV(sidwithoutrid)); found {
-						o.ChildOf(machine) // FIXME -> Users
+						tx.Node(o).ChildOf(machine) // FIXME -> Users
 					}
 				case engine.NodeTypeGroup:
 					// It's a Group we added
-					if machine, found := ao.FindTwo(
+					if machine, found := tx.FindTwo(
 						engine.DataSource, o.OneAttr(engine.DataSource),
 						LocalMachineSID, engine.NV(sidwithoutrid)); found {
-						o.ChildOf(machine) // FIXME -> Groups
+						tx.Node(o).ChildOf(machine) // FIXME -> Groups
 					}
 				default:
 					// if o.HasAttr(activedirectory.ObjectSid) {
-					// 	if computer, found := ld.ao.FindTwo(
+					// 	if computer, found := ld.tx.FindTwo(
 					// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
 					// 		LocalMachineSID, engine.NV(sidwithoutrid)); found {
 					// 		o.ChildOf(computer) // We don't know what it is
@@ -50,19 +50,19 @@ func init() {
 		Provides:    []engine.Product{ProductLocalTree},
 	})
 
-	loader.AddReadOnlyProcessor(func(view *engine.FrozenGraph) {
+	loader.AddProcessor(func(tx *engine.Tx) {
 		var warns int
 		ln := engine.NV(Loadername)
-		view.Iterate(func(o *engine.Node) bool {
+		tx.Iterate(func(o *engine.Node) bool {
 			if o.HasAttrValue(engine.DataLoader, ln) {
 				if o.HasAttr(activedirectory.ObjectSid) {
 					edgesOut := 0
-					view.IterateEdges(o, engine.Out, func(*engine.Node, engine.EdgeBitmap) bool {
+					tx.IterateEdges(o, engine.Out, func(*engine.Node, engine.EdgeBitmap) bool {
 						edgesOut++
 						return false
 					})
 					edgesIn := 0
-					view.IterateEdges(o, engine.In, func(*engine.Node, engine.EdgeBitmap) bool {
+					tx.IterateEdges(o, engine.In, func(*engine.Node, engine.EdgeBitmap) bool {
 						edgesIn++
 						return false
 					})

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	ad "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
@@ -96,7 +97,7 @@ func TestImportServiceFiltering(t *testing.T) {
 	service := adminOnlyServiceFixture()
 	service.AccountSID = "S-1-5-21-4-5-6-1001"
 	info.Services = []localmachine.Service{service}
-	machine, err := ImportCollectorInfo(g, info)
+	machine, err := importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +121,7 @@ func TestImportServiceFiltering(t *testing.T) {
 	service.RegistryDACL = serviceTestACL(engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: windowssecurity.AuthenticatedUsersSID, Mask: engine.KEY_SET_VALUE})
 	info.Services = []localmachine.Service{service}
 	g = engine.NewIndexedGraph()
-	machine, err = ImportCollectorInfo(g, info)
+	machine, err = importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +132,7 @@ func TestImportServiceFiltering(t *testing.T) {
 	if svc.Parent() != machine {
 		t.Fatal("service not parented to machine")
 	}
-	writer := g.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, machine)
+	writer := enginetest.FindOrAddAdjacentSID(g, windowssecurity.AuthenticatedUsersSID, machine)
 	methods, _ = g.GetEdge(writer, svc)
 	if !methods.IsSet(EdgeRegistryWrite) {
 		t.Fatal("takeover path lost")
@@ -149,7 +150,7 @@ func TestSkippedServiceRetainsReferencedIdentities(t *testing.T) {
 	identitySID := windowssecurity.ServiceNameToServiceSID(omitted.Name)
 	retained.RegistryDACL = serviceTestACL(engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: identitySID, Mask: engine.KEY_SET_VALUE})
 	info.Services = []localmachine.Service{omitted, retained}
-	machine, err := ImportCollectorInfo(g, info)
+	machine, err := importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestLocalObjectsHaveNoExplorerContainers(t *testing.T) {
 	info := benchmarkCollectorInfo()
 	s := adminOnlyServiceFixture()
 	info.Shares = []localmachine.Share{{Name: "SyntheticShare", Path: `C:\synthetic`, DACL: s.SecurityDescriptor, PathDACL: s.RegistryDACL, PathOwner: s.RegistryOwner}}
-	machine, err := ImportCollectorInfo(g, info)
+	machine, err := importMachine(g, info)
 	if err != nil {
 		t.Fatal(err)
 	}

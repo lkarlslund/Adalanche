@@ -41,20 +41,21 @@ var (
 	EdgeModifyDACL            = engine.NewEdge("FileModifyDACL").Tag("Pivot")
 )
 
-func init() {
-	engine.AddMergeApprover("Don't merge differing relative paths from GPOs", func(a, b *engine.Node) (*engine.Node, error) {
-		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
-			return nil, engine.ErrDontMerge
-		}
-		return nil, nil
-	})
-}
-
 var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
 var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
+// ImportGPOInfo adds a policy collection to the graph in one transaction.
+// Nothing is added when the import fails.
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error {
-	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	tx := ao.Begin("policy " + ginfo.Path)
+	if err := importGPOInfo(ginfo, tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
+	gpoobject, _ := tx.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
 	if err := retainPolicyResults(gpoobject, ginfo.Common, ginfo.CollectionResults); err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			objecttype = "Directory"
 		}
 
-		itemobject := ao.AddNew(
+		itemobject := tx.AddNew(
 			engine.IgnoreBlanks,
 			AbsolutePath, absolutepath,
 			RelativePath, relativepath,
@@ -101,22 +102,22 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			continue
 		}
 		if relativepath == "/" {
-			ao.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
-			gpoobject.Adopt(itemobject)
+			tx.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
+			itemobject.ChildOf(gpoobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
 			if parentpath == "" {
 				parentpath = "/"
 			}
 
-			parent, _ := ao.FindOrAdd(AbsolutePath, engine.NV(parentpath))
-			ao.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
-			parent.Adopt(itemobject)
+			parent, _ := tx.FindOrAdd(AbsolutePath, engine.NV(parentpath))
+			tx.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
+			itemobject.ChildOf(parent)
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner := ao.FindOrAddAdjacentSID(item.OwnerSID, nil)
-			ao.EdgeTo(owner, itemobject, EdgeOwns)
+			owner := tx.FindOrAddAdjacentSID(item.OwnerSID, nil)
+			tx.EdgeTo(owner, itemobject, EdgeOwns)
 		}
 
 		if item.DACL != nil {
@@ -125,23 +126,23 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				return err
 			}
 			for _, entry := range dacl.Entries {
-				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+				entrysidobject, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeFileCreate)
+						tx.EdgeTo(entrysidobject, itemobject, EdgeFileCreate)
 					}
 					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeDirCreate)
+						tx.EdgeTo(entrysidobject, itemobject, EdgeDirCreate)
 					}
 					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeFileWrite)
+						tx.EdgeTo(entrysidobject, itemobject, EdgeFileWrite)
 					}
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeTakeOwnership) // Not sure about this one
+						tx.EdgeTo(entrysidobject, itemobject, EdgeTakeOwnership) // Not sure about this one
 					}
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeModifyDACL)
+						tx.EdgeTo(entrysidobject, itemobject, EdgeModifyDACL)
 					}
 				}
 			}
@@ -172,32 +173,32 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 		}
 		for _, e := range exposed {
 			// New object to contain the sensitive data
-			expobj := ao.AddNew(
+			expobj := tx.AddNew(
 				engine.Type, "ExposedPassword",
 				engine.DisplayName, "Exposed password for "+e.Username,
 				engine.Description, "Password is exposed in GPO with GUID "+ginfo.GUID.String(),
-				engine.ObjectGUID, ginfo.GUID,
 				ExposedPassword, e.Password,
 				RelativePath, relativepath,
 				AbsolutePath, filepath.Join(ginfo.Path, relativepath),
 			)
 
 			// The account targeted
-			var target *engine.Node
+			var target engine.TxNode
 			if strings.Contains(e.Username, "\\") {
-				target, _ = ao.FindOrAdd(
+				target, _ = tx.FindOrAdd(
 					engine.DownLevelLogonName, engine.NV(e.Username),
 				)
 			} else {
-				target, _ = ao.FindOrAdd(
+				target, _ = tx.FindOrAdd(
 					engine.SAMAccountName, engine.NV(e.Username),
 				)
 			}
 
 			// GPO exposes this object
-			ao.EdgeTo(itemobject, expobj, EdgeContainsSensitiveData)
+			tx.EdgeTo(itemobject, expobj, EdgeContainsSensitiveData)
+			expobj.ChildOf(itemobject)
 			// Exposed password leaks this object
-			ao.EdgeTo(expobj, target, EdgeExposesPassword)
+			tx.EdgeTo(expobj, target, EdgeExposesPassword)
 
 			// Everyone that can read the file can then read the password
 			if item.DACL != nil {
@@ -206,11 +207,11 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					return err
 				}
 				for _, entry := range dacl.Entries {
-					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+					entrysidobject, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
-							ao.EdgeTo(entrysidobject, expobj, EdgeReadSensitiveData)
+							tx.EdgeTo(entrysidobject, expobj, EdgeReadSensitiveData)
 						}
 					}
 				}
@@ -242,7 +243,8 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 						ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
 						continue
 					}
-					ao.EdgeTo(ao.FindOrAddSID(membersid), gpoobject, edge)
+					member, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NVSID(membersid))
+					tx.EdgeTo(member, gpoobject, edge)
 				case sidpair.MemberName != "":
 					// Names, including ones with preference variables, are
 					// resolved after merge when the whole directory is known.
@@ -302,9 +304,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					engine.DistinguishedName, engine.NV(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
 					engine.Name, engine.NV("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
-				ao.Add(sob)
-				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
-				sob.ChildOf(gpoobject) // tree
+				script := tx.Add(sob)
+				tx.EdgeTo(script, gpoobject, activedirectory.EdgeMachineScript)
+				script.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
 
@@ -321,9 +323,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					engine.Type, engine.NV("Script"),
 					engine.Name, engine.NV("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
-				ao.Add(sob)
-				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
-				sob.ChildOf(gpoobject)
+				script := tx.Add(sob)
+				tx.EdgeTo(script, gpoobject, activedirectory.EdgeMachineScript)
+				script.ChildOf(gpoobject)
 				scriptnum++
 			}
 		}

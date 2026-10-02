@@ -10,11 +10,11 @@ import (
 
 // aceTrustee returns the node an ACE's rights belong to. An ACE for OWNER
 // RIGHTS (S-1-3-4) applies to whoever owns the object (MS-DTYP 2.4.2.4).
-func aceTrustee(ao *engine.IndexedGraph, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) *engine.Node {
+func aceTrustee(tx *engine.Tx, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) engine.TxNode {
 	if sid == windowssecurity.OwnerSID && sd != nil && !sd.Owner.IsNull() {
 		sid = sd.Owner
 	}
-	return ao.FindOrAddAdjacentSID(sid, o)
+	return tx.FindOrAddAdjacentSID(sid, o)
 }
 
 // hasOwnerRightsACE reports whether the DACL has an effective ACE for OWNER
@@ -34,7 +34,7 @@ const directoryServicePrefix = "cn=directory service,cn=windows nt,cn=services,c
 // forestHeuristics finds dSHeuristics for the forest a domain belongs to. It
 // lives on CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration
 // under the forest root, not under each domain (MS-ADTS 3.1.1.6.1.4).
-func forestHeuristics(ao *engine.IndexedGraph, domainDN string) string {
+func forestHeuristics(ao engine.GraphReader, domainDN string) string {
 	domainDN = strings.ToLower(domainDN)
 	candidates, _ := ao.FindMulti(engine.Name, engine.NV("Directory Service"))
 	var only, match string

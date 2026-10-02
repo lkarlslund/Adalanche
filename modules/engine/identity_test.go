@@ -11,9 +11,9 @@ func TestScopedSIDsStayInTheirScope(t *testing.T) {
 	system := windowssecurity.LocalSystemSID
 	a, b := NewIndexedGraph(), NewIndexedGraph()
 	systemA := NewNode(Name, "SYSTEM a", ObjectSid, NV(system), DomainContext, "DC=a", DataSource, "a")
-	a.Add(systemA)
+	a.add(systemA)
 	targetB := NewNode(Name, "target", DistinguishedName, "CN=target,DC=b", DomainContext, "DC=b", DataSource, "b")
-	b.Add(targetB)
+	b.add(targetB)
 
 	g, err := MergeGraphs([]*IndexedGraph{a, b})
 	if err != nil {
@@ -22,11 +22,11 @@ func TestScopedSIDsStayInTheirScope(t *testing.T) {
 	if found, ok := g.FindAdjacentSID(system, targetB); ok {
 		t.Fatalf("SYSTEM for domain b resolved to %q", found.Label())
 	}
-	systemB := g.FindOrAddAdjacentSID(system, targetB)
+	systemB := g.findOrAddAdjacentSID(system, targetB)
 	if systemB == systemA || systemB.OneAttrString(DomainContext) != "DC=b" {
 		t.Fatalf("SYSTEM for domain b was not added in its own scope: %v", systemB.Label())
 	}
-	if again := g.FindOrAddAdjacentSID(system, targetB); again != systemB {
+	if again := g.findOrAddAdjacentSID(system, targetB); again != systemB {
 		t.Fatal("a second lookup in the same scope added another node")
 	}
 }
@@ -39,7 +39,7 @@ func TestDomainSIDStubsMergeIntoTheAccount(t *testing.T) {
 
 	a := NewIndexedGraph()
 	user := NewNode(Name, "alice", DistinguishedName, "CN=alice,DC=a", DomainContext, "DC=a", DataSource, "a", ObjectSid, NV(userSID))
-	a.Add(user)
+	a.add(user)
 
 	// Domains b and c refer to alice and to an account from a forest that
 	// was not collected.
@@ -48,9 +48,9 @@ func TestDomainSIDStubsMergeIntoTheAccount(t *testing.T) {
 	for _, domain := range []string{"b", "c"} {
 		g := NewIndexedGraph()
 		target := NewNode(Name, "target "+domain, DistinguishedName, "CN=target,DC="+domain, DomainContext, "DC="+domain, DataSource, domain)
-		g.Add(target)
-		g.EdgeTo(g.FindOrAddAdjacentSID(userSID, target), target, edge)
-		g.EdgeTo(g.FindOrAddAdjacentSID(unknownSID, target), target, edge)
+		g.add(target)
+		g.edgeTo(g.findOrAddAdjacentSID(userSID, target), target, edge)
+		g.edgeTo(g.findOrAddAdjacentSID(unknownSID, target), target, edge)
 		targets = append(targets, target)
 		graphs = append(graphs, g)
 	}
@@ -83,11 +83,11 @@ func TestStubsForAmbiguousSIDsAreNotGuessed(t *testing.T) {
 	m1, m2, ref := NewIndexedGraph(), NewIndexedGraph(), NewIndexedGraph()
 	admin1 := NewNode(Name, "admin m1", ObjectSid, NV(sid), DataSource, "m1")
 	admin2 := NewNode(Name, "admin m2", ObjectSid, NV(sid), DataSource, "m2")
-	m1.Add(admin1)
-	m2.Add(admin2)
+	m1.add(admin1)
+	m2.add(admin2)
 	target := NewNode(Name, "target", DistinguishedName, "CN=target,DC=x", DomainContext, "DC=x", DataSource, "x")
-	ref.Add(target)
-	stub := ref.FindOrAddAdjacentSID(sid, target)
+	ref.add(target)
+	stub := ref.findOrAddAdjacentSID(sid, target)
 
 	g, err := MergeGraphs([]*IndexedGraph{m1, m2, ref})
 	if err != nil {
@@ -102,12 +102,12 @@ func TestScopeWithDuplicateSIDsDoesNotGrow(t *testing.T) {
 	g := NewIndexedGraph()
 	sid := windowssecurity.LocalSystemSID
 	first := NewNode(Name, "first", ObjectSid, NV(sid), DomainContext, "DC=a")
-	g.Add(first)
-	g.Add(NewNode(Name, "second", ObjectSid, NV(sid), DomainContext, "DC=a"))
+	g.add(first)
+	g.add(NewNode(Name, "second", ObjectSid, NV(sid), DomainContext, "DC=a"))
 	target := NewNode(Name, "target", DomainContext, "DC=a")
-	g.Add(target)
+	g.add(target)
 	for range 3 {
-		if got := g.FindOrAddAdjacentSID(sid, target); got != first {
+		if got := g.findOrAddAdjacentSID(sid, target); got != first {
 			t.Fatalf("lookup in a scope with two nodes for the SID returned %v", got.Label())
 		}
 	}

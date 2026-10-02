@@ -67,11 +67,11 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		Name, NV("Adalanche root node"),
 		Type, NV("Root"),
 	)
-	superGraph.SetRoot(globalroot)
+	superGraph.setRoot(globalroot)
 
 	orphancontainer := NewNode(Name, NV("Orphans"))
-	orphancontainer.ChildOf(globalroot)
-	superGraph.Add(orphancontainer)
+	orphancontainer.childOf(globalroot)
+	superGraph.add(orphancontainer)
 
 	type mergeinfo struct {
 		graph *IndexedGraph
@@ -91,7 +91,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		dnindex := superGraph.GetIndex(DistinguishedName)
 
 		if mergeroot := g.Root(); mergeroot != nil {
-			mergeroot.ChildOf(globalroot)
+			mergeroot.childOf(globalroot)
 		}
 
 		// Add all nodes and edges from other graphs into the global graph
@@ -118,7 +118,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 				mergeMutex.Unlock()
 			} else {
 				// Just add it now
-				superGraph.Add(node)
+				superGraph.add(node)
 			}
 			return true
 		}, 0)
@@ -139,11 +139,11 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 			mergeAttrs = getMergeAttributes()
 		}
 
-		mergedTo, merged := superGraph.Merge(mergeAttrs, conflictAttrs, node)
+		mergedTo, merged := superGraph.merge(mergeAttrs, conflictAttrs, node)
 		if merged {
 			mergedNodesMap[node] = mergedTo
 		} else {
-			superGraph.Add(node)
+			superGraph.add(node)
 		}
 	}
 	pb.Finish()
@@ -182,7 +182,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 		if _, done := processed[o]; !done {
 			if !superGraph.Contains(o) {
 				ui.Debug().Msgf("Child object %v wasn't added to index, fixed", o.Label())
-				superGraph.Add(o)
+				superGraph.add(o)
 			}
 			processed[o] = struct{}{}
 			o.Children().Iterate(func(child *Node) bool {
@@ -193,7 +193,7 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	}
 	superGraph.Iterate(func(object *Node) bool {
 		if object.Parent() == nil {
-			object.ChildOf(orphancontainer)
+			object.childOf(orphancontainer)
 			orphans++
 		}
 		processobject(object)
@@ -240,9 +240,9 @@ func mergeSIDStubs(superGraph *IndexedGraph, stubs []*Node, mergedNodesMap map[*
 		}
 		target := group[0]
 		for _, stub := range group[1:] {
-			target.Absorb(stub)
+			target.absorb(stub)
 			mergedNodesMap[stub] = target
 		}
-		superGraph.Add(target)
+		superGraph.add(target)
 	}
 }

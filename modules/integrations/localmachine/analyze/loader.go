@@ -51,7 +51,8 @@ func (ld *LocalMachineLoader) Init() error {
 				}
 
 				g := engine.NewLoaderObjects(ld)
-				computerobject, err := ImportCollectorInfo(g, cinfo)
+				tx := g.Begin("machine collection " + queueItem.path)
+				computerobject, err := ImportCollectorInfo(tx, cinfo)
 
 				if err != nil {
 					ld.failed.Add(1)
@@ -59,9 +60,14 @@ func (ld *LocalMachineLoader) Init() error {
 					continue
 				}
 
-				if err := importCollectionExtensions(g, computerobject, cinfo, extensions); err != nil {
+				if err := importCollectionExtensions(tx, computerobject, cinfo, extensions); err != nil {
 					ld.failed.Add(1)
 					ui.Warn().Msgf("Problem importing machine extensions: %v", err)
+					continue
+				}
+				if err := tx.Commit(); err != nil {
+					ld.failed.Add(1)
+					ui.Warn().Msgf("Problem committing machine collection %v: %v", queueItem.path, err)
 					continue
 				}
 				ld.mutex.Lock()

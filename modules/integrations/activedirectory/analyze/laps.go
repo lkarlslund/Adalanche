@@ -9,7 +9,7 @@ import (
 
 // lapsSchemaGUID returns the schemaIDGUID of a Windows LAPS attribute, found
 // by its schema object name (cn), or nil if the schema lacks it.
-func lapsSchemaGUID(ao *engine.IndexedGraph, cn string) uuid.UUID {
+func lapsSchemaGUID(ao engine.GraphReader, cn string) uuid.UUID {
 	lapsobject, found := ao.FindTwo(engine.Name, engine.NV(cn), engine.ObjectClass, engine.NV("attributeSchema"))
 	if !found {
 		return uuid.Nil
@@ -22,10 +22,10 @@ func lapsSchemaGUID(ao *engine.IndexedGraph, cn string) uuid.UUID {
 	return guid
 }
 
-func addLAPSv2Edges(ao *engine.IndexedGraph) {
-	passwordGUID := lapsSchemaGUID(ao, "ms-LAPS-Password")
-	encryptedGUID := lapsSchemaGUID(ao, "ms-LAPS-EncryptedPassword")
-	dsrmGUID := lapsSchemaGUID(ao, "ms-LAPS-EncryptedDSRMPassword")
+func addLAPSv2Edges(tx *engine.Tx) {
+	passwordGUID := lapsSchemaGUID(tx, "ms-LAPS-Password")
+	encryptedGUID := lapsSchemaGUID(tx, "ms-LAPS-EncryptedPassword")
+	dsrmGUID := lapsSchemaGUID(tx, "ms-LAPS-EncryptedDSRMPassword")
 	if passwordGUID.IsNil() && encryptedGUID.IsNil() && dsrmGUID.IsNil() {
 		ui.Debug().Msg("LAPS v2 schema not detected, skipping analysis")
 		return
@@ -54,10 +54,10 @@ func addLAPSv2Edges(ao *engine.IndexedGraph) {
 	}
 	rights := make(map[uuid.UUID]engine.Mask, len(grants))
 	for _, g := range grants {
-		rights[g.attribute] = AttributeReadRights(ao, g.attribute, true)
+		rights[g.attribute] = AttributeReadRights(tx, g.attribute, true)
 	}
 
-	ao.Iterate(func(o *engine.Node) bool {
+	tx.Iterate(func(o *engine.Node) bool {
 		// Only computers that have Windows LAPS
 		if o.Type() != engine.NodeTypeComputer || !o.HasAttr(activedirectory.MSLAPSPasswordExpirationTime) {
 			return true
@@ -70,12 +70,12 @@ func addLAPSv2Edges(ao *engine.IndexedGraph) {
 		if machinesid.IsBlank() {
 			ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 		}
-		machine, found := ao.Find(DomainJoinedSID, engine.NV(machinesid))
+		machine, found := tx.Find(DomainJoinedSID, engine.NV(machinesid))
 		if !found {
 			ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v2", machinesid)
 			return true
 		}
-		machine.Tag("laps")
+		tx.Node(machine).Tag("laps")
 
 		uac, _ := o.AttrInt(activedirectory.UserAccountControl)
 		isDC := uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0
@@ -83,8 +83,8 @@ func addLAPSv2Edges(ao *engine.IndexedGraph) {
 			if g.forDC != isDC {
 				continue
 			}
-			for _, sid := range PrincipalsGranted(sd, o, rights[g.attribute], g.attribute, ao) {
-				ao.EdgeTo(aceTrustee(ao, sd, sid, o), machine, g.edge)
+			for _, sid := range PrincipalsGranted(sd, o, rights[g.attribute], g.attribute, tx) {
+				tx.EdgeTo(aceTrustee(tx, sd, sid, o), machine, g.edge)
 			}
 		}
 		return true
