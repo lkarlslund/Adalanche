@@ -82,6 +82,37 @@ func (o *Node) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
+// foldInto merges a reference into the node it stands for: its values,
+// its place in the tree and its children. The reference is discarded.
+func (target *Node) foldInto(source *Node) {
+	target.absorb(source)
+	if source.parent != nil {
+		parent := source.parent
+		if target.parent == nil {
+			target.parent = parent
+			parent.children.Add(target)
+		}
+		parent.removeChild(source)
+		source.parent = nil
+	}
+	source.children.Iterate(func(child *Node) bool {
+		target.children.Add(child)
+		child.parent = target
+		return true
+	})
+	source.children = NodeSlice{}
+	// The security descriptor attribute is not kept after import, only the
+	// parsed cache, so it moves over.
+	if source.sdcache != nil {
+		if target.sdcache == nil {
+			target.sdcache = source.sdcache
+		} else if !source.sdcache.Equals(target.sdcache) {
+			ui.Error().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
+		}
+	}
+	target.objecttype = 0 // recalculated from the merged values
+}
+
 func (o *Node) absorb(source *Node) {
 	o.absorbEx(source, false)
 }

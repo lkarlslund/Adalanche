@@ -323,7 +323,7 @@ func (os *IndexedGraph) addNew(flexinit ...any) *Node {
 	if os.DefaultValues != nil {
 		o.setFlex(os.DefaultValues...)
 	}
-	os.addMerge(nil, nil, o)
+	os.add(o)
 	return o
 }
 
@@ -331,20 +331,6 @@ func (os *IndexedGraph) add(obs *Node) {
 	os.nodeMutex.Lock() // This is due to FindOrAdd consistency
 	os.addUnlocked(obs)
 	os.nodeMutex.Unlock()
-}
-
-func (os *IndexedGraph) addMerge(mergeAttr, conflictAttr []Attribute, nodes ...*Node) {
-	for _, inconingNode := range nodes {
-		var processed bool
-		if len(mergeAttr) > 0 {
-			_, processed = os.merge(mergeAttr, conflictAttr, inconingNode)
-		}
-		if !processed {
-			os.nodeMutex.Lock() // This is due to FindOrAdd consistency
-			os.addUnlocked(inconingNode)
-			os.nodeMutex.Unlock()
-		}
-	}
 }
 
 func (os *IndexedGraph) Contains(o *Node) bool {
@@ -370,128 +356,6 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 		return nil, false
 	}
 	return os.idLookup.Load(id)
-}
-
-// Attemps to merge the node into the objects
-func (os *IndexedGraph) merge(attrtomerge, singleattrs []Attribute, source *Node) (*Node, bool) {
-	var mergedTo *Node
-	var merged bool
-
-	sourceType := source.Type()
-
-	if len(attrtomerge) > 0 {
-		for _, mergeattr := range attrtomerge {
-			source.Attr(mergeattr).Iterate(func(lookfor AttributeValue) bool {
-
-				if mergetargets, found := os.FindMulti(mergeattr, lookfor); found {
-					mergetargets.Iterate(func(target *Node) bool {
-						// Test if types mismatch violate this merge
-						targetType := target.Type()
-						if targetType != NodeTypeOther && sourceType != NodeTypeOther && targetType != sourceType {
-							// Merge conflict, can't merge different types
-							ui.Trace().Msgf("Merge failure due to type difference, not merging %v of type %v with %v of type %v", source.Label(), sourceType.String(), target.Label(), targetType.String())
-							return true // continue
-						}
-
-						// Test if any single attribute holding values violate this merge
-						var failed bool
-						var sv, tv AttributeValues
-						for _, attr := range singleattrs {
-							sv = source.Attr(attr)
-							if sv == nil {
-								continue
-							}
-							tv = target.Attr(attr)
-							if tv == nil {
-								continue
-							}
-							if !CompareAttributeValues(sv.First(), tv.First()) {
-								// Conflicting attribute values, we can't merge these
-								ui.Trace().Msgf("Not merging %v into %v on %v with value '%v', as attribute %v is different (%v != %v)", source.Label(), target.Label(), mergeattr.String(), lookfor.String(), attr.String(), sv.First().String(), tv.First().String())
-								failed = true
-								break
-							}
-						}
-						if failed {
-							return true // break
-						}
-
-						for _, mfi := range mergeapprovers {
-							res, err := mfi.mergefunc(source, target)
-							switch err {
-							case ErrDontMerge:
-								ui.Trace().Msgf("Merge approver %v rejected merging %v with %v on attribute %v", mfi.name, source.Label(), target.Label(), mergeattr.String())
-								return true
-							case ErrMergeOnThis, nil:
-								// Let the code below do the merge
-							default:
-								ui.Fatal().Msgf("Error merging %v: %v", source.Label(), err)
-							}
-							if res != nil {
-								// Custom merge - how do we handle this?
-								ui.Fatal().Msgf("Custom merge function not supported yet")
-							}
-						}
-
-						// ui.Trace().Msgf("Merging %v with %v on attribute %v", o.Label(), mergetarget.Label(), mergeattr.String())
-						attributeinfos[int(mergeattr)].mergeSuccesses.Add(1)
-
-						target.absorb(source)
-
-						os.reindexObject(target, false)
-						mergedTo = target
-						merged = true
-						return false
-					})
-				}
-				return !merged
-			})
-			if merged {
-				break
-			}
-		}
-	}
-
-	if merged {
-		// If the source has a parent, but the target doesn't we assimilate that role (muhahaha)
-		if source.parent != nil {
-			moveto := source.parent
-
-			if mergedTo.parent == nil {
-				mergedTo.parent = moveto
-				moveto.children.Add(mergedTo)
-			}
-			if moveto == source.parent {
-				moveto.removeChild(source)
-			}
-			source.parent = nil
-		}
-
-		source.children.Iterate(func(child *Node) bool {
-			if child.parent != source {
-				panic("Child/parent mismatch")
-			}
-			mergedTo.children.Add(child)
-
-			child.parent = mergedTo
-			return true
-		})
-		source.children = NodeSlice{}
-
-		// Move the securitydescriptor, as we dont have the attribute saved to regenerate it (we throw it away at import after populating the cache)
-		if source.sdcache != nil && mergedTo.sdcache != nil {
-			// Both has a cache
-			if !source.sdcache.Equals(mergedTo.sdcache) {
-				// Different caches, so we need to merge them which is impossible
-				ui.Error().Msgf("Can not merge security descriptors between %v and %v", source.Label(), mergedTo.Label())
-			}
-		} else if mergedTo.sdcache == nil && source.sdcache != nil {
-			mergedTo.sdcache = source.sdcache
-		}
-
-		mergedTo.objecttype = 0 // Recalculate this
-	}
-	return mergedTo, merged
 }
 
 func (os *IndexedGraph) addUnlocked(newNode *Node) {

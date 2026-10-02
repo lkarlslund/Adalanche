@@ -39,14 +39,15 @@ func TestLookupNodeByID(t *testing.T) {
 func TestMergeKeepsTargetID(t *testing.T) {
 	mergeOn := NewAttribute("test-merge-key").Flag(Merge)
 	g := NewIndexedGraph()
-	target := NewNode(mergeOn, NV("shared"))
+	target := NewNode(mergeOn, NV("shared"), DataSource, NV("real"))
 	g.add(target)
 	targetID := target.ID()
 
 	source := NewNode(mergeOn, NV("shared"), Name, NV("from source"))
 	sourceID := source.ID()
-	mergedTo, merged := g.merge([]Attribute{mergeOn}, nil, source)
-	if !merged || mergedTo != target {
+	merged := map[*Node]*Node{}
+	resolveReferences(g, []*Node{source}, merged)
+	if merged[source] != target {
 		t.Fatal("source was not merged into the target")
 	}
 	if target.ID() != targetID {

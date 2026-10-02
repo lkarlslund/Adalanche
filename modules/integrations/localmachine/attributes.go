@@ -4,7 +4,7 @@ import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
 	InstalledSoftware = engine.NewAttribute("installedSoftware")
-	MACAddress        = engine.NewAttribute("mACAddress").Flag(engine.Merge)
+	MACAddress        = engine.NewAttribute("mACAddress").Flag(engine.Merge, engine.Fuzzy)
 	CollectedSettings = engine.NewAttribute("collectedSettings")
 	CollectedAt       = engine.NewAttribute("collectedAt").Flag(engine.Single).SetDescription("When the machine collection was made")
 	SMBIOSUUID        = engine.NewAttribute("smbiosUUID").Flag(engine.Single).SetDescription("System UUID from the firmware; differs between clones of a virtual machine")

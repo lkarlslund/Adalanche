@@ -87,16 +87,17 @@ func TestImportPolicyProvenance(t *testing.T) {
 func TestReportedGPOMergesIntoDirectoryGPO(t *testing.T) {
 	for _, localFirst := range []bool{false, true} {
 		t.Run(fmt.Sprintf("local graph larger: %v", localFirst), func(t *testing.T) {
-			dn := "CN={A},CN=Policies,CN=System,DC=example,DC=test"
+			dn := "CN={31B2F340-016D-11D2-945F-00C04FB984F9},CN=Policies,CN=System,DC=example,DC=test"
 			ad := engine.NewIndexedGraph()
 			enginetest.Add(ad, engine.NewNode(engine.DistinguishedName, dn, engine.DataSource, "EXAMPLE",
-				activedirectory.GPCFileSysPath, `\\EXAMPLE.TEST\sysvol\example.test\Policies\{A}`,
-				activedirectory.GPLink, "kept"))
+				activedirectory.GPCFileSysPath, `\\EXAMPLE.TEST\sysvol\example.test\Policies\{31B2F340-016D-11D2-945F-00C04FB984F9}`,
+				activedirectory.GPLink, "kept",
+				activedirectory.GPOIdentity, activedirectory.GPOIdentityFromDN(dn)))
 
 			local := engine.NewIndexedGraph()
 			machine := engine.NewNode(engine.Name, "WS01", engine.DataSource, "WS01")
 			enginetest.Add(local, machine)
-			info := provenanceInfo(t, rsopGPO("{A}", sysvol+`{A}\Machine`, true, false, true))
+			info := provenanceInfo(t, rsopGPO("{31B2F340-016D-11D2-945F-00C04FB984F9}", sysvol+`{31B2F340-016D-11D2-945F-00C04FB984F9}\Machine`, true, false, true))
 			runTx(local, func(tx *engine.Tx) { importPolicyProvenance(tx, tx.Node(machine), info) })
 
 			filler, other := ad, local
@@ -111,7 +112,7 @@ func TestReportedGPOMergesIntoDirectoryGPO(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			gpos, _ := merged.FindMulti(activedirectory.GPCFileSysPath, engine.NV(sysvol+`{A}`))
+			gpos, _ := merged.FindMulti(activedirectory.GPOIdentity, engine.NV(activedirectory.GPOIdentityFromDN(dn)))
 			if gpos.Len() != 1 {
 				t.Fatalf("%d GPO nodes after merge, want 1", gpos.Len())
 			}

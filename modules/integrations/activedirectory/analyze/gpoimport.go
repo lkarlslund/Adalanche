@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	gPCFileSysPath          = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
+	gPCFileSysPath          = engine.NewAttribute("gPCFileSysPath")
 	gpoFlags                = engine.NewAttribute("flags")
 	gpoDirectoryVersion     = engine.NewAttribute("versionNumber")
 	gpoFunctionalityVersion = engine.NewAttribute("gPCFunctionalityVersion")
@@ -55,7 +55,24 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 }
 
 func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
-	gpoobject, _ := tx.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	// The GPO is identified by its domain and GUID, which the directory's
+	// GPO object and machines' policy results also carry. A path that is not
+	// a SYSVOL policy path keeps its own node.
+	identity := activedirectory.GPOIdentityFromPath(ginfo.Path)
+	domainContext := ginfo.DomainDN
+	if domainContext == "" && identity != "" {
+		domain, _, _ := strings.Cut(identity, "/")
+		domainContext = "DC=" + strings.Join(strings.Split(domain, "."), ",DC=")
+	}
+	var gpoobject engine.TxNode
+	if identity != "" {
+		gpoobject, _ = tx.FindOrAdd(activedirectory.GPOIdentity, engine.NV(identity),
+			gPCFileSysPath, engine.NV(ginfo.Path))
+	} else {
+		gpoobject, _ = tx.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	}
+	// Builtin principals in the GPO's files and ACLs are those of its domain.
+	gpoobject.SetFlex(engine.IgnoreBlanks, engine.DomainContext, domainContext)
 	if err := retainPolicyResults(gpoobject, ginfo.Common, ginfo.CollectionResults); err != nil {
 		return err
 	}
@@ -116,7 +133,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner := tx.FindOrAddAdjacentSID(item.OwnerSID, nil)
+			owner := tx.FindOrAddAdjacentSID(item.OwnerSID, gpoobject)
 			tx.EdgeTo(owner, itemobject, EdgeOwns)
 		}
 
@@ -126,7 +143,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 				return err
 			}
 			for _, entry := range dacl.Entries {
-				entrysidobject, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+				entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
@@ -207,7 +224,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 					return err
 				}
 				for _, entry := range dacl.Entries {
-					entrysidobject, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+					entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
@@ -243,7 +260,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 						ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
 						continue
 					}
-					member, _ := tx.FindOrAdd(activedirectory.ObjectSid, engine.NVSID(membersid))
+					member := tx.FindOrAddAdjacentSID(membersid, gpoobject)
 					tx.EdgeTo(member, gpoobject, edge)
 				case sidpair.MemberName != "":
 					// Names, including ones with preference variables, are

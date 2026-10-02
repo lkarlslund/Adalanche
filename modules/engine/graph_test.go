@@ -69,22 +69,21 @@ func TestIndexedGraphGetIndexAndMultiIndex(t *testing.T) {
 	}
 }
 
-func TestIndexedGraphMergeMovesRelationshipsAndValues(t *testing.T) {
+func TestReferenceFoldMovesRelationshipsAndValues(t *testing.T) {
+	key := NewAttribute("test-reference-key").Flag(Merge)
 	parent := testNamedNode("Parent")
-	target := testNode(Name, "Shared", DisplayName, "Target")
-	source := testNode(Name, "Shared", Description, "Source description")
+	target := testNode(key, "Shared", DisplayName, "Target", DataSource, "real")
+	source := testNode(key, "Shared", Description, "Source description")
 	child := testNamedNode("Child")
 
 	source.childOf(parent)
 	source.adopt(child)
 
-	graph := testGraph(parent, target, source, child)
-	mergedTo, merged := graph.merge([]Attribute{Name}, nil, source)
-	if !merged {
-		t.Fatal("expected merge to happen")
-	}
-	if mergedTo != target {
-		t.Fatal("expected merge target to be returned")
+	graph := testGraph(parent, target, child)
+	merged := map[*Node]*Node{}
+	resolveReferences(graph, []*Node{source}, merged)
+	if merged[source] != target {
+		t.Fatal("expected the reference to fold into the real node")
 	}
 	if got := target.OneAttrString(DisplayName); got != "Target" {
 		t.Fatalf("expected target display name to remain, got %q", got)

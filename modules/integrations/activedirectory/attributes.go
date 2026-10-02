@@ -44,7 +44,7 @@ var (
 	AdminCount                              = engine.NewAttribute("adminCount").Tag("AD")
 	LogonHours                              = engine.NewAttribute("logonHours").Tag("AD")
 	BadPwdCount                             = engine.NewAttribute("badPwdCount").Tag("AD").Type(engine.AttributeTypeInt)
-	GPCFileSysPath                          = engine.NewAttribute("gPCFileSysPath").Tag("AD").Flag(engine.Merge)
+	GPCFileSysPath                          = engine.NewAttribute("gPCFileSysPath").Tag("AD")
 	SchemaIDGUID                            = engine.NewAttribute("schemaIDGUID").Tag("AD").Type(engine.AttributeTypeGUID)
 	PossSuperiors                           = engine.NewAttribute("possSuperiors")
 	SystemPossSuperiors                     = engine.NewAttribute("systemPossSuperiors")

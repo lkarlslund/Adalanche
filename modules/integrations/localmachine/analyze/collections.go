@@ -22,14 +22,6 @@ const (
 
 func init() {
 	engine.RegisterMergePreparer(chooseCurrentCollections)
-	// Until fuzzy keys stop merging, keep two collections from merging
-	// through a shared MAC or IP address.
-	engine.AddMergeApprover("Machine collections never merge with each other", func(a, b *engine.Node) (*engine.Node, error) {
-		if isMachineCollection(a) && isMachineCollection(b) {
-			return nil, engine.ErrDontMerge
-		}
-		return nil, nil
-	})
 }
 
 func isMachineCollection(n *engine.Node) bool {

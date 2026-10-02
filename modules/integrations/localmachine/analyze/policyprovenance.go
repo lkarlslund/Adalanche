@@ -60,14 +60,21 @@ func importPolicyProvenance(tx *engine.Tx, machine engine.TxNode, info lm.Info) 
 			if path == "" {
 				continue // the local policy has no SYSVOL path
 			}
-			// No distinguished name or data source: either would make the
-			// merge treat this as the authoritative object.
-			gpo, _ := tx.FindOrAdd(activedirectory.GPCFileSysPath, engine.NV(path),
-				engine.IgnoreBlanks,
+			// A reference to the GPO by its identity, which the directory's
+			// GPO object carries too: no distinguished name or data source,
+			// so it resolves to that object rather than standing for it.
+			init := []any{engine.IgnoreBlanks,
+				activedirectory.GPCFileSysPath, engine.NV(path),
 				engine.Type, engine.NodeTypeGroupPolicyContainer.ValueString(),
 				engine.Name, engine.NV(r.GUIDName),
 				engine.DisplayName, engine.NV(r.Name),
-			)
+			}
+			var gpo engine.TxNode
+			if identity := activedirectory.GPOIdentityFromPath(path); identity != "" {
+				gpo, _ = tx.FindOrAdd(activedirectory.GPOIdentity, engine.NV(identity), init...)
+			} else {
+				gpo, _ = tx.FindOrAdd(activedirectory.GPCFileSysPath, engine.NV(path), init...)
+			}
 			tx.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
 		}
 	}

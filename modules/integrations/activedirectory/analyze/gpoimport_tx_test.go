@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -143,5 +144,50 @@ func TestExposedPasswordsStayUnderTheirFile(t *testing.T) {
 	}
 	if exposed, _ := merged.FindMulti(engine.Type, engine.NV("ExposedPassword")); exposed.Len() != 6 {
 		t.Errorf("got %v exposed passwords after merging two copies, want 6", exposed.Len())
+	}
+}
+
+// A GPO collection resolves to the directory's GPO object by domain and
+// GUID, whatever server its path names, and builtin owners in it are those
+// of the GPO's own domain.
+func TestGPOCollectionResolvesToItsDomain(t *testing.T) {
+	const guid = "{31B2F340-016D-11D2-945F-00C04FB984F9}"
+	dn := "CN=" + guid + ",CN=Policies,CN=System,DC=b,DC=test"
+	directory := engine.NewIndexedGraph()
+	adminsA := engine.NewNode(engine.Name, "Administrators", engine.Type, engine.NodeTypeGroup.ValueString(),
+		engine.ObjectSid, engine.NVSID(windowssecurity.AdministratorsSID), engine.DomainContext, "DC=a,DC=test", engine.DataSource, "A")
+	adminsB := engine.NewNode(engine.Name, "Administrators", engine.Type, engine.NodeTypeGroup.ValueString(),
+		engine.ObjectSid, engine.NVSID(windowssecurity.AdministratorsSID), engine.DomainContext, "DC=b,DC=test", engine.DataSource, "B")
+	gpo := engine.NewNode(engine.DistinguishedName, dn, engine.Type, engine.NodeTypeGroupPolicyContainer.ValueString(),
+		engine.DataSource, "B", activedirectory.GPOIdentity, activedirectory.GPOIdentityFromDN(dn))
+	enginetest.Add(directory, adminsA, adminsB, gpo)
+
+	collected := engine.NewIndexedGraph()
+	if err := ImportGPOInfo(activedirectory.GPOdump{GPOinfo: activedirectory.GPOinfo{
+		Path: `\\dc07.b.test\SysVol\b.test\Policies\` + guid,
+		Files: []activedirectory.GPOfileinfo{
+			{RelativePath: "/", IsDir: true, OwnerSID: windowssecurity.AdministratorsSID},
+		},
+	}}, collected); err != nil {
+		t.Fatal(err)
+	}
+
+	merged, err := engine.MergeGraphs([]*engine.IndexedGraph{directory, collected})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gpos, _ := merged.FindMulti(activedirectory.GPOIdentity, engine.NV(activedirectory.GPOIdentityFromDN(dn)))
+	if gpos.Len() != 1 || gpos.First() != gpo {
+		t.Fatalf("got %v GPO nodes, want the collection folded into the directory's", gpos.Len())
+	}
+	folder, found := merged.Find(AbsolutePath, engine.NV(`\\dc07.b.test\SysVol\b.test\Policies\`+guid))
+	if !found {
+		t.Fatal("GPO folder missing")
+	}
+	if eb, _ := merged.GetEdge(adminsB, folder); !eb.IsSet(EdgeOwns) {
+		t.Error("the folder's owner is not the GPO domain's Administrators")
+	}
+	if eb, _ := merged.GetEdge(adminsA, folder); eb.IsSet(EdgeOwns) {
+		t.Error("another domain's Administrators owns the folder")
 	}
 }

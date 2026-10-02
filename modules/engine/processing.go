@@ -2,27 +2,11 @@ package engine
 
 import (
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
-
-func getMergeAttributes() []Attribute {
-	var mergeon []Attribute
-	for attr := range attributeinfos {
-		if Attribute(attr).HasFlag(Merge) {
-			mergeon = append(mergeon, Attribute(attr))
-		}
-	}
-	sort.Slice(mergeon, func(i, j int) bool {
-		isuccess := attributeinfos[mergeon[i]].mergeSuccesses.Load()
-		jsuccess := attributeinfos[mergeon[j]].mergeSuccesses.Load()
-		return jsuccess < isuccess
-	})
-	return mergeon
-}
 
 func getConflictAttributes() []Attribute {
 	var conflicts []Attribute
@@ -125,28 +109,13 @@ func MergeGraphs(graphs []*IndexedGraph) (*IndexedGraph, error) {
 	}
 	pb.Finish()
 
-	// We now have a list of nodes that potentially can be merged into the global graph
-	pb = ui.ProgressBar("Attempting merge on potential nodes", int64(len(trymerge)))
-	conflictAttrs := getConflictAttributes()
-	mergeAttrs := getMergeAttributes()
-	for i, mergeinfo := range trymerge {
-		pb.Add(1)
-		node := mergeinfo.node
-		// graph := mergeinfo.graph
-
-		if i%16384 == 0 {
-			// Refresh the list of attributes, ordered by most successfull first
-			mergeAttrs = getMergeAttributes()
-		}
-
-		mergedTo, merged := superGraph.merge(mergeAttrs, conflictAttrs, node)
-		if merged {
-			mergedNodesMap[node] = mergedTo
-		} else {
-			superGraph.add(node)
-		}
+	// Nodes without a data source of their own are references to real
+	// nodes; resolve them now that every real node is in place.
+	references := make([]*Node, len(trymerge))
+	for i, mi := range trymerge {
+		references[i] = mi.node
 	}
-	pb.Finish()
+	resolveReferences(superGraph, references, mergedNodesMap)
 
 	mergeSIDStubs(superGraph, sidStubs, mergedNodesMap)
 

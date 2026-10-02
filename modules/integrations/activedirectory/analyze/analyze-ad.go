@@ -653,13 +653,19 @@ func addRBCDEdges(tx *engine.Tx) {
 }
 
 func init() {
-	engine.AddMergeApprover("Only merge Machine objects with other Machine objects", func(a, b *engine.Node) (*engine.Node, error) {
-		if a.Type() == ObjectTypeMachine && b.Type() != ObjectTypeMachine {
-			return nil, engine.ErrDontMerge
-		} else if b.Type() == ObjectTypeMachine && a.Type() != ObjectTypeMachine {
-			return nil, engine.ErrDontMerge
-		}
-		return nil, nil
+	LoaderID.AddProcessor(func(tx *engine.Tx) {
+		tx.Iterate(func(o *engine.Node) bool {
+			if o.Type() == engine.NodeTypeGroupPolicyContainer {
+				if identity := activedirectory.GPOIdentityFromDN(o.DN()); identity != "" {
+					tx.Node(o).Set(activedirectory.GPOIdentity, engine.NV(identity))
+				}
+			}
+			return true
+		})
+	}, engine.Processor{
+		Description: "GPO identity from its distinguished name, which GPO collections and machine policy results resolve to",
+		Phase:       engine.BeforeMerge,
+		Needs:       []engine.Product{ProductNodeTypes},
 	})
 
 	LoaderID.AddProcessor(func(tx *engine.Tx) {

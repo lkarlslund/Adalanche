@@ -34,11 +34,11 @@ func processOpenGraphData(tx *engine.Tx, ogd opengraph.Model) error {
 		endNode, endFound := tx.FindOrAdd(endAttr, engine.NV(edge.End.Value))
 
 		if _, seen := seenMatchAttrs[startAttr]; !seen && !startFound {
-			startAttr.Flag(engine.Merge)
+			startAttr.Flag(engine.Merge, engine.Fuzzy)
 			seenMatchAttrs[startAttr] = struct{}{}
 		}
 		if _, seen := seenMatchAttrs[endAttr]; !seen && !endFound {
-			endAttr.Flag(engine.Merge)
+			endAttr.Flag(engine.Merge, engine.Fuzzy)
 			seenMatchAttrs[endAttr] = struct{}{}
 		}
 
