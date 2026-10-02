@@ -2,7 +2,10 @@ package engine
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
+	"sync"
+	"unsafe"
 
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -23,8 +26,9 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 	c := committer{g: g, changedAttrs: map[Attribute]struct{}{}, lookupAttrs: map[Attribute]struct{}{
 		DistinguishedName: {}, ObjectSid: {}, DomainContext: {}, DataSource: {},
 	}}
-	if len(txs) > 1 {
-		// Writes can only conflict between transactions.
+	if !sameTransaction(txs) {
+		// Writes can only conflict between transactions; forks of one
+		// transaction are one.
 		c.setBy = map[setKey]setRecord{}
 	}
 	for _, tx := range txs {
@@ -41,8 +45,15 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 	// attribute writes right away: a node staged later, such as a SID
 	// relative to a machine, is resolved against the attributes earlier
 	// writes gave that machine. Parent links follow once all nodes exist.
-	for _, tx := range txs {
-		c.resolveNodes(tx)
+	if c.setBy == nil && !hasIdentityWork(txs) {
+		// Nothing is resolved by identity, so attribute writes to nodes in
+		// the graph cannot change how other nodes resolve: apply them in
+		// parallel, each node's writes in order.
+		c.resolveAndWriteParallel(txs)
+	} else {
+		for _, tx := range txs {
+			c.resolveNodes(tx)
+		}
 	}
 	for _, tx := range txs {
 		c.applyParents(tx)
@@ -123,20 +134,24 @@ func (c *committer) applyAttributeWrites(tx *Tx, p *pendingNode) {
 	}
 	node := p.resolved
 	var changed []Attribute
+	var one [1]Attribute
 	for _, op := range p.ops {
-		attr := op.attr
 		switch op.kind {
 		case nodeOpSet:
-			c.checkConflict(tx, node, op)
-		case nodeOpTag:
-			attr = Tag
+			c.checkConflict(tx, node, op.attr, op.values)
+		case nodeOpSetMany:
+			for i, a := range op.attrs {
+				c.checkConflict(tx, node, a, op.values[i:i+1])
+			}
 		case nodeOpChildOf:
 			continue
 		}
-		c.changedAttrs[attr] = struct{}{}
 		applyNodeOp(node, op, nil)
-		if _, lookup := c.lookupAttrs[attr]; lookup {
-			changed = append(changed, attr)
+		for _, attr := range op.touched(&one) {
+			c.changedAttrs[attr] = struct{}{}
+			if _, lookup := c.lookupAttrs[attr]; lookup {
+				changed = append(changed, attr)
+			}
 		}
 	}
 	if len(changed) > 0 {
@@ -156,16 +171,32 @@ func (c *committer) applyParents(tx *Tx) {
 	}
 }
 
-func (c *committer) checkConflict(tx *Tx, node *Node, op nodeOp) {
-	if c.setBy == nil || !op.attr.HasFlag(Single) {
+func (c *committer) checkConflict(tx *Tx, node *Node, attr Attribute, values AttributeValues) {
+	if c.setBy == nil || !attr.HasFlag(Single) {
 		return
 	}
-	key := setKey{node, op.attr}
+	key := setKey{node, attr}
 	previous, found := c.setBy[key]
-	if found && previous.tx != tx.name && !sameValues(previous.values, op.values) {
-		c.conflicts = append(c.conflicts, fmt.Sprintf("%q and %q both set %v on %v; they need a dependency between them", previous.tx, tx.name, op.attr.String(), node.Label()))
+	if found && previous.tx != tx.name && !sameValues(previous.values, values) {
+		c.conflicts = append(c.conflicts, fmt.Sprintf("%q and %q both set %v on %v; they need a dependency between them", previous.tx, tx.name, attr.String(), node.Label()))
 	}
-	c.setBy[key] = setRecord{tx: tx.name, values: op.values}
+	c.setBy[key] = setRecord{tx: tx.name, values: values}
+}
+
+// touched lists the attributes an op writes, using buf for a single one so
+// the common case does not allocate.
+func (op nodeOp) touched(buf *[1]Attribute) []Attribute {
+	switch op.kind {
+	case nodeOpSetMany:
+		return op.attrs
+	case nodeOpTag:
+		buf[0] = Tag
+	case nodeOpChildOf:
+		return nil
+	default:
+		buf[0] = op.attr
+	}
+	return buf[:]
 }
 
 func sameValues(a, b AttributeValues) bool {
@@ -265,6 +296,79 @@ func (g *IndexedGraph) reindexAttributes(o *Node, attrs []Attribute) {
 				})
 				return true
 			})
+		}
+	}
+}
+
+func sameTransaction(txs []*Tx) bool {
+	for _, tx := range txs {
+		if tx.root() != txs[0].root() {
+			return false
+		}
+	}
+	return true
+}
+
+func hasIdentityWork(txs []*Tx) bool {
+	for _, tx := range txs {
+		for _, p := range tx.pending {
+			if p.kind == pendingKeyed || p.kind == pendingSID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// resolveAndWriteParallel resolves nodes in staging order, then applies the
+// attribute writes to nodes in the graph on several workers. A node always
+// goes to the same worker, which applies its writes in staging order, so the
+// result is the same as applying them one by one.
+func (c *committer) resolveAndWriteParallel(txs []*Tx) {
+	var base []*pendingNode
+	for _, tx := range txs {
+		for _, p := range tx.pending {
+			c.resolveNode(c.g, p)
+			if p.kind == pendingBase && len(p.ops) > 0 {
+				base = append(base, p)
+			}
+		}
+	}
+	workers := min(runtime.GOMAXPROCS(0), max(1, len(base)/4096))
+	changed := make([]map[Attribute]struct{}, workers)
+	var wg sync.WaitGroup
+	for w := range workers {
+		changed[w] = map[Attribute]struct{}{}
+		wg.Go(func() {
+			var reindex []Attribute
+			var one [1]Attribute
+			for _, p := range base {
+				if workers > 1 && int((uintptr(unsafe.Pointer(p.base))>>4)%uintptr(workers)) != w {
+					continue
+				}
+				reindex = reindex[:0]
+				for _, op := range p.ops {
+					if op.kind == nodeOpChildOf {
+						continue
+					}
+					applyNodeOp(p.base, op, nil)
+					for _, attr := range op.touched(&one) {
+						changed[w][attr] = struct{}{}
+						if _, lookup := c.lookupAttrs[attr]; lookup {
+							reindex = append(reindex, attr)
+						}
+					}
+				}
+				if len(reindex) > 0 {
+					c.g.reindexAttributes(p.base, reindex)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	for _, m := range changed {
+		for a := range m {
+			c.changedAttrs[a] = struct{}{}
 		}
 	}
 }

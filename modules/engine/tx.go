@@ -20,6 +20,7 @@ type Tx struct {
 	name     string
 	readOnly bool // no writes allowed
 	noReads  bool // write-only: no reads of the graph allowed
+	origin   *Tx  // the transaction this one was forked from, if any
 
 	pending []*pendingNode               // in creation order, for a deterministic commit
 	byNode  map[*Node]*pendingNode       // base nodes this transaction writes to
@@ -70,12 +71,14 @@ const (
 	nodeOpClear
 	nodeOpTag
 	nodeOpChildOf
+	nodeOpSetMany // attrs[i] is set to values[i]
 )
 
 type nodeOp struct {
 	kind   nodeOpKind
 	attr   Attribute
 	values AttributeValues
+	attrs  []Attribute // nodeOpSetMany
 	tag    string
 	parent endpoint
 }
@@ -255,6 +258,16 @@ func (n TxNode) record(op nodeOp) TxNode {
 
 func (n TxNode) Set(a Attribute, values ...AttributeValue) TxNode {
 	return n.record(nodeOp{kind: nodeOpSet, attr: a, values: slices.Clone(AttributeValues(values))})
+}
+
+// SetMany sets each attribute in attrs to the value at the same position in
+// values, as one write: for computed results with many attributes per node.
+// The transaction keeps both slices; the caller must not change them.
+func (n TxNode) SetMany(attrs []Attribute, values []AttributeValue) TxNode {
+	if len(attrs) != len(values) {
+		panic("SetMany needs one value per attribute")
+	}
+	return n.record(nodeOp{kind: nodeOpSetMany, attrs: attrs, values: values})
 }
 
 func (n TxNode) Add(a Attribute, values ...AttributeValue) TxNode {
@@ -450,6 +463,10 @@ func (tx *Tx) indexStaged(p *pendingNode, op nodeOp) {
 	switch op.kind {
 	case nodeOpSet, nodeOpAdd:
 		tx.indexStagedValues(p, op.attr, op.values)
+	case nodeOpSetMany:
+		for i, a := range op.attrs {
+			tx.indexStagedValues(p, a, op.values[i:i+1])
+		}
 	case nodeOpTag:
 		tx.indexStagedValues(p, Tag, AttributeValues{NV(op.tag)})
 	}
@@ -734,11 +751,21 @@ func (tx *Tx) Fork(count int) []*Tx {
 	for i := range forks {
 		forks[i] = tx.g.Begin(tx.name)
 		forks[i].noReads, forks[i].readOnly = tx.noReads, tx.readOnly
+		forks[i].origin = tx.root()
 	}
 	return forks
 }
 
-// Join appends the writes of forked transactions to tx, in order.
+// root is the transaction a fork came from, or the transaction itself.
+func (tx *Tx) root() *Tx {
+	if tx.origin != nil {
+		return tx.origin
+	}
+	return tx
+}
+
+// Join appends the writes of forked transactions to tx, in order. Forks can
+// also be committed directly, g.Commit(forks...), which is cheaper.
 func (tx *Tx) Join(forks []*Tx) {
 	for _, f := range forks {
 		tx.absorb(f)
@@ -841,10 +868,12 @@ func applyNodeOp(o *Node, op nodeOp, resolve func(endpoint) *Node) {
 		o.set(op.attr, op.values...)
 	case nodeOpAdd:
 		o.add(op.attr, op.values...)
+	case nodeOpSetMany:
+		for i, a := range op.attrs {
+			o.set(a, op.values[i:i+1]...)
+		}
 	case nodeOpClear:
-		o.values.mu.Lock()
-		o.values.clear(op.attr)
-		o.values.mu.Unlock()
+		o.clear(op.attr)
 	case nodeOpTag:
 		if !o.HasTag(op.tag) {
 			o.add(Tag, NV(op.tag))

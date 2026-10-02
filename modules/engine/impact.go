@@ -142,9 +142,21 @@ func (m ImpactMetrics) OtherExposure(category int) uint32 {
 
 // IterateMetricsParallel visits the snapshot without per-node lookup or allocation.
 func (r *ImpactResult) IterateMetricsParallel(each func(*Node, ImpactMetrics)) {
+	r.IterateMetricsParallelWorkers(func(_ int, n *Node, m ImpactMetrics) { each(n, m) })
+}
+
+// MetricWorkers is the number of workers IterateMetricsParallelWorkers uses.
+func (r *ImpactResult) MetricWorkers() int {
+	return max(1, min(r.Statistics.Workers, len(r.nodes)))
+}
+
+// IterateMetricsParallelWorkers is IterateMetricsParallel, also telling the
+// callback which worker (0 to MetricWorkers()-1) it runs on, so each worker
+// can write to its own forked transaction.
+func (r *ImpactResult) IterateMetricsParallelWorkers(each func(int, *Node, ImpactMetrics)) {
 	var next atomic.Uint64
 	var wg sync.WaitGroup
-	for range min(r.Statistics.Workers, len(r.nodes)) {
+	for worker := range r.MetricWorkers() {
 		wg.Go(func() {
 			for {
 				start := int(next.Add(256) - 256)
@@ -165,7 +177,7 @@ func (r *ImpactResult) IterateMetricsParallel(each func(*Node, ImpactMetrics)) {
 							metrics.GroupSources = r.groupSources[i*r.sourceCategories : (i+1)*r.sourceCategories]
 						}
 					}
-					each(r.nodes[i], metrics)
+					each(worker, r.nodes[i], metrics)
 				}
 			}
 		})

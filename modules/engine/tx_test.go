@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -231,5 +232,85 @@ func TestSIDLookupFindsStagedNodesInScope(t *testing.T) {
 	}
 	if nodes, _ := g.FindMulti(ObjectSid, NVSID(builtinSID)); nodes.Len() != 2 {
 		t.Errorf("got %v nodes for the builtin group, want one per scope", nodes.Len())
+	}
+}
+
+// Forks of one transaction commit together without conflict checks, and
+// their attribute writes to existing nodes are applied in parallel with the
+// same result as one by one.
+func TestForkedAttributeWritesCommitInOrder(t *testing.T) {
+	g := testGraph()
+	nodes := make([]*Node, 20000)
+	for i := range nodes {
+		nodes[i] = NewNode(Name, NV(fmt.Sprintf("n%d", i)))
+		g.add(nodes[i])
+	}
+	_ = g.GetIndex(Description) // an index the writes must not leave stale
+
+	forks := g.Begin("compute").Fork(8)
+	for i, n := range nodes {
+		forks[i%8].Node(n).Set(Description, NV(fmt.Sprintf("d%d", i))).Tag("computed")
+	}
+	// The same node written by two forks: the later fork's write wins.
+	forks[2].Node(nodes[0]).Set(DisplayName, NV("first"))
+	forks[5].Node(nodes[0]).Set(DisplayName, NV("second"))
+	if err := g.Commit(forks...); err != nil {
+		t.Fatal(err)
+	}
+	for i, n := range nodes {
+		if got := n.OneAttrString(Description); got != fmt.Sprintf("d%d", i) || !n.HasTag("computed") {
+			t.Fatalf("node %d: description %q", i, got)
+		}
+	}
+	if got := nodes[0].OneAttrString(DisplayName); got != "second" {
+		t.Errorf("display name %q, want the later fork's", got)
+	}
+	if found, ok := g.Find(Description, NV("d12345")); !ok || found != nodes[12345] {
+		t.Error("index not up to date after a parallel commit")
+	}
+}
+
+// SetMany writes several attributes as one op, on both commit paths, and a
+// different value from another transaction is still a conflict.
+func TestSetManyWritesEachAttribute(t *testing.T) {
+	a, b := NewNode(Name, "a"), NewNode(Name, "b")
+	g := testGraph(a, b)
+	attrs := []Attribute{Description, DisplayName}
+
+	tx := g.Begin("one")
+	tx.Node(a).SetMany(attrs, []AttributeValue{NV("desc"), NV("display")})
+	if got := tx.Node(a).Node().OneAttrString(DisplayName); got != "display" {
+		t.Errorf("transaction view %q", got)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if a.OneAttrString(Description) != "desc" || a.OneAttrString(DisplayName) != "display" {
+		t.Error("SetMany not applied")
+	}
+
+	first, second := g.Begin("first"), g.Begin("second")
+	first.Node(b).SetMany(attrs, []AttributeValue{NV("x"), NV("y")})
+	second.Node(b).Set(DisplayName, NV("other"))
+	if err := g.Commit(first, second); err == nil || !strings.Contains(err.Error(), "dependency") {
+		t.Errorf("conflict through SetMany not reported: %v", err)
+	}
+}
+
+// Clearing objectSid through a transaction resets the node's SID.
+func TestTxClearResetsSID(t *testing.T) {
+	sid := windowssecurity.MustParseStringSID("S-1-5-21-1-2-3-500")
+	n := NewNode(Name, "n", ObjectSid, NVSID(sid))
+	g := testGraph(n)
+	if n.SID() != sid {
+		t.Fatal("SID not read")
+	}
+	tx := g.Begin("clear")
+	tx.Node(n).Clear(ObjectSid)
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if !n.SID().IsBlank() {
+		t.Error("SID still cached after objectSid was cleared")
 	}
 }
