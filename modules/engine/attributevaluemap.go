@@ -162,6 +162,21 @@ func (avm *AttributesAndValues) shiftAfter(start, length uint16) {
 	}
 }
 
+// reserve makes room for this many more attributes of one value each.
+func (avm *AttributesAndValues) reserve(attributes int) {
+	if attributes == 0 {
+		return
+	}
+	if cap(avm.attributes)-len(avm.attributes) < attributes {
+		avm.attributes = slices.Grow(avm.attributes, attributes)
+	}
+	if cap(avm.values)-len(avm.values) < attributes {
+		grown := make(AttributeValues, len(avm.values), len(avm.values)+attributes)
+		copy(grown, avm.values)
+		avm.values = grown
+	}
+}
+
 func (avm *AttributesAndValues) set(a Attribute, av AttributeValues) {
 	if sliceOverlap(av, avm.values) {
 		panic(fmt.Sprintf("AttributeValues slice %v overlaps with existing values %v", av, avm.values))

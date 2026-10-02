@@ -1078,9 +1078,7 @@ func applyNodeOp(o *Node, op nodeOp, resolve func(endpoint) *Node) {
 	case nodeOpAdd:
 		o.add(op.attr, op.values...)
 	case nodeOpSetMany:
-		for i, a := range op.attrs {
-			o.set(a, op.values[i:i+1]...)
-		}
+		o.setMany(op.attrs, op.values)
 	case nodeOpClear:
 		o.clear(op.attr)
 	case nodeOpTag:

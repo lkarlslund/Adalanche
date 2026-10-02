@@ -27,12 +27,11 @@ func (g *IndexedGraph) applyParentClaims() {
 	claims := g.parentClaims
 	g.parentClaims = nil
 	g.parentClaimsMutex.Unlock()
-	// Keys are built once per claim; building them in every comparison
+	// Key hashes are computed once per claim; building keys in every comparison
 	// dominates loading at full scale.
 	type keyed struct {
 		parentClaim
-		childHash, parentHash uint64 // of the keys, compared first
-		childKey, parentKey   string
+		childHash, parentHash uint64 // of the content keys
 	}
 	sorted := make([]keyed, len(claims))
 	key := func(n *Node) string { return n.DN() + "\x00" + n.Label() }
@@ -41,18 +40,17 @@ func (g *IndexedGraph) applyParentClaims() {
 	for w := range workers {
 		wg.Go(func() {
 			for i := w; i < len(claims); i += workers {
-				childKey, parentKey := key(claims[i].child), key(claims[i].parent)
-				sorted[i] = keyed{claims[i], fnv64(childKey), fnv64(parentKey), childKey, parentKey}
+				sorted[i] = keyed{claims[i], fnv64(key(claims[i].child)), fnv64(key(claims[i].parent))}
 			}
 		})
 	}
 	wg.Wait()
-	// The order is by key hashes (the same in every run), then keys. Claims
-	// with equal keys cannot be told apart by content; a stable sort would
-	// only keep commit order, which is not deterministic either.
+	// The order is by key hashes, the same in every run. Claims with equal
+	// keys cannot be told apart by content (a stable sort would only keep
+	// commit order, which is not deterministic either), and two different
+	// keys sharing a 64-bit hash is not a practical concern.
 	slices.SortFunc(sorted, func(a, b keyed) int {
-		return cmp.Or(cmp.Compare(a.childHash, b.childHash), cmp.Compare(a.parentHash, b.parentHash),
-			cmp.Compare(a.childKey, b.childKey), cmp.Compare(a.parentKey, b.parentKey))
+		return cmp.Or(cmp.Compare(a.childHash, b.childHash), cmp.Compare(a.parentHash, b.parentHash))
 	})
 	for _, c := range sorted {
 		if c.child.Parent() == nil && c.child != c.parent {

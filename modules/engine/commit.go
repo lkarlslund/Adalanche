@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
@@ -162,6 +163,8 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 	c := committer{g: g, loadOnly: !slices.ContainsFunc(txs, func(tx *Tx) bool { return !tx.load }), changedAttrs: map[Attribute]struct{}{}, lookupAttrs: map[Attribute]struct{}{
 		DistinguishedName: {}, ObjectSid: {}, DomainContext: {}, DataSource: {},
 	}}
+	steps := commitSteps{start: locked}
+	defer steps.report(txs)
 	for _, tx := range txs {
 		g.joinLoadRoot(tx)
 	}
@@ -194,15 +197,19 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 			c.resolveNodes(tx)
 		}
 	}
+	steps.mark("nodes")
 	for _, tx := range txs {
 		c.applyParents(tx)
 	}
+	steps.mark("parents")
 	var mutations []nodeEdgeMutation
 	for _, tx := range txs {
 		mutations = c.appendEdgeWrites(tx, mutations)
 	}
 	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(mutations))
+	steps.mark("edges")
 	g.dropIndexesFor(c.changedAttrs)
+	steps.mark("indexes")
 	if len(c.conflicts) > 0 {
 		return fmt.Errorf("invalid writes:\n%s", strings.Join(c.conflicts, "\n"))
 	}
@@ -656,21 +663,28 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 		pending += len(tx.pending)
 	}
 	workers := min(runtime.GOMAXPROCS(0), max(1, pending/4096))
-	// Each worker gets its own list, a node always the same worker's.
+	// Each worker gets its own list, a node always the same worker's. Node
+	// addresses share their low bits, so they are mixed before choosing.
 	base := make([][]*pendingNode, workers)
 	for _, tx := range txs {
 		for _, p := range tx.pending {
 			c.resolveNode(c.g, tx, p)
 			if p.kind == pendingBase && len(p.ops) > 0 {
-				w := int((uintptr(unsafe.Pointer(p.base)) >> 4) % uintptr(workers))
+				mixed := uint64(uintptr(unsafe.Pointer(p.base))) * 0x9E3779B97F4A7C15
+				w := int((mixed >> 32) % uint64(workers))
 				base[w] = append(base[w], p)
 			}
 		}
 	}
-	changed := make([]map[Attribute]struct{}, workers)
+	// Attributes as flags by number: maps cost more than the writes.
+	var lookup []bool
+	for a := range c.lookupAttrs {
+		lookup = growFlags(lookup, a)
+		lookup[a] = true
+	}
+	changed := make([][]bool, workers)
 	var wg sync.WaitGroup
 	for w := range workers {
-		changed[w] = map[Attribute]struct{}{}
 		wg.Go(func() {
 			var reindex []Attribute
 			var one [1]Attribute
@@ -682,8 +696,9 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 					}
 					applyNodeOp(p.base, op, nil)
 					for _, attr := range op.touched(&one) {
-						changed[w][attr] = struct{}{}
-						if _, lookup := c.lookupAttrs[attr]; lookup {
+						changed[w] = growFlags(changed[w], attr)
+						changed[w][attr] = true
+						if int(attr) < len(lookup) && lookup[attr] {
 							reindex = append(reindex, attr)
 						}
 					}
@@ -695,10 +710,41 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 		})
 	}
 	wg.Wait()
-	for _, m := range changed {
-		for a := range m {
-			c.changedAttrs[a] = struct{}{}
+	for _, flags := range changed {
+		for a, set := range flags {
+			if set {
+				c.changedAttrs[Attribute(a)] = struct{}{}
+			}
 		}
+	}
+}
+
+// growFlags makes room for flag a.
+func growFlags(flags []bool, a Attribute) []bool {
+	if int(a) >= len(flags) {
+		flags = append(flags, make([]bool, int(a)+1-len(flags))...)
+	}
+	return flags
+}
+
+// commitSteps times a commit's steps, reported when it was slow.
+type commitSteps struct {
+	start, last time.Time
+	steps       []string
+}
+
+func (s *commitSteps) mark(step string) {
+	now := time.Now()
+	if s.last.IsZero() {
+		s.last = s.start
+	}
+	s.steps = append(s.steps, fmt.Sprintf("%v %v", step, now.Sub(s.last)))
+	s.last = now
+}
+
+func (s *commitSteps) report(txs []*Tx) {
+	if took := time.Since(s.start); took > time.Second {
+		ui.Info().Msgf("Commit of %v transactions took %v: %v", len(txs), took, strings.Join(s.steps, ", "))
 	}
 }
 

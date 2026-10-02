@@ -640,6 +640,23 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 	o.setNoLock(a, AttributeValues(values))
 }
 
+// setMany sets attrs[i] to values[i], with room for the new ones made once
+// rather than growing the node's storage attribute by attribute.
+func (o *Node) setMany(attrs []Attribute, values []AttributeValue) {
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	added := 0
+	for _, a := range attrs {
+		if _, found := o.values.find(a); !found {
+			added++
+		}
+	}
+	o.values.reserve(added)
+	for i, a := range attrs {
+		o.setNoLock(a, values[i:i+1])
+	}
+}
+
 func (o *Node) setNoLock(a Attribute, values AttributeValues) {
 	if a == ObjectSid {
 		o.sid.Store(nil)

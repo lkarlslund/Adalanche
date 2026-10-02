@@ -1,7 +1,9 @@
 package engine
 
 import (
-	"sort"
+	"cmp"
+	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -173,12 +175,22 @@ func (g *IndexedGraph) applyIndexedEdgeMutations(ops []indexedEdgeMutation) {
 // sortEdgeMutations orders mutations by endpoints, keeping the order of
 // mutations of one edge.
 func sortEdgeMutations(ops []indexedEdgeMutation) {
-	sort.SliceStable(ops, func(i, j int) bool {
-		if ops[i].From == ops[j].From {
-			return ops[i].To < ops[j].To
-		}
-		return ops[i].From < ops[j].From
+	// Sorting by position as the last key is a stable sort, without the
+	// slow merging of one.
+	type positioned struct {
+		indexedEdgeMutation
+		position int
+	}
+	sorted := make([]positioned, len(ops))
+	for i, op := range ops {
+		sorted[i] = positioned{op, i}
+	}
+	slices.SortFunc(sorted, func(a, b positioned) int {
+		return cmp.Or(cmp.Compare(a.From, b.From), cmp.Compare(a.To, b.To), cmp.Compare(a.position, b.position))
 	})
+	for i, op := range sorted {
+		ops[i] = op.indexedEdgeMutation
+	}
 }
 
 // applySortedEdgeMutations applies mutations sorted by sortEdgeMutations.
@@ -188,6 +200,10 @@ func (g *IndexedGraph) applySortedEdgeMutations(ops []indexedEdgeMutation) {
 	}
 	g.edgeMutex.Lock()
 	defer g.edgeMutex.Unlock()
+	if len(ops) >= parallelEdgeMutations {
+		g.applySortedEdgeMutationsParallel(ops)
+		return
+	}
 	foldEdgeMutations(ops,
 		func(from, to NodeIndex) EdgeBitmap {
 			edge, _ := g.loadEdge(from, to, Out)
@@ -239,4 +255,66 @@ func foldEdgeMutations(ops []indexedEdgeMutation, current func(from, to NodeInde
 	if !first {
 		save(lastFrom, lastTo, lastEdge)
 	}
+}
+
+const parallelEdgeMutations = 1 << 16
+
+// applySortedEdgeMutationsParallel applies many mutations on several
+// workers: outgoing edges in ranges of source nodes (the mutations are
+// sorted by source), then incoming edges by target node. Callers hold
+// edgeMutex.
+func (g *IndexedGraph) applySortedEdgeMutationsParallel(ops []indexedEdgeMutation) {
+	var highest NodeIndex
+	for _, op := range ops {
+		highest = max(highest, op.From, op.To)
+	}
+	// Workers then never resize the adjacency while others write to it.
+	for direction := range g.edges {
+		g.edges[direction].grow(int(highest) + 1)
+	}
+	workers := runtime.GOMAXPROCS(0)
+	// Split at source boundaries so each source belongs to one worker.
+	var bounds []int
+	for start := 0; start < len(ops); {
+		end := min(len(ops), start+(len(ops)+workers-1)/workers)
+		for end < len(ops) && ops[end].From == ops[end-1].From {
+			end++
+		}
+		bounds = append(bounds, start)
+		start = end
+	}
+	bounds = append(bounds, len(ops))
+	type incoming struct {
+		to, from NodeIndex
+		edge     EdgeBitmap
+	}
+	incomings := make([][]incoming, len(bounds)-1)
+	var wg sync.WaitGroup
+	for chunk := range len(bounds) - 1 {
+		wg.Go(func() {
+			foldEdgeMutations(ops[bounds[chunk]:bounds[chunk+1]],
+				func(from, to NodeIndex) EdgeBitmap {
+					edge, _ := g.loadEdge(from, to, Out)
+					return edge
+				},
+				func(from, to NodeIndex, edge EdgeBitmap) {
+					g.storeEdge(from, to, edge, Out)
+					incomings[chunk] = append(incomings[chunk], incoming{to, from, edge})
+				})
+		})
+	}
+	wg.Wait()
+	for w := range workers {
+		wg.Go(func() {
+			for _, list := range incomings {
+				for _, in := range list {
+					if int(in.to)%workers == w {
+						g.storeEdge(in.to, in.from, in.edge, In)
+					}
+				}
+			}
+		})
+	}
+	wg.Wait()
+	g.edgeVersion++
 }

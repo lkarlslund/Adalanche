@@ -21,11 +21,18 @@ func (a adjacency) get(from NodeIndex) map[NodeIndex]EdgeCombo {
 
 func (a *adjacency) set(from NodeIndex, targets map[NodeIndex]EdgeCombo) {
 	if int(from) >= len(*a) {
-		grown := make(adjacency, max(int(from)+1, 2*len(*a), 1024))
+		a.grow(max(int(from)+1, 2*len(*a), 1024))
+	}
+	(*a)[from] = targets
+}
+
+// grow makes room for nodes up to position n-1.
+func (a *adjacency) grow(n int) {
+	if n > len(*a) {
+		grown := make(adjacency, n)
 		copy(grown, *a)
 		*a = grown
 	}
-	(*a)[from] = targets
 }
 
 func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (EdgeBitmap, bool) {
@@ -43,6 +50,12 @@ func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (Ed
 
 func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
 	g.edgeVersion++ // callers hold edgeMutex
+	g.storeEdge(from, to, edge, direction)
+}
+
+// storeEdge is saveEdge without the version: workers that each own their
+// nodes' maps store concurrently, and the caller bumps the version once.
+func (g *IndexedGraph) storeEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
 	// Save the edge
 	toMap := g.edges[direction].get(from)
 	if toMap == nil {
