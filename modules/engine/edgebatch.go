@@ -166,32 +166,54 @@ func (g *IndexedGraph) applyIndexedEdgeMutations(ops []indexedEdgeMutation) {
 		return
 	}
 
+	sortEdgeMutations(ops)
+	g.applySortedEdgeMutations(ops)
+}
+
+// sortEdgeMutations orders mutations by endpoints, keeping the order of
+// mutations of one edge.
+func sortEdgeMutations(ops []indexedEdgeMutation) {
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].From == ops[j].From {
 			return ops[i].To < ops[j].To
 		}
 		return ops[i].From < ops[j].From
 	})
+}
 
+// applySortedEdgeMutations applies mutations sorted by sortEdgeMutations.
+func (g *IndexedGraph) applySortedEdgeMutations(ops []indexedEdgeMutation) {
+	if len(ops) == 0 {
+		return
+	}
+	g.edgeMutex.Lock()
+	defer g.edgeMutex.Unlock()
+	foldEdgeMutations(ops,
+		func(from, to NodeIndex) EdgeBitmap {
+			edge, _ := g.loadEdge(from, to, Out)
+			return edge
+		},
+		func(from, to NodeIndex, edge EdgeBitmap) {
+			g.saveEdge(from, to, edge, Out)
+			g.saveEdge(to, from, edge, In)
+		})
+}
+
+// foldEdgeMutations applies sorted mutations edge by edge: each edge starts
+// as current gives it and its result goes to save.
+func foldEdgeMutations(ops []indexedEdgeMutation, current func(from, to NodeIndex) EdgeBitmap, save func(from, to NodeIndex, edge EdgeBitmap)) {
 	var lastFrom, lastTo NodeIndex
 	var lastEdge EdgeBitmap
 	first := true
-
-	g.edgeMutex.Lock()
-	defer g.edgeMutex.Unlock()
-
 	for _, op := range ops {
-		if op.From != lastFrom || op.To != lastTo {
-			if first {
-				first = false
-			} else {
-				g.saveEdge(lastFrom, lastTo, lastEdge, Out)
-				g.saveEdge(lastTo, lastFrom, lastEdge, In)
+		if op.From != lastFrom || op.To != lastTo || first {
+			if !first {
+				save(lastFrom, lastTo, lastEdge)
 			}
-
+			first = false
 			lastFrom = op.From
 			lastTo = op.To
-			lastEdge, _ = g.loadEdge(lastFrom, lastTo, Out)
+			lastEdge = current(lastFrom, lastTo)
 		}
 
 		if op.Edge == NonExistingEdge {
@@ -214,9 +236,7 @@ func (g *IndexedGraph) applyIndexedEdgeMutations(ops []indexedEdgeMutation) {
 			lastEdge = lastEdge.Set(op.Edge)
 		}
 	}
-
 	if !first {
-		g.saveEdge(lastFrom, lastTo, lastEdge, Out)
-		g.saveEdge(lastTo, lastFrom, lastEdge, In)
+		save(lastFrom, lastTo, lastEdge)
 	}
 }

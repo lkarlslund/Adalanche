@@ -30,50 +30,51 @@ func (g *IndexedGraph) freeze() *frozenGraph {
 
 	g.edgeMutex.RLock()
 	combos := g.edgeCombos.bitmaps.snapshot()
+	var wg sync.WaitGroup
 	for direction := range fg.edges {
-		fg.edges[direction] = freezeAdjacency(g.edges[direction], combos, len(fg.nodes))
+		wg.Go(func() {
+			fg.edges[direction] = freezeAdjacency(g.edges[direction], combos, len(fg.nodes))
+		})
 	}
+	wg.Wait()
 	g.edgeMutex.RUnlock()
 
 	return fg
 }
 
-func freezeAdjacency(edges map[NodeIndex]map[NodeIndex]EdgeCombo, combos []EdgeBitmap, nodeCount int) [][]frozenEdge {
+func freezeAdjacency(edges adjacency, combos []EdgeBitmap, nodeCount int) [][]frozenEdge {
 	adjacency := make([][]frozenEdge, nodeCount)
-	if len(edges) == 0 {
-		return adjacency
-	}
-
-	totalEdges := 0
-	for _, toMap := range edges {
-		if len(toMap) == 0 {
-			continue
-		}
-		totalEdges += len(toMap)
-	}
-	if totalEdges == 0 {
-		return adjacency
-	}
-
-	allEdges := make([]frozenEdge, totalEdges)
-	offset := 0
+	edges = edges[:min(len(edges), nodeCount)]
+	// One backing array: offsets from the counts, then nodes are filled in
+	// ranges on several workers.
+	offsets := make([]int, len(edges)+1)
 	for from, toMap := range edges {
-		count := len(toMap)
-		if count == 0 {
-			continue
-		}
-		adjacency[from] = allEdges[offset : offset+count]
-		next := 0
-		for target, edgeCombo := range toMap {
-			adjacency[from][next] = frozenEdge{
-				target: target,
-				edge:   combos[edgeCombo],
-			}
-			next++
-		}
-		offset += count
+		offsets[from+1] = offsets[from] + len(toMap)
 	}
-
+	if offsets[len(edges)] == 0 {
+		return adjacency
+	}
+	allEdges := make([]frozenEdge, offsets[len(edges)])
+	workers := runtime.GOMAXPROCS(0)
+	chunk := (len(edges) + workers - 1) / workers
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Go(func() {
+			for from := w * chunk; from < min(len(edges), (w+1)*chunk); from++ {
+				if len(edges[from]) == 0 {
+					continue
+				}
+				list := allEdges[offsets[from]:offsets[from+1]:offsets[from+1]]
+				next := 0
+				for target, edgeCombo := range edges[from] {
+					list[next] = frozenEdge{target: target, edge: combos[edgeCombo]}
+					next++
+				}
+				adjacency[from] = list
+			}
+		})
+	}
+	wg.Wait()
 	return adjacency
 }
 

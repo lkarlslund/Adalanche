@@ -77,6 +77,22 @@ func (e *indexNodes) remove(o *Node) {
 	}
 }
 
+// removeAll takes the given nodes out, keeping the order of the rest.
+func (e *indexNodes) removeAll(gone map[*Node]*Node) {
+	kept := e.nodes.nodes[:0]
+	for _, n := range e.nodes.nodes {
+		if _, isGone := gone[n]; isGone {
+			if e.members != nil {
+				delete(e.members, n)
+			}
+			continue
+		}
+		kept = append(kept, n)
+	}
+	clear(e.nodes.nodes[len(kept):])
+	e.nodes.nodes = kept
+}
+
 type indexEntry struct {
 	key AttributeValue
 	indexNodes

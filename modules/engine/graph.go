@@ -40,7 +40,7 @@ type IndexedGraph struct {
 
 	// Edge tracking
 	edgeCombos  *edgeComboTable
-	edges       [2]map[NodeIndex]map[NodeIndex]EdgeCombo // from index -> to index -> edgeCombo
+	edges       [2]adjacency // by direction: from index -> to index -> edgeCombo
 	edgeMutex   sync.RWMutex
 	edgeVersion uint64 // changes whenever an edge is written, under edgeMutex
 
@@ -74,8 +74,6 @@ func NewIndexedGraph() *IndexedGraph {
 		// indexes:      make(map[Attribute]*Index),
 		multiindexes: make(map[AttributePair]*MultiIndex),
 		edgeCombos:   newEdgeComboTable(),
-		edges: [2]map[NodeIndex]map[NodeIndex]EdgeCombo{
-			make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192), make(map[NodeIndex]map[NodeIndex]EdgeCombo, 8192)},
 	}
 
 	// unique := uintptr(unsafe.Pointer(&g))
@@ -387,6 +385,46 @@ func (os *IndexedGraph) addUnlockedWith(newNode *Node, defaults bool) {
 	} else {
 		panic("Node already exists in graph, so we can't add it")
 	}
+}
+
+// addCollection appends new nodes in order and returns the position of the
+// first. Their default values were given where they were built. Lookups
+// and indexes are filled on several workers for a large collection.
+func (os *IndexedGraph) addCollection(nodes []*Node) NodeIndex {
+	os.nodeMutex.Lock()
+	defer os.nodeMutex.Unlock()
+	base := NodeIndex(len(os.nodes))
+	os.nodes = append(os.nodes, nodes...)
+	add := func(i int) {
+		n := nodes[i]
+		if _, found := os.nodeLookup.LoadOrStore(n, base+NodeIndex(i)); found {
+			panic("Node already exists in graph, so we can't add it")
+		}
+		if n.id != InvalidNodeID {
+			os.idLookup.Store(n.id, n)
+		}
+		os.reindexObject(n, true)
+	}
+	const perWorker = 256
+	if workers := min(runtime.GOMAXPROCS(0), len(nodes)/perWorker); workers > 1 {
+		var wg sync.WaitGroup
+		for w := range workers {
+			wg.Go(func() {
+				for i := w; i < len(nodes); i += workers {
+					add(i)
+				}
+			})
+		}
+		wg.Wait()
+	} else {
+		for i := range nodes {
+			add(i)
+		}
+	}
+	for _, n := range nodes {
+		os.typecount[n.Type()]++
+	}
+	return base
 }
 
 func (os *IndexedGraph) addRelaxed(newNode *Node) {

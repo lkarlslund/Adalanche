@@ -673,6 +673,17 @@ func (tx *Tx) IterateParallel(each func(o *Node) bool, parallelFuncs int) {
 // found through the loader index instead of a scan of the whole graph.
 func (tx *Tx) scopeNodes() []*Node {
 	found, _ := tx.g.FindMulti(DataLoader, tx.loaderNV)
+	if found.Len() > tx.g.Order()/2 {
+		// Most of the graph: scanning it is cheaper than ordering these.
+		result := make([]*Node, 0, found.Len())
+		tx.g.IterateStable(func(n *Node) bool {
+			if tx.inScope(n) {
+				result = append(result, n)
+			}
+			return true
+		})
+		return result
+	}
 	type positioned struct {
 		at   NodeIndex
 		node *Node
@@ -779,8 +790,10 @@ func (tx *Tx) findStagedAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*N
 // findScopedAdjacentSID finds a node of the transaction's loader for a SID
 // as seen from relativeTo, ignoring other loaders' nodes for the same SID.
 func (tx *Tx) findScopedAdjacentSID(s windowssecurity.SID, relativeTo *Node) (*Node, bool) {
-	nodes, _ := tx.g.FindMulti(ObjectSid, NVSID(s))
-	return adjacentSIDAmong(tx.scoped(nodes), s, relativeTo)
+	// Well-known SIDs exist once per machine; the loader's candidates come
+	// straight from the index instead of filtering every loader's.
+	nodes, _ := tx.g.FindTwoMulti(ObjectSid, NVSID(s), DataLoader, tx.loaderNV)
+	return adjacentSIDAmong(nodes, s, relativeTo)
 }
 
 // baseAdjacentSID looks a SID up in the graph, as the transaction may see it.

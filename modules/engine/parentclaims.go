@@ -31,7 +31,8 @@ func (g *IndexedGraph) applyParentClaims() {
 	// dominates loading at full scale.
 	type keyed struct {
 		parentClaim
-		childKey, parentKey string
+		childHash, parentHash uint64 // of the keys, compared first
+		childKey, parentKey   string
 	}
 	sorted := make([]keyed, len(claims))
 	key := func(n *Node) string { return n.DN() + "\x00" + n.Label() }
@@ -40,19 +41,33 @@ func (g *IndexedGraph) applyParentClaims() {
 	for w := range workers {
 		wg.Go(func() {
 			for i := w; i < len(claims); i += workers {
-				sorted[i] = keyed{claims[i], key(claims[i].child), key(claims[i].parent)}
+				childKey, parentKey := key(claims[i].child), key(claims[i].parent)
+				sorted[i] = keyed{claims[i], fnv64(childKey), fnv64(parentKey), childKey, parentKey}
 			}
 		})
 	}
 	wg.Wait()
-	// Claims with equal keys cannot be told apart by content; a stable sort
-	// would only keep commit order, which is not deterministic either.
+	// The order is by key hashes (the same in every run), then keys. Claims
+	// with equal keys cannot be told apart by content; a stable sort would
+	// only keep commit order, which is not deterministic either.
 	slices.SortFunc(sorted, func(a, b keyed) int {
-		return cmp.Or(cmp.Compare(a.childKey, b.childKey), cmp.Compare(a.parentKey, b.parentKey))
+		return cmp.Or(cmp.Compare(a.childHash, b.childHash), cmp.Compare(a.parentHash, b.parentHash),
+			cmp.Compare(a.childKey, b.childKey), cmp.Compare(a.parentKey, b.parentKey))
 	})
 	for _, c := range sorted {
 		if c.child.Parent() == nil && c.child != c.parent {
 			c.child.childOf(c.parent)
 		}
 	}
+}
+
+// fnv64 is FNV-1a: a hash with no per-process seed, for orders that must be
+// the same in every run.
+func fnv64(s string) uint64 {
+	h := uint64(14695981039346656037)
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= 1099511628211
+	}
+	return h
 }

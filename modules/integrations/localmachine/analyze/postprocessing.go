@@ -8,43 +8,7 @@ import (
 )
 
 func init() {
-	loader.AddProcessor(func(tx *engine.Tx) {
-		tx.Iterate(func(o *engine.Node) bool {
-			if o.HasAttr(activedirectory.ObjectSid) && o.HasAttr(engine.DataSource) {
-
-				// We can do this with confidence as everything comes from this loader
-				sidwithoutrid := o.OneAttrRaw(activedirectory.ObjectSid).(windowssecurity.SID).StripRID()
-
-				switch o.Type() {
-				case engine.NodeTypeComputer:
-					// We don't link that - it's either absorbed into the real computer object, or it's orphaned
-				case engine.NodeTypeUser:
-					// It's a User we added, find the machine
-					if machine, found := tx.FindTwo(
-						engine.DataSource, o.OneAttr(engine.DataSource),
-						LocalMachineSID, engine.NV(sidwithoutrid)); found {
-						tx.Node(o).ChildOf(machine) // FIXME -> Users
-					}
-				case engine.NodeTypeGroup:
-					// It's a Group we added
-					if machine, found := tx.FindTwo(
-						engine.DataSource, o.OneAttr(engine.DataSource),
-						LocalMachineSID, engine.NV(sidwithoutrid)); found {
-						tx.Node(o).ChildOf(machine) // FIXME -> Groups
-					}
-				default:
-					// if o.HasAttr(activedirectory.ObjectSid) {
-					// 	if computer, found := ld.tx.FindTwo(
-					// 		engine.UniqueSource, o.OneAttr(engine.UniqueSource),
-					// 		LocalMachineSID, engine.NV(sidwithoutrid)); found {
-					// 		o.ChildOf(computer) // We don't know what it is
-					// 	}
-					// }
-				}
-			}
-			return true
-		})
-	}, engine.Processor{
+	loader.AddProcessor(linkLocalAccountsToMachines, engine.Processor{
 		Description: "Link local users and groups to machines",
 		Phase:       engine.BeforeMerge,
 		Provides:    []engine.Product{ProductLocalTree},
@@ -84,4 +48,45 @@ func init() {
 			Phase:       engine.AfterMerge,
 			Final:       true,
 		})
+}
+
+// linkLocalAccountsToMachines puts local users and groups under the machine
+// whose local SID they share, from the same collection.
+func linkLocalAccountsToMachines(tx *engine.Tx) {
+	// Computer accounts are not linked: they are either absorbed into the
+	// real computer object, or orphaned.
+	type machineKey struct {
+		source engine.AttributeValue
+		sid    windowssecurity.SID
+	}
+	machines := map[machineKey]*engine.Node{}
+	ambiguous := map[machineKey]bool{}
+	candidates, _ := tx.FindMulti(engine.Type, engine.NV("Machine"))
+	candidates.Iterate(func(m *engine.Node) bool {
+		source := m.OneAttr(engine.DataSource)
+		m.Attr(LocalMachineSID).Iterate(func(v engine.AttributeValue) bool {
+			if sid, ok := v.Raw().(windowssecurity.SID); ok {
+				key := machineKey{source, sid}
+				if seen, found := machines[key]; found && seen != m {
+					ambiguous[key] = true
+				}
+				machines[key] = m
+			}
+			return true
+		})
+		return true
+	})
+	for _, nodeType := range []engine.NodeType{engine.NodeTypeUser, engine.NodeTypeGroup} {
+		accounts, _ := tx.FindMulti(engine.Type, nodeType.ValueString())
+		accounts.Iterate(func(o *engine.Node) bool {
+			if !o.HasAttr(activedirectory.ObjectSid) || !o.HasAttr(engine.DataSource) {
+				return true
+			}
+			key := machineKey{o.OneAttr(engine.DataSource), o.SID().StripRID()}
+			if machine, found := machines[key]; found && !ambiguous[key] {
+				tx.Node(o).ChildOf(machine)
+			}
+			return true
+		})
+	}
 }

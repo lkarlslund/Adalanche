@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"maps"
 	"runtime"
 	"slices"
 	"strings"
@@ -43,6 +44,76 @@ func (g *IndexedGraph) commitCollection(tx *Tx) error {
 	staged.resolveNodes(tx)
 	tx.g = g
 
+	// The collection's nodes are appended to the graph in order, so edges
+	// between two of them are folded here, by their positions in the
+	// collection, into the edge each pair ends up with.
+	var own []indexedEdgeMutation
+	var outside []nodeEdgeMutation
+	for _, m := range staged.appendEdgeWrites(tx, nil) {
+		from, fromOwn := private.nodeLookup.Load(m.From)
+		to, toOwn := private.nodeLookup.Load(m.To)
+		if fromOwn && toOwn {
+			own = append(own, indexedEdgeMutation{From: from, To: to, EdgeBitmap: m.EdgeBitmap, Edge: m.Edge, Merge: m.Merge, Clear: m.Clear})
+		} else {
+			outside = append(outside, m)
+		}
+	}
+	sortEdgeMutations(own)
+	type ownEdge struct {
+		from, to NodeIndex
+		combo    EdgeCombo
+	}
+	var edges []ownEdge
+	foldEdgeMutations(own,
+		func(from, to NodeIndex) EdgeBitmap { return EdgeBitmap{} },
+		func(from, to NodeIndex, edge EdgeBitmap) {
+			if !edge.IsBlank() {
+				edges = append(edges, ownEdge{from, to, g.edgeBitmapToEdgeCombo(edge)})
+			}
+		})
+
+	base, err := g.addCollectionNodes(tx, private.nodes, staged.conflicts)
+
+	// Only this commit knows the new nodes, so their edges are built without
+	// any lock and installed per node.
+	var built [2]map[NodeIndex]map[NodeIndex]EdgeCombo // by direction
+	for direction := range built {
+		built[direction] = map[NodeIndex]map[NodeIndex]EdgeCombo{}
+	}
+	add := func(direction EdgeDirection, node, other NodeIndex, combo EdgeCombo) {
+		targets := built[direction][node]
+		if targets == nil {
+			targets = map[NodeIndex]EdgeCombo{}
+			built[direction][node] = targets
+		}
+		targets[other] = combo
+	}
+	for _, e := range edges {
+		add(Out, e.from+base, e.to+base, e.combo)
+		add(In, e.to+base, e.from+base, e.combo)
+	}
+	if len(edges) > 0 {
+		g.edgeMutex.Lock()
+		for direction := range built {
+			for node, targets := range built[direction] {
+				if existing := g.edges[direction].get(node); existing != nil {
+					maps.Copy(existing, targets)
+				} else {
+					g.edges[direction].set(node, targets)
+				}
+			}
+		}
+		g.edgeVersion++
+		g.edgeMutex.Unlock()
+	}
+	// Edges to nodes that were already in the graph go the usual way.
+	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(outside))
+	return err
+}
+
+// addCollectionNodes adds a collection's nodes and parent claims under the
+// commit lock and returns where the first node landed.
+func (g *IndexedGraph) addCollectionNodes(tx *Tx, nodes []*Node, conflicts []string) (NodeIndex, error) {
 	requested := time.Now()
 	g.commitMutex.Lock()
 	locked := time.Now()
@@ -53,19 +124,13 @@ func (g *IndexedGraph) commitCollection(tx *Tx) error {
 		g.commitMutex.Unlock()
 	}()
 	g.joinLoadRoot(tx)
-	g.nodeMutex.Lock()
-	for _, n := range private.nodes {
-		// Default values were given in the collection's graph.
-		g.addUnlockedWith(n, false)
-	}
-	g.nodeMutex.Unlock()
+	base := g.addCollection(nodes)
 	c := committer{g: g, loadOnly: true, changedAttrs: map[Attribute]struct{}{}}
 	c.applyParents(tx)
-	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(c.appendEdgeWrites(tx, nil)))
-	if conflicts := append(staged.conflicts, c.conflicts...); len(conflicts) > 0 {
-		return fmt.Errorf("invalid writes:\n%s", strings.Join(conflicts, "\n"))
+	if conflicts := append(conflicts, c.conflicts...); len(conflicts) > 0 {
+		return base, fmt.Errorf("invalid writes:\n%s", strings.Join(conflicts, "\n"))
 	}
-	return nil
+	return base, nil
 }
 
 // joinLoadRoot adds a loader's root with its first commit.
@@ -343,7 +408,9 @@ func (c *committer) applyAttributeWrites(tx *Tx, p *pendingNode) {
 		case nodeOpChildOf:
 			continue
 		}
-		if c.loadOnly {
+		if c.loadOnly || !p.existed {
+			// A node this commit created has few writes; its index entries
+			// are updated in place rather than the indexes dropped.
 			c.applyIndexed(node, op)
 			continue
 		}
@@ -584,16 +651,22 @@ func hasIdentityWork(txs []*Tx) bool {
 // goes to the same worker, which applies its writes in staging order, so the
 // result is the same as applying them one by one.
 func (c *committer) resolveAndWriteParallel(txs []*Tx) {
-	var base []*pendingNode
+	var pending int
+	for _, tx := range txs {
+		pending += len(tx.pending)
+	}
+	workers := min(runtime.GOMAXPROCS(0), max(1, pending/4096))
+	// Each worker gets its own list, a node always the same worker's.
+	base := make([][]*pendingNode, workers)
 	for _, tx := range txs {
 		for _, p := range tx.pending {
 			c.resolveNode(c.g, tx, p)
 			if p.kind == pendingBase && len(p.ops) > 0 {
-				base = append(base, p)
+				w := int((uintptr(unsafe.Pointer(p.base)) >> 4) % uintptr(workers))
+				base[w] = append(base[w], p)
 			}
 		}
 	}
-	workers := min(runtime.GOMAXPROCS(0), max(1, len(base)/4096))
 	changed := make([]map[Attribute]struct{}, workers)
 	var wg sync.WaitGroup
 	for w := range workers {
@@ -601,10 +674,7 @@ func (c *committer) resolveAndWriteParallel(txs []*Tx) {
 		wg.Go(func() {
 			var reindex []Attribute
 			var one [1]Attribute
-			for _, p := range base {
-				if workers > 1 && int((uintptr(unsafe.Pointer(p.base))>>4)%uintptr(workers)) != w {
-					continue
-				}
+			for _, p := range base[w] {
 				reindex = reindex[:0]
 				for _, op := range p.ops {
 					if op.kind == nodeOpChildOf {

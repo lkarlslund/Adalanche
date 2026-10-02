@@ -108,6 +108,19 @@ func resolveReferencesRemoving(g *IndexedGraph, remove []*Node) map[*Node]*Node 
 	}
 	compactStart := time.Now()
 	g.compact(merged)
+	// What was folded into a node may have been all the indexes knew of it
+	// (a unique index keeps only the first node with a value).
+	targets := map[*Node]struct{}{}
+	for _, t := range merged {
+		if t != nil {
+			targets[t] = struct{}{}
+		}
+	}
+	for t := range targets {
+		if g.Contains(t) {
+			g.reindexObject(t, false)
+		}
+	}
 	ui.Info().Msgf("Finishing loading: compaction took %v", time.Since(compactStart))
 
 	for a, n := range folded {
@@ -178,6 +191,10 @@ func compatibleReference(ref, node *Node, conflicts []Attribute) bool {
 // matchReference finds the one real node ref names. It returns the key that
 // decided, and whether that key matched several nodes.
 func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*Node, Attribute, bool) {
+	// A reference scoped to a domain only matches that domain's nodes, so
+	// they are looked up directly: a shared SID such as a builtin group's
+	// otherwise brings every machine's copy along.
+	domain := ref.OneAttr(DomainContext)
 	for _, a := range keys {
 		values := ref.Attr(a)
 		if values.Len() == 0 {
@@ -186,7 +203,14 @@ func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*N
 		var match *Node
 		var count int
 		values.Iterate(func(v AttributeValue) bool {
-			if found, ok := g.FindMulti(a, v); ok {
+			var found NodeSlice
+			var ok bool
+			if domain.IsNil() || a == DomainContext {
+				found, ok = g.FindMulti(a, v)
+			} else {
+				found, ok = g.FindTwoMulti(a, v, DomainContext, domain)
+			}
+			if ok {
 				found.Iterate(func(n *Node) bool {
 					if n != match && !isReference(n) && compatibleReference(ref, n, conflicts) {
 						match = n

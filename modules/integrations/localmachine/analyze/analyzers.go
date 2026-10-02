@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -11,48 +12,44 @@ import (
 )
 
 func LinkSCCMProcessor(tx *engine.Tx) {
-	tx.Iterate(func(o *engine.Node) bool {
-		if o.HasAttr(WUServer) || o.HasAttr(SCCMServer) {
-			var hosts []string
-			controltype := "unknown"
-			if hostname := o.OneAttrString(WUServer); hostname != "" {
-				controltype = "WSUS"
-				hosts = append(hosts, hostname)
-			} else if hostname := o.OneAttrString(SCCMServer); hostname != "" {
-				controltype = "SCCM"
-				hosts = append(hosts, hostname)
-			}
+	// Only machines name update servers, and servers are machines: match
+	// host names among them instead of indexing the whole graph.
+	machines, _ := tx.FindMulti(engine.Type, engine.NV("Machine"))
+	byDNSName := map[string][]*engine.Node{}
+	byName := map[string][]*engine.Node{}
+	machines.Iterate(func(m *engine.Node) bool {
+		m.Attr(DNSHostname).Iterate(func(v engine.AttributeValue) bool {
+			byDNSName[strings.ToLower(v.String())] = append(byDNSName[strings.ToLower(v.String())], m)
+			return true
+		})
+		m.Attr(engine.Name).Iterate(func(v engine.AttributeValue) bool {
+			byName[strings.ToLower(v.String())] = append(byName[strings.ToLower(v.String())], m)
+			return true
+		})
+		return true
+	})
 
-			for _, host := range hosts {
-				// Try full DNS name
-				servers, found := tx.FindTwoMulti(
-					DNSHostname, engine.NV(host),
-					engine.Type, engine.NV("Machine"),
-				)
-				// .. or fallback to just the name
-				if !found {
-					servers, found = tx.FindTwoMulti(
-						engine.Name, engine.NV(host),
-						engine.Type, engine.NV("Machine"),
-					)
-				}
-				if !found {
-					// try to parse host as IP
-					ip := net.ParseIP(host)
-					if ip != nil {
-						ui.Warn().Msgf("Controlling %v server is referred to by IP address %v, unable to link it", controltype, host)
-					}
-					continue
-				}
-				if !found {
-					ui.Warn().Msgf("Could not find controlling %v server %v for %v", controltype, host, o.Label())
-					continue
-				}
-				servers.Iterate(func(server *engine.Node) bool {
-					tx.EdgeTo(server, o, EdgeControlsUpdates)
-					return true
-				})
+	machines.Iterate(func(o *engine.Node) bool {
+		host, controltype := o.OneAttrString(WUServer), "WSUS"
+		if host == "" {
+			host, controltype = o.OneAttrString(SCCMServer), "SCCM"
+		}
+		if host == "" {
+			return true
+		}
+		// Try full DNS name, or fall back to just the name
+		servers := byDNSName[strings.ToLower(host)]
+		if len(servers) == 0 {
+			servers = byName[strings.ToLower(host)]
+		}
+		if len(servers) == 0 {
+			if net.ParseIP(host) != nil {
+				ui.Warn().Msgf("Controlling %v server is referred to by IP address %v, unable to link it", controltype, host)
 			}
+			return true
+		}
+		for _, server := range servers {
+			tx.EdgeTo(server, o, EdgeControlsUpdates)
 		}
 		return true
 	})

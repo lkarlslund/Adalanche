@@ -8,9 +8,29 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
+// adjacency holds a direction's edges by node index: each node's targets
+// and their edge combinations.
+type adjacency []map[NodeIndex]EdgeCombo
+
+func (a adjacency) get(from NodeIndex) map[NodeIndex]EdgeCombo {
+	if int(from) < len(a) {
+		return a[from]
+	}
+	return nil
+}
+
+func (a *adjacency) set(from NodeIndex, targets map[NodeIndex]EdgeCombo) {
+	if int(from) >= len(*a) {
+		grown := make(adjacency, max(int(from)+1, 2*len(*a), 1024))
+		copy(grown, *a)
+		*a = grown
+	}
+	(*a)[from] = targets
+}
+
 func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (EdgeBitmap, bool) {
 	// Load the edge
-	toMap := g.edges[direction][from]
+	toMap := g.edges[direction].get(from)
 	if toMap == nil {
 		return EdgeBitmap{}, false
 	}
@@ -24,14 +44,14 @@ func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (Ed
 func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
 	g.edgeVersion++ // callers hold edgeMutex
 	// Save the edge
-	toMap := g.edges[direction][from]
+	toMap := g.edges[direction].get(from)
 	if toMap == nil {
 		if edge.IsBlank() {
 			// Writing a blank edge "unsets" it, but we have none
 			return
 		}
 		toMap = make(map[NodeIndex]EdgeCombo)
-		g.edges[direction][from] = toMap
+		g.edges[direction].set(from, toMap)
 	}
 	if edge.IsBlank() {
 		delete(toMap, to)
@@ -217,7 +237,7 @@ func (ef EdgeFilter) Len() int {
 	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
-	return len(ef.graph.edges[ef.direction][ef.fromNode])
+	return len(ef.graph.edges[ef.direction].get(ef.fromNode))
 }
 
 // IterateIndexed is Iterate, passing each target's position in the graph.
@@ -227,7 +247,7 @@ func (ef EdgeFilter) IterateIndexed(iter func(targetIndex NodeIndex, target *Nod
 	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
-	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
+	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction].get(ef.fromNode) {
 		if !iter(nodeIndex, ef.graph.nodes[nodeIndex], ef.graph.edgeCombos.get(edgeCombo)) {
 			return
 		}
@@ -240,7 +260,7 @@ func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
 	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
-	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
+	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction].get(ef.fromNode) {
 		eb := ef.graph.edgeCombos.get(edgeCombo)
 		target := ef.graph.nodes[nodeIndex]
 		if !iter(target, eb) {
