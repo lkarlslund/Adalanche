@@ -88,20 +88,12 @@ func (g *IndexedGraph) EstimateMemory() MemoryStatistics {
 	}
 	for _, index := range g.indexes {
 		if index != nil {
-			for _, e := range index.lookup {
-				for ; e != nil; e = e.next {
-					addIndex(&e.nodes)
-				}
-			}
+			index.eachEntry(func(e *indexNodes) { addIndex(&e.nodes) })
 		}
 	}
 	for _, index := range g.multiindexes {
 		if index != nil {
-			for _, e := range index.lookup {
-				for ; e != nil; e = e.next {
-					addIndex(&e.nodes)
-				}
-			}
+			index.eachEntry(func(e *indexNodes) { addIndex(&e.nodes) })
 		}
 	}
 	securityDescriptorCache.Range(func(_ string, sd *SecurityDescriptor) bool {

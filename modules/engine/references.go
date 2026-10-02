@@ -63,10 +63,11 @@ func resolveReferencesRemoving(g *IndexedGraph, remove []*Node) map[*Node]*Node 
 		several := make([]bool, len(unresolved))
 		var wg sync.WaitGroup
 		const chunk = 1024
+		candidates := &realCandidates{g: g}
 		for start := 0; start < len(unresolved); start += chunk {
 			wg.Go(func() {
 				for i := start; i < min(start+chunk, len(unresolved)); i++ {
-					targets[i], decidedBy[i], several[i] = matchReference(g, unresolved[i], keys, conflicts)
+					targets[i], decidedBy[i], several[i] = matchReference(candidates, unresolved[i], keys, conflicts)
 				}
 			})
 		}
@@ -188,9 +189,46 @@ func compatibleReference(ref, node *Node, conflicts []Attribute) bool {
 	return true
 }
 
+// realCandidates finds the real nodes with a key value, once per value in a
+// round: many references often name the same thing (an account seen from
+// every machine), and each would otherwise walk all the others.
+type realCandidates struct {
+	g     *IndexedGraph
+	found shardedMap[candidateKey, []*Node]
+}
+
+type candidateKey struct {
+	attr          Attribute
+	value, domain AttributeValue
+}
+
+// get returns the real nodes with the value, among the domain's nodes when
+// domain is set.
+func (rc *realCandidates) get(a Attribute, v, domain AttributeValue) []*Node {
+	key := candidateKey{a, v, domain}
+	if nodes, found := rc.found.Load(key); found {
+		return nodes
+	}
+	var found NodeSlice
+	if domain.IsNil() || a == DomainContext {
+		found, _ = rc.g.FindMulti(a, v)
+	} else {
+		found, _ = rc.g.FindTwoMulti(a, v, DomainContext, domain)
+	}
+	var real []*Node
+	found.Iterate(func(n *Node) bool {
+		if !isReference(n) {
+			real = append(real, n)
+		}
+		return true
+	})
+	rc.found.Store(key, real)
+	return real
+}
+
 // matchReference finds the one real node ref names. It returns the key that
 // decided, and whether that key matched several nodes.
-func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*Node, Attribute, bool) {
+func matchReference(candidates *realCandidates, ref *Node, keys, conflicts []Attribute) (*Node, Attribute, bool) {
 	// A reference scoped to a domain only matches that domain's nodes, so
 	// they are looked up directly: a shared SID such as a builtin group's
 	// otherwise brings every machine's copy along.
@@ -203,21 +241,14 @@ func matchReference(g *IndexedGraph, ref *Node, keys, conflicts []Attribute) (*N
 		var match *Node
 		var count int
 		values.Iterate(func(v AttributeValue) bool {
-			var found NodeSlice
-			var ok bool
-			if domain.IsNil() || a == DomainContext {
-				found, ok = g.FindMulti(a, v)
-			} else {
-				found, ok = g.FindTwoMulti(a, v, DomainContext, domain)
-			}
-			if ok {
-				found.Iterate(func(n *Node) bool {
-					if n != match && !isReference(n) && compatibleReference(ref, n, conflicts) {
-						match = n
-						count++
+			for _, n := range candidates.get(a, v, domain) {
+				if n != match && compatibleReference(ref, n, conflicts) {
+					match = n
+					count++
+					if count > 1 {
+						break
 					}
-					return count < 2
-				})
+				}
 			}
 			return count < 2
 		})

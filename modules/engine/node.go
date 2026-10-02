@@ -34,6 +34,7 @@ type Node struct {
 	sdcache    *SecurityDescriptor
 	parent     *Node
 	sid        atomic.Pointer[windowssecurity.SID] // cached SID(), reset when objectSid changes
+	home       atomic.Uint64                       // home graph ID and position, see nodePositions
 	children   NodeSlice
 	values     AttributesAndValues
 	objecttype NodeType

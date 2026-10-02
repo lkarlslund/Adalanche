@@ -207,3 +207,38 @@ func TestLoaderRootsKeepClaimedChildren(t *testing.T) {
 		t.Fatal("a node placed elsewhere lost its parent")
 	}
 }
+
+// A large index is built on several workers; each key still lists its
+// nodes in graph order.
+func TestParallelIndexBuildKeepsGraphOrder(t *testing.T) {
+	g := NewIndexedGraph()
+	tx := g.Begin("nodes")
+	for i := range 70000 {
+		tx.AddNew(Description, fmt.Sprint("value ", i%97), Name, fmt.Sprint("name ", i%13))
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	position := map[*Node]int{}
+	for i, n := range g.nodes {
+		position[n] = i
+	}
+	check := func(nodes NodeSlice, want int) {
+		t.Helper()
+		if nodes.Len() != want {
+			t.Fatalf("got %v nodes, want %v", nodes.Len(), want)
+		}
+		last := -1
+		nodes.Iterate(func(n *Node) bool {
+			if position[n] <= last {
+				t.Fatal("nodes are not in graph order")
+			}
+			last = position[n]
+			return true
+		})
+	}
+	nodes, _ := g.FindMulti(Description, NV("value 5"))
+	check(nodes, 722)
+	both, _ := g.FindTwoMulti(Description, NV("value 5"), Name, NV("name 5"))
+	check(both, 56)
+}

@@ -28,9 +28,14 @@ type IndexedGraph struct {
 
 	// Node tracking
 	nodeMutex  sync.RWMutex
-	nodeLookup shardedMap[*Node, NodeIndex] // map to index in objects
-	idLookup   shardedMap[NodeID, *Node]    // node ID -> node
-	nodes      []*Node                      // All objects, int -> *Node
+	nodeLookup nodePositions // node -> index in nodes
+	// nodesVersion changes whenever nodes are added or removed; the ID
+	// lookup is rebuilt from the nodes on first use after a change.
+	nodesVersion atomic.Uint64
+	idMutex      sync.RWMutex
+	idLookup     map[NodeID]*Node
+	idVersion    uint64
+	nodes        []*Node // All objects, int -> *Node
 
 	commitMutex sync.Mutex // one commit at a time
 
@@ -83,6 +88,7 @@ func NewIndexedGraph() *IndexedGraph {
 	// 	ui.Debug().Msgf("IndexedGraph %v freed!", g)
 	// }, unique)
 
+	g.nodeLookup.own()
 	return &g
 }
 
@@ -189,38 +195,88 @@ func (os *IndexedGraph) GetMultiIndex(attribute, attribute2 Attribute) *MultiInd
 
 func (os *IndexedGraph) refreshIndex(attribute Attribute, index *Index) {
 	index.init()
-
-	// add all existing stuff to index
-	os.IterateStable(func(o *Node) bool {
+	os.buildIndex(func(o *Node, add func(hash uint64, key, key2 AttributeValue)) {
 		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
-			// Add to index
-			index.Add(value, o, false)
-			return true // continue
+			add(indexHash(value), value, AttributeValue{})
+			return true
 		})
-		return true
+	}, func(shard int, r indexRecord) {
+		index.shards[shard].entry(r.key, r.hash).add(r.node, false)
 	})
 }
 
 func (os *IndexedGraph) refreshMultiIndex(attribute, attribute2 Attribute, index *MultiIndex) {
 	index.init()
-
-	// add all existing stuff to index
-	os.IterateStable(func(o *Node) bool {
+	os.buildIndex(func(o *Node, add func(hash uint64, key, key2 AttributeValue)) {
 		if !o.HasAttr(attribute) || !o.HasAttr(attribute2) {
-			return true
+			return
 		}
-
 		o.Attr(attribute).Iterate(func(value AttributeValue) bool {
 			o.Attr(attribute2).Iterate(func(value2 AttributeValue) bool {
-				// Add to index
-				index.Add(value, value2, o, false)
-
+				add(multiIndexHash(value, value2), value, value2)
 				return true
 			})
 			return true
 		})
-		return true
+	}, func(shard int, r indexRecord) {
+		index.shards[shard].entry(r.key, r.key2, r.hash).add(r.node, false)
 	})
+}
+
+type indexRecord struct {
+	hash      uint64
+	key, key2 AttributeValue
+	node      *Node
+}
+
+// buildIndex fills an empty index from every node, in graph order within
+// each key. A large graph is read in ranges on several workers, each range's
+// records kept by index shard; then each worker inserts the records of the
+// shards it owns, range by range, so it needs no locks and keeps the order.
+func (os *IndexedGraph) buildIndex(read func(o *Node, add func(hash uint64, key, key2 AttributeValue)), insert func(shard int, r indexRecord)) {
+	os.nodeMutex.RLock()
+	defer os.nodeMutex.RUnlock()
+	nodes := os.nodes
+	const parallelFrom = 1 << 16
+	if len(nodes) < parallelFrom {
+		for _, o := range nodes {
+			read(o, func(hash uint64, key, key2 AttributeValue) {
+				insert(indexShardOf(hash), indexRecord{hash, key, key2, o})
+			})
+		}
+		return
+	}
+	workers := runtime.GOMAXPROCS(0)
+	ranges := workers * 4
+	size := (len(nodes) + ranges - 1) / ranges
+	records := make([][indexShardCount][]indexRecord, ranges)
+	var wg sync.WaitGroup
+	var next atomic.Int64
+	for range workers {
+		wg.Go(func() {
+			for r := int(next.Add(1) - 1); r < ranges; r = int(next.Add(1) - 1) {
+				for _, o := range nodes[min(len(nodes), r*size):min(len(nodes), (r+1)*size)] {
+					read(o, func(hash uint64, key, key2 AttributeValue) {
+						shard := indexShardOf(hash)
+						records[r][shard] = append(records[r][shard], indexRecord{hash, key, key2, o})
+					})
+				}
+			}
+		})
+	}
+	wg.Wait()
+	for w := range workers {
+		wg.Go(func() {
+			for shard := w; shard < indexShardCount; shard += workers {
+				for r := range records {
+					for _, record := range records[r][shard] {
+						insert(shard, record)
+					}
+				}
+			}
+		})
+	}
+	wg.Wait()
 }
 
 func (os *IndexedGraph) setRoot(ro *Node) {
@@ -363,7 +419,29 @@ func (os *IndexedGraph) LookupNodeByID(id NodeID) (*Node, bool) {
 	if id == InvalidNodeID {
 		return nil, false
 	}
-	return os.idLookup.Load(id)
+	os.idMutex.RLock()
+	if os.idLookup != nil && os.idVersion == os.nodesVersion.Load() {
+		n, found := os.idLookup[id]
+		os.idMutex.RUnlock()
+		return n, found
+	}
+	os.idMutex.RUnlock()
+
+	os.idMutex.Lock()
+	defer os.idMutex.Unlock()
+	os.nodeMutex.RLock()
+	if version := os.nodesVersion.Load(); os.idLookup == nil || os.idVersion != version {
+		os.idLookup = make(map[NodeID]*Node, len(os.nodes))
+		for _, n := range os.nodes {
+			if n.id != InvalidNodeID {
+				os.idLookup[n.id] = n
+			}
+		}
+		os.idVersion = version
+	}
+	os.nodeMutex.RUnlock()
+	n, found := os.idLookup[id]
+	return n, found
 }
 
 func (os *IndexedGraph) addUnlocked(newNode *Node) {
@@ -377,9 +455,7 @@ func (os *IndexedGraph) addUnlockedWith(newNode *Node, defaults bool) {
 			newNode.setFlex(os.DefaultValues...)
 		}
 		os.nodes = append(os.nodes, newNode)
-		if newNode.id != InvalidNodeID {
-			os.idLookup.Store(newNode.id, newNode)
-		}
+		os.nodesVersion.Add(1)
 		os.reindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	} else {
@@ -395,13 +471,11 @@ func (os *IndexedGraph) addCollection(nodes []*Node) NodeIndex {
 	defer os.nodeMutex.Unlock()
 	base := NodeIndex(len(os.nodes))
 	os.nodes = append(os.nodes, nodes...)
+	os.nodesVersion.Add(1)
 	add := func(i int) {
 		n := nodes[i]
 		if _, found := os.nodeLookup.LoadOrStore(n, base+NodeIndex(i)); found {
 			panic("Node already exists in graph, so we can't add it")
-		}
-		if n.id != InvalidNodeID {
-			os.idLookup.Store(n.id, n)
 		}
 		os.reindexObject(n, true)
 	}
@@ -435,9 +509,7 @@ func (os *IndexedGraph) addRelaxed(newNode *Node) {
 			newNode.setFlex(os.DefaultValues...)
 		}
 		os.nodes = append(os.nodes, newNode)
-		if newNode.id != InvalidNodeID {
-			os.idLookup.Store(newNode.id, newNode)
-		}
+		os.nodesVersion.Add(1)
 		os.reindexObject(newNode, true)
 		os.typecount[newNode.Type()]++
 	}

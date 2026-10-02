@@ -105,12 +105,8 @@ func (g *IndexedGraph) compact(folded map[*Node]*Node) {
 
 	for n := range folded {
 		g.nodeLookup.Delete(n)
-		if n.id != InvalidNodeID {
-			if current, found := g.idLookup.Load(n.id); found && current == n {
-				g.idLookup.Delete(n.id)
-			}
-		}
 	}
+	g.nodesVersion.Add(1)
 	// Only nodes after the first removed one move.
 	first := slices.Index(position, gone)
 	if first >= 0 {
@@ -134,25 +130,14 @@ func (g *IndexedGraph) compact(folded map[*Node]*Node) {
 	// Indexes hold nodes, not positions, so they survive renumbering; only
 	// the removed nodes leave them. Nodes that others were folded into were
 	// reindexed as they were folded.
+	removeFolded := func(e *indexNodes) { e.removeAll(folded) }
 	for _, index := range g.indexes {
 		if index != nil {
-			wg.Go(func() {
-				for _, entries := range index.lookup {
-					for e := entries; e != nil; e = e.next {
-						e.removeAll(folded)
-					}
-				}
-			})
+			wg.Go(func() { index.eachEntry(removeFolded) })
 		}
 	}
 	for _, index := range g.multiindexes {
-		wg.Go(func() {
-			for _, entries := range index.lookup {
-				for e := entries; e != nil; e = e.next {
-					e.removeAll(folded)
-				}
-			}
-		})
+		wg.Go(func() { index.eachEntry(removeFolded) })
 	}
 	wg.Wait()
 }
