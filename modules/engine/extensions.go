@@ -21,6 +21,38 @@ func (g *IndexedGraph) SetExtension(key, value any) {
 	g.extensions.Store(key, value)
 }
 
+var mergePreparers struct {
+	sync.RWMutex
+	items []func([]*IndexedGraph) error
+}
+
+// RegisterMergePreparer registers a step that runs once after the
+// before-merge processors and before the graphs are merged, with every
+// loader graph. It is for decisions that need all loaders' data, such as
+// which of several machine collections is the current one. It changes the
+// graphs only through transactions, and its outcome must depend only on the
+// data, never on the order of the graphs.
+func RegisterMergePreparer(prepare func([]*IndexedGraph) error) {
+	if prepare == nil {
+		panic("nil merge preparer")
+	}
+	mergePreparers.Lock()
+	defer mergePreparers.Unlock()
+	mergePreparers.items = append(mergePreparers.items, prepare)
+}
+
+func prepareMerge(graphs []*IndexedGraph) error {
+	mergePreparers.RLock()
+	callbacks := append([]func([]*IndexedGraph) error(nil), mergePreparers.items...)
+	mergePreparers.RUnlock()
+	for _, prepare := range callbacks {
+		if err := prepare(graphs); err != nil {
+			return fmt.Errorf("prepare merge: %w", err)
+		}
+	}
+	return nil
+}
+
 var graphFinalizers struct {
 	sync.RWMutex
 	items []func(*IndexedGraph) error

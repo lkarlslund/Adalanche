@@ -1,6 +1,9 @@
 package analyze
 
-import "github.com/lkarlslund/adalanche/modules/engine"
+import (
+	"github.com/lkarlslund/adalanche/modules/engine"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
+)
 
 // Products made by the Active Directory processors. Processors that use one
 // list it in Needs and run after every processor that provides it.
@@ -50,3 +53,19 @@ const (
 	// Certificate template publishing status and CA roles.
 	ProductCertificateTemplates engine.Product = "ad/certificate-templates"
 )
+
+// MachinesForComputer returns every machine linked to the computer account
+// with the given SID: the machine made from the directory and every machine
+// collection claiming the account.
+func MachinesForComputer(r engine.GraphReader, computerSID windowssecurity.SID) []*engine.Node {
+	var machines []*engine.Node
+	if found, ok := r.FindMulti(DomainJoinedSID, engine.NV(computerSID)); ok {
+		found.Iterate(func(n *engine.Node) bool {
+			if n.Type() == ObjectTypeMachine {
+				machines = append(machines, n)
+			}
+			return true
+		})
+	}
+	return machines
+}

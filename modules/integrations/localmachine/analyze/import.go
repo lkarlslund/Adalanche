@@ -31,8 +31,10 @@ const (
 
 // Returns the computer object
 func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode, error) {
-	var machine engine.TxNode
-	var existing bool
+	// Every collection is a machine of its own. Several collections can
+	// claim the same computer account (a machine collected twice, or
+	// clones); which one is current is decided when all are loaded.
+	machine := tx.AddNew()
 	// See if the machine has a unique SID
 	localsid, err := windowssecurity.ParseStringSID(cinfo.Machine.LocalSID)
 	if err != nil {
@@ -42,13 +44,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	if cinfo.Machine.IsDomainJoined {
 		domainsid, err = windowssecurity.ParseStringSID(cinfo.Machine.ComputerDomainSID)
 		if cinfo.Machine.ComputerDomainSID != "" && err == nil {
-			machine, existing = tx.FindOrAdd(
-				analyze.DomainJoinedSID, engine.NV(domainsid),
-			)
-			// It's a duplicate domain member SID :-(
-			if existing {
-				return engine.TxNode{}, fmt.Errorf("duplicate machine info for domain account SID %v found, not loading it. machine names %v and %v", cinfo.Machine.ComputerDomainSID, cinfo.Machine.Name, machine.Node().Label())
-			}
+			machine.Set(analyze.DomainJoinedSID, engine.NV(domainsid))
 			// Link to the AD account
 			computer, _ := tx.FindOrAdd(
 				activedirectory.ObjectSid, engine.NV(domainsid),
@@ -68,12 +64,10 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	if cinfo.UnprivilegedCollection {
 		ui.Info().Msgf("Loading partial information from unprivileged collector on machine %v", cinfo.Machine.Name)
 	}
-	if !machine.Valid() {
-		// Not Domain Joined!?
-		machine = tx.AddNew()
-	}
 	machine.SetFlex(
 		engine.IgnoreBlanks,
+		localmachine.CollectedAt, cinfo.Collected,
+		localmachine.SMBIOSUUID, cinfo.Machine.SMBIOSUUID,
 		engine.DisplayName, cinfo.Machine.Name,
 		engine.NewAttribute("architecture"), cinfo.Machine.Architecture,
 		engine.NewAttribute("editionId"), cinfo.Machine.EditionID,
@@ -287,7 +281,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 						tx.EdgeTo(localGroup, machine, EdgeLocalRDPRights)
 					}
 				}
-				if memberobject.Node().HasAttr(engine.DataSource) && !existing {
+				if memberobject.Node().HasAttr(engine.DataSource) {
 					// Maybe a deleted user or group
 					if memberobject.Node().Parent() == nil {
 						memberobject.ChildOf(machine)

@@ -2480,6 +2480,12 @@ func (z *Machine) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "LocalSID")
 				return
 			}
+		case "SMBIOSUUID":
+			z.SMBIOSUUID, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "SMBIOSUUID")
+				return
+			}
 		case "Domain":
 			z.Domain, err = dc.ReadString()
 			if err != nil {
@@ -2656,9 +2662,9 @@ func (z *Machine) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Machine) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 27
+	// map header, size 28
 	// write "Name"
-	err = en.Append(0xde, 0x0, 0x1b, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+	err = en.Append(0xde, 0x0, 0x1c, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
 	if err != nil {
 		return
 	}
@@ -2675,6 +2681,16 @@ func (z *Machine) EncodeMsg(en *msgp.Writer) (err error) {
 	err = en.WriteString(z.LocalSID)
 	if err != nil {
 		err = msgp.WrapError(err, "LocalSID")
+		return
+	}
+	// write "SMBIOSUUID"
+	err = en.Append(0xaa, 0x53, 0x4d, 0x42, 0x49, 0x4f, 0x53, 0x55, 0x55, 0x49, 0x44)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.SMBIOSUUID)
+	if err != nil {
+		err = msgp.WrapError(err, "SMBIOSUUID")
 		return
 	}
 	// write "Domain"
@@ -2940,13 +2956,16 @@ func (z *Machine) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Machine) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 27
+	// map header, size 28
 	// string "Name"
-	o = append(o, 0xde, 0x0, 0x1b, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+	o = append(o, 0xde, 0x0, 0x1c, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Name)
 	// string "LocalSID"
 	o = append(o, 0xa8, 0x4c, 0x6f, 0x63, 0x61, 0x6c, 0x53, 0x49, 0x44)
 	o = msgp.AppendString(o, z.LocalSID)
+	// string "SMBIOSUUID"
+	o = append(o, 0xaa, 0x53, 0x4d, 0x42, 0x49, 0x4f, 0x53, 0x55, 0x55, 0x49, 0x44)
+	o = msgp.AppendString(o, z.SMBIOSUUID)
 	// string "Domain"
 	o = append(o, 0xa6, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e)
 	o = msgp.AppendString(o, z.Domain)
@@ -3056,6 +3075,12 @@ func (z *Machine) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.LocalSID, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "LocalSID")
+				return
+			}
+		case "SMBIOSUUID":
+			z.SMBIOSUUID, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SMBIOSUUID")
 				return
 			}
 		case "Domain":
@@ -3235,7 +3260,7 @@ func (z *Machine) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Machine) Msgsize() (s int) {
-	s = 3 + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.LocalSID) + 7 + msgp.StringPrefixSize + len(z.Domain) + 18 + msgp.StringPrefixSize + len(z.ComputerDomainSID) + 13 + msgp.StringPrefixSize + len(z.Architecture) + 12 + msgp.StringPrefixSize + len(z.ProductName) + 12 + msgp.StringPrefixSize + len(z.ProductType) + 13 + msgp.StringPrefixSize + len(z.ProductSuite) + 10 + msgp.StringPrefixSize + len(z.EditionID) + 10 + msgp.StringPrefixSize + len(z.ReleaseID) + 12 + msgp.StringPrefixSize + len(z.BuildBranch) + 8 + msgp.StringPrefixSize + len(z.Version) + 12 + msgp.StringPrefixSize + len(z.BuildNumber) + 15 + msgp.StringPrefixSize + len(z.DisplayVersion) + 9 + msgp.StringPrefixSize + len(z.BuildLab) + 7 + msgp.StringPrefixSize + len(z.LCUVer) + 16 + msgp.StringPrefixSize + len(z.DefaultUsername) + 14 + msgp.StringPrefixSize + len(z.DefaultDomain) + 19 + msgp.StringPrefixSize + len(z.AltDefaultUsername) + 17 + msgp.StringPrefixSize + len(z.AltDefaultDomain) + 16 + msgp.StringPrefixSize + len(z.SCCMLastValidMP) + 9 + msgp.StringPrefixSize + len(z.WUServer) + 15 + msgp.StringPrefixSize + len(z.WUStatusServer) + 9 + msgp.ArrayHeaderSize
+	s = 3 + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.LocalSID) + 11 + msgp.StringPrefixSize + len(z.SMBIOSUUID) + 7 + msgp.StringPrefixSize + len(z.Domain) + 18 + msgp.StringPrefixSize + len(z.ComputerDomainSID) + 13 + msgp.StringPrefixSize + len(z.Architecture) + 12 + msgp.StringPrefixSize + len(z.ProductName) + 12 + msgp.StringPrefixSize + len(z.ProductType) + 13 + msgp.StringPrefixSize + len(z.ProductSuite) + 10 + msgp.StringPrefixSize + len(z.EditionID) + 10 + msgp.StringPrefixSize + len(z.ReleaseID) + 12 + msgp.StringPrefixSize + len(z.BuildBranch) + 8 + msgp.StringPrefixSize + len(z.Version) + 12 + msgp.StringPrefixSize + len(z.BuildNumber) + 15 + msgp.StringPrefixSize + len(z.DisplayVersion) + 9 + msgp.StringPrefixSize + len(z.BuildLab) + 7 + msgp.StringPrefixSize + len(z.LCUVer) + 16 + msgp.StringPrefixSize + len(z.DefaultUsername) + 14 + msgp.StringPrefixSize + len(z.DefaultDomain) + 19 + msgp.StringPrefixSize + len(z.AltDefaultUsername) + 17 + msgp.StringPrefixSize + len(z.AltDefaultDomain) + 16 + msgp.StringPrefixSize + len(z.SCCMLastValidMP) + 9 + msgp.StringPrefixSize + len(z.WUServer) + 15 + msgp.StringPrefixSize + len(z.WUStatusServer) + 9 + msgp.ArrayHeaderSize
 	for za0001 := range z.AppCache {
 		s += msgp.BytesPrefixSize + len(z.AppCache[za0001])
 	}

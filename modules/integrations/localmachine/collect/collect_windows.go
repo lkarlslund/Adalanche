@@ -101,6 +101,9 @@ func collectMachine(env *Env) func(*Result) {
 	if domain != nil {
 		machineinfo.Domain = winapi.UTF16toString(domain)
 	}
+	smbiosuuid, err := collectSMBIOSUUID()
+	outcomes["machine/smbios-uuid"] = basedata.CollectionResultFromError(err)
+	machineinfo.SMBIOSUUID = smbiosuuid
 
 	currentversion_key, err := openLocalMachineKey(`SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.READ)
 	outcomes["machine/version"] = basedata.CollectionResultFromError(err)

@@ -78,7 +78,12 @@ func TestMachineImportResolvesLocalPrincipalsInScope(t *testing.T) {
 	if admins, _ := g.FindMulti(activedirectory.ObjectSid, engine.NVSID(windowssecurity.AdministratorsSID)); admins.Len() != 2 {
 		t.Errorf("got %v Administrators nodes, want one per machine", admins.Len())
 	}
-	if _, err := importMachine(g, syntheticMachine("HOST03", "S-1-5-21-777-888-999", "S-1-5-21-900-901-902-1101")); err == nil {
-		t.Error("a second collection with the same domain SID was imported")
+	// A collection claiming an account another collection claims is a
+	// machine of its own; which one is current is decided before the merge.
+	if _, err := importMachine(g, syntheticMachine("HOST03", "S-1-5-21-777-888-999", "S-1-5-21-900-901-902-1101")); err != nil {
+		t.Fatal(err)
+	}
+	if machines := adanalyze.MachinesForComputer(g, windowssecurity.MustParseStringSID("S-1-5-21-900-901-902-1101")); len(machines) != 2 {
+		t.Errorf("got %v machines for the shared account, want 2", len(machines))
 	}
 }

@@ -70,12 +70,14 @@ func addLAPSv2Edges(tx *engine.Tx) {
 		if machinesid.IsBlank() {
 			ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 		}
-		machine, found := tx.Find(DomainJoinedSID, engine.NV(machinesid))
-		if !found {
+		machines := MachinesForComputer(tx, machinesid)
+		if len(machines) == 0 {
 			ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v2", machinesid)
 			return true
 		}
-		tx.Node(machine).Tag("laps")
+		for _, machine := range machines {
+			tx.Node(machine).Tag("laps")
+		}
 
 		uac, _ := o.AttrInt(activedirectory.UserAccountControl)
 		isDC := uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0
@@ -84,7 +86,10 @@ func addLAPSv2Edges(tx *engine.Tx) {
 				continue
 			}
 			for _, sid := range PrincipalsGranted(sd, o, rights[g.attribute], g.attribute, tx) {
-				tx.EdgeTo(aceTrustee(tx, sd, sid, o), machine, g.edge)
+				trustee := aceTrustee(tx, sd, sid, o)
+				for _, machine := range machines {
+					tx.EdgeTo(trustee, machine, g.edge)
+				}
 			}
 		}
 		return true

@@ -30,8 +30,12 @@ type Info struct {
 	UnprivilegedCollection bool `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
 }
 type Machine struct {
-	Name              string `json:",omitempty"`
-	LocalSID          string `json:",omitempty"`
+	Name     string `json:",omitempty"`
+	LocalSID string `json:",omitempty"`
+	// SMBIOSUUID is the system UUID from the firmware. Unlike the machine SID
+	// it changes when a virtual machine is cloned, so two collections with
+	// the same SIDs but different UUIDs are different machines.
+	SMBIOSUUID        string `json:",omitempty"`
 	Domain            string `json:",omitempty"`
 	ComputerDomainSID string `json:",omitempty"`
 	Architecture      string `json:",omitempty"`

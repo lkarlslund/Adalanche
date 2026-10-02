@@ -102,6 +102,10 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	debug.FreeOSMemory()
 	overallprogress.Add(1)
 
+	if err := prepareMerge(graphsToMerge); err != nil {
+		return nil, err
+	}
+
 	// Merging all subgraphs into the globalGraph
 	globalGraph, err := MergeGraphs(graphsToMerge)
 	if err != nil {

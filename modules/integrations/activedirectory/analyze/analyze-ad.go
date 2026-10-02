@@ -69,7 +69,7 @@ var (
 	MemberOfIndirect = engine.NewAttribute("memberOfIndirect")
 
 	ObjectTypeMachine = engine.NewObjectType("Machine", "Machine")
-	DomainJoinedSID   = engine.NewAttribute("domainJoinedSid").Flag(engine.Single, engine.Merge)
+	DomainJoinedSID   = engine.NewAttribute("domainJoinedSid").Flag(engine.Single)
 	DnsHostName       = engine.NewAttribute("dnsHostName")
 
 	EdgeAuthenticatesAs  = engine.NewEdge("AuthenticatesAs")
@@ -703,17 +703,22 @@ func init() {
 			if computerSid.IsBlank() {
 				ui.Fatal().Msgf("Computer account %v has no objectSID", o.DN())
 			}
-			machine, found := tx.Find(DomainJoinedSID, engine.NV(computerSid))
-			if !found {
+			machines := MachinesForComputer(tx, computerSid)
+			if len(machines) == 0 {
 				ui.Error().Msgf("Could not locate machine for domain SID %v while processing LAPS v1", computerSid)
 				return true
 			}
-			tx.Node(machine).Tag("laps")
+			for _, machine := range machines {
+				tx.Node(machine).Tag("laps")
+			}
 
 			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
 			// control access rights.
 			for _, sid := range PrincipalsGranted(sd, o, readRights, lapsGUID, tx) {
-				tx.EdgeTo(aceTrustee(tx, sd, sid, o), machine, activedirectory.EdgeReadLAPSPassword)
+				trustee := aceTrustee(tx, sd, sid, o)
+				for _, machine := range machines {
+					tx.EdgeTo(trustee, machine, activedirectory.EdgeReadLAPSPassword)
+				}
 			}
 			return true
 		})
@@ -1085,6 +1090,7 @@ func init() {
 			machine, _ := tx.FindOrAdd(
 				DomainJoinedSID, sid,
 				engine.IgnoreBlanks,
+				attrs.PrimaryMachineFor, sid,
 				engine.Name, computeraccount.Attr(engine.Name),
 				activedirectory.Type, ObjectTypeMachine.ValueString(),
 				DnsHostName, computeraccount.Attr(DnsHostName),
@@ -1339,11 +1345,11 @@ func init() {
 				if uac&engine.UAC_SERVER_TRUST_ACCOUNT != 0 {
 					// Domain Controller
 					// find the machine object for this
-					machine, found := tx.FindTwo(engine.Type, engine.NV("Machine"),
-						DomainJoinedSID, engine.NV(object.SID()))
-					if !found {
+					machines := MachinesForComputer(tx, object.SID())
+					if len(machines) == 0 {
 						ui.Warn().Msgf("Can not find machine object for DC %v", object.DN())
-					} else {
+					}
+					for _, machine := range machines {
 						tx.Node(machine).Tag("role_domaincontroller")
 						tx.Node(machine).Tag("hvt")
 
@@ -1377,11 +1383,11 @@ func init() {
 
 				if object.HasAttrValue(activedirectory.PrimaryGroupID, engine.NV(521)) {
 					// Read Only Domain Controller
-					machine, found := tx.FindTwo(engine.Type, engine.NV("Machine"),
-						DomainJoinedSID, engine.NV(object.SID()))
-					if !found {
+					machines := MachinesForComputer(tx, object.SID())
+					if len(machines) == 0 {
 						ui.Warn().Msgf("Can not find machine object for RODC %v", object.DN())
-					} else {
+					}
+					for _, machine := range machines {
 						tx.Node(machine).Tag("role_readonly_domaincontroller")
 						tx.Node(machine).Tag("hvt")
 					}
