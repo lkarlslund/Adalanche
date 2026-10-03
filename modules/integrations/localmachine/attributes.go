@@ -4,6 +4,8 @@ import "github.com/lkarlslund/adalanche/modules/engine"
 
 var (
 	InstalledSoftware = engine.NewAttribute("installedSoftware")
+	InstalledServices = engine.NewAttribute("services").SetDescription("Names of the machine's services")
+	InstalledTasks    = engine.NewAttribute("scheduledTasks").SetDescription("Names of the machine's scheduled tasks")
 	MACAddress        = engine.NewAttribute("mACAddress").Flag(engine.Merge, engine.Fuzzy)
 	CollectedSettings = engine.NewAttribute("collectedSettings")
 	CollectedAt       = engine.NewAttribute("collectedAt").Flag(engine.Single).SetDescription("When the machine collection was made")

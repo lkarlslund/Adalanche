@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"encoding/binary"
+	"slices"
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -71,10 +72,16 @@ func TestServiceAdminOnly(t *testing.T) {
 		{"service-owner", func(s *localmachine.Service) { s.SecurityDescriptor = serviceTestDescriptor(user, s.RegistryDACL) }, false},
 		{"generic-write", func(s *localmachine.Service) { s.RegistryDACL = grant(0x40000000) }, false},
 		{"write-dacl", func(s *localmachine.Service) { s.RegistryDACL = grant(engine.RIGHT_WRITE_DACL) }, false},
-		{"missing-file", func(s *localmachine.Service) { s.ImageExecutableDACL = nil }, false},
-		{"missing-registry", func(s *localmachine.Service) { s.RegistryDACL = nil }, false},
-		{"missing-service", func(s *localmachine.Service) { s.SecurityDescriptor = nil }, false},
-		{"unknown-owner", func(s *localmachine.Service) { s.RegistryOwner = "" }, false},
+		// Fields that were not collected are not evaluated; only data we
+		// have is acted on, and it gives the graph no edges either.
+		{"missing-file", func(s *localmachine.Service) { s.ImageExecutableDACL = nil }, true},
+		{"missing-registry", func(s *localmachine.Service) { s.RegistryDACL = nil }, true},
+		{"missing-service", func(s *localmachine.Service) { s.SecurityDescriptor = nil }, true},
+		{"unknown-owner", func(s *localmachine.Service) { s.RegistryOwner = "" }, true},
+		{"missing-service-file-write", func(s *localmachine.Service) {
+			s.SecurityDescriptor = nil
+			s.ImageExecutableDACL = grant(engine.FILE_WRITE_DATA)
+		}, false},
 		{"malformed-acl", func(s *localmachine.Service) { s.RegistryDACL = []byte{99, 0, 8, 0, 0, 0, 0, 0} }, false},
 		{"null-dacl", func(s *localmachine.Service) { binary.LittleEndian.PutUint32(s.SecurityDescriptor[16:20], 0) }, false},
 		{"inherit-only", func(s *localmachine.Service) {
@@ -84,7 +91,7 @@ func TestServiceAdminOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := adminOnlyServiceFixture()
 			tc.edit(&s)
-			if got := serviceAdminOnly(s); got != tc.skip {
+			if got := serviceAdminOnly(s, localAdministratorSID); got != tc.skip {
 				t.Fatalf("skip=%v want %v", got, tc.skip)
 			}
 		})
@@ -199,5 +206,67 @@ func TestLocalObjectsHaveNoExplorerContainers(t *testing.T) {
 	})
 	if children < 4 {
 		t.Fatal("fixture did not exercise local children")
+	}
+}
+
+// TrustedInstaller counts as one of the machine's admins only where the
+// TrustedInstaller service itself is admin-only.
+func TestTrustedInstallerIsAdminWhereItsServiceIsAdminOnly(t *testing.T) {
+	trustedInstallerOwned := adminOnlyServiceFixture()
+	trustedInstallerOwned.ImageExecutableOwner = trustedInstallerSID.String()
+	trustedInstaller := adminOnlyServiceFixture()
+	trustedInstaller.Name = "TrustedInstaller"
+	trustedInstaller.ImageExecutableOwner = trustedInstallerSID.String() // as on Windows
+
+	if serviceAdminOnly(trustedInstallerOwned, machineAdmins(nil)) {
+		t.Fatal("TrustedInstaller counted as admin without its service")
+	}
+	if !serviceAdminOnly(trustedInstallerOwned, machineAdmins([]localmachine.Service{trustedInstaller})) {
+		t.Fatal("TrustedInstaller not counted as admin with an admin-only service")
+	}
+	user := windowssecurity.MustParseStringSID("S-1-5-21-1-2-3-1001")
+	open := trustedInstaller
+	open.RegistryDACL = serviceTestACL(engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: user, Mask: engine.KEY_SET_VALUE})
+	if serviceAdminOnly(trustedInstallerOwned, machineAdmins([]localmachine.Service{open})) {
+		t.Fatal("TrustedInstaller counted as admin although others can change its service")
+	}
+}
+
+// An admin-only service is not a node: the machine lists it with its start
+// type and authenticates as its account. A service someone else can change
+// stays a node.
+func TestAdminOnlyServiceIsInventoryAndAnEdge(t *testing.T) {
+	info := syntheticMachine("HOST01", "S-1-5-21-111-222-333", "S-1-5-21-900-901-902-1101")
+	adminOnly := adminOnlyServiceFixture()
+	adminOnly.Start = 2
+	open := adminOnlyServiceFixture()
+	open.Name = "OpenService"
+	open.ImageExecutableDACL = serviceTestACL(engine.ACE{Type: engine.ACETYPE_ACCESS_ALLOWED, SID: windowssecurity.AuthenticatedUsersSID, Mask: engine.FILE_WRITE_DATA})
+	info.Services = localmachine.Services{adminOnly, open}
+	g := engine.NewIndexedGraph()
+	machine, err := importMachine(g, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	services := map[string]bool{}
+	g.Iterate(func(n *engine.Node) bool {
+		if n.Type() == engine.NodeTypeService {
+			services[n.OneAttrString(engine.Name)] = true
+		}
+		return true
+	})
+	if services["SyntheticService"] || !services["OpenService"] {
+		t.Fatalf("service nodes %v, want only the one others can change", services)
+	}
+	if !slices.Contains(machine.Attr(localmachine.InstalledServices).StringSlice(), "SyntheticService (automatic)") {
+		t.Fatal("the admin-only service is missing from the machine's inventory")
+	}
+	runsAsSystem := false
+	g.IterateEdges(machine, engine.Out, func(target *engine.Node, edges engine.EdgeBitmap) bool {
+		runsAsSystem = runsAsSystem || (target.SID() == windowssecurity.SystemSID && edges.IsSet(ad.EdgeAuthenticatesAs))
+		return true
+	})
+	if !runsAsSystem {
+		t.Fatal("the machine does not authenticate as the admin-only service's account")
 	}
 }

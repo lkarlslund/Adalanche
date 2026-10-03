@@ -49,7 +49,8 @@ func TestDatasetSnapshot(t *testing.T) {
 	}
 
 	ids := map[*engine.Node]string{}
-	id := func(n *engine.Node) string {
+	var id func(n *engine.Node) string
+	id = func(n *engine.Node) string {
 		if h, found := ids[n]; found {
 			return h
 		}
@@ -60,7 +61,12 @@ func TestDatasetSnapshot(t *testing.T) {
 		case !n.SID().IsBlank():
 			key = "sid|" + n.SID().String() + "|" + strings.ToLower(n.OneAttrString(engine.DomainContext)) + "|" + n.OneAttrString(engine.DataSource)
 		default:
+			// Nodes without a DN or SID, such as a machine's services and
+			// executables, are told apart by where they are in the tree.
 			key = "other|" + n.Type().String() + "|" + strings.ToLower(n.Label()) + "|" + n.OneAttrString(engine.DataSource)
+			if parent := n.Parent(); parent != nil {
+				key += "|" + id(parent)
+			}
 		}
 		sum := sha256.Sum256([]byte(key))
 		h := hex.EncodeToString(sum[:8])

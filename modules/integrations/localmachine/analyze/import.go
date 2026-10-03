@@ -521,8 +521,9 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	// Keep the security principal, but create it only for retained services.
 	var localservicesgroup engine.TxNode
 	var skippedServiceSIDs []windowssecurity.SID
+	admin := machineAdmins(cinfo.Services)
 	for _, service := range cinfo.Services {
-		keepService := !serviceAdminOnly(service)
+		keepService := !serviceAdminOnly(service, admin)
 		var serviceobject, serviceexecutable engine.TxNode
 		if keepService {
 			if !localservicesgroup.Valid() {
@@ -549,17 +550,8 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			if service.Start < 3 {
 				serviceobject.Tag("service_autostart")
 			}
-			switch service.Start {
-			case 0:
-				serviceobject.Tag("service_boot")
-			case 1:
-				serviceobject.Tag("service_system")
-			case 2:
-				serviceobject.Tag("service_automatic")
-			case 3:
-				serviceobject.Tag("service_manual")
-			case 4:
-				serviceobject.Tag("service_disabled")
+			if start := serviceStartName(service.Start); start != "unknown" {
+				serviceobject.Tag("service_" + start)
 			}
 			serviceobject.ChildOf(machine)
 			tx.EdgeTo(serviceobject, localservicesgroup, EdgeMemberOfGroup)
@@ -725,77 +717,27 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	}
 
 	// SCHEDULED TASKS
-	if len(cinfo.Tasks) > 0 {
-		for _, task := range cinfo.Tasks {
-			taskobject := tx.AddNew(
-				engine.IgnoreBlanks,
-				activedirectory.Name, task.Name,
-				activedirectory.Description, task.Definition.RegistrationInfo.Description,
-				// ScheduledTaskPath, task.Path,
-				// engine.Enabled, task.Enabled,
-				engine.Type, "ScheduledTask",
-			)
-			taskobject.ChildOf(machine)
-			tx.EdgeTo(machine, taskobject, EdgeHosts)
-			importTaskExecution(tx, machine, taskobject, task)
-			switch task.Definition.Principal.LogonType {
-			case TASK_LOGON_GROUP:
-				// When someone that is a member of the group is logged in
-				// task.Definition.Principal.GroupID == "Everyone"
-			case TASK_LOGON_SERVICE_ACCOUNT:
-				if task.Definition.Principal.UserID == "LOCAL SERVICE" {
-					// "LOCAL SERVICE"
-				}
-				if task.Enabled && task.Definition.Settings.Enabled && task.Definition.Principal.UserID == "SYSTEM" && task.Definition.Principal.RunLevel == 1 {
-					// Elevated as system
-					system := tx.FindOrAddAdjacentSID(windowssecurity.SystemSID, machine)
-					tx.EdgeTo(taskobject, system, analyze.EdgeAuthenticatesAs)
-				}
-				if strings.HasPrefix(task.Definition.Principal.UserID, "\\") {
-					ui.Debug().Msgf("Odd service account in scheduled task %v: %v", task.Name, task.Definition.Principal.UserID)
-				}
-			}
+	for _, task := range cinfo.Tasks {
+		importTask(tx, machine, task, admin)
+	}
 
-			// DACL that can change the task
-			if task.Definition.RegistrationInfo.SecurityDescriptor != "" {
-				if sd, err := engine.ParseSDDL(task.Definition.RegistrationInfo.SecurityDescriptor); err == nil && plainAllowACL(sd) {
-					for _, entry := range sd.Entries {
-						entrysid := entry.SID
-						if entrysid == windowssecurity.AdministratorsSID || entrysid == windowssecurity.SystemSID || entrysid.Component(2) == 80 /* Service user */ {
-							// if we have local admin it's already game over so don't map this
-							continue
-						}
-						if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
-							var sidNode engine.TxNode
-							if entry.Mask&engine.WRITE_DAC == engine.WRITE_DAC {
-								if !sidNode.Valid() {
-									sidNode = tx.FindOrAddAdjacentSID(entrysid, machine)
-								}
-								tx.EdgeTo(sidNode, taskobject, activedirectory.EdgeWriteDACL)
-							}
-							if entry.Mask&engine.WRITE_OWNER == engine.WRITE_OWNER {
-								if !sidNode.Valid() {
-									sidNode = tx.FindOrAddAdjacentSID(entrysid, machine)
-								}
-								tx.EdgeTo(sidNode, taskobject, activedirectory.EdgeTakeOwnership)
-							}
-							if entry.Mask&(engine.TASK_WRITE|engine.Mask(0x40000000)) != 0 {
-								if !sidNode.Valid() {
-									sidNode = tx.FindOrAddAdjacentSID(entrysid, machine)
-								}
-								tx.EdgeTo(sidNode, taskobject, activedirectory.EdgeWriteAll)
-							}
-							if entry.Mask&engine.TASK_FULL_CONTROL == engine.TASK_FULL_CONTROL || entry.Mask&0x10000000 != 0 {
-								if !sidNode.Valid() {
-									sidNode = tx.FindOrAddAdjacentSID(entrysid, machine)
-								}
-								tx.EdgeTo(sidNode, taskobject, activedirectory.EdgeGenericAll)
-							}
-						}
-					}
-				}
+	// SERVICE AND TASK INVENTORY AS ATTRIBUTES: services and tasks that
+	// only the machine's admins control are not nodes of their own.
+	if len(cinfo.Services) > 0 {
+		names := make([]string, len(cinfo.Services))
+		for i, service := range cinfo.Services {
+			names[i] = service.Name + " (" + serviceStartName(service.Start) + ")"
+		}
+		machine.SetFlex(localmachine.InstalledServices, names)
+	}
+	if len(cinfo.Tasks) > 0 {
+		names := make([]string, 0, len(cinfo.Tasks))
+		for _, task := range cinfo.Tasks {
+			if task.Name != "" {
+				names = append(names, task.Name)
 			}
 		}
+		machine.SetFlex(localmachine.InstalledTasks, names)
 	}
 
 	// SOFTWARE INVENTORY AS ATTRIBUTES
