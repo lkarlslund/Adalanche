@@ -83,7 +83,12 @@ func TestGPOImportBuildsTreeInOneTransaction(t *testing.T) {
 	if !found {
 		t.Fatal("member node missing")
 	}
-	requireEdgeSet(t, graph, member, gpo, activedirectory.EdgeLocalAdminRights)
+	// The grant is kept on the policy; it becomes rights on the machines the
+	// policy applies to once those are known.
+	requireNoEdgeSet(t, graph, member, gpo, activedirectory.EdgeLocalAdminRights)
+	if grants := gpo.Attr(GPOLocalGroupMemberSID).StringSlice(); len(grants) != 1 || grants[0] != "S-1-5-32-544|S-1-5-21-1-2-3-1105|"+gpoGroupPreference {
+		t.Fatalf("recorded grants %v", grants)
+	}
 }
 
 // A policy whose import fails adds nothing to the graph.

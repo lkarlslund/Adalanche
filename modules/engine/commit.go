@@ -109,6 +109,7 @@ func (g *IndexedGraph) commitCollection(tx *Tx) error {
 	}
 	// Edges to nodes that were already in the graph go the usual way.
 	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(outside))
+	g.applyProvenance(staged.appendProvenance(tx, nil))
 	return err
 }
 
@@ -207,6 +208,11 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 		mutations = c.appendEdgeWrites(tx, mutations)
 	}
 	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(mutations))
+	var causes []provenanceWrite
+	for _, tx := range txs {
+		causes = c.appendProvenance(tx, causes)
+	}
+	g.applyProvenance(causes)
 	steps.mark("edges")
 	g.dropIndexesFor(c.changedAttrs)
 	steps.mark("indexes")
@@ -517,6 +523,23 @@ func sameValues(a, b AttributeValues) bool {
 		}
 	}
 	return true
+}
+
+// appendProvenance resolves the causes staged with the transaction's edges.
+func (c *committer) appendProvenance(tx *Tx, writes []provenanceWrite) []provenanceWrite {
+	for _, pe := range tx.edgeSeq {
+		if len(pe.sources) == 0 {
+			continue
+		}
+		from, to := c.resolve(pe.from), c.resolve(pe.to)
+		if from == nil || to == nil {
+			continue
+		}
+		for _, source := range pe.sources {
+			writes = append(writes, provenanceWrite{from, to, source.edge, EdgeSource{source.kind, c.resolve(source.about), source.detail}})
+		}
+	}
+	return writes
 }
 
 func (c *committer) appendEdgeWrites(tx *Tx, mutations []nodeEdgeMutation) []nodeEdgeMutation {

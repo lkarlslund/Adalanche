@@ -238,15 +238,16 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 		switch relativepath {
 		case "/machine/preferences/groups/groups.xml", "/machine/microsoft/windows nt/secedit/gpttmpl.inf":
 			var pairs []SIDpair
-
+			setting := gpoGroupPreference
 			if strings.HasSuffix(relativepath, ".xml") {
 				pairs = GPOparseGroups(string(item.Contents))
 			} else if strings.HasSuffix(relativepath, ".inf") {
 				pairs = GPOparseGptTmplInf(string(item.Contents))
+				setting = gpoRestrictedGroups
 			}
 
 			for _, sidpair := range pairs {
-				edge, known := localGroupEdge(sidpair.GroupSID)
+				_, known := localGroupEdge(sidpair.GroupSID)
 				if !known {
 					if sidpair.GroupSID == "" {
 						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
@@ -260,12 +261,14 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 						ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
 						continue
 					}
-					member := tx.FindOrAddAdjacentSID(membersid, gpoobject)
-					tx.EdgeTo(member, gpoobject, edge)
+					// The member gets the right on the machines the GPO
+					// applies to, which are known after merge.
+					tx.FindOrAddAdjacentSID(membersid, gpoobject)
+					gpoobject.Add(GPOLocalGroupMemberSID, engine.NV(gpoGrant{sidpair.GroupSID, membersid.String(), setting}.value()))
 				case sidpair.MemberName != "":
 					// Names, including ones with preference variables, are
 					// resolved after merge when the whole directory is known.
-					gpoobject.Add(GPOLocalGroupMember, engine.NV(sidpair.GroupSID+"|"+sidpair.MemberName))
+					gpoobject.Add(GPOLocalGroupMember, engine.NV(gpoGrant{sidpair.GroupSID, sidpair.MemberName, setting}.value()))
 				}
 			}
 

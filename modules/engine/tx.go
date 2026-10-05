@@ -109,11 +109,20 @@ type endpoint struct {
 
 type pendingEdge struct {
 	from, to   endpoint
+	sources    []pendingSource // why, see EdgeBecause
 	set        EdgeBitmap // bits to set
 	clear      EdgeBitmap // bits to clear
 	replace    bool       // replace the existing bitmap with set
 	force      bool       // keep edges between nodes for the same SID
 	unfiltered bool       // set as a bitmap: no filtering at all, like IndexedGraph.SetEdge
+}
+
+// pendingSource is a cause staged with an edge.
+type pendingSource struct {
+	edge   Edge
+	kind   SourceKind
+	about  endpoint
+	detail string
 }
 
 // NodeRef is anything a transaction can resolve to a node: a node read from
@@ -362,6 +371,12 @@ func (n TxNode) ChildOf(parent NodeRef) TxNode {
 // EdgeTo adds an edge from this node to another.
 func (n TxNode) EdgeTo(to NodeRef, edge Edge) TxNode {
 	n.tx.EdgeTo(n, to, edge)
+	return n
+}
+
+// EdgeBecause adds an edge from this node to another and records why.
+func (n TxNode) EdgeBecause(to NodeRef, edge Edge, source Source) TxNode {
+	n.tx.EdgeBecause(n, to, edge, source)
 	return n
 }
 
@@ -918,6 +933,19 @@ func (tx *Tx) EdgeTo(from, to NodeRef, edge Edge) {
 	pe.clear = pe.clear.Clear(edge)
 }
 
+// EdgeBecause adds an edge and records why it exists. An edge can have
+// several causes; each is kept.
+func (tx *Tx) EdgeBecause(from, to NodeRef, edge Edge, source Source) {
+	pe := tx.pendingEdgeFor(from, to)
+	pe.set = pe.set.Set(edge)
+	pe.clear = pe.clear.Clear(edge)
+	var about endpoint
+	if source.About != nil {
+		about = source.About.endpointIn(tx)
+	}
+	pe.sources = append(pe.sources, pendingSource{edge, source.Kind, about, source.Detail})
+}
+
 // EdgeToEx is EdgeTo that, when forced, keeps edges between nodes for the
 // same SID.
 func (tx *Tx) EdgeToEx(from, to NodeRef, edge Edge, force bool) {
@@ -931,6 +959,20 @@ func (tx *Tx) EdgeClear(from, to NodeRef, edge Edge) {
 	pe := tx.pendingEdgeFor(from, to)
 	pe.set = pe.set.Clear(edge)
 	pe.clear = pe.clear.Set(edge)
+}
+
+// SetEdgeBecause merges a whole edge bitmap into the existing one, like
+// SetEdge, and records the same cause for each edge type in it.
+func (tx *Tx) SetEdgeBecause(from, to NodeRef, eb EdgeBitmap, source Source) {
+	tx.SetEdge(from, to, eb, true)
+	pe := tx.pendingEdgeFor(from, to)
+	var about endpoint
+	if source.About != nil {
+		about = source.About.endpointIn(tx)
+	}
+	for _, edge := range eb.Edges() {
+		pe.sources = append(pe.sources, pendingSource{edge, source.Kind, about, source.Detail})
+	}
 }
 
 // SetEdge sets a whole edge bitmap, merged into the existing one or
@@ -1039,6 +1081,11 @@ func (tx *Tx) absorb(other *Tx) {
 		if existing == nil {
 			moved := *pe
 			moved.from, moved.to = key[0], key[1]
+			moved.sources = make([]pendingSource, len(pe.sources))
+			for i, source := range pe.sources {
+				source.about = mapEndpoint(source.about)
+				moved.sources[i] = source
+			}
 			tx.edges[key] = &moved
 			tx.edgeSeq = append(tx.edgeSeq, &moved)
 			continue
@@ -1051,6 +1098,10 @@ func (tx *Tx) absorb(other *Tx) {
 		}
 		existing.force = existing.force || pe.force
 		existing.unfiltered = existing.unfiltered || pe.unfiltered
+		for _, source := range pe.sources {
+			source.about = mapEndpoint(source.about)
+			existing.sources = append(existing.sources, source)
+		}
 	}
 }
 

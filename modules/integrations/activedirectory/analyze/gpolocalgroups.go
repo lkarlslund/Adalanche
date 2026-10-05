@@ -11,10 +11,14 @@ import (
 )
 
 var (
-	// GPOLocalGroupMember holds "<local group SID>|<member name>" for
-	// computer-side GPO memberships that name the member instead of giving
-	// its SID. The name can contain preference variables.
+	// GPOLocalGroupMember holds "<local group SID>|<member name>|<setting>"
+	// for computer-side GPO memberships that name the member instead of
+	// giving its SID. The name can contain preference variables.
 	GPOLocalGroupMember = engine.NewAttribute("gpoLocalGroupMember")
+	// GPOLocalGroupMemberSID holds "<local group SID>|<member SID>|<setting>"
+	// for computer-side GPO memberships given by SID.
+	GPOLocalGroupMemberSID = engine.NewAttribute("gpoLocalGroupMemberSID")
+
 	// GPOUserLocalGroupMember holds the same for user-side preference items.
 	// These apply on the computers in-scope users log on to, so they are kept
 	// for reference and not turned into edges.
@@ -25,6 +29,49 @@ var (
 	// receives the literal %Name% (Variables in Preference Items).
 	unresolvedVariable = regexp.MustCompile(`(?i)%<([a-z]+)>%`)
 )
+
+// Settings that make local group members, as named in edge causes.
+const (
+	gpoRestrictedGroups = "Restricted Groups"
+	gpoGroupPreference  = "Local Users and Groups preference"
+)
+
+// localGroupName names the built-in local groups localGroupEdge knows.
+func localGroupName(groupSID string) string {
+	switch groupSID {
+	case "S-1-5-32-544":
+		return "Administrators"
+	case "S-1-5-32-562":
+		return "Distributed COM Users"
+	case "S-1-5-32-555":
+		return "Remote Desktop Users"
+	}
+	return groupSID
+}
+
+// gpoGrant is one local group membership a GPO setting gives.
+type gpoGrant struct {
+	groupSID, member, setting string
+}
+
+func parseGPOGrant(v string) gpoGrant {
+	groupSID, rest, _ := strings.Cut(v, "|")
+	member, setting, _ := strings.Cut(rest, "|")
+	return gpoGrant{groupSID, member, setting}
+}
+
+func (g gpoGrant) value() string {
+	return g.groupSID + "|" + g.member + "|" + g.setting
+}
+
+// cause is the edge cause for the grant made by gpo.
+func (g gpoGrant) cause(gpo engine.NodeRef) engine.Source {
+	setting := g.setting
+	if setting == "" {
+		setting = "Group Policy"
+	}
+	return engine.Source{Kind: SourceGPO, About: gpo, Detail: setting + ": member of " + localGroupName(g.groupSID)}
+}
 
 // localGroupEdge maps a built-in local group to the right membership grants.
 func localGroupEdge(groupSID string) (engine.Edge, bool) {
@@ -198,29 +245,26 @@ func gpoNetbiosDomain(ao engine.GraphReader, gpo *engine.Node) string {
 	return netbios
 }
 
-// resolveGPOLocalGroupMembers turns computer-side GPO memberships given by
-// name into edges. Plain names become edges to the GPO, like members given by
-// SID. Names with preference variables are expanded for each machine the GPO
-// applies to, and the resolved principal gets the right on that machine.
+// resolveGPOLocalGroupMembers turns computer-side GPO local group
+// memberships into rights on the machines the GPO applies to, each recording
+// the GPO and setting as its cause. Members are given by SID, by plain name,
+// or by a name with preference variables, which is expanded for each
+// machine. A GPO that applies to no machine keeps its grants as attributes.
 func resolveGPOLocalGroupMembers(tx *engine.Tx) {
 	resolver := newGPONameResolver(tx)
-	var resolved, perMachine, unresolved, unsupported int
+	var bySID, resolved, perMachine, unresolved, unsupported int
 
 	// Collect first: resolving adds nodes and edges, which cannot happen
 	// while the graph is being iterated.
 	var gpos []*engine.Node
 	tx.Iterate(func(o *engine.Node) bool {
-		if o.HasAttr(GPOLocalGroupMember) {
+		if o.HasAttr(GPOLocalGroupMember) || o.HasAttr(GPOLocalGroupMemberSID) {
 			gpos = append(gpos, o)
 		}
 		return true
 	})
 
 	for _, gpo := range gpos {
-		values := gpo.Attr(GPOLocalGroupMember)
-		netbios := gpoNetbiosDomain(tx, gpo)
-		domainContext := gpo.OneAttrString(engine.DomainContext)
-
 		var machines []*engine.Node
 		tx.Edges(gpo, engine.Out).Iterate(func(target *engine.Node, eb engine.EdgeBitmap) bool {
 			if eb.IsSet(activedirectory.EdgeAffectedByGPO) {
@@ -228,30 +272,54 @@ func resolveGPOLocalGroupMembers(tx *engine.Tx) {
 			}
 			return true
 		})
+		if len(machines) == 0 {
+			continue
+		}
+		grant := func(member engine.NodeRef, machine *engine.Node, edge engine.Edge, g gpoGrant) {
+			tx.EdgeBecause(member, machine, edge, g.cause(gpo))
+		}
 
-		values.Iterate(func(v engine.AttributeValue) bool {
-			groupSID, name, _ := strings.Cut(v.String(), "|")
-			literal := unresolvedVariable.ReplaceAllString(name, "%$1%")
-			edge, known := localGroupEdge(groupSID)
+		gpo.Attr(GPOLocalGroupMemberSID).Iterate(func(v engine.AttributeValue) bool {
+			g := parseGPOGrant(v.String())
+			edge, known := localGroupEdge(g.groupSID)
+			sid, err := windowssecurity.ParseStringSID(g.member)
+			if !known || err != nil {
+				return true
+			}
+			member := tx.FindOrAddAdjacentSID(sid, gpo)
+			for _, machine := range machines {
+				grant(member, machine, edge, g)
+			}
+			bySID++
+			return true
+		})
+
+		netbios := gpoNetbiosDomain(tx, gpo)
+		domainContext := gpo.OneAttrString(engine.DomainContext)
+		gpo.Attr(GPOLocalGroupMember).Iterate(func(v engine.AttributeValue) bool {
+			g := parseGPOGrant(v.String())
+			edge, known := localGroupEdge(g.groupSID)
 			if !known {
 				return true
 			}
-
+			name := g.member
+			literal := unresolvedVariable.ReplaceAllString(name, "%$1%")
 			if literal != name || !preferenceVariable.MatchString(name) {
-				name = literal
 				var member engine.NodeRef
-				if resolvedMember := resolver.resolve(name, netbios, domainContext); resolvedMember != nil {
+				if resolvedMember := resolver.resolve(literal, netbios, domainContext); resolvedMember != nil {
 					member = resolvedMember
 					resolved++
 				} else {
 					// Keep the grant visible even when the name is unknown.
-					member, _ = tx.FindOrAdd(engine.SAMAccountName, engine.NV(name),
-						engine.Name, engine.NV(name),
+					member, _ = tx.FindOrAdd(engine.SAMAccountName, engine.NV(literal),
+						engine.Name, engine.NV(literal),
 						engine.DataLoader, engine.NV("Autogenerated"),
 					)
 					unresolved++
 				}
-				tx.EdgeTo(member, gpo, edge)
+				for _, machine := range machines {
+					grant(member, machine, edge, g)
+				}
 				return true
 			}
 
@@ -267,7 +335,7 @@ func resolveGPOLocalGroupMembers(tx *engine.Tx) {
 					continue
 				}
 				if member := resolver.resolve(expanded, domainName, machineContext); member != nil {
-					tx.EdgeTo(member, machine, edge)
+					grant(member, machine, edge, g)
 					perMachine++
 				} else {
 					unresolved++
@@ -277,7 +345,7 @@ func resolveGPOLocalGroupMembers(tx *engine.Tx) {
 		})
 	}
 
-	if resolved+perMachine+unresolved+unsupported > 0 {
-		ui.Info().Msgf("GPO local group members given by name: %v resolved, %v resolved per machine from variables, %v not found, %v using variables that depend on the logged-on user or client", resolved, perMachine, unresolved, unsupported)
+	if bySID+resolved+perMachine+unresolved+unsupported > 0 {
+		ui.Info().Msgf("GPO local group members: %v given by SID, %v names resolved, %v resolved per machine from variables, %v not found, %v using variables that depend on the logged-on user or client", bySID, resolved, perMachine, unresolved, unsupported)
 	}
 }

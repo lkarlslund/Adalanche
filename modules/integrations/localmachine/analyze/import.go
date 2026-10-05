@@ -268,17 +268,18 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 						engine.DownLevelLogonName, member.Name,
 					)
 				}
-				tx.EdgeTo(memberobject, localGroup, activedirectory.EdgeMemberOfGroup)
+				inGroup := collected(machine, "local group "+group.Name)
+				tx.EdgeBecause(memberobject, localGroup, activedirectory.EdgeMemberOfGroup, inGroup)
 				switch {
 				case group.Name == "SMS Admins":
-					tx.EdgeTo(localGroup, machine, EdgeLocalSMSAdmins)
+					tx.EdgeBecause(localGroup, machine, EdgeLocalSMSAdmins, inGroup)
 				case groupsid == windowssecurity.AdministratorsSID:
-					tx.EdgeTo(localGroup, machine, EdgeLocalAdminRights)
+					tx.EdgeBecause(localGroup, machine, EdgeLocalAdminRights, inGroup)
 				case groupsid == windowssecurity.DCOMUsersSID:
-					tx.EdgeTo(localGroup, machine, EdgeLocalDCOMRights)
+					tx.EdgeBecause(localGroup, machine, EdgeLocalDCOMRights, inGroup)
 				case groupsid == windowssecurity.RemoteDesktopUsersSID:
 					if !locallyDeniedLogon(cinfo, groupsid.String(), "SeDenyRemoteInteractiveLogonRight") {
-						tx.EdgeTo(localGroup, machine, EdgeLocalRDPRights)
+						tx.EdgeBecause(localGroup, machine, EdgeLocalRDPRights, inGroup)
 					}
 				}
 				if memberobject.Node().HasAttr(engine.DataSource) {
@@ -380,7 +381,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			}
 			// Potential translation
 			assignee := tx.FindOrAddAdjacentSID(sid, machine)
-			tx.EdgeTo(assignee, machine, edge)
+			tx.EdgeBecause(assignee, machine, edge, collected(machine, "user right "+pi.Name))
 		}
 	}
 

@@ -223,9 +223,31 @@ type APINodeDetails struct {
 }
 
 type APIEdgeDetails struct {
-	From  APINodeDetails                `json:"from"`
-	To    APINodeDetails                `json:"to"`
-	Edges map[string]engine.Probability `json:"edges"`
+	From    APINodeDetails                `json:"from"`
+	To      APINodeDetails                `json:"to"`
+	Edges   map[string]engine.Probability `json:"edges"`
+	Sources []APIEdgeSource               `json:"sources,omitempty"`
+}
+
+// APIEdgeSource is one recorded cause of an edge type.
+type APIEdgeSource struct {
+	Edge   string      `json:"edge"`
+	Kind   string      `json:"kind"`
+	Detail string      `json:"detail,omitempty"`
+	About  *APINodeRef `json:"about,omitempty"`  // what the cause is about, such as the GPO
+	SetOn  *APINodeRef `json:"set_on,omitempty"` // where it was set, such as the object an inherited ACE came from
+}
+
+type APINodeRef struct {
+	ID    engine.NodeID `json:"id"`
+	Label string        `json:"label"`
+}
+
+func apiNodeRef(n *engine.Node) *APINodeRef {
+	if n == nil {
+		return nil
+	}
+	return &APINodeRef{ID: n.ID(), Label: n.Label()}
 }
 
 func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
@@ -282,6 +304,15 @@ func apiEdgeDetails(g *engine.IndexedGraph, from, to *engine.Node) (APIEdgeDetai
 		ed.Edges[e.String()] = e.Probability(from, to, &eb)
 		return true
 	})
+	for _, p := range g.EdgeSources(from, to) {
+		ed.Sources = append(ed.Sources, APIEdgeSource{
+			Edge:   p.Edge.String(),
+			Kind:   p.Source.Kind.String(),
+			Detail: p.Source.Detail,
+			About:  apiNodeRef(p.Source.About),
+			SetOn:  apiNodeRef(p.Source.Origin(from, to)),
+		})
+	}
 	return ed, true
 }
 

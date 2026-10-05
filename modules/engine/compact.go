@@ -101,6 +101,8 @@ func (g *IndexedGraph) compact(folded map[*Node]*Node) {
 		}
 		g.edges[direction] = edges
 	}
+	g.compactProvenance(remap, position, gone, len(kept))
+	g.sources.remap(final)
 	g.edgeVersion++
 
 	for n := range folded {
@@ -140,4 +142,51 @@ func (g *IndexedGraph) compact(folded map[*Node]*Node) {
 		wg.Go(func() { index.eachEntry(removeFolded) })
 	}
 	wg.Wait()
+}
+
+// compactProvenance moves edge causes to the new positions like outgoing
+// edges: a folded node's causes join the node it was folded into.
+func (g *IndexedGraph) compactProvenance(remap, position []NodeIndex, gone NodeIndex, kept int) {
+	old := g.provenance
+	if len(old) == 0 {
+		return
+	}
+	moved := make(provenanceIndex, kept)
+	rebuild := func(into map[NodeIndex][]edgeCause, from NodeIndex, targets map[NodeIndex][]edgeCause) map[NodeIndex][]edgeCause {
+		nf := remap[from]
+		for to, causes := range targets {
+			nt := remap[to]
+			if nt == gone || nf == nt {
+				continue
+			}
+			if into == nil {
+				into = make(map[NodeIndex][]edgeCause, len(targets))
+			}
+			for _, c := range causes {
+				if !slices.Contains(into[nt], c) {
+					into[nt] = append(into[nt], c)
+				}
+			}
+		}
+		return into
+	}
+	var wg sync.WaitGroup
+	workers := runtime.GOMAXPROCS(0)
+	chunk := (len(old) + workers - 1) / workers
+	for w := range workers {
+		wg.Go(func() {
+			for from := w * chunk; from < min(len(old), (w+1)*chunk); from++ {
+				if targets := old[from]; len(targets) > 0 && int(from) < len(position) && position[from] != gone {
+					moved[position[from]] = rebuild(moved[position[from]], NodeIndex(from), targets)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	for from, targets := range old {
+		if len(targets) > 0 && from < len(position) && position[from] == gone && remap[from] != gone {
+			moved[remap[from]] = rebuild(moved[remap[from]], NodeIndex(from), targets)
+		}
+	}
+	g.provenance = moved
 }

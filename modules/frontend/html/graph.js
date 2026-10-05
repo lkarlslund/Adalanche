@@ -521,6 +521,31 @@ function renderedges(methodmap) {
   return '<span class="badge text-dark" style="background-color: ' + probabilityToRGB(maxprob) + '">Edge ' + maxprob + "%</span>" + edgeoutput;
 }
 
+function escapeText(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+// Why the edges exist, as their writers recorded it.
+function renderedgesources(sources) {
+  if (!sources || sources.length === 0) {
+    return "";
+  }
+  const rows = sources.map(function (s) {
+    let row = "<li><b>" + escapeText(s.edge) + "</b>: " + escapeText(s.kind);
+    if (s.detail) {
+      row += ", " + escapeText(s.detail);
+    }
+    if (s.about) {
+      row += " (" + escapeText(renderlabel(s.about.label)) + ")";
+    }
+    if (s.set_on && (!s.about || s.set_on.id !== s.about.id)) {
+      row += ", set on " + escapeText(renderlabel(s.set_on.label));
+    }
+    return row + "</li>";
+  });
+  return '<ul class="edge-sources">' + rows.join("") + "</ul>";
+}
+
 function iconPathForType(type, nodeData) {
   const normalizedType = Array.isArray(type) ? String(type[0] || "") : String(type || "");
   if (nodeData && nodeData.account_inactive) {
@@ -1033,7 +1058,7 @@ function showEdgeDetails(edgeId) {
       new_window(
         windowname,
         "Edge from " + renderlabel(data[0].from.label) + " to " + renderlabel(data[0].to.label),
-        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges) + "<br>" + rendernode(data[0].to)
+        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges) + renderedgesources(data[0].sources) + "<br>" + rendernode(data[0].to)
       );
     })
     .catch(function (err) {
@@ -1166,7 +1191,7 @@ function findroute(sourceId) {
       let output = "";
       for (var i = 0; i < data.length; i++) {
         output += rendericon(data[i].from.attributes["type"], data[i].from.attributes) + renderlabel(data[i].from.label) + "<br>";
-        output += renderedges(data[i].edges) + "<br>";
+        output += renderedges(data[i].edges) + renderedgesources(data[i].sources) + "<br>";
         if (i == data.length - 1) {
           output += rendericon(data[i].to.attributes["type"], data[i].to.attributes) + renderlabel(data[i].to.label);
         }

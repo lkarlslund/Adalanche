@@ -65,13 +65,14 @@ func TestExpandComputerVariables(t *testing.T) {
 func TestGPOLocalGroupMembersResolveByNameAndPerMachine(t *testing.T) {
 	computerSID := mustSID(t, "S-1-5-21-111-222-333-1001")
 	gpo := engine.NewNode(engine.Name, "Local Admins", engine.DistinguishedName, "CN={66666666-6666-6666-6666-666666666666},CN=Policies,CN=System,DC=example,DC=com", engine.DomainContext, "DC=example,DC=com")
+	unlinked := engine.NewNode(engine.Name, "Unlinked", engine.DistinguishedName, "CN={77777777-7777-7777-7777-777777777777},CN=Policies,CN=System,DC=example,DC=com", engine.DomainContext, "DC=example,DC=com")
 	members := []string{
-		`S-1-5-32-544|EXAMPLE\%ComputerName%_Admins`,
-		`S-1-5-32-555|%DomainName%\RDP_%ComputerName%`,
-		`S-1-5-32-544|Helpdesk`,
-		`S-1-5-32-544|%<ComputerName>%_Admins`,
-		`S-1-5-32-544|%LogonUser%`,
-		`S-1-5-32-544|EXAMPLE\Nobody`,
+		`S-1-5-32-544|EXAMPLE\%ComputerName%_Admins|` + gpoGroupPreference,
+		`S-1-5-32-555|%DomainName%\RDP_%ComputerName%|` + gpoGroupPreference,
+		`S-1-5-32-544|Helpdesk|` + gpoRestrictedGroups,
+		`S-1-5-32-544|%<ComputerName>%_Admins|` + gpoGroupPreference,
+		`S-1-5-32-544|%LogonUser%|` + gpoGroupPreference,
+		`S-1-5-32-544|EXAMPLE\Nobody|` + gpoGroupPreference,
 	}
 	crossref := engine.NewNode(engine.ObjectClass, "crossRef", NCName, "DC=example,DC=com", NetBIOSName, "EXAMPLE")
 	computer := engine.NewNode(engine.Type, engine.NodeTypeComputer.ValueString(), engine.ObjectSid, computerSID, engine.SAMAccountName, "WS01$", engine.DownLevelLogonName, `EXAMPLE\WS01$`, engine.DomainContext, "DC=example,DC=com")
@@ -79,18 +80,34 @@ func TestGPOLocalGroupMembersResolveByNameAndPerMachine(t *testing.T) {
 	admins := engine.NewNode(engine.Name, "WS01_Admins", engine.Type, engine.NodeTypeGroup.ValueString(), engine.SAMAccountName, "WS01_Admins", engine.DownLevelLogonName, `EXAMPLE\WS01_Admins`)
 	rdp := engine.NewNode(engine.Name, "RDP_WS01", engine.Type, engine.NodeTypeGroup.ValueString(), engine.SAMAccountName, "RDP_WS01", engine.DownLevelLogonName, `EXAMPLE\RDP_WS01`)
 	helpdesk := engine.NewNode(engine.Name, "Helpdesk", engine.Type, engine.NodeTypeGroup.ValueString(), engine.SAMAccountName, "Helpdesk", engine.DownLevelLogonName, `EXAMPLE\Helpdesk`)
+	operatorSID := mustSID(t, "S-1-5-21-111-222-333-2001")
+	operator := engine.NewNode(engine.Name, "Operator", engine.Type, engine.NodeTypeUser.ValueString(), engine.ObjectSid, operatorSID, engine.DomainContext, "DC=example,DC=com", engine.DataSource, "EXAMPLE")
 
-	graph := newADTestGraph(gpo, crossref, computer, machine, admins, rdp, helpdesk)
+	graph := newADTestGraph(gpo, unlinked, crossref, computer, machine, admins, rdp, helpdesk, operator)
 	for _, v := range members {
 		enginetest.AddValues(graph, gpo, GPOLocalGroupMember, engine.NV(v))
 	}
+	bySID := `S-1-5-32-544|S-1-5-21-111-222-333-2001|` + gpoRestrictedGroups
+	enginetest.AddValues(graph, gpo, GPOLocalGroupMemberSID, engine.NV(bySID))
+	enginetest.AddValues(graph, unlinked, GPOLocalGroupMemberSID, engine.NV(bySID))
 	enginetest.EdgeTo(graph, gpo, machine, activedirectory.EdgeAffectedByGPO)
 	runTx(graph, resolveGPOLocalGroupMembers)
 
 	requireEdgeSet(t, graph, admins, machine, activedirectory.EdgeLocalAdminRights)
 	requireEdgeSet(t, graph, rdp, machine, activedirectory.EdgeLocalRDPRights)
-	requireEdgeSet(t, graph, helpdesk, gpo, activedirectory.EdgeLocalAdminRights)
-	requireNoEdgeSet(t, graph, admins, gpo, activedirectory.EdgeLocalAdminRights)
+	requireEdgeSet(t, graph, helpdesk, machine, activedirectory.EdgeLocalAdminRights)
+	requireEdgeSet(t, graph, operator, machine, activedirectory.EdgeLocalAdminRights)
+	for _, member := range []*engine.Node{admins, helpdesk, operator} {
+		requireNoEdgeSet(t, graph, member, gpo, activedirectory.EdgeLocalAdminRights)
+	}
+
+	// Each right records the policy and setting that granted it.
+	for member, setting := range map[*engine.Node]string{helpdesk: gpoRestrictedGroups, operator: gpoRestrictedGroups, admins: gpoGroupPreference} {
+		sources := graph.EdgeSources(member, machine)
+		if len(sources) != 1 || sources[0].Source.Kind != SourceGPO || sources[0].Source.About != gpo || sources[0].Source.Detail != setting+": member of Administrators" {
+			t.Errorf("%v: causes %+v", member.Label(), sources)
+		}
+	}
 
 	// The escaped and the unknown names stay visible as unresolved principals.
 	for _, name := range []string{`%ComputerName%_Admins`, `EXAMPLE\Nobody`} {
@@ -98,9 +115,17 @@ func TestGPOLocalGroupMembersResolveByNameAndPerMachine(t *testing.T) {
 		if !found {
 			t.Fatalf("no placeholder for %s", name)
 		}
-		requireEdgeSet(t, graph, placeholder, gpo, activedirectory.EdgeLocalAdminRights)
+		requireEdgeSet(t, graph, placeholder, machine, activedirectory.EdgeLocalAdminRights)
 	}
 	if _, found := graph.Find(engine.SAMAccountName, engine.NV(`%LogonUser%`)); found {
 		t.Fatal("a user-dependent variable must not become a principal")
 	}
+
+	// A policy that applies to no machine grants nothing.
+	graph.IterateEdges(operator, engine.Out, func(target *engine.Node, eb engine.EdgeBitmap) bool {
+		if target != machine && eb.IsSet(activedirectory.EdgeLocalAdminRights) {
+			t.Errorf("operator got local admin rights on %v", target.Label())
+		}
+		return true
+	})
 }

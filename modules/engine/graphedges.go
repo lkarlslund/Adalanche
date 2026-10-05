@@ -56,6 +56,9 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction E
 // storeEdge is saveEdge without the version: workers that each own their
 // nodes' maps store concurrently, and the caller bumps the version once.
 func (g *IndexedGraph) storeEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
+	if direction == Out {
+		g.pruneProvenance(from, to, edge)
+	}
 	// Save the edge
 	toMap := g.edges[direction].get(from)
 	if toMap == nil {
