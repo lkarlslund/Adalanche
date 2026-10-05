@@ -334,7 +334,7 @@ func addDomainDNSDCSyncEdges(tx *engine.Tx) {
 			dcsync.Set(engine.Name, engine.NV("DCsync"))
 			dcsync.Set(engine.DomainContext, engine.NV(o.OneAttrString(engine.DomainContext)))
 			dcsync.Tag("hvt")
-			tx.EdgeTo(o, dcsync, activedirectory.EdgeControls)
+			tx.EdgeBecause(o, dcsync, activedirectory.EdgeControls, Inferred("a domain's replication service"))
 		} else {
 			ui.Warn().Msg("Cannot scope DCSync service for a domain without a distinguished name; retaining replication rights only")
 		}
@@ -345,18 +345,18 @@ func addDomainDNSDCSyncEdges(tx *engine.Tx) {
 		for index, acl := range sd.DACL.Entries {
 			granted := rights[acl.SID]
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
-				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize)
+				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize, ACECause(index, acl))
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
-				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges)
+				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges, ACECause(index, acl))
 				granted.changes = true
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
-				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll)
+				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll, ACECause(index, acl))
 				granted.changesAll = true
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
-				tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet)
+				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet, ACECause(index, acl))
 			}
 
 			if granted.changes || granted.changesAll {
@@ -365,7 +365,7 @@ func addDomainDNSDCSyncEdges(tx *engine.Tx) {
 		}
 		for sid, granted := range rights {
 			if dcsync.Valid() && granted.changes && granted.changesAll {
-				tx.EdgeTo(aceTrustee(tx, sd, sid, o), dcsync, activedirectory.EdgeCall)
+				tx.EdgeBecause(aceTrustee(tx, sd, sid, o), dcsync, activedirectory.EdgeCall, RightsCause(o, "Replicating Directory Changes and Replicating Directory Changes All"))
 			}
 		}
 
@@ -468,7 +468,7 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 				canRead := canReadGPO(gpo, computerToken, tx)
 				canApply := canApplyGPO(gpo, computerToken, tx)
 				if canRead && canApply {
-					tx.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+					tx.EdgeBecause(gpo, machine, activedirectory.EdgeAffectedByGPO, engine.Source{Kind: SourceGPO, About: gpo, Detail: "linked above the computer, which can read and apply it"})
 				}
 			}
 			if som.OneAttrString(activedirectory.GPOptions) == "1" {
@@ -530,9 +530,9 @@ func addGMSAPasswordReadEdges(tx *engine.Tx) {
 	tx.Iterate(func(o *engine.Node) bool {
 		o.Attr(activedirectory.MSDSGroupMSAMembership).Iterate(func(msads engine.AttributeValue) bool {
 			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
-				for _, acl := range sd.DACL.Entries {
+				for index, acl := range sd.DACL.Entries {
 					if TrusteeGranted(tx, sd, acl.SID, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil) {
-						tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword)
+						tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword, DescriptorACECause(activedirectory.MSDSGroupMSAMembership, index, acl))
 					}
 				}
 			}
@@ -601,7 +601,7 @@ func resolveMemberOfAndMember(tx *engine.Tx) {
 				)
 				tx.Add(group)
 			}
-			tx.EdgeTo(object, group, activedirectory.EdgeMemberOfGroup)
+			tx.EdgeBecause(object, group, activedirectory.EdgeMemberOfGroup, AttributeCause(object, activedirectory.MemberOf))
 			return true
 		})
 
@@ -626,7 +626,7 @@ func resolveMemberOfAndMember(tx *engine.Tx) {
 					)
 				}
 			}
-			tx.EdgeTo(memberobject, object, activedirectory.EdgeMemberOfGroup)
+			tx.EdgeBecause(memberobject, object, activedirectory.EdgeMemberOfGroup, AttributeCause(object, activedirectory.Member))
 			return true
 		})
 		return true
@@ -642,7 +642,7 @@ func addRBCDEdges(tx *engine.Tx) {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
 				for index, acl := range sd.DACL.Entries {
 					if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil) {
-						tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, EdgeRBCD)
+						tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, EdgeRBCD, DescriptorACECause(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, index, acl))
 					}
 				}
 			}
@@ -728,7 +728,7 @@ func init() {
 			for _, sid := range PrincipalsGranted(sd, o, schema.readRights, schema.guid, tx) {
 				trustee := aceTrustee(tx, sd, sid, o)
 				for _, machine := range machines {
-					tx.EdgeTo(trustee, machine, activedirectory.EdgeReadLAPSPassword)
+					tx.EdgeBecause(trustee, machine, activedirectory.EdgeReadLAPSPassword, RightsCause(o, "read ms-Mcs-AdmPwd"))
 				}
 			}
 			return true
@@ -755,7 +755,7 @@ func init() {
 			if sd, err := o.SecurityDescriptor(); err == nil && sd.Control&engine.CONTROLFLAG_DACL_PROTECTED == 0 {
 				if parentobject, found := tx.DistinguishedParent(o); found {
 					ui.Trace().Msgf("%v interits security from %v", o.DN(), parentobject.DN())
-					tx.EdgeTo(parentobject, o, EdgeInheritsSecurity)
+					tx.EdgeBecause(parentobject, o, EdgeInheritsSecurity, engine.Source{Kind: SourceACL, Detail: "DACL not protected from inheritance"})
 				}
 			}
 			return true
@@ -777,7 +777,7 @@ func init() {
 			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
-			tx.EdgeTo(p, o, activedirectory.PartOfGPO)
+			tx.EdgeBecause(p, o, activedirectory.PartOfGPO, Inferred("container of a GPO"))
 			return true
 		})
 	}, engine.Processor{
@@ -817,7 +817,7 @@ func init() {
 				return true
 			}
 
-			tx.EdgeTo(machine, o, EdgeSessionService)
+			tx.EdgeBecause(machine, o, EdgeSessionService, AttributeCause(o, engine.Description))
 			return true
 		})
 	}, engine.Processor{
@@ -837,7 +837,7 @@ func init() {
 			if !hasparent || p.Type() != engine.NodeTypeGroupPolicyContainer {
 				return true
 			}
-			tx.EdgeTo(p, o, activedirectory.PartOfGPO)
+			tx.EdgeBecause(p, o, activedirectory.PartOfGPO, Inferred("container of a GPO"))
 			return true
 		})
 	}, engine.Processor{
@@ -861,9 +861,9 @@ func init() {
 			if err != nil {
 				return true
 			}
-			for _, acl := range sd.DACL.Entries {
+			for index, acl := range sd.DACL.Entries {
 				if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-					tx.EdgeTo(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny) // Not a probability of success, this is just an indicator
+					tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny, ACECause(index, acl)) // Not a probability of success, this is just an indicator
 				}
 			}
 			return true
@@ -903,7 +903,7 @@ func init() {
 					return true
 				}
 			}
-			tx.EdgeTo(tx.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns)
+			tx.EdgeBecause(tx.FindOrAddAdjacentSID(sd.Owner, o), o, activedirectory.EdgeOwns, OwnerCause())
 			return true
 		})
 	}, engine.Processor{
@@ -941,7 +941,7 @@ func init() {
 			if o.Attr(activedirectory.ServicePrincipalName).Len() > 0 && !accountDisabled(o) {
 				// Authenticated Users of the account's own domain
 				if authusers, found := tx.FindAdjacentSID(windowssecurity.AuthenticatedUsersSID, o); found {
-					tx.EdgeTo(authusers, o, activedirectory.EdgeHasSPN)
+					tx.EdgeBecause(authusers, o, activedirectory.EdgeHasSPN, AttributeCause(o, activedirectory.ServicePrincipalName))
 				} else {
 					ui.Error().Msgf("Could not locate Authenticated Users for %v", o.DN())
 				}
@@ -981,7 +981,7 @@ func init() {
 			if uac, ok := o.AttrInt(activedirectory.UserAccountControl); ok && uac&engine.UAC_DONT_REQ_PREAUTH != 0 {
 				// Anonymous Logon of the account's own domain
 				if anonymous, found := tx.FindAdjacentSID(windowssecurity.AnonymousLogonSID, o); found {
-					tx.EdgeTo(anonymous, o, activedirectory.EdgeDontReqPreauth)
+					tx.EdgeBecause(anonymous, o, activedirectory.EdgeDontReqPreauth, AttributeCause(o, activedirectory.UserAccountControl))
 				}
 			}
 			return true
@@ -1042,7 +1042,7 @@ func init() {
 		tx.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.MSDSHostServiceAccount).Iterate(func(dn engine.AttributeValue) bool {
 				if targetmsa, found := tx.Find(engine.DistinguishedName, dn); found {
-					tx.EdgeTo(o, targetmsa, activedirectory.EdgeHasMSA)
+					tx.EdgeBecause(o, targetmsa, activedirectory.EdgeHasMSA, AttributeCause(o, activedirectory.MSDSHostServiceAccount))
 				}
 				return true
 			})
@@ -1058,7 +1058,7 @@ func init() {
 		tx.Iterate(func(o *engine.Node) bool {
 			o.Attr(activedirectory.SIDHistory).Iterate(func(sidval engine.AttributeValue) bool {
 				if sid, ok := sidval.Raw().(windowssecurity.SID); ok {
-					tx.EdgeTo(o, tx.FindOrAddAdjacentSID(sid, o), activedirectory.EdgeSIDHistoryEquality)
+					tx.EdgeBecause(o, tx.FindOrAddAdjacentSID(sid, o), activedirectory.EdgeSIDHistoryEquality, AttributeCause(o, activedirectory.SIDHistory))
 				}
 				return true
 			})
@@ -1102,8 +1102,8 @@ func init() {
 			)
 			// ui.Debug().Msgf("Added machine for SID %v", sid.String())
 
-			tx.EdgeTo(machine, computeraccount, EdgeAuthenticatesAs)
-			tx.EdgeTo(machine, computeraccount, EdgeMachineAccount)
+			tx.EdgeBecause(machine, computeraccount, EdgeAuthenticatesAs, Inferred("a machine authenticates as its computer account"))
+			tx.EdgeBecause(machine, computeraccount, EdgeMachineAccount, Inferred("a machine authenticates as its computer account"))
 			machine.ChildOf(computeraccount)
 
 			return true
@@ -1229,7 +1229,7 @@ func init() {
 			}
 			everyone := tx.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, domainNode)
 			authenticatedusers := tx.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, domainNode)
-			tx.EdgeTo(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup)
+			tx.EdgeBecause(authenticatedusers, everyone, activedirectory.EdgeMemberOfGroup, Inferred("Authenticated Users are part of Everyone"))
 
 			dcsync, _ := tx.FindTwoOrAdd(
 				engine.Name, engine.NV("DCsync"),
@@ -1256,13 +1256,13 @@ func init() {
 					sidbytes := []byte(sid)
 					binary.LittleEndian.PutUint32(sidbytes[len(sid)-4:], uint32(rid))
 					primarygroup := tx.FindOrAddAdjacentSID(windowssecurity.SID(sidbytes), object)
-					tx.EdgeTo(object, primarygroup, activedirectory.EdgeMemberOfGroup)
+					tx.EdgeBecause(object, primarygroup, activedirectory.EdgeMemberOfGroup, AttributeCause(object, activedirectory.PrimaryGroupID))
 				}
 			}
 
 			// Crude special handling for Everyone and Authenticated Users
 			if object.SID().Components() == 7 && inCollectedDomain && object.Type() != engine.NodeTypeGroup {
-				tx.EdgeTo(object, domain.authenticatedUsers, activedirectory.EdgeMemberOfGroup)
+				tx.EdgeBecause(object, domain.authenticatedUsers, activedirectory.EdgeMemberOfGroup, Inferred("every account of a domain is an Authenticated User"))
 			}
 
 			if lastlogon, ok := object.AttrTime(activedirectory.LastLogonTimestamp); ok {
@@ -1297,10 +1297,10 @@ func init() {
 					tx.Node(object).Tag("domaincontroller_account")
 
 					// All DCs are members of Enterprise Domain Controllers
-					tx.EdgeTo(object, tx.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup)
+					tx.EdgeBecause(object, tx.FindOrAddAdjacentSID(windowssecurity.EnterpriseDomainControllers, object), activedirectory.EdgeMemberOfGroup, AttributeCause(object, activedirectory.UserAccountControl))
 
 					if inCollectedDomain {
-						tx.EdgeTo(object, domain.dcsync, activedirectory.EdgeCall)
+						tx.EdgeBecause(object, domain.dcsync, activedirectory.EdgeCall, Inferred("domain controllers replicate the directory"))
 					}
 
 					// Also they can DCsync because of this membership ... FIXME
@@ -1360,21 +1360,21 @@ func init() {
 
 						if administrators, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.AdministratorsSID),
 							engine.DomainContext, domainContext); found {
-							tx.EdgeTo(administrators, machine, activedirectory.EdgeLocalAdminRights)
+							tx.EdgeBecause(administrators, machine, activedirectory.EdgeLocalAdminRights, Inferred("a domain controller's local groups are the domain's built-in groups"))
 						} else {
 							ui.Warn().Msgf("Could not find Administrators group for %v", object.DN())
 						}
 
 						if remotedesktopusers, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.RemoteDesktopUsersSID),
 							engine.DomainContext, domainContext); found {
-							tx.EdgeTo(remotedesktopusers, machine, activedirectory.EdgeLocalRDPRights)
+							tx.EdgeBecause(remotedesktopusers, machine, activedirectory.EdgeLocalRDPRights, Inferred("a domain controller's local groups are the domain's built-in groups"))
 						} else {
 							ui.Warn().Msgf("Could not find Remote Desktop Users group for %v", object.DN())
 						}
 
 						if distributeddcomusers, found := tx.FindTwo(engine.ObjectSid, engine.NV(windowssecurity.DCOMUsersSID),
 							engine.DomainContext, domainContext); found {
-							tx.EdgeTo(distributeddcomusers, machine, activedirectory.EdgeLocalDCOMRights)
+							tx.EdgeBecause(distributeddcomusers, machine, activedirectory.EdgeLocalDCOMRights, Inferred("a domain controller's local groups are the domain's built-in groups"))
 						} else {
 							ui.Warn().Msgf("Could not find DCOM Users group for %v", object.DN())
 						}

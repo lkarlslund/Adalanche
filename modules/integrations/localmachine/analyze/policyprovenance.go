@@ -75,7 +75,7 @@ func importPolicyProvenance(tx *engine.Tx, machine engine.TxNode, info lm.Info) 
 			} else {
 				gpo, _ = tx.FindOrAdd(activedirectory.GPCFileSysPath, engine.NV(path), init...)
 			}
-			tx.EdgeTo(gpo, machine, activedirectory.EdgeAffectedByGPO)
+			tx.EdgeBecause(gpo, machine, activedirectory.EdgeAffectedByGPO, Collected("applied policy results"))
 		}
 	}
 }

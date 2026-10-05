@@ -107,7 +107,7 @@ func addACLRuleEdges(tx *engine.Tx) {
 			if t := trustee.Node(); t == o || t.SID() == windowssecurity.SelfSID || (!t.SID().IsBlank() && t.SID() == o.SID()) {
 				continue
 			}
-			tx.SetEdgeBecause(trustee, o, granted, aceCause(index, ace))
+			tx.SetEdgeBecause(trustee, o, granted, ACECause(index, ace))
 		}
 		return true
 	})

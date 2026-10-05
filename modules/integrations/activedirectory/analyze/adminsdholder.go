@@ -113,7 +113,7 @@ func addAdminSDHolderEdges(tx *engine.Tx) {
 			return true
 		})
 		for _, o := range protected {
-			tx.EdgeTo(holder, o, activedirectory.EdgeOverwritesACL)
+			tx.EdgeBecause(holder, o, activedirectory.EdgeOverwritesACL, Inferred("AdminSDHolder protects this account or group"))
 		}
 	}
 }

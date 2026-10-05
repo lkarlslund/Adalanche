@@ -119,7 +119,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 			continue
 		}
 		if relativepath == "/" {
-			tx.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
+			tx.EdgeBecause(itemobject, gpoobject, EdgeFSPartOfGPO, Inferred("the GPO's SYSVOL folder"))
 			itemobject.ChildOf(gpoobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
@@ -128,13 +128,13 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 			}
 
 			parent, _ := tx.FindOrAdd(AbsolutePath, engine.NV(parentpath))
-			tx.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
+			tx.EdgeBecause(itemobject, parent, EdgeFSPartOfGPO, Inferred("the GPO's SYSVOL folder"))
 			itemobject.ChildOf(parent)
 		}
 
 		if !item.OwnerSID.IsNull() {
 			owner := tx.FindOrAddAdjacentSID(item.OwnerSID, gpoobject)
-			tx.EdgeTo(owner, itemobject, EdgeOwns)
+			tx.EdgeBecause(owner, itemobject, EdgeOwns, FileOwnerCause())
 		}
 
 		if item.DACL != nil {
@@ -142,24 +142,24 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 			if err != nil {
 				return err
 			}
-			for _, entry := range dacl.Entries {
+			for index, entry := range dacl.Entries {
 				entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
-						tx.EdgeTo(entrysidobject, itemobject, EdgeFileCreate)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeFileCreate, FileACECause(index, entry))
 					}
 					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
-						tx.EdgeTo(entrysidobject, itemobject, EdgeDirCreate)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeDirCreate, FileACECause(index, entry))
 					}
 					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						tx.EdgeTo(entrysidobject, itemobject, EdgeFileWrite)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeFileWrite, FileACECause(index, entry))
 					}
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						tx.EdgeTo(entrysidobject, itemobject, EdgeTakeOwnership) // Not sure about this one
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeTakeOwnership, FileACECause(index, entry)) // Not sure about this one
 					}
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						tx.EdgeTo(entrysidobject, itemobject, EdgeModifyDACL)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeModifyDACL, FileACECause(index, entry))
 					}
 				}
 			}
@@ -212,10 +212,10 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 			}
 
 			// GPO exposes this object
-			tx.EdgeTo(itemobject, expobj, EdgeContainsSensitiveData)
+			tx.EdgeBecause(itemobject, expobj, EdgeContainsSensitiveData, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "Group Policy Preferences password"})
 			expobj.ChildOf(itemobject)
 			// Exposed password leaks this object
-			tx.EdgeTo(expobj, target, EdgeExposesPassword)
+			tx.EdgeBecause(expobj, target, EdgeExposesPassword, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "Group Policy Preferences password"})
 
 			// Everyone that can read the file can then read the password
 			if item.DACL != nil {
@@ -223,12 +223,12 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 				if err != nil {
 					return err
 				}
-				for _, entry := range dacl.Entries {
+				for index, entry := range dacl.Entries {
 					entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
-							tx.EdgeTo(entrysidobject, expobj, EdgeReadSensitiveData)
+							tx.EdgeBecause(entrysidobject, expobj, EdgeReadSensitiveData, FileACECause(index, entry))
 						}
 					}
 				}
@@ -325,7 +325,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 					engine.Name, engine.NV("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				script := tx.Add(sob)
-				tx.EdgeTo(script, gpoobject, activedirectory.EdgeMachineScript)
+				tx.EdgeBecause(script, gpoobject, activedirectory.EdgeMachineScript, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "machine scripts (scripts.ini)"})
 				script.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
@@ -344,7 +344,7 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 					engine.Name, engine.NV("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
 				script := tx.Add(sob)
-				tx.EdgeTo(script, gpoobject, activedirectory.EdgeMachineScript)
+				tx.EdgeBecause(script, gpoobject, activedirectory.EdgeMachineScript, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "machine scripts (scripts.ini)"})
 				script.ChildOf(gpoobject)
 				scriptnum++
 			}

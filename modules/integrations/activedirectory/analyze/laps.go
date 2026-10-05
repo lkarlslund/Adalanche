@@ -25,6 +25,7 @@ func lapsSchemaGUID(ao engine.GraphReader, o *engine.Node, cn string) uuid.UUID 
 
 // lapsv2Grant is an attribute whose read access gives an edge.
 type lapsv2Grant struct {
+	name      string // the schema attribute
 	attribute uuid.UUID
 	edge      engine.Edge
 	forDC     bool
@@ -48,11 +49,11 @@ func lapsv2Grants(tx *engine.Tx, o *engine.Node) []lapsv2Grant {
 	for _, g := range []lapsv2Grant{
 		// Plaintext access is evaluated independently. An encrypted-attribute
 		// grant alone does not prove the trustee can decrypt the password.
-		{attribute: passwordGUID, edge: activedirectory.EdgeReadLAPSPassword},
-		{attribute: encryptedGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
-		{attribute: msLAPSEncryptedPasswordAttributesGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
+		{name: "ms-LAPS-Password", attribute: passwordGUID, edge: activedirectory.EdgeReadLAPSPassword},
+		{name: "ms-LAPS-EncryptedPassword", attribute: encryptedGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
+		{name: "ms-LAPS-Encrypted-Password-Attributes property set", attribute: msLAPSEncryptedPasswordAttributesGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword},
 		// Domain controllers back up their DSRM password instead.
-		{attribute: dsrmGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword, forDC: true},
+		{name: "ms-LAPS-EncryptedDSRMPassword", attribute: dsrmGUID, edge: activedirectory.EdgeReadEncryptedLAPSPassword, forDC: true},
 	} {
 		if !g.attribute.IsNil() {
 			g.rights = AttributeReadRights(tx, o, g.attribute, true)
@@ -100,7 +101,7 @@ func addLAPSv2Edges(tx *engine.Tx) {
 			for _, sid := range PrincipalsGranted(sd, o, g.rights, g.attribute, tx) {
 				trustee := aceTrustee(tx, sd, sid, o)
 				for _, machine := range machines {
-					tx.EdgeTo(trustee, machine, g.edge)
+					tx.EdgeBecause(trustee, machine, g.edge, RightsCause(o, "read "+g.name))
 				}
 			}
 		}

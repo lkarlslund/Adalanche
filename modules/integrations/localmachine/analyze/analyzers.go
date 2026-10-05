@@ -49,7 +49,7 @@ func LinkSCCMProcessor(tx *engine.Tx) {
 			return true
 		}
 		for _, server := range servers {
-			tx.EdgeTo(server, o, EdgeControlsUpdates)
+			tx.EdgeBecause(server, o, EdgeControlsUpdates, Collected(controltype+" server setting"))
 		}
 		return true
 	})
@@ -92,7 +92,7 @@ func init() {
 						if i == j {
 							continue
 						}
-						tx.EdgeTo(nodes[i], nodes[j], EdgeSIDCollision)
+						tx.EdgeBecause(nodes[i], nodes[j], EdgeSIDCollision, engine.Source{Kind: adanalyze.SourceInference, Detail: "machines with the same local SID"})
 					}
 				}
 			}

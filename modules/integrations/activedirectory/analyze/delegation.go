@@ -39,7 +39,7 @@ func addConstrainedDelegationEdges(tx *engine.Tx) {
 			if target, found := tx.FindTwo(DnsHostName, engine.NV(host),
 				engine.Type, engine.NV("Machine"),
 			); found {
-				tx.EdgeTo(o, target, edgeConstrainedDelegation)
+				tx.EdgeBecause(o, target, edgeConstrainedDelegation, AttributeCause(o, activedirectory.MSDSAllowedToDelegateTo))
 			} else {
 				ui.Error().Msgf("Could not find constrained delegation SPN %v target (looked for machine %v) in the AD", val.String(), host)
 			}

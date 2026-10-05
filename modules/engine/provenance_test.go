@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -120,5 +121,39 @@ func TestSetEdgeBecauseRecordsEachEdgeType(t *testing.T) {
 	sources := g.EdgeSources(a.Node(), b.Node())
 	if len(sources) != 2 || sources[0].Source.Detail != "ACE 3" || sources[1].Source.Detail != "ACE 3" || sources[0].Edge == sources[1].Edge {
 		t.Fatalf("got %+v", sources)
+	}
+}
+
+// Large batches of causes are applied on several workers; each is kept.
+func TestManyCausesAreAllKept(t *testing.T) {
+	g := NewIndexedGraph()
+	edge := testEdge("provenance")
+	setup := g.Begin("nodes")
+	nodes := make([]TxNode, 300)
+	for i := range nodes {
+		nodes[i] = setup.AddNew(Name, fmt.Sprint("node ", i))
+	}
+	commitTx(t, setup)
+	tx := g.Begin("causes")
+	pairs := 0
+	for i := range nodes {
+		for j := range nodes {
+			if i != j && pairs < parallelEdgeMutations+1000 {
+				tx.EdgeBecause(nodes[i].Node(), nodes[j].Node(), edge, Source{Kind: testSourcePolicy, Detail: fmt.Sprint("rule ", (i+j)%7)})
+				pairs++
+			}
+		}
+	}
+	commitTx(t, tx)
+	recorded := 0
+	for i := range nodes {
+		for j := range nodes {
+			if i != j {
+				recorded += len(g.EdgeSources(nodes[i].Node(), nodes[j].Node()))
+			}
+		}
+	}
+	if recorded != pairs {
+		t.Fatalf("recorded %v causes for %v edges", recorded, pairs)
 	}
 }

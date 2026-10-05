@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"runtime"
 	"slices"
 	"sync"
 )
@@ -136,6 +137,9 @@ func (g *IndexedGraph) applyProvenance(writes []provenanceWrite) {
 		from, to NodeIndex
 		cause    edgeCause
 	}
+	// Causes repeat heavily within a commit; each distinct one is looked
+	// up in the shared table once.
+	ids := map[EdgeSource]SourceID{}
 	list := make([]resolved, 0, len(writes))
 	for _, w := range writes {
 		from, ok := g.nodeLookup.Load(w.from)
@@ -146,14 +150,20 @@ func (g *IndexedGraph) applyProvenance(writes []provenanceWrite) {
 		if !ok {
 			continue
 		}
-		list = append(list, resolved{from, to, edgeCause{w.edge, g.sources.intern(w.source)}})
+		id, found := ids[w.source]
+		if !found {
+			id = g.sources.intern(w.source)
+			ids[w.source] = id
+		}
+		list = append(list, resolved{from, to, edgeCause{w.edge, id}})
 	}
+
 	g.edgeMutex.Lock()
 	defer g.edgeMutex.Unlock()
-	for _, r := range list {
+	apply := func(r resolved) {
 		edge, found := g.loadEdge(r.from, r.to, Out)
 		if !found || !edge.IsSet(r.cause.edge) {
-			continue
+			return
 		}
 		targets := g.provenance.get(r.from)
 		if targets == nil {
@@ -164,6 +174,34 @@ func (g *IndexedGraph) applyProvenance(writes []provenanceWrite) {
 			targets[r.to] = append(targets[r.to], r.cause)
 		}
 	}
+	if len(list) < parallelEdgeMutations {
+		for _, r := range list {
+			apply(r)
+		}
+		return
+	}
+	// Many causes: each source node's causes go to one worker, so workers
+	// never share a map; the index is grown first so none resizes it.
+	var highest NodeIndex
+	for _, r := range list {
+		highest = max(highest, r.from)
+	}
+	g.provenance.grow(int(highest) + 1)
+	workers := runtime.GOMAXPROCS(0)
+	parts := make([][]resolved, workers)
+	for _, r := range list {
+		w := int(r.from) % workers
+		parts[w] = append(parts[w], r)
+	}
+	var wg sync.WaitGroup
+	for _, part := range parts {
+		wg.Go(func() {
+			for _, r := range part {
+				apply(r)
+			}
+		})
+	}
+	wg.Wait()
 }
 
 // pruneProvenance drops causes for edge types the pair no longer has.
@@ -218,11 +256,18 @@ func (p provenanceIndex) get(from NodeIndex) map[NodeIndex][]edgeCause {
 
 func (p *provenanceIndex) set(from NodeIndex, targets map[NodeIndex][]edgeCause) {
 	if int(from) >= len(*p) {
-		grown := make(provenanceIndex, max(int(from)+1, 2*len(*p), 1024))
+		p.grow(max(int(from)+1, 2*len(*p), 1024))
+	}
+	(*p)[from] = targets
+}
+
+// grow makes room for nodes up to position n-1.
+func (p *provenanceIndex) grow(n int) {
+	if n > len(*p) {
+		grown := make(provenanceIndex, n)
 		copy(grown, *p)
 		*p = grown
 	}
-	(*p)[from] = targets
 }
 
 var (

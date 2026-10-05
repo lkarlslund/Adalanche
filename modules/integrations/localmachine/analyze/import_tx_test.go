@@ -88,7 +88,8 @@ func TestMachineImportResolvesLocalPrincipalsInScope(t *testing.T) {
 	}
 }
 
-// Local group edges record the machine's collection as their cause.
+// Local group edges record the machine's collection as their cause, which
+// leads to the machine.
 func TestLocalGroupEdgesRecordTheCollection(t *testing.T) {
 	g := engine.NewIndexedGraph()
 	machine, err := importMachine(g, syntheticMachine("HOST01", "S-1-5-21-111-222-333", "S-1-5-21-900-901-902-1101"))
@@ -116,7 +117,7 @@ func TestLocalGroupEdgesRecordTheCollection(t *testing.T) {
 	}{{admins, machine, EdgeLocalAdminRights}, {alice, admins, activedirectory.EdgeMemberOfGroup}} {
 		found := false
 		for _, s := range g.EdgeSources(c.from, c.to) {
-			found = found || (s.Edge == c.edge && s.Source.Kind == SourceCollection && s.Source.About == machine && s.Source.Detail == "local group Administrators")
+			found = found || (s.Edge == c.edge && s.Source.Kind == SourceCollection && s.Source.Origin(c.from, c.to) == machine && s.Source.Detail == "local group Administrators")
 		}
 		if !found {
 			t.Errorf("%v to %v: %v has no collection cause", c.from.Label(), c.to.Label(), c.edge.String())

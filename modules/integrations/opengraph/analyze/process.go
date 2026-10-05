@@ -9,7 +9,12 @@ import (
 // It is kept as an ordinary attribute; engine node IDs are process-local.
 var attributeOpenGraphID = engine.NewAttribute("id")
 
+// SourceOpenGraph is the cause of edges read from OpenGraph data; the
+// detail is the data's source kind, when it states one.
+var SourceOpenGraph = engine.NewSourceKind("OpenGraph data")
+
 func processOpenGraphData(tx *engine.Tx, ogd opengraph.Model) error {
+	cause := engine.Source{Kind: SourceOpenGraph, Detail: ogd.Metadata["source_kind"]}
 	// process nodes
 	for _, node := range ogd.Graph.Nodes {
 		data := make([]any, 0, len(node.Properties)*2+4)
@@ -43,7 +48,7 @@ func processOpenGraphData(tx *engine.Tx, ogd opengraph.Model) error {
 		}
 
 		edge := engine.NewEdge(edge.Kind)
-		tx.EdgeTo(startNode, endNode, edge)
+		tx.EdgeBecause(startNode, endNode, edge, cause)
 	}
 
 	return nil

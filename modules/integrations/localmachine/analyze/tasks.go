@@ -25,7 +25,7 @@ func importTask(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask, adm
 	controls := taskControls(task, admin)
 	if len(writers) == 0 && len(controls) == 0 {
 		if account.Valid() {
-			g.EdgeTo(machine, account, ad.EdgeAuthenticatesAs)
+			g.EdgeBecause(machine, account, ad.EdgeAuthenticatesAs, Collected("scheduled task "+task.Name))
 		}
 		return
 	}
@@ -36,17 +36,18 @@ func importTask(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask, adm
 		engine.Type, "ScheduledTask",
 	)
 	taskNode.ChildOf(machine)
-	g.EdgeTo(machine, taskNode, EdgeHosts)
+	cause := Collected("scheduled task "+task.Name)
+	g.EdgeBecause(machine, taskNode, EdgeHosts, cause)
 	if account.Valid() {
-		g.EdgeTo(taskNode, account, ad.EdgeAuthenticatesAs)
+		g.EdgeBecause(taskNode, account, ad.EdgeAuthenticatesAs, cause)
 	}
 	for _, sid := range writers {
-		g.EdgeTo(g.FindOrAddAdjacentSID(sid, machine), taskNode, EdgeTaskActionWrite)
+		g.EdgeBecause(g.FindOrAddAdjacentSID(sid, machine), taskNode, EdgeTaskActionWrite, Collected("scheduled task "+task.Name+" action file permissions"))
 	}
 	for _, control := range controls {
 		principal := g.FindOrAddAdjacentSID(control.sid, machine)
 		for _, edge := range control.edges {
-			g.EdgeTo(principal, taskNode, edge)
+			g.EdgeBecause(principal, taskNode, edge, Collected("scheduled task "+task.Name+" permissions"))
 		}
 	}
 }
