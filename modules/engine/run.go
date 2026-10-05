@@ -69,10 +69,10 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	overallprogress.Add(1)
 	timed("loading")
 
-	if err := RunPhase(globalGraph, AnyLoader, BeforeMerge); err != nil {
+	if err := RunPhase(globalGraph, AnyLoader, LoaderPhase); err != nil {
 		return nil, fmt.Errorf("preprocessing: %w", err)
 	}
-	timed("before-merge processors")
+	timed("loader processors")
 	runtime.GC()
 	debug.FreeOSMemory()
 	overallprogress.Add(1)
@@ -90,7 +90,7 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	overallprogress.Add(1)
 
 	postprocessStart := time.Now()
-	if err := RunPhase(globalGraph, AnyLoader, AfterMerge); err != nil {
+	if err := RunPhase(globalGraph, AnyLoader, AnalysisPhase); err != nil {
 		return nil, err
 	}
 	ui.Info().Msgf("Time to finish post-processing %v", time.Since(postprocessStart))

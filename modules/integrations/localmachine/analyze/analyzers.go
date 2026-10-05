@@ -60,7 +60,7 @@ func init() {
 		LinkSCCMProcessor,
 		engine.Processor{
 			Description: "Link SCCM and WSUS servers to controlled computers",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{adanalyze.ProductMachines},
 			Provides:    []engine.Product{ProductUpdateControl},
 		})
@@ -100,7 +100,7 @@ func init() {
 		},
 		engine.Processor{
 			Description: "Local SID collisions",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Provides:    []engine.Product{ProductSIDCollisions},
 		})
 }

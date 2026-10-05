@@ -29,19 +29,21 @@ type ExclusiveProcessorFunc func(g *IndexedGraph)
 type Phase int
 
 const (
-	// BeforeMerge processors run on each loader's own graph, before the
-	// graphs are merged. Only processors of the same loader see each other.
-	BeforeMerge Phase = iota
-	// AfterMerge processors run on the merged graph, for all loaders.
-	AfterMerge
+	// LoaderPhase processors run before loading finishes, each in a
+	// transaction that sees only its loader's nodes, as if the loader had a
+	// graph of its own.
+	LoaderPhase Phase = iota
+	// AnalysisPhase processors run once loading has finished (parent claims
+	// applied, references resolved), on the whole graph.
+	AnalysisPhase
 )
 
 func (p Phase) String() string {
 	switch p {
-	case BeforeMerge:
-		return "before merge"
-	case AfterMerge:
-		return "after merge"
+	case LoaderPhase:
+		return "loader"
+	case AnalysisPhase:
+		return "analysis"
 	}
 	return fmt.Sprintf("phase %d", int(p))
 }
@@ -282,7 +284,7 @@ func findCycle(processors []processorInfo, waitsFor [][]int) string {
 // be ordered: no processor needs a product nobody provides, and there are no
 // cycles.
 func ValidateProcessors() error {
-	for _, phase := range []Phase{BeforeMerge, AfterMerge} {
+	for _, phase := range []Phase{LoaderPhase, AnalysisPhase} {
 		if _, err := processorOrder(selectProcessors(AnyLoader, phase, nil), phase); err != nil {
 			return fmt.Errorf("%v: %w", phase, err)
 		}
@@ -378,8 +380,8 @@ func runBatch(ao *IndexedGraph, phase Phase, processors []processorInfo, batch [
 			ui.Debug().Msgf("Running %v", p.Description)
 			defer recordTiming(p, time.Now())
 			txs[n] = ao.Begin(p.Description)
-			if scope := ao.loaderScopes[p.loader]; phase == BeforeMerge && scope != "" {
-				// Before the merge, a loader's processors see its own nodes.
+			if scope := ao.loaderScopes[p.loader]; phase == LoaderPhase && scope != "" {
+				// In the loader phase, a loader's processors see its own nodes.
 				txs[n].scopeTo(scope)
 			}
 			p.tx(txs[n])

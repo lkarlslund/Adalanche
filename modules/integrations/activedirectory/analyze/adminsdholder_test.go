@@ -115,7 +115,7 @@ func TestMembershipConsumersRunAfterResolution(t *testing.T) {
 
 	graph := newADTestGraph(domain, holder, da, protectedUsers, admin)
 	enginetest.AddValues(graph, admin, activedirectory.MemberOf, engine.NV(protectedDN))
-	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AfterMerge); err != nil {
+	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AnalysisPhase); err != nil {
 		t.Fatal(err)
 	}
 	requireEdgeSet(t, graph, holder, admin, activedirectory.EdgeOverwritesACL)

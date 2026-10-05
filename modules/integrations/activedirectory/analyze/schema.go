@@ -7,7 +7,7 @@ import (
 )
 
 // sameDump keeps the nodes that came from the same directory dump as o.
-// Before the merge every domain's dump is in one graph, and each forest has
+// Every domain's dump is in one graph, and each forest has
 // its own schema, so schema lookups for an object go to its own dump.
 func sameDump(nodes engine.NodeSlice, o *engine.Node) engine.NodeSlice {
 	source := o.OneAttr(engine.DataSource)

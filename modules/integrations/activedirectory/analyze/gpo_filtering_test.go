@@ -144,7 +144,7 @@ func TestGPOTargetingRunsAfterMembershipResolution(t *testing.T) {
 	)))
 	enginetest.ChildOf(graph, computer, ou)
 
-	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AfterMerge); err != nil {
+	if err := engine.RunPhase(graph, engine.AnyLoader, engine.AnalysisPhase); err != nil {
 		t.Fatal(err)
 	}
 	requireEdgeSet(t, graph, gpo, machine, activedirectory.EdgeAffectedByGPO)

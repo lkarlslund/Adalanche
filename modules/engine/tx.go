@@ -185,7 +185,7 @@ func (g *IndexedGraph) BeginLoad(name, loader string, root *Node) *Tx {
 
 // scopeTo limits a transaction to one loader's nodes: iteration and lookups
 // see only nodes with that data loader, nodes it creates get it, and
-// identities resolve among them. Before-merge processors run this way, as if
+// identities resolve among them. Loader-phase processors run this way, as if
 // each loader had a graph of its own.
 func (tx *Tx) scopeTo(loader string) {
 	tx.loader, tx.loaderNV, tx.loadValues = loader, NV(loader), []any{DataLoader, NV(loader)}

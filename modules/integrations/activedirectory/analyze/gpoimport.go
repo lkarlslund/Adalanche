@@ -262,12 +262,12 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 						continue
 					}
 					// The member gets the right on the machines the GPO
-					// applies to, which are known after merge.
+					// applies to, which are known once loading has finished.
 					tx.FindOrAddAdjacentSID(membersid, gpoobject)
 					gpoobject.Add(GPOLocalGroupMemberSID, engine.NV(gpoGrant{sidpair.GroupSID, membersid.String(), setting}.value()))
 				case sidpair.MemberName != "":
 					// Names, including ones with preference variables, are
-					// resolved after merge when the whole directory is known.
+					// resolved after loading, when the whole directory is known.
 					gpoobject.Add(GPOLocalGroupMember, engine.NV(gpoGrant{sidpair.GroupSID, sidpair.MemberName, setting}.value()))
 				}
 			}

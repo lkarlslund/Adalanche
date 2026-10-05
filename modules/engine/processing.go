@@ -64,7 +64,7 @@ func NewAnalysisGraph() *IndexedGraph {
 }
 
 // FinishLoading turns what loaders committed into the analysed graph's
-// starting point, after the before-merge processors: loaders' parent claims
+// starting point, after the loader-phase processors: loaders' parent claims
 // are applied, merge preparers run, references are folded into the nodes
 // they stand for, loader roots nobody placed anything under are removed, and
 // nodes without a parent go under the orphan container.

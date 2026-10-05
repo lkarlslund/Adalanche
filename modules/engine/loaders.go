@@ -54,7 +54,7 @@ func newLoadTarget(g *IndexedGraph, id LoaderID, loaderName string) LoadTarget {
 	return t
 }
 
-// register records whose nodes the loader's before-merge processors see.
+// register records whose nodes the loader's loader-phase processors see.
 func (t LoadTarget) register() {
 	if t.id < 0 {
 		return

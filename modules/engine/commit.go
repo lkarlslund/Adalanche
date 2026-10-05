@@ -306,7 +306,7 @@ func (c *committer) resolveNode(g *IndexedGraph, tx *Tx, p *pendingNode) {
 }
 
 // resolveLoaded resolves a keyed or SID node of a transaction scoped to a
-// loader (a load, or a before-merge processor) among that loader's nodes: what other loaders committed is joined by
+// loader (a load, or a loader-phase processor) among that loader's nodes: what other loaders committed is joined by
 // reference resolution once loading is done, so the result does not depend
 // on the order loaders commit in.
 func (c *committer) resolveLoaded(g *IndexedGraph, tx *Tx, p *pendingNode, attr1 Attribute, value1 AttributeValue, attr2 Attribute, value2 AttributeValue) {

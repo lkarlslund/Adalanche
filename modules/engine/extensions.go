@@ -26,9 +26,8 @@ var mergePreparers struct {
 	items []func([]*IndexedGraph) error
 }
 
-// RegisterMergePreparer registers a step that runs once after the
-// before-merge processors and before the graphs are merged, with every
-// loader graph. It is for decisions that need all loaders' data, such as
+// RegisterMergePreparer registers a step that runs once after the loader
+// processors and before references are resolved, on the loaded graph. It is for decisions that need all loaders' data, such as
 // which of several machine collections is the current one. It changes the
 // graphs only through transactions, and its outcome must depend only on the
 // data, never on the order of the graphs.

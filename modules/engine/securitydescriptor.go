@@ -429,7 +429,7 @@ func (sd *SecurityDescriptor) accessCheck(allowFor, denyFor func(windowssecurity
 }
 
 // propertySet returns the property set an attribute GUID belongs to according
-// to the schema of o's forest, or UnknownGUID. The merged graph holds one
+// to the schema of o's forest, or UnknownGUID. The graph holds one
 // schema per forest; when they agree, which is the normal case, the answer is
 // cached per attribute.
 func (ao *IndexedGraph) propertySet(o *Node, attribute uuid.UUID) uuid.UUID {

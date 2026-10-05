@@ -62,7 +62,7 @@ type IndexedGraph struct {
 	typecount typestatistics
 	orphans   *Node // container for nodes without a parent, see FinishLoading
 
-	// The loader each LoaderID's before-merge processors see, by name.
+	// The loader each LoaderID's loader-phase processors see, by name.
 	loaderScopes map[LoaderID]string
 	loadRoots    []*Node // loaders' root nodes, added with their first commit
 

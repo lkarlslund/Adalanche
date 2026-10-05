@@ -12,14 +12,14 @@ import (
 func init() {
 	loader.AddProcessor(linkDomainGroupsToMachines, engine.Processor{
 		Description: "Domain's Everyone and Authenticated Users are members of a joined machine's",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{adanalyze.ProductMachines, adanalyze.ProductWellKnownPrincipals},
 		Provides:    []engine.Product{ProductDomainGroups},
 	})
 
 	loader.AddProcessor(linkLocalAccountsToMachines, engine.Processor{
 		Description: "Link local users and groups to machines",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Provides:    []engine.Product{ProductLocalTree},
 	})
 
@@ -54,7 +54,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "Detecting broken links",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Final:       true,
 		})
 }

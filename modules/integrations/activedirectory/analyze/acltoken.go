@@ -79,7 +79,7 @@ func init() {
 		trusteeTokens.Clear()
 	}, engine.Processor{
 		Description: "Release cached trustee tokens",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Final:       true,
 	})
 }

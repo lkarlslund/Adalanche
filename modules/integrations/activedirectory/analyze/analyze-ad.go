@@ -664,7 +664,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "GPO identity from its distinguished name, which GPO collections and machine policy results resolve to",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes},
 	})
 
@@ -735,14 +735,14 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Reading local admin passwords via LAPS v1",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships, ProductMachines},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
 
 	LoaderID.AddProcessor(addLAPSv2Edges, engine.Processor{
 		Description: "Reading local admin passwords via LAPS v2",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships, ProductMachines},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -762,7 +762,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicator that object inherits security from the container it is within",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -782,7 +782,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Machine configurations that are part of a GPO",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
 		Provides:    []engine.Product{ProductGPOStructure},
 	})
@@ -822,7 +822,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Link MSOL_* accounts to computers running it from description",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
@@ -842,14 +842,14 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "User configurations that are part of a GPO",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductTree},
 		Provides:    []engine.Product{ProductGPOStructure},
 	})
 
 	LoaderID.AddProcessor(addACLRuleEdges, engine.Processor{
 		Description: "Rights granted by ACLs (see aclEdgeRules)",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -870,7 +870,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicator for possible false positives, as the ACL contains DENY entries",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -908,7 +908,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicator that someone owns an object",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -928,7 +928,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicator that a user has a ServicePrincipalName and an authenticated user can Kerberoast it",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes},
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
@@ -950,7 +950,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Kerberoast relationship edge",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
@@ -968,7 +968,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicator that a user has \"don't require preauth\" and can be ASREPRoasted",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
@@ -988,7 +988,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "ASREPRoast relationship edge",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductWellKnownPrincipals},
 		Provides:    []engine.Product{ProductAccountAttacks},
 	})
@@ -997,14 +997,14 @@ func init() {
 		addRBCDEdges(tx)
 	}, engine.Processor{
 		Description: `Someone is listed in the msDS-AllowedToActOnBehalfOfOtherIdentity (Resource Based Constrained Delegation) on an account`,
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductDelegation},
 	})
 
 	LoaderID.AddProcessor(addConstrainedDelegationEdges, engine.Processor{
 		Description: `Constrained delegation to a service; without protocol transition a suitable forwardable ticket is also required`,
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext, ProductMachines},
 		Provides:    []engine.Product{ProductDelegation},
 	})
@@ -1033,7 +1033,7 @@ func init() {
 	*/
 	LoaderID.AddProcessor(addGMSAPasswordReadEdges, engine.Processor{
 		Description: "Allows someone to read a password of a managed service account",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -1050,7 +1050,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicates that the object has a service account in use",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
 
@@ -1066,7 +1066,7 @@ func init() {
 		})
 	}, engine.Processor{
 		Description: "Indicates that object has a SID History attribute pointing to the other object, making them the 'same' permission wise",
-		Phase:       engine.BeforeMerge,
+		Phase:       engine.LoaderPhase,
 		Needs:       []engine.Product{ProductDomainContext, ProductWellKnownPrincipals},
 		Provides:    []engine.Product{ProductAccountLinks},
 	})
@@ -1075,7 +1075,7 @@ func init() {
 		addDomainDNSDCSyncEdges(tx)
 	}, engine.Processor{
 		Description: "Permissions on DomainDNS objects leading to DCsync attacks",
-		Phase:       engine.AfterMerge,
+		Phase:       engine.AnalysisPhase,
 		Needs:       []engine.Product{ProductMemberships},
 		Provides:    []engine.Product{ProductACLEdges},
 	})
@@ -1111,7 +1111,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "creating Machine objects (representing the machine running the OS)",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Needs:       []engine.Product{ProductNodeTypes},
 			Provides:    []engine.Product{ProductMachines},
 		})
@@ -1160,7 +1160,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "applying parent/child relationships",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
 			Provides:    []engine.Product{ProductTree},
 		})
@@ -1168,21 +1168,21 @@ func init() {
 	LoaderID.AddProcessor(applyDownLevelLogonNamePatches,
 		engine.Processor{
 			Description: "applying DownLevelLogonName attribute",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Provides:    []engine.Product{ProductDownLevelLogonName},
 		})
 
 	LoaderID.AddProcessor(applyDomainContextPatches,
 		engine.Processor{
 			Description: "applying domain part attribute",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Provides:    []engine.Product{ProductDomainContext},
 		})
 
 	LoaderID.AddProcessor(addAdminSDHolderEdges,
 		engine.Processor{
 			Description: "AdminSDHolder rights propagation indicator",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductMemberships},
 			Provides:    []engine.Product{ProductAdminSDHolder},
 		})
@@ -1208,7 +1208,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "missing well-known SIDs",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext},
 			Provides:    []engine.Product{ProductWellKnownPrincipals},
 		})
@@ -1448,7 +1448,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "Active Directory objects and metadata",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Needs:       []engine.Product{ProductNodeTypes, ProductDomainContext, ProductWellKnownPrincipals, ProductMachines},
 			Provides:    []engine.Product{ProductAccountState, ProductMemberships},
 		})
@@ -1456,14 +1456,14 @@ func init() {
 	LoaderID.AddProcessor(applyObjectClassAndCategoryPatches,
 		engine.Processor{
 			Description: "Set type (for Type call) to Active Directory objects",
-			Phase:       engine.BeforeMerge,
+			Phase:       engine.LoaderPhase,
 			Provides:    []engine.Product{ProductNodeTypes},
 		})
 
 	LoaderID.AddProcessor(applyProtectedUserTags,
 		engine.Processor{
 			Description: "Protected users meta attribute",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductMemberships},
 			Provides:    []engine.Product{ProductProtectedUsers},
 		})
@@ -1518,7 +1518,7 @@ func init() {
 	},
 		engine.Processor{
 			Description: "Machines affected by a GPO",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductMemberships, ProductMachines, ProductTree, ProductGPOStructure},
 			Provides:    []engine.Product{ProductGPOTargeting},
 		})
@@ -1526,7 +1526,7 @@ func init() {
 	LoaderID.AddProcessor(applyWellKnownSIDDisplayNames,
 		engine.Processor{
 			Description: "Adding displayName to Well-Known SID objects that are missing them",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Provides:    []engine.Product{ProductWellKnownDisplayNames},
 		})
 
@@ -1573,14 +1573,14 @@ func init() {
 	},
 		engine.Processor{
 			Description: "MemberOf and Member resolution",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Provides:    []engine.Product{ProductMemberships},
 		})
 
 	LoaderID.AddProcessor(applyIndirectMemberOfPatches,
 		engine.Processor{
 			Description: "MemberOfIndirect resolution",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductMemberships},
 			Provides:    []engine.Product{ProductIndirectMemberships},
 		})
@@ -1644,7 +1644,7 @@ func init() {
 		},
 		engine.Processor{
 			Description: "Certificate template publishing status",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
 			Provides:    []engine.Product{ProductCertificateTemplates},
 		})
@@ -1652,7 +1652,7 @@ func init() {
 	LoaderID.AddProcessor(resolveGPOLocalGroupMembers,
 		engine.Processor{
 			Description: "Resolve GPO local group members given by name, expanding preference variables per machine",
-			Phase:       engine.AfterMerge,
+			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductGPOTargeting},
 			Provides:    []engine.Product{ProductGPOLocalGroups},
 		})
