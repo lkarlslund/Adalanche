@@ -3,6 +3,7 @@ package graph
 import (
 	"errors"
 	"maps"
+	"slices"
 
 	"github.com/gammazero/deque"
 )
@@ -31,6 +32,7 @@ type Graph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[Ed
 	nodes              map[NodeType]map[string]any
 	edges              map[NodePair[NodeType]]Edge[EdgeType]
 	cleanupEdgesNeeded bool
+	limits             []string
 }
 
 func NewGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]]() Graph[NodeType, EdgeType] {
@@ -49,8 +51,23 @@ func (pg *Graph[NodeType, EdgeType]) Clone() Graph[NodeType, EdgeType] {
 	if pg != nil {
 		newGraph.edges = maps.Clone(pg.edges)
 		newGraph.nodes = maps.Clone(pg.nodes)
+		newGraph.limits = slices.Clone(pg.limits)
 	}
 	return newGraph
+}
+
+// Limited records that the graph holds less than everything that was asked
+// for, because a limit stopped what built it.
+func (pg *Graph[NodeType, EdgeType]) Limited(reason string) {
+	if !slices.Contains(pg.limits, reason) {
+		pg.limits = append(pg.limits, reason)
+	}
+}
+
+// Limits returns why the graph holds less than everything asked for, or
+// nothing when it is complete.
+func (pg *Graph[NodeType, EdgeType]) Limits() []string {
+	return pg.limits
 }
 
 func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
@@ -217,6 +234,9 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 		} else {
 			pg.edges[otherconnection] = otheredge
 		}
+	}
+	for _, reason := range npg.limits {
+		pg.Limited(reason)
 	}
 }
 

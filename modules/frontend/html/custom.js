@@ -269,13 +269,15 @@ async function aqlanalyze(e) {
       '<tr><td class="text-end pe-3">' +
       data.total +
       "</td><td>total nodes in analysis</td></tr>";
-    if (data.removed > 0) {
-      info +=
-        '<tr><td class="text-end pe-3"><b>' +
-        data.removed +
-        "</b></td><td><b>nodes were removed by node limiter</b></td></tr>";
-    }
     info += "</table>";
+    if (Array.isArray(data.limits) && data.limits.length > 0) {
+      info += "<hr/><b>Incomplete result</b>";
+      data.limits.forEach((limit) => {
+        const line = document.createElement("div");
+        line.textContent = limit;
+        info += line.outerHTML;
+      });
+    }
 
     new_window("results", "Query results", info);
 

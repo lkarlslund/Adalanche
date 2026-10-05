@@ -306,7 +306,6 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 		if kept == 0 {
 			return nil, fmt.Errorf("REACH: the shortest routes alone have more than %v nodes", s.opts.NodeLimit)
 		}
-		ui.Info().Msgf("REACH result has %v nodes, over the node limit of %v; keeping routes of up to %v edges", len(nodeLength), s.opts.NodeLimit, cutoff)
 	}
 
 	ds := s.aqlq.datasource
@@ -325,6 +324,9 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 		if re.length <= cutoff {
 			result.AddEdgeFlow(ds.NodeAt(key.from), ds.NodeAt(key.to), re.edges, 1)
 		}
+	}
+	if result.Order() < len(nodeLength) {
+		result.Limited(fmt.Sprintf("Node limit of %v reached: kept the %v nodes on routes of up to %v edges out of %v nodes on all routes", s.opts.NodeLimit, result.Order(), cutoff, len(nodeLength)))
 	}
 	ui.Debug().Msgf("REACH found %v nodes and %v edges", result.Order(), result.Size())
 	return &result, nil

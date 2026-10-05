@@ -3,9 +3,11 @@ package aql
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"runtime"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
@@ -87,17 +89,26 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 	type startResult struct {
 		position int
 		result   graph.Graph[*engine.Node, engine.EdgeBitmap]
+		limited  bool // the search stopped at the node limit
 	}
 	jobs := make(chan int)
 	results := make(chan startResult)
 	workers := runtime.NumCPU()
+	// Once the merged result is full, start nodes still waiting are not
+	// searched.
+	var full atomic.Bool
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for position := range jobs {
-				results <- startResult{position, aqlq.resolveEdgesFrom(opts, starts[position], adjacency)}
+				if full.Load() {
+					results <- startResult{position: position}
+					continue
+				}
+				g, limited := aqlq.resolveEdgesFrom(opts, starts[position], adjacency)
+				results <- startResult{position, g, limited}
 			}
 		}()
 	}
@@ -111,11 +122,12 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 	}()
 
 	pb = ui.ProgressBar("Searching from start nodes", int64(len(starts)))
-	pending := make(map[int]graph.Graph[*engine.Node, engine.EdgeBitmap])
-	next := 0
+	pending := make(map[int]startResult)
+	next, searched := 0, 0
+	limited := false
 	for r := range results {
 		pb.Add(1)
-		pending[r.position] = r.result
+		pending[r.position] = r
 		for {
 			searchResult, ready := pending[next]
 			if !ready {
@@ -123,12 +135,22 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 			}
 			delete(pending, next)
 			next++
-			if opts.NodeLimit == 0 || result.Order() <= opts.NodeLimit {
-				result.Merge(searchResult)
+			if opts.NodeLimit > 0 && result.Order() >= opts.NodeLimit {
+				limited = true
+				continue
+			}
+			result.Merge(searchResult.result)
+			searched++
+			limited = limited || searchResult.limited
+			if opts.NodeLimit > 0 && result.Order() >= opts.NodeLimit {
+				full.Store(true)
 			}
 		}
 	}
 	pb.Finish()
+	if limited {
+		result.Limited(fmt.Sprintf("Node limit of %v reached after searching %v of %v start nodes", opts.NodeLimit, searched, len(starts)))
+	}
 	return &result, nil
 }
 
@@ -136,7 +158,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
 	startObject *engine.Node,
 	adjacency *engine.RankedAdjacency,
-) graph.Graph[*engine.Node, engine.EdgeBitmap] {
+) (graph.Graph[*engine.Node, engine.EdgeBitmap], bool) {
 	ranks := adjacency.Ranks
 	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	maxSearchIndex := byte(len(aqlq.Next))
@@ -147,7 +169,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	}
 	startIndex, found := aqlq.datasource.NodeIndexOf(startObject)
 	if !found {
-		return committedGraph
+		return committedGraph, false
 	}
 
 	queue := PriorityQueue{
@@ -166,8 +188,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 	var processed int
 	var currentState searchState
+	limited := false
 	for queue.Len() > 0 {
 		if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+			limited = true
 			break
 		}
 
@@ -218,6 +242,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		visit := func(direction engine.EdgeDirection, nextIndex engine.NodeIndex, nextNode *engine.Node, eb engine.EdgeBitmap) bool {
 
 			if opts.NodeLimit > 0 && committedGraph.Order() >= opts.NodeLimit {
+				limited = true
 				return false
 			}
 
@@ -298,7 +323,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	paths.flush(aqlq.datasource, committedGraph, aqlq.Sources)
 	ui.Debug().Msgf("Processed %v path permutations, returning graph with %v nodes", processed, committedGraph.Order())
 
-	return committedGraph
+	return committedGraph, limited
 }
 
 var (

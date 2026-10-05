@@ -61,11 +61,16 @@ func init() {
 				return
 			}
 
+			// Postprocessors may build a new graph, so the limits are taken first.
+			limits := results.Limits()
 			for _, postprocessor := range frontend.PostProcessors {
 				*results = postprocessor(*results)
 			}
 
 			ui.Info().Msgf("Graph query resulted in %v nodes", results.Order())
+			for _, limit := range limits {
+				ui.Info().Msgf("Graph query result is incomplete: %v", limit)
+			}
 
 			// PruneIslands
 			var prunedislands int
@@ -116,6 +121,10 @@ func init() {
 
 				Total int `json:"total"`
 				Edges int `json:"edges"`
+
+				// Why the result holds less than everything the query
+				// matches; empty when it is complete.
+				Limits []string `json:"limits,omitempty"`
 			}{
 				// Reversed: mode != "normal", //FIXME
 
@@ -123,6 +132,7 @@ func init() {
 				NodeNameCounts: nodenamecounts,
 				Total:          results.Order(),
 				Edges:          results.Size(),
+				Limits:         limits,
 
 				Elements: &cytograph.Elements,
 			}

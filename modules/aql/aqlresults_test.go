@@ -435,3 +435,31 @@ func TestAQLReachReferences(t *testing.T) {
 		}
 	}
 }
+
+// A result cut short by the node limit says so; a complete one says nothing.
+func TestAQLResultsReportNodeLimit(t *testing.T) {
+	// The smallest limit under each mode's complete answer; REACH needs
+	// room for its shortest routes.
+	for mode, cut := range map[string]int{"WALK": 3, "TRAIL": 3, "ACYCLIC": 3, "REACH": 4} {
+		for _, tt := range []struct {
+			limit   int
+			limited bool
+		}{{0, false}, {100, false}, {cut, true}} {
+			g := testGraph(t, 0, competingPaths...)
+			aql := mode + " start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)"
+			resolver, err := ParseAQLQuery(aql, g)
+			if err != nil {
+				t.Fatalf("%s: %v", aql, err)
+			}
+			opts := NewResolverOptions()
+			opts.NodeLimit = tt.limit
+			result, err := resolver.Resolve(opts)
+			if err != nil {
+				t.Fatalf("%s: %v", aql, err)
+			}
+			if limited := len(result.Limits()) > 0; limited != tt.limited {
+				t.Errorf("%s with node limit %d: limited %v (%q), want %v", aql, tt.limit, limited, result.Limits(), tt.limited)
+			}
+		}
+	}
+}
