@@ -3,11 +3,20 @@ package analyze
 import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
+	adanalyze "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
+	"github.com/lkarlslund/adalanche/modules/integrations/attrs"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 func init() {
+	loader.AddProcessor(linkDomainGroupsToMachines, engine.Processor{
+		Description: "Domain's Everyone and Authenticated Users are members of a joined machine's",
+		Phase:       engine.AfterMerge,
+		Needs:       []engine.Product{adanalyze.ProductMachines, adanalyze.ProductWellKnownPrincipals},
+		Provides:    []engine.Product{ProductDomainGroups},
+	})
+
 	loader.AddProcessor(linkLocalAccountsToMachines, engine.Processor{
 		Description: "Link local users and groups to machines",
 		Phase:       engine.BeforeMerge,
@@ -89,4 +98,47 @@ func linkLocalAccountsToMachines(tx *engine.Tx) {
 			return true
 		})
 	}
+}
+
+// linkDomainGroupsToMachines makes a domain's Everyone and Authenticated
+// Users members of the same groups on each machine joined to the domain:
+// whoever the domain authenticates is one of them when using the machine.
+func linkDomainGroupsToMachines(tx *engine.Tx) {
+	machines, _ := tx.FindMulti(engine.Type, engine.NV("Machine"))
+	machines.Iterate(func(machine *engine.Node) bool {
+		joined := machine.OneAttr(attrs.DomainJoinedSID)
+		if joined.IsNil() {
+			return true
+		}
+		// The machine's computer account carries its domain.
+		var computer *engine.Node
+		candidates, _ := tx.FindMulti(engine.ObjectSid, joined)
+		candidates.Iterate(func(c *engine.Node) bool {
+			if c.Type() == engine.NodeTypeComputer && c.HasAttr(engine.DomainContext) {
+				computer = c
+				return false
+			}
+			return true
+		})
+		if computer == nil {
+			return true
+		}
+		for _, sid := range []windowssecurity.SID{windowssecurity.EveryoneSID, windowssecurity.AuthenticatedUsersSID} {
+			// The machine's own group is the one placed under it.
+			var local *engine.Node
+			machine.Children().Iterate(func(child *engine.Node) bool {
+				if child.SID() == sid {
+					local = child
+					return false
+				}
+				return true
+			})
+			domain, found := tx.FindAdjacentSID(sid, computer)
+			if local == nil || !found || domain == local {
+				continue
+			}
+			tx.EdgeBecauseEx(domain, local, activedirectory.EdgeMemberOfGroup, true, adanalyze.Inferred("the domain's principals are members on machines joined to it"))
+		}
+		return true
+	})
 }

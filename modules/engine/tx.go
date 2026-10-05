@@ -936,7 +936,14 @@ func (tx *Tx) EdgeTo(from, to NodeRef, edge Edge) {
 // EdgeBecause adds an edge and records why it exists. An edge can have
 // several causes; each is kept.
 func (tx *Tx) EdgeBecause(from, to NodeRef, edge Edge, source Source) {
+	tx.EdgeBecauseEx(from, to, edge, false, source)
+}
+
+// EdgeBecauseEx is EdgeBecause that, when forced, keeps edges between nodes
+// for the same SID, such as a domain's Authenticated Users and a machine's.
+func (tx *Tx) EdgeBecauseEx(from, to NodeRef, edge Edge, force bool, source Source) {
 	pe := tx.pendingEdgeFor(from, to)
+	pe.force = pe.force || force
 	pe.set = pe.set.Set(edge)
 	pe.clear = pe.clear.Clear(edge)
 	var about endpoint

@@ -131,13 +131,6 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	authenticatedUsers.SetFlex(engine.Type, "Group") // This could go wrong
 	tx.EdgeBecause(authenticatedUsers, everyone, activedirectory.EdgeMemberOfGroup, Collected("built-in groups"))
 	authenticatedUsers.ChildOf(machine)
-	if cinfo.Machine.IsDomainJoined {
-		domainauthenticatedusers, _ := tx.FindTwoOrAdd(
-			engine.ObjectSid, engine.NV(windowssecurity.EveryoneSID),
-			engine.DataSource, engine.NV(cinfo.Machine.Domain),
-		)
-		tx.EdgeBecause(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup, Collected("built-in groups"))
-	}
 	var macaddrs, ipaddresses []string
 	for _, networkinterface := range cinfo.Network.NetworkInterfaces {
 		if strings.Count(networkinterface.MACAddress, ":") == 5 {
@@ -822,20 +815,8 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			}
 		}
 	}
-	// Everyone / World and Authenticated Users merge with Domain - not pretty IMO
-	if cinfo.Machine.IsDomainJoined && !isdomaincontroller {
-		domaineveryoneobject := tx.AddNew(
-			activedirectory.ObjectSid, engine.NV(windowssecurity.EveryoneSID),
-			engine.DataSource, engine.NV(cinfo.Machine.Domain),
-		)
-		// Everyone who is a member of the Domain is also a member of "our" Everyone
-		tx.EdgeBecause(domaineveryoneobject, everyone, activedirectory.EdgeMemberOfGroup, Collected("built-in groups"))
-		domainauthenticatedusers := tx.AddNew(
-			activedirectory.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID),
-			engine.DataSource, engine.NV(cinfo.Machine.Domain),
-		)
-		tx.EdgeBecause(domainauthenticatedusers, authenticatedUsers, activedirectory.EdgeMemberOfGroup, Collected("built-in groups"))
-	}
+	// The domain's Everyone and Authenticated Users are linked to the
+	// machine's own after loading (linkDomainGroupsToMachines).
 	// An omitted service's identity may still be an ACL trustee elsewhere.
 	// Retain that path without creating otherwise unused service identities.
 	for _, sid := range skippedServiceSIDs {
