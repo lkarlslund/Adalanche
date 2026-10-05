@@ -87,3 +87,31 @@ func TestTrusteeGrantedCountsOnlyTheTrusteesAllows(t *testing.T) {
 		t.Fatal("the trustee's own grant was not found")
 	}
 }
+
+// A machine's local groups are in a token only for that machine's own
+// accounts, even though the domain's Authenticated Users is a member there.
+func TestTokensStayOffOtherMachinesLocalGroups(t *testing.T) {
+	usersSID := windowssecurity.MustParseStringSID("S-1-5-32-545")
+	graph := newADTestGraph()
+	domainUsers := enginetest.AddNew(graph, engine.ObjectSid, engine.NV(windowssecurity.AuthenticatedUsersSID), engine.DomainContext, "DC=example,DC=com")
+	account := enginetest.AddNew(graph, engine.Type, engine.NodeTypeUser.ValueString(), engine.ObjectSid, engine.NV(mustSID(t, "S-1-5-21-1-2-3-1100")), engine.DomainContext, "DC=example,DC=com")
+	machine := enginetest.AddNew(graph, engine.Type, ObjectTypeMachine.ValueString(), engine.Name, "HOST01")
+	local := func(sid windowssecurity.SID) *engine.Node {
+		n := enginetest.AddNew(graph, engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, engine.NV(sid))
+		enginetest.ChildOf(graph, n, machine)
+		return n
+	}
+	localAuthUsers, localUsers := local(windowssecurity.AuthenticatedUsersSID), local(usersSID)
+	localAccount := local(mustSID(t, "S-1-5-21-9-9-9-1001"))
+	enginetest.EdgeTo(graph, account, domainUsers, activedirectory.EdgeMemberOfGroup)
+	enginetest.Edge(graph, domainUsers, localAuthUsers, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, localAuthUsers, localUsers, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, localAccount, localUsers, activedirectory.EdgeMemberOfGroup)
+
+	if _, found := memberSIDs(graph, account)[usersSID]; found {
+		t.Error("a domain account's token has a machine's local Users group")
+	}
+	if _, found := memberSIDs(graph, localAccount)[usersSID]; !found {
+		t.Error("a local account's token lacks its own machine's Users group")
+	}
+}

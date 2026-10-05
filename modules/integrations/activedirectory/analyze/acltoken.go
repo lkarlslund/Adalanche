@@ -1,6 +1,9 @@
 package analyze
 
 import (
+	"cmp"
+	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/gofrs/uuid/v5"
@@ -13,6 +16,10 @@ import (
 // group memberships are resolved, and the cache is released once analysis is
 // done.
 var trusteeTokens sync.Map // *engine.Node -> map[windowssecurity.SID]struct{}
+
+// tokenClosures caches the SIDs of the groups reachable from a set of
+// direct groups, by the set (and the machine the principal is local to).
+var tokenClosures sync.Map // string -> map[windowssecurity.SID]struct{}
 
 // ACEGrants reports whether the ACE at index in the DACL of sd grants mask for
 // guid on o, and no preceding deny ACE refuses any of it to its trustee: one
@@ -64,22 +71,86 @@ type membershipGraph interface {
 // memberSIDs returns the SIDs of every group n is a member of, directly or
 // through nesting.
 func memberSIDs(g membershipGraph, n *engine.Node) map[windowssecurity.SID]struct{} {
+	home := machineOf(n)
+	memberOf := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup)
+	// A machine's local groups are in a token only on that machine: the
+	// domain's Authenticated Users is a member of every joined machine's,
+	// which no directory token includes.
+	outside := func(group *engine.Node) bool {
+		local := machineOf(group)
+		return local != nil && local != home
+	}
+	var direct []*engine.Node
+	g.EdgeIteratorRecursive(n, engine.Out, memberOf, true, func(_, group *engine.Node, _ engine.EdgeBitmap, _ int) bool {
+		if !outside(group) {
+			direct = append(direct, group)
+		}
+		return false
+	})
+	// Most principals share their direct groups (every computer is in
+	// Domain Computers and Authenticated Users), so the closure is walked
+	// once per distinct set of them.
+	slices.SortFunc(direct, func(a, b *engine.Node) int { return cmp.Compare(a.ID(), b.ID()) })
+	var key string
+	if home == nil {
+		key = fmt.Sprint(engine.InvalidNodeID, nodeIDs(direct))
+	} else {
+		key = fmt.Sprint(home.ID(), nodeIDs(direct))
+	}
+	if cached, found := tokenClosures.Load(key); found {
+		return cached.(map[windowssecurity.SID]struct{})
+	}
 	sids := map[windowssecurity.SID]struct{}{}
-	g.EdgeIteratorRecursive(n, engine.Out, engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup), true, func(_, group *engine.Node, _ engine.EdgeBitmap, _ int) bool {
+	for _, group := range direct {
 		if sid := group.SID(); !sid.IsBlank() {
 			sids[sid] = struct{}{}
 		}
-		return true
-	})
+		g.EdgeIteratorRecursive(group, engine.Out, memberOf, true, func(_, nested *engine.Node, _ engine.EdgeBitmap, _ int) bool {
+			if outside(nested) {
+				return false
+			}
+			if sid := nested.SID(); !sid.IsBlank() {
+				sids[sid] = struct{}{}
+			}
+			return true
+		})
+	}
+	tokenClosures.Store(key, sids)
 	return sids
 }
 
+func nodeIDs(nodes []*engine.Node) []engine.NodeID {
+	ids := make([]engine.NodeID, len(nodes))
+	for i, n := range nodes {
+		ids[i] = n.ID()
+	}
+	return ids
+}
+
+// machineOf returns the machine a node is local to: the machine it is placed
+// under, or the node itself when it is a machine.
+func machineOf(n *engine.Node) *engine.Node {
+	if n.Type() == ObjectTypeMachine {
+		return n
+	}
+	if p := n.Parent(); p != nil && p.Type() == ObjectTypeMachine {
+		return p
+	}
+	return nil
+}
+
 func init() {
-	LoaderID.AddProcessor(func(tx *engine.Tx) {
-		trusteeTokens.Clear()
-	}, engine.Processor{
-		Description: "Release cached trustee tokens",
-		Phase:       engine.AnalysisPhase,
-		Final:       true,
-	})
+	// Tokens hold memberships as they were when built: they are released
+	// once each phase is done, so the analysis phase never sees tokens from
+	// before references were resolved.
+	for _, phase := range []engine.Phase{engine.LoaderPhase, engine.AnalysisPhase} {
+		LoaderID.AddProcessor(func(tx *engine.Tx) {
+			trusteeTokens.Clear()
+			tokenClosures.Clear()
+		}, engine.Processor{
+			Description: "Release cached trustee tokens",
+			Phase:       phase,
+			Final:       true,
+		})
+	}
 }
