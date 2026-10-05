@@ -101,20 +101,8 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			)
 		}
 	}
-	var isdomaincontroller bool
-	if cinfo.Machine.ProductType != "" {
-		// New way of detecting domain controller
-		isdomaincontroller = strings.EqualFold(cinfo.Machine.ProductType, "LANMANNT")
-	} else {
-		// OK, lets brute force this alien
-		for _, group := range cinfo.Groups {
-			if group.SID == "S-1-5-32-548" {
-				// Account Operators exists only locally on DCs
-				isdomaincontroller = true
-				break
-			}
-		}
-	}
+	isdomaincontroller := isDomainController(cinfo)
+	scope := NewMachineScope(tx, machine, cinfo)
 	if isdomaincontroller {
 		ui.Debug().Msgf("Detected %v as local machine data coming from a Domain Controller", cinfo.Machine.Name)
 	}
@@ -136,10 +124,10 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 
 	// Don't set UniqueSource on the computer object, it needs to merge with the AD object!
 	machine.SetFlex(engine.DataSource, uniquesource)
-	everyone := tx.FindOrAddAdjacentSID(windowssecurity.EveryoneSID, machine)
+	everyone := scope.Principal(windowssecurity.EveryoneSID)
 	everyone.SetFlex(engine.Type, "Group") // This could go wrong
 	everyone.ChildOf(machine)
-	authenticatedUsers := tx.FindOrAddAdjacentSID(windowssecurity.AuthenticatedUsersSID, machine)
+	authenticatedUsers := scope.Principal(windowssecurity.AuthenticatedUsersSID)
 	authenticatedUsers.SetFlex(engine.Type, "Group") // This could go wrong
 	tx.EdgeBecause(authenticatedUsers, everyone, activedirectory.EdgeMemberOfGroup, Collected("built-in groups"))
 	authenticatedUsers.ChildOf(machine)
@@ -261,7 +249,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 						continue
 					}
 				}
-				memberobject := tx.FindOrAddAdjacentSID(membersid, machine)
+				memberobject := scope.Principal(membersid)
 				// Collector sometimes returns junk, but if we have downlevel logon name we store it
 				if member.Name != "" && !strings.HasSuffix(member.Name, "\\") && !strings.HasPrefix(member.Name, "S-1-") {
 					memberobject.SetFlex(
@@ -380,7 +368,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 				continue
 			}
 			// Potential translation
-			assignee := tx.FindOrAddAdjacentSID(sid, machine)
+			assignee := scope.Principal(sid)
 			tx.EdgeBecause(assignee, machine, edge, Collected("user right "+pi.Name))
 		}
 	}
@@ -398,7 +386,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 		}
 
 		// Potential translation
-		loggedin := tx.FindOrAddAdjacentSID(usersid, machine)
+		loggedin := scope.Principal(usersid)
 		if usersid.StripRID() == localsid || usersid.Component(2) != 21 {
 			loggedin.SetFlex(
 				engine.DataSource, uniquesource,
@@ -509,7 +497,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED &&
 					entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE == 0 &&
 					entry.Mask&engine.SC_MANAGER_CREATE_SERVICE != 0 {
-					o := tx.FindOrAddAdjacentSID(entrysid, machine)
+					o := scope.Principal(entrysid)
 					tx.EdgeBecause(o, machine, EdgeCreateService, Collected(fmt.Sprintf("service control manager ACE %d", index)))
 				}
 			}
@@ -528,7 +516,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 		var serviceobject, serviceexecutable engine.TxNode
 		if keepService {
 			if !localservicesgroup.Valid() {
-				localservicesgroup = tx.FindOrAddAdjacentSID(windowssecurity.ServicesSID, machine)
+				localservicesgroup = scope.Principal(windowssecurity.ServicesSID)
 				localservicesgroup.SetFlex(
 					activedirectory.ObjectSid, engine.NV(windowssecurity.ServicesSID),
 					engine.DownLevelLogonName, cinfo.Machine.Name+"\\Services",
@@ -567,14 +555,14 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			tx.EdgeBecause(serviceobject, serviceexecutable, EdgeExecutes, Collected("service "+service.Name))
 			serviceexecutable.ChildOf(serviceobject)
 			if ownersid, err := windowssecurity.ParseStringSID(service.ImageExecutableOwner); err == nil {
-				owner := tx.FindOrAddAdjacentSID(ownersid, machine)
+				owner := scope.Principal(ownersid)
 				tx.EdgeBecause(owner, serviceexecutable, activedirectory.EdgeOwns, Collected("service "+service.Name+" executable owner"))
 			}
 			if sd, err := engine.ParseACL(service.ImageExecutableDACL); err == nil {
 				for index, entry := range sd.Entries {
 					entrysid := entry.SID
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entrysid.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
-						o := tx.FindOrAddAdjacentSID(entrysid, machine)
+						o := scope.Principal(entrysid)
 						if entry.Mask&engine.FILE_WRITE_DATA != 0 {
 							tx.EdgeBecause(o, serviceexecutable, EdgeFileWrite, Collected(fmt.Sprintf("service %v executable ACE %d", service.Name, index)))
 						}
@@ -632,7 +620,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			}
 		}
 		if !svcaccount.Valid() && !serviceaccountSID.IsBlank() {
-			svcaccount = tx.FindOrAddAdjacentSID(serviceaccountSID, machine)
+			svcaccount = scope.Principal(serviceaccountSID)
 		}
 
 		// Did we somehow manage to find an account?
@@ -658,7 +646,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			continue
 		}
 		// Specific service SID
-		so := tx.FindOrAddAdjacentSID(windowssecurity.ServiceNameToServiceSID(service.Name), machine)
+		so := scope.Principal(windowssecurity.ServiceNameToServiceSID(service.Name))
 		// ui.Debug().Msgf("Added service account %v for service %v", so.SID().String(), service.Name)
 		so.SetFlex(
 			activedirectory.Name, engine.NV(service.Name),
@@ -671,7 +659,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 		if service.RegistryOwner != "" {
 			ro, err := windowssecurity.ParseStringSID(service.RegistryOwner)
 			if err == nil {
-				o := tx.FindOrAddAdjacentSID(ro, machine)
+				o := scope.Principal(ro)
 				tx.EdgeBecause(o, serviceobject, EdgeRegistryOwns, Collected("service "+service.Name+" registry owner"))
 			}
 		}
@@ -679,7 +667,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			for index, entry := range sd.Entries {
 				entrysid := entry.SID
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.ACEFlags&engine.ACEFLAG_INHERIT_ONLY_ACE) == 0 {
-					o := tx.FindOrAddAdjacentSID(entrysid, machine)
+					o := scope.Principal(entrysid)
 					if entry.Mask&engine.KEY_SET_VALUE != 0 {
 						tx.EdgeBecause(o, serviceobject, EdgeRegistryWrite, Collected(fmt.Sprintf("service %v registry ACE %d", service.Name, index)))
 					}
@@ -705,7 +693,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 							entry.Mask&engine.SERVICE_ALL_ACCESS == engine.SERVICE_ALL_ACCESS ||
 							entry.Mask&engine.WRITE_OWNER == engine.WRITE_OWNER ||
 							entry.Mask&engine.WRITE_DAC == engine.WRITE_DAC {
-							o := tx.FindOrAddAdjacentSID(entrysid, machine)
+							o := scope.Principal(entrysid)
 							tx.EdgeBecause(o, serviceobject, EdgeServiceModify, Collected(fmt.Sprintf("service %v ACE %d", service.Name, index)))
 						}
 					}
@@ -719,7 +707,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 
 	// SCHEDULED TASKS
 	for _, task := range cinfo.Tasks {
-		importTask(tx, machine, task, admin)
+		importTask(tx, machine, scope, task, admin)
 	}
 
 	// SERVICE AND TASK INVENTORY AS ATTRIBUTES: services and tasks that
@@ -777,7 +765,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 				for index, entry := range sd.DACL.Entries {
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
 						entrysid := entry.SID
-						o := tx.FindOrAddAdjacentSID(entrysid, machine)
+						o := scope.Principal(entrysid)
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
 							tx.EdgeBecause(o, shareobject, EdgeFileRead, Collected(fmt.Sprintf("share %v ACE %d", share.Name, index)))
 						}
@@ -808,13 +796,13 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			// File rights
 			if sd, err := engine.ParseACL(share.PathDACL); err == nil {
 				if sid, err := windowssecurity.ParseStringSID(share.PathOwner); err == nil {
-					owner := tx.FindOrAddAdjacentSID(sid, machine)
+					owner := scope.Principal(sid)
 					tx.EdgeBecause(owner, pathobject, activedirectory.EdgeOwns, Collected("share "+share.Name+" folder owner"))
 				}
 				for index, entry := range sd.Entries {
 					entrysid := entry.SID
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED {
-						aclsid := tx.FindOrAddAdjacentSID(entrysid, machine)
+						aclsid := scope.Principal(entrysid)
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
 							tx.EdgeBecause(aclsid, pathobject, EdgeFileRead, Collected(fmt.Sprintf("share %v folder ACE %d", share.Name, index)))
 						}

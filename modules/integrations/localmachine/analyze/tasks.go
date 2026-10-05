@@ -16,8 +16,8 @@ var EdgeTaskActionWrite = engine.NewEdge("TaskActionWrite").RegisterFixedProbabi
 // other than the machine's admin-equivalent principals can change it or
 // write its action executables; otherwise the only thing it adds is that the
 // machine runs code as the task's account, which becomes a direct edge.
-func importTask(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask, admin adminEquivalent) {
-	account := taskIdentity(g, machine, task)
+func importTask(g *engine.Tx, machine engine.TxNode, scope MachineScope, task lm.RegisteredTask, admin adminEquivalent) {
+	account := taskIdentity(g, machine, scope, task)
 	var writers []windowssecurity.SID
 	if account.Valid() {
 		writers = taskActionWriters(task, admin)
@@ -42,10 +42,10 @@ func importTask(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask, adm
 		g.EdgeBecause(taskNode, account, ad.EdgeAuthenticatesAs, cause)
 	}
 	for _, sid := range writers {
-		g.EdgeBecause(g.FindOrAddAdjacentSID(sid, machine), taskNode, EdgeTaskActionWrite, Collected("scheduled task "+task.Name+" action file permissions"))
+		g.EdgeBecause(scope.Principal(sid), taskNode, EdgeTaskActionWrite, Collected("scheduled task "+task.Name+" action file permissions"))
 	}
 	for _, control := range controls {
-		principal := g.FindOrAddAdjacentSID(control.sid, machine)
+		principal := scope.Principal(control.sid)
 		for _, edge := range control.edges {
 			g.EdgeBecause(principal, taskNode, edge, Collected("scheduled task "+task.Name+" permissions"))
 		}
@@ -54,7 +54,7 @@ func importTask(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask, adm
 
 // taskIdentity returns the account an enabled task runs as unattended, if
 // any.
-func taskIdentity(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask) engine.TxNode {
+func taskIdentity(g *engine.Tx, machine engine.TxNode, scope MachineScope, task lm.RegisteredTask) engine.TxNode {
 	if !task.Enabled || !task.Definition.Settings.Enabled {
 		return engine.TxNode{}
 	}
@@ -69,14 +69,14 @@ func taskIdentity(g *engine.Tx, machine engine.TxNode, task lm.RegisteredTask) e
 		if p.RunLevel != 1 {
 			return engine.TxNode{}
 		}
-		account = g.FindOrAddAdjacentSID(windowssecurity.SystemSID, machine)
+		account = scope.Principal(windowssecurity.SystemSID)
 	case "LOCAL SERVICE", "NT AUTHORITY\\LOCAL SERVICE":
-		account = g.FindOrAddAdjacentSID(windowssecurity.LocalServiceSID, machine)
+		account = scope.Principal(windowssecurity.LocalServiceSID)
 	case "NETWORK SERVICE", "NT AUTHORITY\\NETWORK SERVICE":
-		account = g.FindOrAddAdjacentSID(windowssecurity.NetworkServiceSID, machine)
+		account = scope.Principal(windowssecurity.NetworkServiceSID)
 	default:
 		if sid, err := windowssecurity.ParseStringSID(name); err == nil {
-			account = g.FindOrAddAdjacentSID(sid, machine)
+			account = scope.Principal(sid)
 		} else if domain, user, found := strings.Cut(name, `\`); found {
 			if domain == "." {
 				domain = machine.Node().Label()

@@ -383,7 +383,8 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 
 		DomainJoinedSID := machine.OneAttr(attrs.DomainJoinedSID)
 		if DomainJoinedSID.IsNil() {
-			ui.Warn().Msgf("Machine %v has no DomainJoinedSID attribute (dump %v)", machine.OneAttrString(engine.Name), machine.ValueMap())
+			// Not domain joined, or only known by address (a logon source
+			// that matches no known machine): no GPO applies to it.
 			return true
 		}
 
@@ -393,7 +394,6 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 				ui.Warn().Msgf("Machine %v with DomainJoinedSID %v has multiple computer accounts", machine.OneAttrString(engine.Name), DomainJoinedSID)
 				computers.Iterate(func(o *engine.Node) bool {
 					ui.Warn().Msgf("Computer - %v (id %v)", o.DN(), o.ID())
-					ui.Warn().Msgf("Values - %v", o.ValueMap())
 					return true
 				})
 				return true
@@ -1249,7 +1249,13 @@ func init() {
 		}
 
 		tx.Iterate(func(object *engine.Node) bool {
-			domain, inCollectedDomain := domains[object.SID().StripRID()]
+			// Objects without a domain SID (OUs, containers, DNS records,
+			// built-in principals) belong to no collected domain.
+			var domain domainParts
+			var inCollectedDomain bool
+			if sid := object.SID(); sid.Component(2) == 21 && sid.Components() > 4 {
+				domain, inCollectedDomain = domains[sid.StripRID()]
+			}
 			if rid, ok := object.AttrInt(activedirectory.PrimaryGroupID); ok {
 				sid := object.SID()
 				if len(sid) > 8 {

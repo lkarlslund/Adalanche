@@ -124,3 +124,30 @@ func TestLocalGroupEdgesRecordTheCollection(t *testing.T) {
 		}
 	}
 }
+
+// A machine's own principals (built-in SIDs, its local accounts) are placed
+// under it; domain accounts are not.
+func TestMachinePrincipalsAreUnderTheMachine(t *testing.T) {
+	info := syntheticMachine("HOST01", "S-1-5-21-111-222-333", "S-1-5-21-900-901-902-1101")
+	info.Privileges = append(info.Privileges, lm.Privilege{Name: "SeDebugPrivilege", AssignedSIDs: []string{
+		"S-1-5-18", "S-1-5-21-111-222-333-1005", "S-1-5-21-900-901-902-1105",
+	}})
+	g := engine.NewIndexedGraph()
+	machine, err := importMachine(g, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parents := map[string]*engine.Node{}
+	g.Iterate(func(n *engine.Node) bool {
+		parents[n.SID().String()] = n.Parent()
+		return true
+	})
+	for _, sid := range []string{"S-1-5-18", "S-1-5-21-111-222-333-1005"} {
+		if parents[sid] != machine {
+			t.Errorf("%v is not under the machine", sid)
+		}
+	}
+	if parents["S-1-5-21-900-901-902-1105"] == machine {
+		t.Error("a domain account was put under the machine")
+	}
+}

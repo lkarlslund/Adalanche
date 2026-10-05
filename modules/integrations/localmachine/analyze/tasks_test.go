@@ -21,7 +21,9 @@ func systemTask(enabled bool, actionACL []byte) lm.RegisteredTask {
 func importTestTask(task lm.RegisteredTask) (*engine.IndexedGraph, *engine.Node, *engine.Node) {
 	g := engine.NewIndexedGraph()
 	machine := enginetest.AddNew(g, engine.Type, "Machine", engine.Name, "synthetic", engine.DataSource, "synthetic")
-	runTx(g, func(tx *engine.Tx) { importTask(tx, tx.Node(machine), task, localAdministratorSID) })
+	runTx(g, func(tx *engine.Tx) {
+		importTask(tx, tx.Node(machine), MachineScope{tx: tx, machine: tx.Node(machine)}, task, localAdministratorSID)
+	})
 	var taskNode *engine.Node
 	g.Iterate(func(n *engine.Node) bool {
 		if n.OneAttrString(engine.Type) == "ScheduledTask" {
