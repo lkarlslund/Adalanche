@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
+	"strconv"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
@@ -45,6 +47,9 @@ type CytoGraph struct {
 	TargetCytoscapeJSVersion string        `json:"target_cytoscapejs_version"`
 	Data                     CytoGraphData `json:"data"`
 	Elements                 CytoElements  `json:"elements"`
+	// EdgeCombos holds each distinct set of edge types once when edges
+	// refer to it by index ("combo") instead of listing their "methods".
+	EdgeCombos [][]string `json:"edge_combos,omitempty"`
 }
 
 type CytoGraphData struct {
@@ -55,12 +60,30 @@ type CytoGraphData struct {
 
 type CytoElements []CytoFlatElement
 
+// CytoFlatElement is a node, with MapStringInterface data, or an edge, with
+// *CytoEdgeData.
 type CytoFlatElement struct {
-	Data  MapStringInterface `json:"data"`
-	Group string             `json:"group"` // nodes or edges
+	Data  any    `json:"data"`
+	Group string `json:"group"` // nodes or edges
 }
 
-func GenerateCytoscapeJS(_ *engine.IndexedGraph, pg graph.Graph[*engine.Node, engine.EdgeBitmap], alldetails bool) (CytoGraph, error) {
+// CytoEdgeData describes an edge. Edges are most of a large result, so they
+// are structs rather than maps.
+type CytoEdgeData struct {
+	ID             string             `json:"id"`
+	Source         string             `json:"source"`
+	Target         string             `json:"target"`
+	Flow           int                `json:"flow"`
+	MaxProbability engine.Probability `json:"_maxprob"`
+	Methods        []string           `json:"methods,omitempty"`
+	Combo          *int               `json:"combo,omitempty"` // index into CytoGraph.EdgeCombos
+}
+
+// GenerateCytoscapeJS describes a result graph as Cytoscape elements. With
+// sharedCombos, edges name their edge types by an index into EdgeCombos, as
+// the graph itself keeps them; a result has few distinct combinations and
+// many edges.
+func GenerateCytoscapeJS(_ *engine.IndexedGraph, pg graph.Graph[*engine.Node, engine.EdgeBitmap], sharedCombos bool) (CytoGraph, error) {
 	g := CytoGraph{
 		FormatVersion:            "1.0",
 		GeneratedBy:              version.ProgramVersionShort(),
@@ -89,61 +112,70 @@ func GenerateCytoscapeJS(_ *engine.IndexedGraph, pg graph.Graph[*engine.Node, en
 	var i int
 	for node, df := range pg.Nodes() {
 		nodeid := node.ID()
-		newnode := CytoFlatElement{
-			Group: "nodes",
-			Data: map[string]any{
-				"id":    fmt.Sprintf("n%v", nodeid),
-				"label": node.Label(),
-				"type":  node.OneAttrString(engine.Type),
-			},
+		data := MapStringInterface{
+			"id":    fmt.Sprintf("n%v", nodeid),
+			"label": node.Label(),
+			"type":  node.OneAttrString(engine.Type),
 		}
 
 		node.Attr(engine.Tag).Iterate(func(tag engine.AttributeValue) bool {
-			newnode.Data[tag.String()] = true
+			data[tag.String()] = true
 			return true
 		})
 
-		maps.Copy(newnode.Data, df)
+		maps.Copy(data, df)
 
 		// If we added empty junk, remove it again
-		for attr, value := range newnode.Data {
+		for attr, value := range data {
 			if value == "" || (attr == "objectSid" && value == "NULL SID") {
-				delete(newnode.Data, attr)
+				delete(data, attr)
 			}
 		}
 
 		if df["target"] == true {
-			newnode.Data["_querytarget"] = true
+			data["_querytarget"] = true
 		}
 		if df["source"] == true {
-			newnode.Data["_querysource"] = true
+			data["_querysource"] = true
 		}
 		if df["canexpand"] != 0 {
-			newnode.Data["_canexpand"] = df["canexpand"]
+			data["_canexpand"] = df["canexpand"]
 		}
 
-		g.Elements[i] = newnode
+		g.Elements[i] = CytoFlatElement{Group: "nodes", Data: data}
 
 		i++
 	}
 
+	// Edge data is allocated in one block; each combination's index once.
+	edges := make([]CytoEdgeData, 0, pg.Size())
+	combos := map[engine.EdgeBitmap]*int{}
 	pg.IterateEdges(func(source, target *engine.Node, edge engine.EdgeBitmap, flow int) bool {
-		sourceid := source.ID()
-		targetid := target.ID()
-		cytoedge := CytoFlatElement{
-			Group: "edges",
-			Data: MapStringInterface{
-				"id":       fmt.Sprintf("e%v-%v", sourceid, targetid),
-				"source":   fmt.Sprintf("n%v", sourceid),
-				"target":   fmt.Sprintf("n%v", targetid),
-				"flow":     flow,
-				"_maxprob": edge.MaxProbability(source, target),
-				"methods":  edge.StringSlice(),
-			},
+		sourceid := strconv.FormatUint(uint64(source.ID()), 10)
+		targetid := strconv.FormatUint(uint64(target.ID()), 10)
+		edges = append(edges, CytoEdgeData{
+			ID:             "e" + sourceid + "-" + targetid,
+			Source:         "n" + sourceid,
+			Target:         "n" + targetid,
+			Flow:           flow,
+			MaxProbability: edge.MaxProbability(source, target),
+		})
+		data := &edges[len(edges)-1]
+		if sharedCombos {
+			combo, found := combos[edge]
+			if !found {
+				combo = new(int)
+				*combo = len(g.EdgeCombos)
+				combos[edge] = combo
+				names := edge.StringSlice()
+				slices.Sort(names)
+				g.EdgeCombos = append(g.EdgeCombos, names)
+			}
+			data.Combo = combo
+		} else {
+			data.Methods = edge.StringSlice()
 		}
-
-		g.Elements[i] = cytoedge
-
+		g.Elements[i] = CytoFlatElement{Group: "edges", Data: data}
 		i++
 		return true
 	})
@@ -156,7 +188,7 @@ func ExportCytoscapeJS(ao *engine.IndexedGraph, pg graph.Graph[*engine.Node, eng
 	if err != nil {
 		return err
 	}
-	data, err := qjson.MarshalIndent(g, "", "  ")
+	data, err := JSON.MarshalIndent(g, "", "  ")
 	if err != nil {
 		return err
 	}

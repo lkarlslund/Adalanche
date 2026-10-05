@@ -85,6 +85,21 @@ type AQLqueryUnion struct {
 
 func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	var result *graph.Graph[*engine.Node, engine.EdgeBitmap]
+	// Nodes are merged once the queries' results are combined, comparing
+	// them by the side all the queries agree on.
+	merge := opts.MergeNodes
+	opts.MergeNodes = MergeOff
+	side := engine.Any
+	for i, q := range aqlqu.queries {
+		var s engine.EdgeDirection = engine.Any
+		if aqlq, ok := q.(AQLquery); ok {
+			s = aqlq.startSide()
+		}
+		if i > 0 && s != side {
+			s = engine.Any
+		}
+		side = s
+	}
 	for _, q := range aqlqu.queries {
 		g, err := q.Resolve(opts)
 		if err != nil {
@@ -98,7 +113,12 @@ func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.N
 			}
 		}
 	}
-	// Post process options
+	if err := opts.cancelled(); err != nil {
+		return nil, err
+	}
+	if result != nil {
+		result = arrangeNodes(result, merge, side)
+	}
 	return result, nil
 }
 

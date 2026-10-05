@@ -55,8 +55,15 @@ func init() {
 				ui.Warn().Msgf("Problem parsing resolver options: %v", err)
 			}
 
+			// The search stops if the client gives up on it.
+			opts.Context = c.Request.Context()
 			results, err := resolver.Resolve(opts)
 			if err != nil {
+				if c.Request.Context().Err() != nil {
+					ui.Info().Msg("Graph query cancelled by the client")
+					c.Status(499) // client closed request
+					return
+				}
 				c.String(500, "Error resolving AQL query: %v", err)
 				return
 			}
@@ -104,7 +111,7 @@ func init() {
 				}
 			}
 
-			cytograph, err := frontend.GenerateCytoscapeJS(ws.SuperGraph, *results, false)
+			cytograph, err := frontend.GenerateCytoscapeJS(ws.SuperGraph, *results, true)
 			if err != nil {
 				c.String(500, "Error generating cytoscape graph: %v", err)
 				return
@@ -114,7 +121,8 @@ func init() {
 				NodeNameCounts map[string]int `json:"nodecounts"`
 				ResultTypes    map[string]int `json:"resulttypes"`
 
-				Elements *frontend.CytoElements `json:"elements"`
+				Elements   *frontend.CytoElements `json:"elements"`
+				EdgeCombos [][]string             `json:"edgecombos"`
 
 				StartNodes int `json:"start_nodes"`
 				EndNodes   int `json:"end_nodes"`
@@ -134,7 +142,8 @@ func init() {
 				Edges:          results.Size(),
 				Limits:         limits,
 
-				Elements: &cytograph.Elements,
+				Elements:   &cytograph.Elements,
+				EdgeCombos: cytograph.EdgeCombos,
 			}
 
 			c.JSON(200, response)

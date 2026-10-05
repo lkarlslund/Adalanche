@@ -452,3 +452,70 @@ input[type="number"] {
   background-color: var(--bs-primary);
   color: var(--bs-dark);
 }
+
+/* Three-way sliding toggle: radio inputs, each followed by its label, and a
+   thumb that slides under the checked one. */
+.tri-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  flex: 1;
+  padding: 2px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  background-color: var(--bs-tertiary-bg);
+}
+
+.tri-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tri-toggle label {
+  position: relative;
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.tri-toggle input:checked + label {
+  color: var(--bs-dark);
+}
+
+.tri-toggle input:focus-visible + label {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 1px;
+}
+
+.tri-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 3);
+  border-radius: 999px;
+  background-color: var(--bs-primary);
+  transition: transform 0.2s ease;
+}
+
+.tri-toggle input:nth-of-type(2):checked ~ .tri-toggle-thumb {
+  transform: translateX(100%);
+}
+
+.tri-toggle input:nth-of-type(3):checked ~ .tri-toggle-thumb {
+  transform: translateX(200%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tri-toggle-thumb,
+  .tri-toggle label {
+    transition: none;
+  }
+}

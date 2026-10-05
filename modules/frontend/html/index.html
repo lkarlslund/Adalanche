@@ -410,6 +410,29 @@
                   </div>
                 </div>
 
+                <div class="mb-1" x-data="{ mergeNodes: $persist('routes').as('graph.merge.nodes').using(window.backendPersist) }">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="form-label mb-0 flex-shrink-0">Merge nodes</span>
+                    <div class="tri-toggle" id="mergenodes" role="radiogroup" aria-label="Merge nodes">
+                      <input type="radio" id="mergenodes-off" name="merge_nodes" value="off" x-model="mergeNodes" x-on:change="if (window.graph) aqlanalyze()" />
+                      <label for="mergenodes-off" data-bs-toggle="tooltip" data-bs-title="Draw every node">Off</label>
+                      <input type="radio" id="mergenodes-identical" name="merge_nodes" value="identical" x-model="mergeNodes" x-on:change="if (window.graph) aqlanalyze()" />
+                      <label for="mergenodes-identical" data-bs-toggle="tooltip" data-bs-title="Draw nodes with the same type and exactly the same edges as one. Nothing is lost: every route through one of them runs through all of them.">Identical</label>
+                      <input type="radio" id="mergenodes-routes" name="merge_nodes" value="routes" x-model="mergeNodes" x-on:change="if (window.graph) aqlanalyze()" />
+                      <label for="mergenodes-routes" data-bs-toggle="tooltip" data-bs-title="Draw nodes of the same type that lead on to the query's start the same way as one. An edge into a merged node reaches at least one of its members; expand it to see which.">Same route</label>
+                      <span class="tri-toggle-thumb" aria-hidden="true"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mb-1" id="hopfilter" style="display: none">
+                  <div class="d-flex align-items-center gap-2">
+                    <label for="hopslider" class="form-label mb-0 flex-shrink-0" data-bs-toggle="tooltip" data-bs-title="Show nodes up to this many edges from the query's start nodes">Hops</label>
+                    <input type="range" class="form-range" id="hopslider" min="0" max="0" step="1" value="0" oninput="applyHopFilter()" />
+                  </div>
+                  <div id="hopslidervalue" class="small text-body-secondary text-end"></div>
+                </div>
+
                 <div class="mb-1">
                   <div class="form-check" x-data="{ showEdgeLabels: $persist(false).as('graph.edgelabels').using(window.backendPersist) }">
                     <input

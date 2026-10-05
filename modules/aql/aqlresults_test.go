@@ -1,6 +1,8 @@
 package aql
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -460,6 +462,189 @@ func TestAQLResultsReportNodeLimit(t *testing.T) {
 			if limited := len(result.Limits()) > 0; limited != tt.limited {
 				t.Errorf("%s with node limit %d: limited %v (%q), want %v", aql, tt.limit, limited, result.Limits(), tt.limited)
 			}
+		}
+	}
+}
+
+// Users that reach the target the same way merge; one with another route,
+// and nodes with another role in the query, do not.
+func TestMergeIdenticalNodes(t *testing.T) {
+	g := testGraph(t, 0,
+		"u1 -hop-> grp", "u2 -hop-> grp", "u3 -hop-> grp", "u4 -hop-> grp",
+		"u5 -hop-> grp", "u5 -hop-> side", "side -hop-> end",
+		"grp -hop-> end", "grp -hop-> uend", "end -hop-> uend")
+	for _, mode := range []string{"ACYCLIC", "REACH"} {
+		resolver, err := ParseAQLQuery(mode+" start:(name=u*)-[AQLTestHop]{1,3}->end:(name=*end)", g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts := NewResolverOptions()
+		plain, err := resolver.Resolve(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantFlow := 0
+		plain.IterateEdges(func(s, d *engine.Node, _ engine.EdgeBitmap, flow int) bool {
+			if s.Label() != "u5" && strings.HasPrefix(s.Label(), "u") && d.Label() == "grp" {
+				wantFlow += flow
+			}
+			return true
+		})
+		opts.MergeNodes = MergeIdentical
+		result, err := resolver.Resolve(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var merged []string
+		for node, data := range result.Nodes() {
+			if count, _ := data["_merged"].(int); count > 1 {
+				var names []string
+				for _, m := range data["_members"].([]MergedMember) {
+					names = append(names, m.Label)
+				}
+				merged = append(merged, fmt.Sprintf("%s=%v", node.Label(), names))
+			}
+		}
+		if want := "[u1=[u1 u2 u3 u4]]"; fmt.Sprint(merged) != want {
+			t.Errorf("%s: merged %v, want %s", mode, merged, want)
+		}
+		var into int
+		result.IterateEdges(func(s, d *engine.Node, _ engine.EdgeBitmap, flow int) bool {
+			if s.Label() == "u1" && d.Label() == "grp" {
+				into = flow
+			}
+			return true
+		})
+		if into != wantFlow || into == 0 {
+			t.Errorf("%s: merged edge flow %d, want the members' %d", mode, into, wantFlow)
+		}
+	}
+}
+
+// REACH counts merged nodes against the node limit, so the limit reaches
+// further when many nodes merge.
+func TestAQLReachNodeLimitCountsMergedNodes(t *testing.T) {
+	lines := []string{"grp -hop-> mid", "mid -hop-> end"}
+	for i := range 20 {
+		lines = append(lines, fmt.Sprintf("u%02d -hop-> grp", i))
+	}
+	g := testGraph(t, 0, lines...)
+	resolver, err := ParseAQLQuery("REACH start:(name=u*)-[AQLTestHop]{1,3}->end:(name=end)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := NewResolverOptions()
+	opts.NodeLimit = 5
+	if _, err := resolver.Resolve(opts); err == nil {
+		t.Fatal("without merging, 23 nodes should not fit a limit of 5")
+	}
+	opts.MergeNodes = MergeIdentical
+	result, err := resolver.Resolve(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Order() != 4 || len(result.Limits()) != 0 {
+		t.Fatalf("merged: %d nodes, limits %q; want 4 nodes and no limit", result.Order(), result.Limits())
+	}
+}
+
+// In routes mode, users controlled by different groups merge when they lead
+// on to the target the same way, and so do their controllers; identical mode
+// keeps them apart. The side compared follows the query's direction.
+func TestMergeRoutes(t *testing.T) {
+	g := testGraph(t, 0, "c1 -hop-> u1", "c2 -hop-> u2", "c1 -hop-> u3", "u1 -hop-> grp", "u2 -hop-> grp", "u3 -hop-> grp", "grp -hop-> end")
+	for _, tt := range []struct {
+		aql  string
+		mode MergeMode
+		want int
+	}{
+		{"REACH start:(name=end)<-[AQLTestHop]{1,3}-last:(name=c*)", MergeIdentical, 6},
+		{"REACH start:(name=end)<-[AQLTestHop]{1,3}-last:(name=c*)", MergeRoutes, 4},
+		{"ACYCLIC start:(name=end)<-[AQLTestHop]{1,3}-last:(name=c*)", MergeRoutes, 4},
+		// Start nodes never merge by route, so nothing after them does.
+		{"REACH start:(name=c*)-[AQLTestHop]{1,3}->last:(name=end)", MergeRoutes, 6},
+		{"REACH start:(name=c*)-[AQLTestHop]{1,3}->last:(name=end)", MergeOff, 7},
+		// Away from the start, nodes reached the same way merge.
+		{"REACH start:(name=c1)-[AQLTestHop]{1,3}->last:(name=end)", MergeRoutes, 4},
+	} {
+		resolver, err := ParseAQLQuery(tt.aql, g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts := NewResolverOptions()
+		opts.MergeNodes = tt.mode
+		result, err := resolver.Resolve(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Order() != tt.want {
+			t.Errorf("%s merging %q: %d nodes, want %d\n%s", tt.aql, tt.mode, result.Order(), tt.want, render(result))
+		}
+	}
+}
+
+// Nodes record their hop distance from the start nodes; in routes mode a
+// machine's local group is drawn as part of the machine, in identical mode
+// it is not.
+func TestHopsAndMachineFolding(t *testing.T) {
+	g := engine.NewIndexedGraph()
+	hvt := engine.NewNode(engine.Name, "hvt")
+	machine := engine.NewNode(engine.Name, "m1", engine.Type, engine.NodeTypeMachine.ValueString())
+	local := engine.NewNode(engine.Name, "localadmins")
+	user := engine.NewNode(engine.Name, "u1")
+	enginetest.Add(g, hvt, machine, local, user)
+	enginetest.ChildOf(g, local, machine)
+	enginetest.Edge(g, user, local, edgeHop)
+	enginetest.Edge(g, local, machine, edgeHop)
+	enginetest.Edge(g, machine, hvt, edgeHop)
+
+	resolver, err := ParseAQLQuery("REACH start:(name=hvt)<-[AQLTestHop]{1,4}-last:(name=u*)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := NewResolverOptions()
+	opts.MergeNodes = MergeIdentical
+	result, err := resolver.Resolve(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hops := map[string]any{}
+	for node, data := range result.Nodes() {
+		hops[node.Label()] = data["_hop"]
+	}
+	if got := fmt.Sprint(hops); got != "map[hvt:0 localadmins:2 m1:1 u1:3]" {
+		t.Errorf("hops %s", got)
+	}
+
+	opts.MergeNodes = MergeRoutes
+	result, err = resolver.Resolve(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := render(result), "m1 -hop-> hvt flow=1\nu1 -hop-> m1 flow=1"; got != want {
+		t.Errorf("folded:\n%s\nwant\n%s", got, want)
+	}
+	folded, _ := result.GetNodeData(machine, "_folded").([]MergedMember)
+	if len(folded) != 1 || folded[0].Label != "localadmins" {
+		t.Errorf("machine holds %v, want localadmins", folded)
+	}
+}
+
+// A search whose caller has given up stops with the context's error.
+func TestResolveStopsWhenCancelled(t *testing.T) {
+	g := testGraph(t, 0, competingPaths...)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, mode := range []string{"WALK", "TRAIL", "ACYCLIC", "REACH"} {
+		aql := mode + " start:(name=s*)-[AQLTestHop]{1,4}->end:(name=end)"
+		resolver, err := ParseAQLQuery(aql, g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts := NewResolverOptions()
+		opts.Context = ctx
+		if _, err := resolver.Resolve(opts); !errors.Is(err, context.Canceled) {
+			t.Errorf("%s: error %v, want context.Canceled", aql, err)
 		}
 	}
 }

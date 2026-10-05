@@ -87,7 +87,7 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
   });
 }
 
-function busystatus(busytext) {
+function busystatus(busytext, onCancel) {
   const status = document.getElementById("status");
   if (!status) {
     return;
@@ -109,8 +109,13 @@ function busystatus(busytext) {
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
 </div>
-            </div>`;
+            </div>` +
+    (onCancel ? `<div class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary" id="busycancel">Cancel</button></div>` : "");
   status.style.display = "";
+  const cancel = document.getElementById("busycancel");
+  if (cancel && onCancel) {
+    cancel.addEventListener("click", onCancel, { once: true });
+  }
 }
 
 function encodeaqlquery() {
@@ -137,6 +142,11 @@ function encodeaqlquery() {
       }
     });
   });
+  // Graph visualization option that changes what the server returns.
+  const mergeNodes = document.querySelector('#mergenodes input[name="merge_nodes"]:checked');
+  if (mergeNodes) {
+    payload.merge_nodes = mergeNodes.value;
+  }
   return JSON.stringify(payload);
 }
 
@@ -221,8 +231,33 @@ function clearElement(id) {
   el.innerHTML = "";
 }
 
+// The running analysis, so it can be cancelled; the server stops searching
+// when its request goes away. A tab runs one analysis at a time: the
+// Analyze button waits for it, and anything else that starts an analysis
+// replaces it.
+let analysisController = null;
+let queryInvalid = false;
+
+function updateAnalyzeButton() {
+  const analyzeButton = document.getElementById("aqlanalyzebutton");
+  if (analyzeButton) {
+    analyzeButton.disabled = queryInvalid || analysisController !== null;
+  }
+}
+
+function cancelAnalysis() {
+  if (analysisController) {
+    analysisController.abort();
+  }
+}
+
 async function aqlanalyze(e) {
-  busystatus("Analyzing");
+  // A new analysis replaces one still running.
+  cancelAnalysis();
+  const controller = new AbortController();
+  analysisController = controller;
+  updateAnalyzeButton();
+  busystatus("Analyzing", cancelAnalysis);
 
   try {
     const data = await fetchJSON("/api/aql/analyze", {
@@ -231,7 +266,11 @@ async function aqlanalyze(e) {
         "Content-Type": "application/json; charset=utf-8",
       },
       body: encodeaqlquery(),
+      signal: controller.signal,
     });
+    if (analysisController !== controller) {
+      return;
+    }
 
     if (data.total == 0) {
       setHTML("status", "No results");
@@ -302,13 +341,30 @@ async function aqlanalyze(e) {
       );
     }
 
-    await initgraph(data.elements);
+    await initgraph(data.elements, data.edgecombos);
 
     history.pushState(document.body.innerHTML, "adalanche");
   } catch (err) {
+    if (controller.signal.aborted) {
+      // Replaced by a newer analysis, or cancelled from its status.
+      if (analysisController === controller) {
+        setHTML("status", "Analysis cancelled");
+        setVisible("status", true);
+        statusHideTimer = setTimeout(() => {
+          setVisible("status", false);
+          statusHideTimer = null;
+        }, 3000);
+      }
+      return;
+    }
     toast("Problem loading graph", getErrorText(err), "error");
     clearElement("status");
     setVisible("status", false);
+  } finally {
+    if (analysisController === controller) {
+      analysisController = null;
+      updateAnalyzeButton();
+    }
   }
 }
 
@@ -739,21 +795,17 @@ document.addEventListener("DOMContentLoaded", function () {
           })
         )
           .then(function () {
-            const analyzeButton = document.getElementById("aqlanalyzebutton");
             const queryError = document.getElementById("aqlqueryerror");
-            if (analyzeButton) {
-              analyzeButton.disabled = false;
-            }
+            queryInvalid = false;
+            updateAnalyzeButton();
             if (queryError) {
               queryError.style.display = "none";
             }
           })
           .catch(function (err) {
-            const analyzeButton = document.getElementById("aqlanalyzebutton");
             const queryError = document.getElementById("aqlqueryerror");
-            if (analyzeButton) {
-              analyzeButton.disabled = true;
-            }
+            queryInvalid = true;
+            updateAnalyzeButton();
             if (queryError) {
               queryError.innerHTML = getErrorText(err);
               queryError.style.display = "";

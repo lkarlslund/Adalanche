@@ -470,7 +470,7 @@ function renderlabel(label) {
 
 function edgelabel(data) {
   const methods = Array.isArray(data && data.methods) ? data.methods : [];
-  return methods.sort().join("\n");
+  return [...methods].sort().join("\n");
 }
 
 var anonymizer = new DataAnonymizer();
@@ -1031,13 +1031,17 @@ function backendNodeId(nodeId) {
 }
 
 function showNodeDetails(nodeId) {
+  if (mergedMembers(graphNodeData(nodeId)).length > 1) {
+    showMergedNodeDetails(nodeId);
+    return;
+  }
   fetchJSONOrThrow("api/details/nodeid/" + backendNodeId(nodeId))
     .then(function (data) {
       let windowname = "details_" + nodeId;
       if (prefBool("ui.open.details.in.same.window", true)) {
         windowname = "node_details";
       }
-      new_window(windowname, rendernode(data), renderdetails(data));
+      new_window(windowname, rendernode(data), renderdetails(data) + foldedNodesHtml(graphNodeData(nodeId)));
     })
     .catch(function (err) {
       new_window("details", "Node details", graphNodeHtml(nodeId, nodeId) + "<div>Couldn't load details:" + err.message + "</div>");
@@ -1227,6 +1231,13 @@ function openNodeContextMenu(nodeId, clientX, clientY) {
         },
       },
       {
+        label: "Expand " + mergedMembers(nodeData).length.toLocaleString() + " merged nodes",
+        show: mergedMembers(nodeData).length > 1,
+        onClick: function () {
+          expandMergedNode(nodeId);
+        },
+      },
+      {
         label: "Expand node",
         show: Number(nodeData._canexpand) > 0,
         onClick: function () {
@@ -1286,7 +1297,7 @@ function expandNode(nodeId) {
     body: JSON.stringify(expanddata),
   })
     .then(function (data) {
-      const elements = transformGraphElements(data.elements || []);
+      const elements = transformGraphElements(data.elements || [], data.edgecombos);
       graph.add(elements);
       graph.updateNodeData(nodeId, { _canexpand: 0 });
       refreshGraphTheme();
@@ -1352,16 +1363,25 @@ function bindGraphEvents() {
   });
 }
 
-function transformGraphElements(elements) {
+// Edges may name their edge types by an index into combos, one list per
+// distinct combination, instead of carrying their own list.
+function transformGraphElements(elements, combos) {
   return (Array.isArray(elements) ? elements : []).map((item) => {
     const data = { ...(item.data || {}) };
     if (!data.id) {
       return item;
     }
+    if (data.combo !== undefined) {
+      data.methods = (Array.isArray(combos) && combos[data.combo]) || [];
+      delete data.combo;
+    }
     if (!data.source && !data.target) {
       data.iconFull = iconPathForType(getNodeType(data), data);
       data.color = getNodeBaseColor(data);
       data.label = String(data.label || data.id);
+      if (Number(data._merged) > 1) {
+        data.label = mergedNodeLabel(data);
+      }
     }
     return {
       group: item.group,
@@ -1371,7 +1391,182 @@ function transformGraphElements(elements) {
   });
 }
 
-function createAdalancheGraph(elements) {
+// Merged nodes stand for several nodes the result cannot tell apart; the
+// server lists them in _members.
+function mergedNodeLabel(data) {
+  return Number(data._merged).toLocaleString() + " \u00d7 " + getNodeType(data);
+}
+
+function mergedMembers(nodeData) {
+  return Array.isArray(nodeData && nodeData._members) ? nodeData._members : [];
+}
+
+const MERGED_LIST_LIMIT = 500;
+
+function showMergedNodeDetails(nodeId) {
+  const nodeData = graphNodeData(nodeId) || {};
+  const members = mergedMembers(nodeData);
+  const items = members
+    .slice(0, MERGED_LIST_LIMIT)
+    .map((member) => `<li><a href="#" data-show-node="${escapehtml(member.id)}">${escapehtml(renderlabel(String(member.label || member.id)))}</a></li>`)
+    .join("");
+  const more = members.length > MERGED_LIST_LIMIT ? `<div class="mt-1">and ${(members.length - MERGED_LIST_LIMIT).toLocaleString()} more</div>` : "";
+  new_window(
+    prefBool("ui.open.details.in.same.window", true) ? "node_details" : "details_" + nodeId,
+    escapehtml(mergedNodeLabel(nodeData)),
+    `<div>${members.length.toLocaleString()} nodes drawn as one: the same type, leading on in the same way.</div><ul class="mt-2 mb-0">${items}</ul>${more}` + foldedNodesHtml(nodeData)
+  );
+}
+
+document.addEventListener("click", function (event) {
+  const link = event.target && event.target.closest ? event.target.closest("[data-show-node]") : null;
+  if (link) {
+    event.preventDefault();
+    showNodeDetails(link.getAttribute("data-show-node"));
+  }
+});
+
+// expandMergedNode draws a merged node's members as nodes of their own,
+// each with the merged node's edges.
+function expandMergedNode(nodeId) {
+  const nodeData = graphNodeData(nodeId);
+  const members = mergedMembers(nodeData);
+  if (!nodeData || members.length < 2) {
+    return;
+  }
+  const incident = graph.edgeIds()
+    .map((edgeId) => graphEdgeData(edgeId))
+    .filter((edge) => edge && (edge.source === nodeId || edge.target === nodeId));
+  const elements = [];
+  members.forEach((member) => {
+    if (member.id === nodeId) {
+      return;
+    }
+    const data = { ...nodeData, id: member.id, label: member.label };
+    delete data._merged;
+    delete data._members;
+    elements.push({ group: "nodes", data });
+    incident.forEach((edge) => {
+      const source = edge.source === nodeId ? member.id : edge.source;
+      const target = edge.target === nodeId ? member.id : edge.target;
+      elements.push({
+        group: "edges",
+        data: { ...edge, id: "e" + backendNodeId(source) + "-" + backendNodeId(target), source, target, flow: Math.max(1, Math.round(Number(edge.flow || 1) / members.length)) },
+      });
+    });
+  });
+  const own = members.find((member) => member.id === nodeId);
+  graph.add(transformGraphElements(elements));
+  graph.updateNodeData(nodeId, { _merged: 0, _members: null, label: String((own && own.label) || nodeId) });
+  applyHopFilter(false);
+  refreshGraphTheme();
+  runSelectedGraphLayout();
+}
+
+// Hop filter: nodes carry their distance from the query's start nodes in
+// _hop; the slider hides nodes further out, and edges to hidden nodes.
+const HOP_DEFAULT_VISIBLE_NODES = 1000;
+
+// allNodeIds includes hidden nodes; the graph's nodeIds() leaves them out.
+function allNodeIds() {
+  return graph && graph.nodeData ? Array.from(graph.nodeData.keys()) : [];
+}
+
+function nodeHop(nodeId) {
+  const hop = Number((graphNodeData(nodeId) || {})._hop);
+  return Number.isFinite(hop) ? hop : -1;
+}
+
+function updateHopSlider() {
+  const box = document.getElementById("hopfilter");
+  const slider = document.getElementById("hopslider");
+  if (!box || !slider || !graph) {
+    return;
+  }
+  const counts = [];
+  allNodeIds().forEach((nodeId) => {
+    const hop = nodeHop(nodeId);
+    if (hop >= 0) {
+      counts[hop] = (counts[hop] || 0) + 1;
+    }
+  });
+  const max = counts.length - 1;
+  box.style.display = max > 0 ? "" : "none";
+  // Start at the furthest hop that keeps the drawing readable.
+  let visible = 0;
+  let start = Math.min(1, Math.max(max, 0));
+  for (let hop = 0; hop <= max; hop++) {
+    visible += counts[hop] || 0;
+    if (visible > HOP_DEFAULT_VISIBLE_NODES) {
+      break;
+    }
+    start = hop;
+  }
+  slider.max = String(Math.max(max, 0));
+  slider.value = String(start);
+  // The layout that follows a new graph places what is shown.
+  applyHopFilter(false);
+}
+
+// applyHopFilter shows nodes up to the slider's hop. Unless told otherwise,
+// it then styles the nodes now shown and lays out the graph again once the
+// slider settles, as hidden nodes are neither styled nor placed.
+function applyHopFilter(relayout = true) {
+  const slider = document.getElementById("hopslider");
+  if (!slider || !graph) {
+    return;
+  }
+  const limit = Number(slider.value);
+  const max = Number(slider.max);
+  const hidden = new Set();
+  const nodeIds = allNodeIds();
+  nodeIds.forEach((nodeId) => {
+    if (nodeHop(nodeId) > limit) {
+      hidden.add(nodeId);
+    }
+  });
+  const apply = function () {
+    nodeIds.forEach((nodeId) => graph.setNodeHidden(nodeId, hidden.has(nodeId)));
+    graph.edgeIds().forEach((edgeId) => {
+      const edge = graphEdgeData(edgeId);
+      graph.setEdgeHidden(edgeId, !!edge && (hidden.has(edge.source) || hidden.has(edge.target)));
+    });
+  };
+  if (typeof graph.batch === "function") {
+    graph.batch(apply);
+  } else {
+    apply();
+  }
+  const label = document.getElementById("hopslidervalue");
+  if (label) {
+    const shown = (nodeIds.length - hidden.size).toLocaleString();
+    label.textContent =
+      limit >= max
+        ? `All ${max} hops, ${shown} nodes`
+        : `Up to ${limit} of ${max} hops, ${shown} of ${nodeIds.length.toLocaleString()} nodes`;
+  }
+  if (relayout) {
+    refreshGraphTheme();
+    scheduleLayoutRerun(400);
+  }
+}
+
+// foldedNodesHtml lists the local groups and accounts drawn as part of a
+// machine node.
+function foldedNodesHtml(nodeData) {
+  const folded = Array.isArray(nodeData && nodeData._folded) ? nodeData._folded : [];
+  if (!folded.length) {
+    return "";
+  }
+  const items = folded
+    .slice(0, MERGED_LIST_LIMIT)
+    .map((member) => `<li><a href="#" data-show-node="${escapehtml(member.id)}">${escapehtml(renderlabel(String(member.label || member.id)))}</a></li>`)
+    .join("");
+  const more = folded.length > MERGED_LIST_LIMIT ? `<div>and ${(folded.length - MERGED_LIST_LIMIT).toLocaleString()} more</div>` : "";
+  return `<hr/><div>${folded.length.toLocaleString()} local groups and accounts drawn as part of this machine; their edges are drawn as the machine's.</div><ul class="mt-2 mb-0">${items}</ul>${more}`;
+}
+
+function createAdalancheGraph(elements, combos) {
   const container = document.getElementById("cy");
   if (!container || typeof window.createWorkspaceSigmaGraph !== "function") {
     throw new Error("Sigma graph runtime is not available");
@@ -1388,7 +1583,7 @@ function createAdalancheGraph(elements) {
 
   graph = window.graph = window.createWorkspaceSigmaGraph({
     container,
-    elements: transformGraphElements(elements),
+    elements: transformGraphElements(elements, combos),
     iconMinZoom: 0,
     iconMinScreenSize: 12,
     theme: graphTheme(),
@@ -1400,6 +1595,7 @@ function createAdalancheGraph(elements) {
   });
   bindGraphEvents();
   refreshGraphTheme();
+  updateHopSlider();
   return graph;
 }
 
@@ -1816,9 +2012,9 @@ function initGraphLayoutUI() {
     });
 }
 
-async function initgraph(data) {
+async function initgraph(data, combos) {
   await ensureNodeLegendMetadataLoaded();
-  createAdalancheGraph(data);
+  createAdalancheGraph(data, combos);
   graphDebugLog("initgraph", {
     connectorReady: !!graphState.layoutConnectorReady,
     hasConnector: !!graphState.layoutConnector,

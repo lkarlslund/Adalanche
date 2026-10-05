@@ -3,6 +3,8 @@ package aql
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
@@ -101,6 +103,10 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 		return true
 	})
 	for layer := range layers - 1 {
+		if err := opts.cancelled(); err != nil {
+			pb.Finish()
+			return nil, err
+		}
 		s.forwardLayer(layer)
 		pb.Add(1)
 	}
@@ -108,6 +114,10 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 		s.backward[(layers-1)*s.nodes+int(v)] = 0
 	}
 	for layer := layers - 2; layer >= 0; layer-- {
+		if err := opts.cancelled(); err != nil {
+			pb.Finish()
+			return nil, err
+		}
 		s.backwardLayer(layer)
 		pb.Add(1)
 	}
@@ -287,28 +297,104 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 		}
 	}
 
+	ds := s.aqlq.datasource
+	referenceName := func(v engine.NodeIndex) string {
+		if r, found := reference[v]; found {
+			return s.aqlq.Sources[r-1].Reference
+		}
+		return ""
+	}
+	// drawn counts the nodes on routes of up to cutoff edges as they will be
+	// drawn: folded and merged as the merge mode says.
+	side := mergeSide(s.opts.MergeNodes, s.aqlq.startSide())
+	drawn := func(cutoff int) int {
+		var nodes []engine.NodeIndex
+		for v, length := range nodeLength {
+			if length <= cutoff {
+				nodes = append(nodes, v)
+			}
+		}
+		if !s.opts.MergeNodes.enabled() {
+			return len(nodes)
+		}
+		// Routes mode folds machine-local nodes into their machine first,
+		// as FoldMachineLocal does.
+		at := func(v engine.NodeIndex) engine.NodeIndex { return v }
+		if s.opts.MergeNodes == MergeRoutes {
+			present := make(map[engine.NodeIndex]bool, len(nodes))
+			for _, v := range nodes {
+				present[v] = true
+			}
+			owner := map[engine.NodeIndex]engine.NodeIndex{}
+			for _, v := range nodes {
+				if referenceName(v) != "" {
+					continue
+				}
+				machine := ds.NodeAt(v).Parent()
+				if machine == nil || machine.Type() != engine.NodeTypeMachine {
+					continue
+				}
+				if m, found := ds.NodeIndexOf(machine); found && m != v && present[m] {
+					owner[v] = m
+				}
+			}
+			nodes = slices.DeleteFunc(nodes, func(v engine.NodeIndex) bool {
+				_, folded := owner[v]
+				return folded
+			})
+			at = func(v engine.NodeIndex) engine.NodeIndex {
+				if m, found := owner[v]; found {
+					return m
+				}
+				return v
+			}
+		}
+		var kept []keyedEdge[engine.NodeIndex]
+		for key, re := range edges {
+			if from, to := at(key.from), at(key.to); re.length <= cutoff && from != to {
+				kept = append(kept, keyedEdge[engine.NodeIndex]{from, to, re.edges, 1})
+			}
+		}
+		representatives := mergeGroups(nodes, func(v engine.NodeIndex) string {
+			node := ds.NodeAt(v)
+			return mergeLabel(node, referenceName(v), side != engine.Any && s.aqlq.sourceCache[0].Contains(node))
+		}, kept, side)
+		distinct := map[engine.NodeIndex]struct{}{}
+		for _, r := range representatives {
+			distinct[r] = struct{}{}
+		}
+		return len(distinct)
+	}
+
 	// Over the node limit, keep only the routes up to the longest length
 	// that fits, so the result is still every route of those lengths.
 	cutoff := s.maxDepth
-	if s.opts.NodeLimit > 0 && len(nodeLength) > s.opts.NodeLimit {
-		counts := make([]int, s.maxDepth+1)
-		for _, length := range nodeLength {
-			counts[length]++
-		}
-		total, kept := 0, 0
-		for length, count := range counts {
-			total += count
-			if total > s.opts.NodeLimit {
-				break
+	var limited string
+	if s.opts.NodeLimit > 0 {
+		if all := drawn(s.maxDepth); all > s.opts.NodeLimit {
+			lengths := slices.Sorted(maps.Values(nodeLength))
+			lengths = slices.Compact(lengths)
+			kept := 0
+			for _, length := range lengths {
+				if err := s.opts.cancelled(); err != nil {
+					return nil, err
+				}
+				count := drawn(length)
+				if count > s.opts.NodeLimit {
+					break
+				}
+				cutoff, kept = length, count
 			}
-			cutoff, kept = length, total
-		}
-		if kept == 0 {
-			return nil, fmt.Errorf("REACH: the shortest routes alone have more than %v nodes", s.opts.NodeLimit)
+			if kept == 0 {
+				return nil, fmt.Errorf("REACH: the shortest routes alone have more than %v nodes", s.opts.NodeLimit)
+			}
+			limited = fmt.Sprintf("Node limit of %v reached: kept the %v nodes on routes of up to %v edges out of %v nodes on all routes", s.opts.NodeLimit, kept, cutoff, all)
+			if s.opts.MergeNodes.enabled() {
+				limited += " (counting merged nodes as one)"
+			}
 		}
 	}
 
-	ds := s.aqlq.datasource
 	result := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
 	for v, length := range nodeLength {
 		if length > cutoff {
@@ -325,8 +411,8 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 			result.AddEdgeFlow(ds.NodeAt(key.from), ds.NodeAt(key.to), re.edges, 1)
 		}
 	}
-	if result.Order() < len(nodeLength) {
-		result.Limited(fmt.Sprintf("Node limit of %v reached: kept the %v nodes on routes of up to %v edges out of %v nodes on all routes", s.opts.NodeLimit, result.Order(), cutoff, len(nodeLength)))
+	if limited != "" {
+		result.Limited(limited)
 	}
 	ui.Debug().Msgf("REACH found %v nodes and %v edges", result.Order(), result.Size())
 	return &result, nil

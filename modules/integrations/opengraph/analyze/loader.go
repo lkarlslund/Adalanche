@@ -8,8 +8,8 @@ import (
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/opengraph"
+	"github.com/lkarlslund/adalanche/modules/jsoncodec"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/sugawarayuuta/sonnet"
 )
 
 const Loadername = "OpenGraph"
@@ -46,7 +46,7 @@ func (ld *OpenGraphLoader) Init(target engine.LoadTarget) error {
 				}
 
 				var ogd opengraph.Model
-				var dec = sonnet.NewDecoder(r)
+				var dec = jsoncodec.JSON.NewDecoder(r)
 				err = dec.Decode(&ogd)
 				if err != nil {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)

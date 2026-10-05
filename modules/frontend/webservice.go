@@ -10,18 +10,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/ast"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/profiling"
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -34,9 +35,6 @@ type WSFileSystem interface {
 
 //go:embed html/*
 var embeddedassets embed.FS
-var (
-	qjson = jsoniter.ConfigCompatibleWithStandardLibrary
-)
 
 type UnionFS struct {
 	filesystems []fs.FS
@@ -97,6 +95,39 @@ func AddOption(os optionsetter) {
 	optionsmutex.Unlock()
 }
 
+// shouldCompress compresses responses for clients that accept gzip, except
+// connection upgrades, files that are compressed already, and clients on
+// this machine (over loopback or one of its own addresses), where
+// compressing costs more time than it saves.
+func shouldCompress(c *gin.Context) bool {
+	request := c.Request
+	if !strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") ||
+		strings.Contains(request.Header.Get("Connection"), "Upgrade") ||
+		gzip.DefaultExcludedExtentions.Contains(path.Ext(request.URL.Path)) {
+		return false
+	}
+	remote := addrIP(request.RemoteAddr)
+	if remote == nil {
+		return true
+	}
+	if remote.IsLoopback() {
+		return false
+	}
+	if local, ok := request.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		return !remote.Equal(addrIP(local.String()))
+	}
+	return true
+}
+
+// addrIP returns the IP of a host:port address, or nil.
+func addrIP(address string) net.IP {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil
+	}
+	return net.ParseIP(host)
+}
+
 func NewWebservice() *WebService {
 	gin.SetMode(gin.ReleaseMode) // Has to happen first
 	ws := &WebService{
@@ -126,6 +157,9 @@ func NewWebservice() *WebService {
 		logger.Msgf("%s %s (%v) %v, %v bytes", c.Request.Method, path, c.Writer.Status(), time.Since(start), c.Writer.Size())
 	})
 	ws.engine.Use(gin.Recovery()) // adds the default recovery middleware
+	// No minimum length: below it the middleware holds the response back,
+	// and handlers after it would see nothing written yet.
+	ws.engine.Use(gzip.Gzip(gzip.BestSpeed, gzip.WithCustomShouldCompressFn(shouldCompress)))
 	ws.Router = ws.engine.Group("")
 	ws.API = ws.Router.Group("/api")
 	// Error handling

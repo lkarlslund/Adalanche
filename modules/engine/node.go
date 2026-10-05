@@ -15,7 +15,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/icza/gox/stringsx"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/adalanche/modules/jsoncodec"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
@@ -228,7 +228,7 @@ func (o *Node) NameStringMap() StringMap {
 }
 
 func (o *Node) MarshalJSON() ([]byte, error) {
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.NameStringMap())
+	return jsoncodec.JSON.Marshal(o.NameStringMap())
 }
 
 func (o *Node) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

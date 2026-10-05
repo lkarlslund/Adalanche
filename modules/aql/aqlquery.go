@@ -26,6 +26,30 @@ type AQLquery struct {
 }
 
 func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
+	result, err := aqlq.resolve(opts)
+	if err != nil || result == nil {
+		return result, err
+	}
+	if err := opts.cancelled(); err != nil {
+		return nil, err
+	}
+	// resolve filled in the start nodes.
+	setHops(result, aqlq.sourceCache[0].Contains, aqlq.startSide())
+	return arrangeNodes(result, opts.MergeNodes, aqlq.startSide()), nil
+}
+
+// arrangeNodes folds and merges nodes as the merge mode says.
+func arrangeNodes(result *graph.Graph[*engine.Node, engine.EdgeBitmap], mode MergeMode, startSide engine.EdgeDirection) *graph.Graph[*engine.Node, engine.EdgeBitmap] {
+	if mode == MergeRoutes {
+		result = FoldMachineLocal(result)
+	}
+	if mode.enabled() {
+		result = MergeNodes(result, mergeSide(mode, startSide))
+	}
+	return result
+}
+
+func (aqlq *AQLquery) resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	if aqlq.Mode == Walk {
 		for _, nf := range aqlq.Next {
 			if nf.MaxIterations == 0 {
@@ -37,6 +61,10 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 
 	aqlq.sourceCache = make([]*engine.IndexedGraph, len(aqlq.Sources))
 	for i, q := range aqlq.Sources {
+		if err := opts.cancelled(); err != nil {
+			pb.Finish()
+			return nil, err
+		}
 		aqlq.sourceCache[i] = q.Populate(aqlq.datasource)
 		ui.Debug().Msgf("Node cache %v has %v nodes", i, aqlq.sourceCache[i].Order())
 		pb.Add(1)
@@ -103,7 +131,7 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 		go func() {
 			defer wg.Done()
 			for position := range jobs {
-				if full.Load() {
+				if full.Load() || opts.cancelled() != nil {
 					results <- startResult{position: position}
 					continue
 				}
@@ -148,6 +176,9 @@ func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, e
 		}
 	}
 	pb.Finish()
+	if err := opts.cancelled(); err != nil {
+		return nil, err
+	}
 	if limited {
 		result.Limited(fmt.Sprintf("Node limit of %v reached after searching %v of %v start nodes", opts.NodeLimit, searched, len(starts)))
 	}
@@ -196,6 +227,9 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		}
 
 		processed++
+		if processed%1024 == 0 && opts.cancelled() != nil {
+			break
+		}
 
 		currentState = queue.Pop()
 		currentNode := aqlq.datasource.NodeAt(currentState.nodeIndex)

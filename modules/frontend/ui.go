@@ -398,6 +398,43 @@ func AddDataEndpoints(ws *WebService) {
 		}
 		c.JSON(200, apiNodeDetails(o, true))
 	})
+	// Returns one attribute for many nodes, for views that need a value per
+	// drawn node (such as sizing by a score) without loading their details.
+	// Nodes are given by graph id ("n123" or "123"); nodes without exactly
+	// one value are left out.
+	api.POST("nodes/attribute", ws.RequireData(Ready), func(c *gin.Context) {
+		var request struct {
+			Attribute string   `json:"attribute"`
+			IDs       []string `json:"ids"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.String(400, "Error parsing request: %v", err)
+			return
+		}
+		attribute := engine.LookupAttribute(request.Attribute)
+		if attribute == engine.NonExistingAttribute {
+			c.String(404, "Unknown attribute %v", request.Attribute)
+			return
+		}
+		values := make(map[string]any, len(request.IDs))
+		for _, id := range request.IDs {
+			number, err := strconv.ParseInt(strings.TrimPrefix(id, "n"), 10, 64)
+			if err != nil {
+				c.String(400, "Error parsing ID")
+				return
+			}
+			node, found := ws.SuperGraph.LookupNodeByID(engine.NodeID(number))
+			if !found {
+				continue
+			}
+			if value, found := node.AttrInt(attribute); found {
+				values[id] = value
+			} else if value := node.OneAttr(attribute); !value.IsNil() {
+				values[id] = value.String()
+			}
+		}
+		c.JSON(200, values)
+	})
 	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Node
 		var found bool
