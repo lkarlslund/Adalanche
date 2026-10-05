@@ -173,6 +173,11 @@ func (pb *progressBar) Finish() {
 	pbLock.Unlock()
 
 	pb.Done = true
+
+	// A finished bar leaves nothing behind on the terminal.
+	outputMutex.Lock()
+	clearProgressLine(pb.writer)
+	outputMutex.Unlock()
 }
 
 // stdoutIsTerminal says whether bars are drawn: in a log written to a file

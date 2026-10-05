@@ -127,11 +127,7 @@ func (t Logger) Msgf(format string, args ...any) {
 		}
 	}
 	if logLevel <= t.ll {
-		if clearneeded {
-			pterm.Fprinto(t.pterm.Writer, strings.Repeat(" ", pterm.GetTerminalWidth()))
-			pterm.Fprinto(t.pterm.Writer)
-			clearneeded = false
-		}
+		clearProgressLine(t.pterm.Writer)
 
 		tprefix := pterm.DefaultBasicText.Sprint(timetext + " ")
 		pterm.Fprint(t.pterm.Writer, tprefix+t.pterm.Sprintfln(format, args...))
@@ -224,4 +220,15 @@ func Trace() Logger {
 			},
 		},
 	}
+}
+
+// clearProgressLine blanks the line a progress bar was drawn on, if any.
+// Callers hold outputMutex.
+func clearProgressLine(w io.Writer) {
+	if !clearneeded {
+		return
+	}
+	pterm.Fprinto(w, strings.Repeat(" ", pterm.GetTerminalWidth()))
+	pterm.Fprinto(w)
+	clearneeded = false
 }
