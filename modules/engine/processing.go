@@ -69,10 +69,21 @@ func NewAnalysisGraph() *IndexedGraph {
 // they stand for, loader roots nobody placed anything under are removed, and
 // nodes without a parent go under the orphan container.
 func (g *IndexedGraph) FinishLoading() error {
+	return g.finishLoading(nil)
+}
+
+// finishLoading is FinishLoading reporting how many of its steps are done.
+func (g *IndexedGraph) finishLoading(report func(done, total int)) error {
+	const steps = 4
+	done := 0
 	start := time.Now()
 	timed := func(step string) {
 		ui.Info().Msgf("Finishing loading: %v took %v", step, time.Since(start))
 		start = time.Now()
+		done++
+		if report != nil {
+			report(done, steps)
+		}
 	}
 	g.applyParentClaims()
 	timed("parent claims")

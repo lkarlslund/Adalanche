@@ -23,7 +23,8 @@ func Run(paths ...string) (*IndexedGraph, error) {
 		return nil, err
 	}
 
-	overallprogress := ui.ProgressBar("Loading and analyzing", 5)
+	progress := newRunProgress()
+	defer progress.finish()
 
 	// One graph for everything: loaders write into it through load
 	// transactions, each under its own root node.
@@ -48,37 +49,40 @@ func Run(paths ...string) (*IndexedGraph, error) {
 		phaseStart = time.Now()
 	}
 
-	// Load everything
-	loadbar := ui.ProgressBar("Loading data", 0)
+	// Load everything. The loaders report files: a positive max sets the
+	// total, a negative one adds to it; a positive cur sets the count, a
+	// negative one adds to it.
+	progress.stage("Loading files", shareLoading)
+	var filesDone, filesTotal int
 	err := loadWithLoaders(globalGraph, activeLoaders, paths, func(cur, max int) {
 		if max > 0 {
-			loadbar.ChangeMax(int64(max))
+			filesTotal = max
 		} else if max < 0 {
-			loadbar.ChangeMax(loadbar.GetMax() + int64(-max))
+			filesTotal -= max
 		}
 		if cur > 0 {
-			loadbar.Set(int64(cur))
+			filesDone = cur
 		} else {
-			loadbar.Add(int64(-cur))
+			filesDone -= cur
 		}
+		progress.within(filesDone, filesTotal)
 	})
 	if err != nil {
 		return nil, err
 	}
-	loadbar.Finish()
-	overallprogress.Add(1)
 	timed("loading")
 
-	if err := RunPhase(globalGraph, AnyLoader, LoaderPhase); err != nil {
+	progress.stage("Loader processors", shareLoaderProcessors)
+	if err := runPhase(globalGraph, AnyLoader, LoaderPhase, progress.within); err != nil {
 		return nil, fmt.Errorf("preprocessing: %w", err)
 	}
 	timed("loader processors")
 	runtime.GC()
 	debug.FreeOSMemory()
-	overallprogress.Add(1)
 	timed("garbage collection")
 
-	if err := globalGraph.FinishLoading(); err != nil {
+	progress.stage("Resolving references", shareFinishingLoading)
+	if err := globalGraph.finishLoading(progress.within); err != nil {
 		return nil, err
 	}
 	timed("finishing loading")
@@ -87,18 +91,17 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	debug.FreeOSMemory()
 	timed("garbage collection")
 
-	overallprogress.Add(1)
-
+	progress.stage("Analysis processors", shareAnalysis)
 	postprocessStart := time.Now()
-	if err := RunPhase(globalGraph, AnyLoader, AnalysisPhase); err != nil {
+	if err := runPhase(globalGraph, AnyLoader, AnalysisPhase, progress.within); err != nil {
 		return nil, err
 	}
 	ui.Info().Msgf("Time to finish post-processing %v", time.Since(postprocessStart))
 	phaseStart = time.Now()
 	runtime.GC()
-	overallprogress.Add(1)
 	timed("garbage collection")
 
+	progress.stage("Graph attributes", shareGraphAttributes)
 	if err := calculateGraphAttributes(globalGraph); err != nil {
 		return nil, err
 	}
@@ -154,13 +157,10 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	// Force GC
 	runtime.GC()
 
-	// After all this loading and merging, it's time to do release unused RAM
+	// After all this loading and analysis, release unused memory
 	debug.FreeOSMemory()
 
 	gonk.SetGrowStrategy(gonk.FourItems)
-
-	overallprogress.Add(1)
-	overallprogress.Finish()
 
 	return globalGraph, err
 }

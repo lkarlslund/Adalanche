@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/gookit/color"
 	"github.com/pterm/pterm"
+	"golang.org/x/term"
 )
 
 type progressBar struct {
@@ -173,11 +175,26 @@ func (pb *progressBar) Finish() {
 	pb.Done = true
 }
 
+// stdoutIsTerminal says whether bars are drawn: in a log written to a file
+// or pipe they would only repeat lines.
+var stdoutIsTerminal = term.IsTerminal(int(os.Stdout.Fd()))
+
 func (pb *progressBar) update() {
 	if !ProgressEnabled() {
 		return
 	}
-	if time.Since(pb.Lastupdate) < 1*time.Second {
+	var currentPercentage float32
+	if total := atomic.LoadInt64(&pb.Total); total > 0 {
+		currentPercentage = float32(atomic.LoadInt64(&pb.Current)) * 100 / float32(total)
+	}
+	if currentPercentage > 100 {
+		currentPercentage = 100
+	}
+	// The web UI reads the percentage, so it is kept current even when the
+	// bar is not drawn.
+	pb.Percent = currentPercentage
+
+	if (pb.writer == nil && !stdoutIsTerminal) || time.Since(pb.Lastupdate) < 1*time.Second {
 		return
 	}
 
@@ -190,17 +207,6 @@ func (pb *progressBar) update() {
 	var after string
 
 	width := pterm.GetTerminalWidth()
-
-	var currentPercentage float32
-	if pb.Total > 0 {
-		currentPercentage = float32(pb.Current) * 100 / float32(pb.Total)
-	}
-
-	if currentPercentage > 100 {
-		currentPercentage = 100
-	}
-
-	pb.Percent = currentPercentage
 
 	decoratorCount := pterm.Gray("[") + pterm.LightWhite(pb.Current) + pterm.Gray("/") + pterm.LightWhite(pb.Total) + pterm.Gray("]")
 

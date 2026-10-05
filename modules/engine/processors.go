@@ -150,14 +150,19 @@ const AnyLoader LoaderID = -1
 // RunPhase runs the processors of loader l (or AnyLoader) for phase, each
 // after the processors it depends on.
 func RunPhase(ao *IndexedGraph, l LoaderID, phase Phase) error {
-	return runProcessors(ao, phase, selectProcessors(l, phase, nil))
+	return runPhase(ao, l, phase, nil)
+}
+
+// runPhase is RunPhase reporting how many processors have finished.
+func runPhase(ao *IndexedGraph, l LoaderID, phase Phase, report func(done, total int)) error {
+	return runProcessors(ao, phase, selectProcessors(l, phase, nil), report)
 }
 
 // RunProviders runs only the processors of loader l (or AnyLoader) for
 // phase that provide one of products, in dependency order among
 // themselves. It is meant for tests of a few processors.
 func RunProviders(ao *IndexedGraph, l LoaderID, phase Phase, products ...Product) error {
-	return runProcessors(ao, phase, selectProcessors(l, phase, products))
+	return runProcessors(ao, phase, selectProcessors(l, phase, products), nil)
 }
 
 func selectProcessors(l LoaderID, phase Phase, products []Product) []processorInfo {
@@ -292,7 +297,7 @@ func ValidateProcessors() error {
 	return nil
 }
 
-func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) error {
+func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo, report func(done, total int)) error {
 	if len(processors) == 0 {
 		return nil
 	}
@@ -301,9 +306,6 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 		return err
 	}
 
-	aoLen := ao.Order()
-	pb := ui.ProgressBar(fmt.Sprintf("Processing %v", phase), int64(len(processors)*aoLen))
-	defer pb.Finish()
 
 	finished := make([]bool, len(processors))
 	ready := func(i int) bool {
@@ -350,9 +352,11 @@ func runProcessors(ao *IndexedGraph, phase Phase, processors []processorInfo) er
 		}
 		for _, i := range batch {
 			finished[i] = true
-			pb.Add(int64(aoLen))
 		}
 		remaining -= len(batch)
+		if report != nil {
+			report(len(processors)-remaining, len(processors))
+		}
 	}
 	return nil
 }
