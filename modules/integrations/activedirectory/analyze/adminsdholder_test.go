@@ -123,3 +123,53 @@ func TestMembershipConsumersRunAfterResolution(t *testing.T) {
 		t.Error("member of Protected Users was not tagged")
 	}
 }
+
+// Enterprise Admins of one forest is protected by its own root domain's
+// AdminSDHolder only, and its members by their own domain's, including a
+// domain in a second tree of the forest that only the crossRef places
+// there. Another forest's AdminSDHolders leave it alone.
+func TestAdminSDHolderForestWideGroupsStayInTheirForest(t *testing.T) {
+	const rootA, treeA, rootB = "DC=a,DC=test", "DC=tree,DC=test", "DC=b,DC=test"
+	group, user := engine.NodeTypeGroup.ValueString(), engine.NodeTypeUser.ValueString()
+	domain := func(dn, sid string) *engine.Node {
+		return engine.NewNode(engine.DistinguishedName, dn, engine.ObjectSid, engine.NV(mustSID(t, sid)))
+	}
+	holder := func(dn string) *engine.Node {
+		return engine.NewNode(engine.DistinguishedName, "CN=AdminSDHolder,CN=System,"+dn, engine.DomainContext, dn)
+	}
+	crossRef := func(name, forestRoot, nc string) *engine.Node {
+		return engine.NewNode(engine.DistinguishedName, "CN="+name+",CN=Partitions,CN=Configuration,"+forestRoot,
+			engine.ObjectClass, "crossRef", NCName, nc)
+	}
+	principal := func(name, sid, dn string, kind engine.AttributeValue) *engine.Node {
+		return engine.NewNode(engine.Name, name, engine.Type, kind, engine.ObjectSid, engine.NV(mustSID(t, sid)), engine.DomainContext, dn)
+	}
+	holderA, holderTree, holderB := holder(rootA), holder(treeA), holder(rootB)
+	eaA := principal("Enterprise Admins", "S-1-5-21-1-1-1-519", rootA, group)
+	eaB := principal("Enterprise Admins", "S-1-5-21-2-2-2-519", rootB, group)
+	treeUser := principal("tree admin", "S-1-5-21-1-4-4-1001", treeA, user)
+	userB := principal("b admin", "S-1-5-21-2-2-2-1001", rootB, user)
+
+	graph := newADTestGraph(
+		domain(rootA, "S-1-5-21-1-1-1"), domain(treeA, "S-1-5-21-1-4-4"), domain(rootB, "S-1-5-21-2-2-2"),
+		crossRef("A", rootA, rootA), crossRef("TREE", rootA, treeA), crossRef("B", rootB, rootB),
+		holderA, holderTree, holderB, eaA, eaB, treeUser, userB)
+	enginetest.EdgeTo(graph, treeUser, eaA, activedirectory.EdgeMemberOfGroup)
+	enginetest.EdgeTo(graph, userB, eaB, activedirectory.EdgeMemberOfGroup)
+	runTx(graph, addAdminSDHolderEdges)
+
+	for _, tt := range []struct {
+		holder, node *engine.Node
+		want         bool
+	}{
+		{holderA, eaA, true}, {holderA, eaB, false}, {holderA, treeUser, false},
+		{holderB, eaB, true}, {holderB, eaA, false}, {holderB, userB, true},
+		{holderTree, eaA, false}, {holderTree, treeUser, true}, {holderTree, eaB, false},
+	} {
+		if tt.want {
+			requireEdgeSet(t, graph, tt.holder, tt.node, activedirectory.EdgeOverwritesACL)
+		} else {
+			requireNoEdgeSet(t, graph, tt.holder, tt.node, activedirectory.EdgeOverwritesACL)
+		}
+	}
+}

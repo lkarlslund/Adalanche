@@ -446,7 +446,7 @@ func (ao *IndexedGraph) propertySet(o *Node, attribute uuid.UUID) uuid.UUID {
 	var forestSet uuid.UUID
 	domainContext := ""
 	if o != nil {
-		domainContext = strings.ToLower(o.OneAttrString(DomainContext))
+		domainContext = o.OneAttrString(DomainContext)
 	}
 	first := true
 	schemas.Iterate(func(schema *Node) bool {
@@ -459,10 +459,9 @@ func (ao *IndexedGraph) propertySet(o *Node, attribute uuid.UUID) uuid.UUID {
 		} else if candidate != set {
 			agreed = false
 		}
-		// The schema lives in CN=Schema,CN=Configuration,<forest root>,
-		// and every domain of the forest ends with the forest root.
-		if _, root, ok := strings.Cut(strings.ToLower(schema.DN()), ",cn=schema,cn=configuration,"); ok && domainContext != "" &&
-			(domainContext == root || strings.HasSuffix(domainContext, ","+root)) && len(root) > bestSuffix {
+		// The schema lives in CN=Schema,CN=Configuration,<forest root>.
+		if _, root, ok := strings.Cut(strings.ToLower(schema.DN()), ",cn=schema,cn=configuration,"); ok &&
+			len(root) > bestSuffix && InForest(ao, domainContext, root) {
 			bestSuffix, forestSet = len(root), candidate
 		}
 		return true

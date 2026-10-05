@@ -35,29 +35,22 @@ const directoryServicePrefix = "cn=directory service,cn=windows nt,cn=services,c
 // lives on CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration
 // under the forest root, not under each domain (MS-ADTS 3.1.1.6.1.4).
 func forestHeuristics(ao engine.GraphReader, domainDN string) string {
-	domainDN = strings.ToLower(domainDN)
 	candidates, _ := ao.FindMulti(engine.Name, engine.NV("Directory Service"))
-	var only, match string
-	count := 0
+	var match string
 	candidates.Iterate(func(n *engine.Node) bool {
 		dn := strings.ToLower(n.DN())
 		if !strings.HasPrefix(dn, directoryServicePrefix) {
 			return true
 		}
-		count++
-		heuristics := n.OneAttrString(activedirectory.DsHeuristics)
-		only = heuristics
-		root := dn[len(directoryServicePrefix):]
-		if domainDN == root || strings.HasSuffix(domainDN, ","+root) {
-			match = heuristics
+		// Only the domain's own forest's settings apply; without them the
+		// defaults do.
+		if engine.InForest(ao, domainDN, dn[len(directoryServicePrefix):]) {
+			match = n.OneAttrString(activedirectory.DsHeuristics)
 			return false
 		}
 		return true
 	})
-	if match != "" || count != 1 {
-		return match
-	}
-	return only
+	return match
 }
 
 // blocksOwnerImplicitRights reads BlockOwnerImplicitRights, the 29th

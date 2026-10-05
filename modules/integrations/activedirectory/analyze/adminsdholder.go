@@ -45,6 +45,10 @@ func addAdminSDHolderEdges(tx *engine.Tx) {
 			return !sid.IsBlank() && sid.Components() > 4 && sid.StripRID() == domainSID
 		}
 		excluded := adminSDHolderExclusions(forestHeuristics(tx, domainContext))
+		inForest := func(o *engine.Node) bool {
+			// The group's domain is the root of this domain's forest.
+			return engine.InForest(tx, domainContext, o.OneAttrString(engine.DomainContext))
+		}
 
 		// Collect first and add the edges afterwards: walking memberships
 		// holds the edge lock, so edges cannot be added during the walk.
@@ -52,14 +56,17 @@ func addAdminSDHolderEdges(tx *engine.Tx) {
 		protect := func(o *engine.Node) {
 			protected = append(protected, o)
 		}
-		protectMembers := func(group *engine.Node) {
-			protect(group)
+		protectInDomain := func(group *engine.Node) {
 			tx.EdgeIteratorRecursive(group, engine.In, member, true, func(_, m *engine.Node, _ engine.EdgeBitmap, _ int) bool {
 				if inDomain(m) {
 					protect(m)
 				}
 				return true
 			})
+		}
+		protectMembers := func(group *engine.Node) {
+			protect(group)
+			protectInDomain(group)
 		}
 
 		tx.Iterate(func(o *engine.Node) bool {
@@ -99,9 +106,17 @@ func addAdminSDHolderEdges(tx *engine.Tx) {
 						protectMembers(o)
 					}
 				case DOMAIN_GROUP_RID_SCHEMA_ADMINS, DOMAIN_GROUP_RID_ENTERPRISE_ADMINS:
-					// Forest-wide groups in the root domain; their members in
-					// this domain are protected here.
-					protectMembers(o)
+					// Forest-wide groups in the forest's root domain: the root
+					// domain's AdminSDHolder protects the group, and each
+					// domain's protects its members of it. Other forests'
+					// groups are not this domain's concern.
+					if !inForest(o) {
+						break
+					}
+					if inDomain(o) {
+						protect(o)
+					}
+					protectInDomain(o)
 				case DOMAIN_GROUP_RID_CONTROLLERS, DOMAIN_GROUP_RID_READONLY_CONTROLLERS:
 					if inDomain(o) {
 						protect(o)

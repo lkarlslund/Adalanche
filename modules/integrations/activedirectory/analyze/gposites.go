@@ -10,13 +10,12 @@ import (
 // forestSites returns the site objects of the forest a domain belongs to.
 // Sites live in CN=Sites,CN=Configuration,<forest root DN>.
 func forestSites(ao engine.GraphReader, domainDN string) []*engine.Node {
-	domainDN = strings.ToLower(domainDN)
 	sites, _ := ao.FindMulti(engine.ObjectClass, engine.NV("site"))
 	var result []*engine.Node
 	sites.Iterate(func(site *engine.Node) bool {
 		dn := strings.ToLower(site.DN())
 		_, root, found := strings.Cut(dn, ",cn=sites,cn=configuration,")
-		if found && (domainDN == root || strings.HasSuffix(domainDN, ","+root)) {
+		if found && engine.InForest(ao, domainDN, root) {
 			result = append(result, site)
 		}
 		return true

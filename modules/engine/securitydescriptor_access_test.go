@@ -143,4 +143,12 @@ func TestPropertySetACEsAcrossForests(t *testing.T) {
 	if acl.IsObjectClassAccessAllowed(0, inB, RIGHT_DS_WRITE_PROPERTY, attribute, differing) {
 		t.Fatal("forest a's property set was applied to an object in forest b")
 	}
+
+	// A second domain tree of forest a, which only its crossRef places there.
+	inTree := NewNode(DomainContext, "DC=tree,DC=test")
+	treeRef := NewNode(DistinguishedName, "CN=TREE,CN=Partitions,CN=Configuration,DC=a,DC=test", ObjectClass, "crossRef", crossRefNCName, "DC=tree,DC=test")
+	withTree := testGraph(schema("DC=a,DC=test", propertySet), schema("DC=b,DC=test", otherSet), treeRef)
+	if !acl.IsObjectClassAccessAllowed(0, inTree, RIGHT_DS_WRITE_PROPERTY, attribute, withTree) {
+		t.Fatal("forest a's schema was not used for an object in forest a's second tree")
+	}
 }
