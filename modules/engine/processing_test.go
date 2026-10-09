@@ -8,17 +8,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
 
-type testLoader struct {
-	name string
-}
-
-func (l testLoader) Name() string          { return l.name }
-func (l testLoader) Init(LoadTarget) error { return nil }
-func (l testLoader) Load(string, ProgressCallbackFunc) error {
-	return ErrUninterested
-}
-func (l testLoader) Close() error { return nil }
-
 func withProgressDisabled(t *testing.T) {
 	t.Helper()
 

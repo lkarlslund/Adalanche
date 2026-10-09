@@ -11,16 +11,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 )
 
-// Logon history is read newest first within this window, up to this many
-// events. Busy servers and domain controllers can hold millions of logons.
-const (
-	logonEventWindow = 90 * 24 * time.Hour
-	logonEventLimit  = 250000
-	// Availability only reports the last month, day and week.
-	availabilityEventWindow = 31 * 24 * time.Hour
-	availabilityEventLimit  = 50000
-)
-
 var errEventMissingField = errors.New("event is missing a required field")
 
 // systemEvent holds the fields shared by all rendered events. Missing

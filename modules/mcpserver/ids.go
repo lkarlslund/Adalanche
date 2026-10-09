@@ -91,7 +91,7 @@ func (s *Server) parseNodeID(text string) (engine.NodeID, error) {
 func (s *Server) lookupKey(g *engine.IndexedGraph, text string) (*engine.Node, error) {
 	name, value, found := strings.Cut(text, "=")
 	if !found || name == "" || value == "" {
-		return nil, fmt.Errorf("%q is not a key: keys look like objectSid=S-1-5-...", text)
+		return nil, fmt.Errorf("%q is not a key: keys look like objectSid=<SID>", text)
 	}
 	attr := engine.LookupAttribute(name)
 	if attr == engine.NonExistingAttribute {

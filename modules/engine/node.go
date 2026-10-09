@@ -571,11 +571,6 @@ func (o *Node) HasTag(v string) bool {
 	return hasTag(tags, found, v)
 }
 
-func (o *Node) hasTagNoLock(v string) bool {
-	tags, found := o.values.get(Tag)
-	return hasTag(tags, found, v)
-}
-
 func hasTag(tags AttributeValues, found bool, v string) bool {
 	if !found {
 		return false

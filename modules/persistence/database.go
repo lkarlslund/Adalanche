@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ugorji/go/codec"
 	"go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 var (
@@ -50,7 +51,7 @@ func getDB() (*bbolt.DB, error) {
 	// lock on the database; waiting for it without a limit looks like a hang.
 	path := filepath.Join(*cli.Datapath, "persistence.bbolt")
 	db, err := bbolt.Open(path, 0666, &bbolt.Options{Timeout: 3 * time.Second})
-	if errors.Is(err, bbolt.ErrTimeout) {
+	if errors.Is(err, bolterrors.ErrTimeout) {
 		return nil, fmt.Errorf("%v is in use by another adalanche process with the same data path; stop it or use another data path", path)
 	}
 	if err != nil {

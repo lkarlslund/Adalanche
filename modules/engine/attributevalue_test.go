@@ -28,7 +28,8 @@ func TestNVSupportsCoreTypesAndDeduplicatesStrings(t *testing.T) {
 		})
 	}
 
-	if NV("alpha") != NV("alpha") {
+	first, second := NV("alpha"), NV("alpha")
+	if first != second {
 		t.Fatal("expected string normalization to deduplicate equal values")
 	}
 }
