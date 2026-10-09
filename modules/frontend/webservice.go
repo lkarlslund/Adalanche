@@ -103,6 +103,8 @@ func shouldCompress(c *gin.Context) bool {
 	request := c.Request
 	if !strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") ||
 		strings.Contains(request.Header.Get("Connection"), "Upgrade") ||
+		// The MCP endpoint streams events.
+		request.URL.Path == "/mcp" ||
 		gzip.DefaultExcludedExtentions.Contains(path.Ext(request.URL.Path)) {
 		return false
 	}

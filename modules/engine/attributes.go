@@ -32,6 +32,7 @@ const (
 	Single                          // Can only hold one value
 	DropWhenMerging                 // Node being merged from does not contribute this attribute
 	Fuzzy                           // A Merge key that names a thing loosely, such as an address; tried after strict keys
+	Secret                          // Holds a password, key or other secret; kept out of what other tools are given
 )
 
 type AttributeType uint8
@@ -159,6 +160,13 @@ func (a Attribute) String() string {
 func (a Attribute) Type(t AttributeType) Attribute {
 	attributeinfos[a].atype = t
 	return a
+}
+
+// AttributeType returns the type values of the attribute are stored as.
+func (a Attribute) AttributeType() AttributeType {
+	attributemutex.RLock()
+	defer attributemutex.RUnlock()
+	return attributeinfos[a].atype
 }
 
 func (a Attribute) Flag(flags ...AttributeFlag) Attribute {
