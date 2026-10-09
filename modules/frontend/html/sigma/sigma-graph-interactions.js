@@ -92,9 +92,10 @@
       }
     }
 
-    // Sigma 4 pans the camera from pointerdown on the container. These
-    // handlers listen to pointer events in the capture phase, so a press on
-    // a node is ours before sigma sees it. Touch stays with sigma.
+    // Sigma 4 pans the camera from pointerdown on the container and drags
+    // nodes itself. These handlers take pointer events in the capture phase,
+    // so a shift-press for the selection box is ours before sigma sees it.
+    // Touch stays with sigma.
     function isTouch(event) {
       return !!(event && event.pointerType === "touch");
     }
@@ -114,27 +115,7 @@
         event.preventDefault();
         if (typeof event.stopPropagation === "function") event.stopPropagation();
         if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-        return;
       }
-      if (!event || event.button !== 0) {
-        return;
-      }
-      const point = graph.relativePoint(event);
-      const nodeId = graph.getNodeAtPosition(point.x, point.y) || graph.hoveredNodeId || "";
-      if (!nodeId) return;
-      if (typeof graph.canDragNode === "function" && !graph.canDragNode(nodeId, event)) {
-        return;
-      }
-      graph.dragState = {
-        nodeId,
-        started: false,
-        moved: false,
-        startX: point.x,
-        startY: point.y,
-      };
-      event.preventDefault();
-      if (typeof event.stopPropagation === "function") event.stopPropagation();
-      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
     }
 
     function handleMouseMove(event) {
@@ -143,7 +124,7 @@
       const onGraphSurface = eventTargetsGraphSurface(event);
       if (onGraphSurface) {
         updateHoveredEdge(point, event);
-      } else if (!graph.selectionState && !graph.dragState && graph.hoveredEdgeId) {
+      } else if (!graph.selectionState && graph.hoveredEdgeId) {
         updateHoveredEdge(null, event);
       }
       if (graph.selectionState) {
@@ -156,29 +137,7 @@
         event.preventDefault();
         if (typeof event.stopPropagation === "function") event.stopPropagation();
         if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-        return;
       }
-      if (!graph.dragState) return;
-      const dx = Number(point.x || 0) - Number(graph.dragState.startX || 0);
-      const dy = Number(point.y || 0) - Number(graph.dragState.startY || 0);
-      if (!graph.dragState.moved && ((dx * dx) + (dy * dy) < 16)) {
-        return;
-      }
-      event.preventDefault();
-      if (typeof event.stopPropagation === "function") event.stopPropagation();
-      const graphPoint = graph.renderer.viewportToGraph(point);
-      if (!graph.dragState.started) {
-        graph.dragState.started = true;
-        graph.notify("nodedragstart", {
-          nodeId: graph.dragState.nodeId,
-          originalEvent: event,
-          viewportPosition: point,
-          clientPosition: RenderMetrics.eventClientPosition(event),
-        });
-      }
-      graph.dragState.moved = true;
-      graph.setNodePosition(graph.dragState.nodeId, graphPoint, { markDirty: true });
-      graph.refresh();
     }
 
     function handleMouseUp(event) {
@@ -204,35 +163,7 @@
             appendSelection: true,
           });
         }
-        return;
       }
-      if (!graph.dragState) return;
-      const point = graph.relativePoint(event);
-      const nodeId = graph.dragState.nodeId;
-      const moved = graph.dragState.moved;
-      graph.dragState = null;
-      event.preventDefault();
-      if (typeof event.stopPropagation === "function") event.stopPropagation();
-      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-      if (!moved) {
-        graph.suppressNextClick = true;
-        graph.notify("nodeclick", {
-          nodeId,
-          originalEvent: event,
-          viewportPosition: point,
-          clientPosition: RenderMetrics.eventClientPosition(event),
-          syntheticTap: true,
-        });
-        return;
-      }
-      graph.suppressNextClick = true;
-      graph.notify("nodedragend", {
-        nodeId,
-        originalEvent: event,
-        viewportPosition: point,
-        clientPosition: RenderMetrics.eventClientPosition(event),
-        position: graph.nodePosition(nodeId),
-      });
     }
 
     function installSigmaEvents() {
@@ -257,6 +188,33 @@
             hovered: false,
             originalEvent: event && event.event ? event.event : {},
           });
+        });
+        // Sigma drags nodes; a selected node takes the selection along.
+        graph.renderer.setSettings({
+          enableNodeDrag: true,
+          getDraggedNodes: (node) => (graph.selectedNodeIDsSet.has(node)
+            ? Array.from(graph.selectedNodeIDsSet).filter((id) => graph.graph.hasNode(id))
+            : [node]),
+          dragPositionToAttributes: (position, node) => {
+            graph.setNodePosition(node, position, { markDirty: true });
+            return { x: position.x, y: position.y };
+          },
+        });
+        const dragPayload = (event) => {
+          const original = event && event.event ? event.event.original || {} : {};
+          return {
+            nodeId: String(event.node),
+            nodeIds: Array.from(event.allDraggedNodes || [event.node], String),
+            originalEvent: original,
+            viewportPosition: { x: event.event.x, y: event.event.y },
+            clientPosition: RenderMetrics.eventClientPosition(original),
+          };
+        };
+        graph.renderer.on("nodeDragStart", (event) => graph.notify("nodedragstart", dragPayload(event)));
+        graph.renderer.on("nodeDragEnd", (event) => {
+          // The browser still sends a click for the press the drag began with.
+          graph.suppressNextClick = true;
+          graph.notify("nodedragend", { ...dragPayload(event), position: graph.nodePosition(String(event.node)) });
         });
         graph.renderer.on("rightClickNode", (event) => {
           const id = String(event && event.node ? event.node : "");

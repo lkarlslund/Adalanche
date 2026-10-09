@@ -100,9 +100,7 @@
       this.maxZoomValue = 4;
       this.iconMinZoom = Number.isFinite(Number(cfg.iconMinZoom)) ? Number(cfg.iconMinZoom) : 0;
       this.iconMinScreenSize = Number.isFinite(Number(cfg.iconMinScreenSize)) ? Number(cfg.iconMinScreenSize) : 18;
-      this.canDragNode = typeof cfg.canDragNode === "function" ? cfg.canDragNode : null;
       this.customBBox = null;
-      this.dragState = null;
       this.suppressNextClick = false;
       this.selectionLayer = null;
       this.selectionState = null;

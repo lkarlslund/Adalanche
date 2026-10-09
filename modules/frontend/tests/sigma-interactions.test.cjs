@@ -32,55 +32,80 @@ function pointer(type, x, y, extra) {
     return Object.assign(event, extra);
 }
 
-// A graph with one node at (50, 50) and a container at the origin.
+// A graph of nodes a, b and c, with a and b selected, over a renderer that
+// records its settings and event handlers.
 function stubGraph() {
     const container = target();
     container.getBoundingClientRect = () => ({left: 0, top: 0});
     container.contains = () => true;
+    const handlers = {};
+    const positions = {};
     const graph = {
         container,
         notified: [],
-        moved: [],
         hoveredNodeId: "",
         hoveredEdgeId: "",
-        renderer: {on() {}, getCamera: () => ({on() {}}), viewportToGraph: (p) => p},
+        selectedNodeIDsSet: new Set(["a", "b"]),
+        graph: {hasNode: (id) => ["a", "b", "c"].includes(id)},
+        renderer: {
+            settings: {},
+            handlers,
+            on(name, handler) { handlers[name] = handler; },
+            setSettings(settings) { Object.assign(this.settings, settings); },
+            getCamera: () => ({on() {}}),
+        },
         relativePoint(event) { return {x: event.clientX, y: event.clientY}; },
-        getNodeAtPosition: (x, y) => (Math.hypot(x - 50, y - 50) <= 10 ? "n" : ""),
+        getNodeAtPosition: () => "",
         getEdgeAtPosition: () => "",
-        setNodePosition(id, p) { graph.moved.push([id, p.x, p.y]); },
-        nodePosition: () => ({x: 0, y: 0}),
-        refresh() {},
-        notify(name, payload) { graph.notified.push(name); },
-        overlays: {updateSelectionLayer() {}, hideSelectionLayer() {}, queueIconSync() {}},
+        setNodePosition(id, p) { positions[id] = [p.x, p.y]; },
+        positions,
+        nodePosition: (id) => ({x: positions[id][0], y: positions[id][1]}),
+        notify(name, payload) { graph.notified.push([name, payload]); },
+        overlays: {updateSelectionLayer() {}, hideSelectionLayer() {}, queueIconSync() {}, selectionRect: () => null},
     };
     return graph;
 }
 
-test("a press on a node drags it, and sigma never sees the press, so the camera does not pan", () => {
+test("sigma drags nodes, taking the selection along, and our positions follow", () => {
     const window = load();
     const graph = stubGraph();
     window.createWorkspaceSigmaInteractions(graph).install();
+    const {settings, handlers} = graph.renderer;
 
-    // Sigma 4 pans from pointerdown on the container; ours must run first.
+    assert.equal(settings.enableNodeDrag, true);
+    assert.deepEqual(Array.from(settings.getDraggedNodes("a")).sort(), ["a", "b"], "a selected node drags the selection");
+    assert.deepEqual(Array.from(settings.getDraggedNodes("c")), ["c"]);
+    assert.deepEqual(JSON.parse(JSON.stringify(settings.dragPositionToAttributes({x: 3, y: 4}, "a"))), {x: 3, y: 4});
+    assert.deepEqual(graph.positions.a, [3, 4], "the workspace's own positions follow the drag");
+
+    const coords = {x: 3, y: 4, original: {clientX: 3, clientY: 4}};
+    handlers.nodeDragStart({node: "a", allDraggedNodes: ["a", "b"], event: coords});
+    handlers.nodeDragEnd({node: "a", allDraggedNodes: ["a", "b"], event: coords});
+    const notified = graph.notified.map(([name]) => name);
+    assert.deepEqual(notified, ["nodedragstart", "nodedragend"]);
+    const end = graph.notified[1][1];
+    assert.equal(end.nodeId, "a");
+    assert.deepEqual(Array.from(end.nodeIds), ["a", "b"]);
+    assert.ok(graph.suppressNextClick, "the click that ends a drag is not a node click");
+});
+
+test("only a shift-press for the selection box is kept from sigma", () => {
+    const window = load();
+    const graph = stubGraph();
+    window.createWorkspaceSigmaInteractions(graph).install();
     const down = graph.container.listeners.find((l) => l.name === "pointerdown");
-    assert.ok(down && down.capture, "pointerdown is handled in the capture phase");
-    assert.ok(!graph.container.listeners.some((l) => l.name === "mousedown"), "mousedown comes after sigma has started panning");
+    assert.ok(down && down.capture, "pointerdown is handled in the capture phase, before sigma");
 
     const press = pointer("pointerdown", 50, 50);
     graph.container.fire("pointerdown", press);
-    assert.ok(press.stopped && press.prevented, "the press on a node stops before sigma");
-    window.fire("pointermove", pointer("pointermove", 80, 90));
-    window.fire("pointerup", pointer("pointerup", 80, 90));
-    assert.deepEqual(JSON.parse(JSON.stringify(graph.moved)), [["n", 80, 90]]);
-    assert.deepEqual(graph.notified.filter((n) => n.startsWith("nodedrag")), ["nodedragstart", "nodedragend"]);
+    assert.ok(!press.stopped, "a plain press goes to sigma, which drags or pans");
 
-    // A press on the background goes on to sigma, which pans.
-    const background = pointer("pointerdown", 200, 200);
-    graph.container.fire("pointerdown", background);
-    assert.ok(!background.stopped);
+    const shift = pointer("pointerdown", 50, 50, {shiftKey: true});
+    graph.container.fire("pointerdown", shift);
+    assert.ok(shift.stopped && graph.selectionState, "a shift-press starts the selection box");
 
-    // Touch stays with sigma.
-    const touch = pointer("pointerdown", 50, 50, {pointerType: "touch"});
+    const touch = pointer("pointerdown", 50, 50, {pointerType: "touch", shiftKey: true});
+    graph.selectionState = null;
     graph.container.fire("pointerdown", touch);
-    assert.ok(!touch.stopped);
+    assert.ok(!touch.stopped, "touch stays with sigma");
 });

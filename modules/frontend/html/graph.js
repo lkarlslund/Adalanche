@@ -1425,6 +1425,16 @@ function bindGraphEvents() {
     selectGraphNodes([]);
   });
 
+  // Shift-dragging a box adds the nodes inside it to the selection.
+  graph.onSelectionBox(function (evt) {
+    hideGraphContextMenu();
+    hideEdgeHoverCard();
+    graphState.selectedEdgeId = "";
+    const boxed = Array.isArray(evt.nodeIds) ? evt.nodeIds : [];
+    const ids = evt.appendSelection ? graphState.selectedNodeIds.concat(boxed) : boxed;
+    selectGraphNodes(Array.from(new Set(ids)));
+  });
+
   graph.onNodeContextMenu(function (evt) {
     const client = evt.clientPosition || { x: 0, y: 0 };
     openNodeContextMenu(evt.nodeId, Number(client.x || 0), Number(client.y || 0));
