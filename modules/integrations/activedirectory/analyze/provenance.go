@@ -99,37 +99,5 @@ func aceOrigin(_, target *engine.Node, s engine.EdgeSource) *engine.Node {
 		}
 		return target
 	}
-	sd, err := target.SecurityDescriptor()
-	if err != nil || index < 0 || index >= len(sd.DACL.Entries) {
-		return nil
-	}
-	ace := sd.DACL.Entries[index]
-	if ace.ACEFlags&engine.ACEFLAG_INHERITED_ACE == 0 {
-		return target
-	}
-	for parent := target.Parent(); parent != nil; parent = parent.Parent() {
-		psd, err := parent.SecurityDescriptor()
-		if err != nil {
-			return nil
-		}
-		var found, explicit bool
-		for _, candidate := range psd.DACL.Entries {
-			if candidate.SID == ace.SID && candidate.Type == ace.Type &&
-				candidate.ObjectType == ace.ObjectType && candidate.InheritedObjectType == ace.InheritedObjectType &&
-				candidate.ACEFlags&(engine.ACEFLAG_OBJECT_INHERIT_ACE|engine.ACEFLAG_INHERIT_ACE) != 0 {
-				found = true
-				if candidate.ACEFlags&engine.ACEFLAG_INHERITED_ACE == 0 {
-					explicit = true
-					break
-				}
-			}
-		}
-		if !found {
-			return nil
-		}
-		if explicit {
-			return parent
-		}
-	}
-	return nil
+	return target.ACEOrigin(index)
 }

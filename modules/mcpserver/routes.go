@@ -26,7 +26,7 @@ const (
 func (s *Server) addRouteTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "get_edge_path_details",
-		Description: "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set).",
+		Description: "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set). For an ACE, get_acl shows it in full.",
 	}, s.getEdgePathDetails)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "explain_routes",
@@ -45,6 +45,9 @@ type EdgeCause struct {
 	Detail string     `json:"detail,omitempty"`
 	About  *NodeBrief `json:"about,omitempty" jsonschema:"what the cause is about, such as the GPO"`
 	SetOn  *NodeBrief `json:"set_on,omitempty" jsonschema:"where it was set, such as the object an inherited ACE came from"`
+	// ACE and ACEAttribute point get_acl at the ACE behind the cause.
+	ACE          *int   `json:"ace,omitempty" jsonschema:"the index of the ACE behind the cause in the target's descriptor; get_acl with the target and this index shows it"`
+	ACEAttribute string `json:"ace_attribute,omitempty" jsonschema:"the attribute holding that descriptor, to pass to get_acl, when it is not the object's own"`
 }
 
 // EdgeTypeDetail is one type of an edge.
@@ -61,12 +64,19 @@ func (s *Server) edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, on
 	}
 	causes := map[engine.Edge][]EdgeCause{}
 	for _, p := range g.EdgeSources(from, to) {
-		causes[p.Edge] = append(causes[p.Edge], EdgeCause{
+		cause := EdgeCause{
 			Kind:   p.Source.Kind.String(),
 			Detail: p.Source.Detail,
 			About:  s.briefOf(p.Source.About),
 			SetOn:  s.briefOf(p.Source.Origin(from, to)),
-		})
+		}
+		if attr, index, ok := causeACE(p.Source.Detail); ok {
+			cause.ACE = &index
+			if attr != engine.NTSecurityDescriptor.String() {
+				cause.ACEAttribute = attr
+			}
+		}
+		causes[p.Edge] = append(causes[p.Edge], cause)
 	}
 	var result []EdgeTypeDetail
 	for _, edge := range eb.Edges() {

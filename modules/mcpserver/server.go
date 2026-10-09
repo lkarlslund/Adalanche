@@ -76,6 +76,7 @@ func newServer(source graphSource) *Server {
 	s.addNodeTools()
 	s.addQueryTools()
 	s.addRouteTools()
+	s.addACLTools()
 	s.addResources()
 	extensionsLock.Lock()
 	defer extensionsLock.Unlock()
