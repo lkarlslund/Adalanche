@@ -92,7 +92,15 @@
       }
     }
 
+    // Sigma 4 pans the camera from pointerdown on the container. These
+    // handlers listen to pointer events in the capture phase, so a press on
+    // a node is ours before sigma sees it. Touch stays with sigma.
+    function isTouch(event) {
+      return !!(event && event.pointerType === "touch");
+    }
+
     function handleMouseDown(event) {
+      if (isTouch(event)) return;
       if (event && event.button === 0 && event.shiftKey) {
         const point = graph.relativePoint(event);
         graph.selectionState = {
@@ -130,6 +138,7 @@
     }
 
     function handleMouseMove(event) {
+      if (isTouch(event)) return;
       const point = graph.relativePoint(event);
       const onGraphSurface = eventTargetsGraphSurface(event);
       if (onGraphSurface) {
@@ -173,6 +182,7 @@
     }
 
     function handleMouseUp(event) {
+      if (isTouch(event)) return;
       if (graph.selectionState) {
         const point = graph.relativePoint(event);
         graph.selectionState.currentX = point.x;
@@ -264,9 +274,9 @@
       const target = graph.container;
       bind(target, "click", handleClick, true);
       bind(target, "contextmenu", handleContextMenu, true);
-      bind(target, "mousedown", handleMouseDown, true);
-      bind(window, "mousemove", handleMouseMove, true);
-      bind(window, "mouseup", handleMouseUp, true);
+      bind(target, "pointerdown", handleMouseDown, true);
+      bind(window, "pointermove", handleMouseMove, true);
+      bind(window, "pointerup", handleMouseUp, true);
 
       const camera = graph.renderer.getCamera();
       if (camera && typeof camera.on === "function") {

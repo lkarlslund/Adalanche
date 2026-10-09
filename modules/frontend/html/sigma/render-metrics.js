@@ -76,6 +76,28 @@
     };
   }
 
+  // nodeAtPoint finds the node drawn under a viewport point, the nearest
+  // when nodes overlap, or "". Sigma 4 keeps its own picking private, so
+  // this works from the nodes' screen positions and sizes.
+  function nodeAtPoint(renderer, graphLike, nodeIds, x, y) {
+    const pointX = Number(x);
+    const pointY = Number(y);
+    if (!renderer || !Number.isFinite(pointX) || !Number.isFinite(pointY)) return "";
+    const tolerance = 2;
+    let bestNodeId = "";
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const id of nodeIds || []) {
+      const metrics = nodeScreenMetrics(renderer, graphLike, id);
+      if (!metrics || !metrics.visible || (metrics.display && metrics.display.hidden)) continue;
+      const distance = Math.hypot(metrics.x - pointX, metrics.y - pointY);
+      if (distance <= metrics.radiusPx + tolerance && distance < bestDistance) {
+        bestNodeId = id;
+        bestDistance = distance;
+      }
+    }
+    return bestNodeId;
+  }
+
   function labelFontPx(metrics, nodeRule, zoomValue) {
     const themedFontSize = Number(nodeRule && nodeRule["font-size"] || 11);
     const nodeRadius = Number(metrics && metrics.radiusPx || 0);
@@ -107,6 +129,7 @@
     zoomScale,
     baseNodeSize,
     nodeScreenMetrics,
+    nodeAtPoint,
     labelFontPx,
     iconSizePx,
     rectIntersectsNode,

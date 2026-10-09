@@ -128,10 +128,7 @@
     }
 
     getNodeAtPosition(x, y) {
-      if (typeof this.renderer.getNodeAtPosition === "function") {
-        return this.renderer.getNodeAtPosition(x, y) || "";
-      }
-      return "";
+      return RenderMetrics.nodeAtPoint(this.renderer, this, this.nodeIds(), x, y);
     }
 
     getEdgeAtPosition(x, y, extraTolerance) {
