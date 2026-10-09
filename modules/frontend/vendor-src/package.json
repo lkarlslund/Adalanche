@@ -19,19 +19,12 @@
     "@alpinejs/persist": "^3.17.4",
     "@popperjs/core": "^2.11.8",
     "@ryangjchandler/alpine-tooltip": "^2.0.1",
+    "@sigma/node-border": "^4.0.0",
+    "@sigma/node-image": "^4.0.0",
     "alpinejs": "^3.17.4",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
-    "cytoscape": "^3.34.3",
-    "cytoscape-context-menus": "^4.2.1",
-    "cytoscape-cose-bilkent": "^4.1.0",
-    "cytoscape-d3-force": "^1.1.4",
-    "cytoscape-dagre": "^4.0.1",
-    "cytoscape-expand-collapse": "^4.1.1",
-    "cytoscape-fcose": "^2.2.0",
-    "cytoscape-popper": "^4.0.1",
-    "d3-force": "^3.0.0",
-    "dagre": "^0.8.5",
+    "sigma": "^4.0.0",
     "tippy.js": "^6.3.7"
   }
 }

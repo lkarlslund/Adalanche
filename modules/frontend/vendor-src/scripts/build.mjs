@@ -13,8 +13,11 @@ const cleanOnly = process.argv.includes('--clean');
 const entries = {
   'ui-core': path.resolve(root, 'src/entries/ui-core.js'),
   'graph-core': path.resolve(root, 'src/entries/graph-core.js'),
-  'bootstrap': path.resolve(root, 'src/entries/bootstrap.js')
+  'bootstrap': path.resolve(root, 'src/entries/bootstrap.js'),
+  // Loaded as a classic script: the graph scripts read window.Sigma.
+  'sigma': path.resolve(root, 'src/entries/sigma.js')
 };
+const classicScripts = new Set(['sigma']);
 
 if (cleanOnly) {
   fs.rmSync(outdir, { recursive: true, force: true });
@@ -37,33 +40,19 @@ const shared = {
   sourcemap: true,
   minify: false,
   legalComments: 'none',
-  plugins: [
-    {
-      name: 'alias-d3-force-exact',
-      setup(build) {
-        const bridgePath = path.resolve(root, 'src/vendor/d3-force-bridge.cjs');
-        build.onResolve({ filter: /^d3-force$/ }, (args) => {
-          // Avoid alias recursion when the bridge itself imports d3-force.
-          if (path.resolve(args.importer) === bridgePath) {
-            return null;
-          }
-          return { path: bridgePath };
-        });
-      },
-    },
-  ],
 };
 
 const manifest = {};
 
 for (const [name, entry] of Object.entries(entries)) {
   const outfile = path.join(outdir, `${name}.bundle.js`);
+  const options = { ...shared, entryPoints: [entry], outfile, ...(classicScripts.has(name) ? { format: 'iife', minify: true } : {}) };
   if (watch) {
-    const ctx = await context({ ...shared, entryPoints: [entry], outfile });
+    const ctx = await context(options);
     await ctx.watch();
     console.log(`Watching ${name} -> ${outfile}`);
   } else {
-    await build({ ...shared, entryPoints: [entry], outfile });
+    await build(options);
     console.log(`Built ${name} -> ${outfile}`);
   }
   manifest[name] = `external/vendor/${name}.bundle.js`;

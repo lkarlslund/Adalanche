@@ -54,9 +54,119 @@
     };
   }
 
+  // Probability dashes: edges less likely than 100% are dashed, with longer
+  // gaps the less likely they are, as a 20 pixel pattern: 90% is 18 on and 2
+  // off, 50% is 10 and 10, 10% or less is 2 and 18. Sizes are in screen
+  // pixels so the pattern stays readable at any zoom.
+  const DASH_PATTERN_PX = 20;
+
+  function dashPattern(maxProbability) {
+    const probability = Number(maxProbability);
+    if (!Number.isFinite(probability) || probability > 90) return { dashSize: 0, gapSize: 0 };
+    const tenths = Math.max(1, Math.ceil(Math.max(0, probability) / 10));
+    const dash = (DASH_PATTERN_PX / 10) * tenths;
+    return { dashSize: dash, gapSize: DASH_PATTERN_PX - dash };
+  }
+
+  // sigmaOptions declares what sigma draws: nodes as a filled circle with an
+  // icon and a border, edges as lines with an optional arrowhead, solid or
+  // dashed. Per-element values, the theme's included, come from graph
+  // attributes, so changing them never rebuilds the programs.
+  function sigmaOptions(Sigma) {
+    const r = Sigma.rendering;
+    const layers = Sigma.layers;
+    return {
+      settings: {
+        allowInvalidContainer: true,
+        renderLabels: true,
+        renderEdgeLabels: true,
+        // Sizes in screen pixels, as before sigma 4.
+        itemSizesReference: "screen",
+        labelRenderedSizeThreshold: 8,
+        labelDensity: 1,
+        // Edges are found by the workspace itself.
+        enableEdgeEvents: false,
+      },
+      primitives: {
+        nodes: {
+          shapes: [r.sdfCircle()],
+          variables: {
+            image: { type: "string", default: "" },
+            borderColor: { type: "color", default: "rgba(0,0,0,0)" },
+            borderSize: { type: "number", default: 0 },
+          },
+          layers: [
+            r.layerFill(),
+            layers.layerImage({ drawingMode: "image", padding: 0.1, imageAttribute: "image" }),
+            // A ring; its inside stays clear for the fill and icon under it.
+            layers.layerBorder({
+              borders: [
+                { size: { attribute: "borderSize" }, color: { attribute: "borderColor" }, mode: "relative" },
+                { size: 0, color: "rgba(0,0,0,0)", fill: true },
+              ],
+            }),
+          ],
+          label: { font: { family: "Oswald" } },
+        },
+        edges: {
+          variables: {
+            solidColor: { type: "color", default: "rgba(0,0,0,0)" },
+            dashSize: { type: "number", default: 0 },
+            gapSize: { type: "number", default: 0 },
+          },
+          paths: [r.pathLine()],
+          extremities: [r.extremityArrow()],
+          layers: [
+            // Solid edges draw here; dashed ones leave it transparent so their
+            // gaps stay open.
+            r.layerPlain({ color: { attribute: "solidColor" } }),
+            r.layerDashed({
+              dashSize: { attribute: "dashSize", mode: "pixels" },
+              gapSize: { attribute: "gapSize", mode: "pixels" },
+              solidExtremities: true,
+            }),
+          ],
+        },
+      },
+      styles: {
+        nodes: [
+          Sigma.DEFAULT_STYLES.nodes,
+          {
+            labelColor: { attribute: "labelColor", defaultValue: "#000000" },
+            labelSize: { attribute: "labelSize", defaultValue: 11 },
+            labelFont: "Oswald",
+            labelPosition: "above",
+            // Hovered nodes: ringed, with the label on a dark box.
+            backdropColor: "rgba(15, 23, 42, 0.92)",
+            backdropBorderColor: "#f59e0b",
+            backdropBorderWidth: 2,
+            backdropCornerRadius: 6,
+            backdropPadding: 3,
+            backdropShadowBlur: 0,
+          },
+          { whenState: "isHovered", then: { labelColor: { attribute: "hoverLabelColor", defaultValue: "#f8fafc" } } },
+        ],
+        edges: [
+          Sigma.DEFAULT_STYLES.edges,
+          {
+            head: { attribute: "head", defaultValue: "none" },
+            labelVisibility: { attribute: "labelVisibility", defaultValue: "hidden" },
+            labelColor: { attribute: "labelColor", defaultValue: "#e9ecef" },
+            labelSize: { attribute: "labelSize", defaultValue: 12 },
+            labelBackgroundColor: { attribute: "labelBackgroundColor", defaultValue: "rgba(15, 18, 22, 0.9)" },
+            labelBackgroundPadding: { attribute: "labelBackgroundPadding", defaultValue: 2 },
+            labelPosition: 0.5,
+          },
+        ],
+      },
+    };
+  }
+
   window.WorkspaceSigmaRendering = {
     defaultThemeConfig,
     normalizeThemeConfig,
     edgeTypeFromTheme,
+    dashPattern,
+    sigmaOptions,
   };
 }());

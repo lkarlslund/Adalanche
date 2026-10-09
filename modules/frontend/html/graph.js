@@ -296,7 +296,7 @@ function ensureNodeLegendMetadataLoaded() {
   if (nodeLegendMetadataReady) {
     return nodeLegendMetadataReady;
   }
-  nodeLegendMetadataReady = fetchJSONOrThrow("backend/types")
+  nodeLegendMetadataReady = fetchJSONOrThrow("api/backend/types")
     .then((payload) => {
       applyNodeTypeMetadata(payload);
     })
