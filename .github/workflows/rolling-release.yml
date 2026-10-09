@@ -45,8 +45,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Revisions have at most 7 digits; older releases named rYYYYMMDD
+          # are dates, not revisions.
           latest="$(gh release list --limit 100 --exclude-drafts --json tagName \
-            --jq '[.[].tagName | select(test("^r[0-9]+$"))] | sort_by(ltrimstr("r") | tonumber) | last // ""')"
+            --jq '[.[].tagName | select(test("^r[0-9]{1,7}$"))] | sort_by(ltrimstr("r") | tonumber) | last // ""')"
           tag="$(pwsh -NoProfile -File scripts/build-number.ps1 -Release)"
           if [[ ! "$tag" =~ ^r[0-9]+$ ]]; then
             echo "::error::unexpected build number $tag"
