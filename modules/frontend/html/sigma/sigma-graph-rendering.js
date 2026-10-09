@@ -55,10 +55,10 @@
   }
 
   // Probability dashes: edges less likely than 100% are dashed, with longer
-  // gaps the less likely they are, as a 20 pixel pattern: 90% is 18 on and 2
-  // off, 50% is 10 and 10, 10% or less is 2 and 18. Sizes are in screen
-  // pixels so the pattern stays readable at any zoom.
-  const DASH_PATTERN_PX = 20;
+  // gaps the less likely they are, as a 10 pixel pattern at zoom 1 (as
+  // before sigma): 90% is 9 on and 1 off, 50% is 5 and 5, 10% or less is 1
+  // and 9. The pattern zooms with the line (see graphDashes).
+  const DASH_PATTERN_PX = 10;
 
   function dashPattern(maxProbability) {
     const probability = Number(maxProbability);
@@ -68,11 +68,45 @@
     return { dashSize: dash, gapSize: DASH_PATTERN_PX - dash };
   }
 
+  // graphDashes is sigma's dashed edge layer with its dash and gap sizes
+  // fixed along the edge rather than on screen: zooming magnifies the dashes
+  // with the line, instead of keeping their size and fitting in more. Sizes
+  // given in pixels are the pixels they span at zoom 1. sigma converts pixel
+  // sizes with the current zoom; this replaces that with a uniform set before
+  // each frame to the graph distance a pixel spans at zoom 1.
+  const PIXEL_TO_WORLD = "float pixelToWorld = u_correctionRatio / u_sizeRatio;";
+
+  function graphDashes(Sigma, options, renderParams) {
+    const layer = Sigma.rendering.layerDashed(options);
+    if (!layer.glsl.includes(PIXEL_TO_WORLD)) {
+      // A sigma that converts differently: dashes keep their screen size.
+      if (typeof console !== "undefined") console.warn("dashed edges: sigma's dashed layer changed; dashes keep their screen size");
+      return layer;
+    }
+    // sigma sets layer uniforms from their declared values on every frame,
+    // after the beforeRender hooks run, so the hook updates the value.
+    const pixelToWorld = { name: "u_dashPixelToWorld", type: "float", value: 1 };
+    return {
+      ...layer,
+      glsl: layer.glsl.replace(PIXEL_TO_WORLD, "float pixelToWorld = u_dashPixelToWorld;"),
+      uniforms: [...layer.uniforms, pixelToWorld],
+      lifecycle: () => ({
+        beforeRender() {
+          const params = renderParams();
+          if (!params) return;
+          // correctionRatio is the graph distance of a pixel at the current
+          // zoom, which grows with the camera ratio.
+          pixelToWorld.value = params.correctionRatio / Math.max(params.zoomRatio, 1e-6);
+        },
+      }),
+    };
+  }
+
   // sigmaOptions declares what sigma draws: nodes as a filled circle with an
   // icon and a border, edges as lines with an optional arrowhead, solid or
   // dashed. Per-element values, the theme's included, come from graph
   // attributes, so changing them never rebuilds the programs.
-  function sigmaOptions(Sigma) {
+  function sigmaOptions(Sigma, renderParams) {
     const r = Sigma.rendering;
     const layers = Sigma.layers;
     return {
@@ -120,11 +154,11 @@
             // Solid edges draw here; dashed ones leave it transparent so their
             // gaps stay open.
             r.layerPlain({ color: { attribute: "solidColor" } }),
-            r.layerDashed({
+            graphDashes(Sigma, {
               dashSize: { attribute: "dashSize", mode: "pixels" },
               gapSize: { attribute: "gapSize", mode: "pixels" },
               solidExtremities: true,
-            }),
+            }, renderParams || (() => null)),
           ],
         },
       },

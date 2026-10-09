@@ -84,7 +84,8 @@
       const cfg = isObject(config) ? config : {};
       this.container = cfg.container;
       this.graph = new Graphology.Graph({ multi: false, type: "mixed" });
-      this.renderer = new SigmaRenderer(this.graph, this.container, Rendering.sigmaOptions(SigmaRenderer));
+      this.renderer = new SigmaRenderer(this.graph, this.container,
+        Rendering.sigmaOptions(SigmaRenderer, () => (this.renderer ? this.renderer.getRenderParams() : null)));
       this.batchDepth = 0;
       this.pendingRefresh = false;
       this.nodeData = new Map();
