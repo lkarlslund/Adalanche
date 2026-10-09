@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 	"unicode/utf16"
 
@@ -200,19 +199,9 @@ func ParseSecurityDescriptor(data []byte) (SecurityDescriptor, error) {
 	}
 	if OffsetDACL > 0 {
 		sd.DACL, err = ParseACL(data[OffsetDACL:])
-		if !sd.DACL.IsSortedCorrectly() {
-			sd.DACL.HadSortingProblem = true
-			sd.DACL.Sort()
-		}
-		if sd.DACL.containsdeny {
-			sd.DACL.firstinheriteddeny = -1
-			for i := range sd.DACL.Entries {
-				if sd.DACL.Entries[i].ACEFlags&ACEFLAG_INHERITED_ACE != 0 && (sd.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED || sd.DACL.Entries[i].Type == ACETYPE_ACCESS_ALLOWED_OBJECT) {
-					sd.DACL.firstinheriteddeny = i
-					break
-				}
-			}
-		}
+		// The DACL is kept in stored order, which is the order access
+		// checks evaluate it in, even when it is not canonical.
+		sd.DACL.HadSortingProblem = !sd.DACL.IsCanonical()
 		if err != nil {
 			return sd, err
 		}
@@ -763,22 +752,38 @@ type ACL struct {
 	Entries  []ACE
 	Revision byte
 
+	// HadSortingProblem is set when the stored DACL is not in canonical
+	// order (see IsCanonical). It is still evaluated as stored.
 	HadSortingProblem bool
 
-	containsdeny       bool
-	firstinheriteddeny int
+	containsdeny bool
 }
 
-func (a *ACL) Sort() {
-	sort.SliceStable(a.Entries, func(i, j int) bool {
-		return a.Entries[i].SortVal() < a.Entries[j].SortVal()
-	})
-}
-
-func (a *ACL) IsSortedCorrectly() bool {
-	return sort.SliceIsSorted(a.Entries, func(i, j int) bool {
-		return a.Entries[i].SortVal() < a.Entries[j].SortVal()
-	})
+// IsCanonical reports whether the explicit ACEs come before the inherited
+// ones, with the explicit denies before the explicit allows (MS-DTYP 2.4.5).
+// Inherited ACEs keep the order they were inherited in, by generation, with
+// denies first within each; the generation is not recorded in an ACE, so
+// their order is not checked.
+func (a ACL) IsCanonical() bool {
+	seenAllow, seenInherited := false, false
+	for _, ace := range a.Entries {
+		if ace.ACEFlags&ACEFLAG_INHERITED_ACE != 0 {
+			seenInherited = true
+			continue
+		}
+		if seenInherited {
+			return false
+		}
+		switch ace.Type {
+		case ACETYPE_ACCESS_DENIED, ACETYPE_ACCESS_DENIED_OBJECT:
+			if seenAllow {
+				return false
+			}
+		default:
+			seenAllow = true
+		}
+	}
+	return true
 }
 
 type ACE struct {
@@ -801,28 +806,6 @@ type ACEType byte
 type Flags uint32
 
 type ACEFlags byte
-
-func (a ACE) SortVal() byte {
-	var result byte
-	if a.ACEFlags&ACEFLAG_INHERITED_ACE != 0 {
-		result += 2
-	}
-	switch a.Type {
-	case ACETYPE_ACCESS_ALLOWED:
-		result += 1
-	case ACETYPE_ACCESS_DENIED:
-		// result += 0
-	case ACETYPE_ACCESS_ALLOWED_OBJECT:
-		result += 1
-	case ACETYPE_ACCESS_DENIED_OBJECT:
-		// result += 0
-	case ACETYPE_ACCESS_ALLOWED_CALLBACK:
-		result += 1
-	default:
-		ui.Warn().Msgf("Unknown ACE type %d", a.Type)
-	}
-	return result
-}
 
 func (sd SecurityDescriptor) String(ao *IndexedGraph) string {
 	var result string
