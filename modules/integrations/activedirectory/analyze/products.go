@@ -52,6 +52,9 @@ const (
 	ProductProtectedUsers engine.Product = "ad/protected-users"
 	// Certificate template publishing status and CA roles.
 	ProductCertificateTemplates engine.Product = "ad/certificate-templates"
+	// Tags for references to objects that do not exist, such as GPO links
+	// to deleted GPOs.
+	ProductConfigurationFindings engine.Product = "ad/configuration-findings"
 )
 
 // MachinesForComputer returns every machine linked to the computer account

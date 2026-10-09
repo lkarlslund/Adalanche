@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -87,8 +86,6 @@ var (
 	// Fixme, double defined
 	EdgeSessionService = engine.NewEdge("SessionService").RegisterProbabilityCalculator(activedirectory.FixedProbability(30)).Tag("Pivot").Describe("Account detected as running a service on machine")
 )
-
-var warnedgpos = make(map[string]struct{})
 
 type downLevelDomainInfo struct {
 	suffix string
@@ -419,34 +416,12 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 			var gpcachelinks engine.AttributeValues
 			var found bool
 			if gpcachelinks, found = linkCache[som]; !found {
-				gplinks := strings.Trim(som.OneAttrString(activedirectory.GPLink), " ")
-				if len(gplinks) != 0 {
-					if !strings.HasPrefix(gplinks, "[") || !strings.HasSuffix(gplinks, "]") {
-						ui.Error().Msgf("Error parsing gplink on %v: %v", computer.DN(), gplinks)
-					} else {
-						links := strings.Split(gplinks[1:len(gplinks)-1], "][")
-
-						var collecteddata engine.AttributeValues
-						for _, link := range links {
-							linkinfo := strings.Split(link, ";")
-							if len(linkinfo) != 2 {
-								ui.Error().Msgf("Error parsing gplink on %v: %v", computer.DN(), gplinks)
-								continue
-							}
-							linkedgpodn := linkinfo[0][7:]
-
-							gpo, found := tx.Find(engine.DistinguishedName, engine.NV(linkedgpodn))
-							if !found {
-								if _, warned := warnedgpos[linkedgpodn]; !warned {
-									warnedgpos[linkedgpodn] = struct{}{}
-									ui.Warn().Msgf("Object linked to GPO that is not found %v: %v", computer.DN(), linkedgpodn)
-								}
-							} else {
-								linktype, _ := strconv.ParseInt(linkinfo[1], 10, 64)
-								collecteddata = append(collecteddata, engine.NV(gpo), engine.NV(linktype))
-							}
-						}
-						gpcachelinks = collecteddata
+				// Syntax errors and links to GPOs that are not found are
+				// reported by tagBrokenGPOLinks.
+				links, _ := parseGPLink(som.OneAttrString(activedirectory.GPLink))
+				for _, link := range links {
+					if gpo, found := tx.Find(engine.DistinguishedName, engine.NV(link.dn)); found {
+						gpcachelinks = append(gpcachelinks, engine.NV(gpo), engine.NV(link.options))
 					}
 				}
 				linkCache[som] = gpcachelinks
@@ -1585,63 +1560,7 @@ func init() {
 			Provides:    []engine.Product{ProductIndirectMemberships},
 		})
 
-	LoaderID.AddProcessor(
-		func(tx *engine.Tx) {
-			tx.Iterate(func(enrollementService *engine.Node) bool {
-				if enrollementService.Type() == engine.NodeTypePKIEnrollmentService {
-					if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); !cadns.IsNil() {
-						// find the CA machine object
-						if ca, found := tx.FindTwo(
-							engine.Type, ObjectTypeMachine.ValueString(),
-							activedirectory.DNSHostName, cadns,
-						); found {
-							tx.Node(ca).Tag("role_certificate_authority")
-							tx.Node(ca).Tag("hvt")
-						} else {
-							ui.Warn().Msgf("Couldn't locate dnsHostName %v acting as enrollmentservice", cadns)
-						}
-					}
-
-					// Templates that is offered for enrollment
-					enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
-
-						templates, found := tx.FindTwoMulti(engine.Name, templatename,
-							engine.ObjectClass, engine.NV("pKICertificateTemplate"))
-
-						if found {
-							alreadyset := false
-							templates.Iterate(func(template *engine.Node) bool {
-								if !engine.CompareAttributeValues(template.OneAttr(engine.DomainContext), enrollementService.OneAttr(engine.DomainContext)) {
-									return true // continue
-								}
-
-								if alreadyset {
-									ui.Warn().Msgf("Found multiple templates for %s", templatename)
-								}
-
-								tx.Node(template).SetFlex(PublishedBy, engine.NV(enrollementService.DN()),
-									PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
-								)
-
-								tx.Node(template).Tag("published")
-
-								// classify the template as ESC1 - 11
-
-								alreadyset = true
-								return true
-							})
-							if !alreadyset {
-								ui.Warn().Msgf("Found no matching template for %s", templatename)
-							}
-						} else {
-							ui.Warn().Msgf("Template %s not found", templatename)
-						}
-						return true
-					})
-				}
-				return true
-			})
-		},
+	LoaderID.AddProcessor(addCertificateTemplatePublishing,
 		engine.Processor{
 			Description: "Certificate template publishing status",
 			Phase:       engine.AnalysisPhase,
@@ -1663,4 +1582,69 @@ func init() {
 func accountDisabled(o *engine.Node) bool {
 	uac, ok := o.AttrInt(activedirectory.UserAccountControl)
 	return ok && uac&engine.UAC_ACCOUNTDISABLE != 0
+}
+
+// addCertificateTemplatePublishing marks the templates enrollment services
+// publish, the certificate authority machines, and the enrollment services
+// publishing templates that are not found.
+func addCertificateTemplatePublishing(tx *engine.Tx) {
+	var missingTemplates int
+	tx.Iterate(func(enrollementService *engine.Node) bool {
+		if enrollementService.Type() == engine.NodeTypePKIEnrollmentService {
+			if cadns := enrollementService.OneAttr(activedirectory.DNSHostName); !cadns.IsNil() {
+				// find the CA machine object
+				if ca, found := tx.FindTwo(
+					engine.Type, ObjectTypeMachine.ValueString(),
+					activedirectory.DNSHostName, cadns,
+				); found {
+					tx.Node(ca).Tag("role_certificate_authority")
+					tx.Node(ca).Tag("hvt")
+				} else {
+					ui.Warn().Msgf("Couldn't locate dnsHostName %v acting as enrollmentservice", cadns)
+				}
+			}
+
+			// Templates that is offered for enrollment
+			var missing engine.AttributeValues
+			enrollementService.Attr(CertificateTemplates).Iterate(func(templatename engine.AttributeValue) bool {
+
+				templates, _ := tx.FindTwoMulti(engine.Name, templatename,
+					engine.ObjectClass, engine.NV("pKICertificateTemplate"))
+
+				alreadyset := false
+				templates.Iterate(func(template *engine.Node) bool {
+					if !engine.CompareAttributeValues(template.OneAttr(engine.DomainContext), enrollementService.OneAttr(engine.DomainContext)) {
+						return true // continue
+					}
+
+					if alreadyset {
+						ui.Warn().Msgf("Found multiple templates for %s", templatename)
+					}
+
+					tx.Node(template).SetFlex(PublishedBy, engine.NV(enrollementService.DN()),
+						PublishedByDnsHostName, enrollementService.Attr(activedirectory.DNSHostName),
+					)
+
+					tx.Node(template).Tag("published")
+
+					// classify the template as ESC1 - 11
+
+					alreadyset = true
+					return true
+				})
+				if !alreadyset {
+					missing = append(missing, templatename)
+				}
+				return true
+			})
+			if len(missing) > 0 {
+				missingTemplates += len(missing)
+				tx.Node(enrollementService).Set(MissingCertificateTemplates, missing...).Tag(TagCertificateTemplateMissing)
+			}
+		}
+		return true
+	})
+	if missingTemplates > 0 {
+		ui.Info().Msgf("%v templates published by enrollment services are not found, tagged %v", missingTemplates, TagCertificateTemplateMissing)
+	}
 }
