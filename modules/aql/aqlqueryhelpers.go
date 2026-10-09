@@ -228,6 +228,51 @@ func (a *pathArena) hasEdge(tail int32, filter pathFilter, from, to engine.NodeI
 	return false
 }
 
+// refused reports whether a deny refuses a step of the path every edge type
+// it would use, to the account acting there: the nearest account before the
+// step, counting along the edges. Paths that change direction are not
+// checked, as who acts along them is not clear.
+func (a *pathArena) refused(tail int32, ds *engine.IndexedGraph, routes *engine.RouteChecker) bool {
+	a.scratch = a.scratch[:0]
+	for i := tail; i >= 0; i = a.steps[i].parent {
+		a.scratch = append(a.scratch, i)
+	}
+	if len(a.scratch) < 2 {
+		return false
+	}
+	direction := a.steps[a.scratch[0]].item.direction
+	for _, i := range a.scratch[:len(a.scratch)-1] {
+		if a.steps[i].item.direction != direction {
+			return false
+		}
+	}
+	// Order the steps along the edges: the path runs with them going out,
+	// and against them going in.
+	if direction == engine.Out {
+		slices.Reverse(a.scratch)
+	}
+	var actor, previous *engine.Node
+	for k, i := range a.scratch {
+		node := ds.NodeAt(a.steps[i].item.target)
+		if k > 0 {
+			// The step taken later in the search holds the edge types.
+			carrier := i
+			if direction == engine.In {
+				carrier = a.scratch[k-1]
+			}
+			eb := ds.EdgeComboToEdgeBitmap(a.steps[carrier].item.combo)
+			if routes.Refused(actor, previous, node, eb) == eb {
+				return true
+			}
+		}
+		if engine.IsActor(node) {
+			actor = node
+		}
+		previous = node
+	}
+	return false
+}
+
 // commit records a completed path. Its nodes are added to g immediately,
 // because the search checks them; edges and node data are written once per
 // step by flush.

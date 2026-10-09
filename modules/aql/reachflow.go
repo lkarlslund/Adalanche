@@ -54,12 +54,7 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 		types[i] = edges[key].edges
 	}
 	isAccount := func(v engine.NodeIndex) bool {
-		node := ds.NodeAt(v)
-		switch node.Type() {
-		case engine.NodeTypeUser, engine.NodeTypeComputer, engine.NodeTypeGroupManagedServiceAccount, engine.NodeTypeManagedServiceAccount:
-			return !node.SID().IsBlank()
-		}
-		return false
+		return engine.IsActor(ds.NodeAt(v))
 	}
 
 	// The nearest accounts before a node on the result's routes.

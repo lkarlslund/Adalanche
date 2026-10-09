@@ -99,3 +99,79 @@ func (a ACE) Refuses(o *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph) bool 
 	}
 	return a.appliesTo(o, guid, ao)
 }
+
+// IsActor reports whether n is an account a route can act as. Entering an
+// account makes it the one acting; groups and other objects keep the
+// account before them.
+func IsActor(n *Node) bool {
+	switch n.Type() {
+	case NodeTypeUser, NodeTypeComputer, NodeTypeGroupManagedServiceAccount, NodeTypeManagedServiceAccount:
+		return !n.SID().IsBlank()
+	}
+	return false
+}
+
+// A RouteChecker finds the steps of a route that a deny refuses to the
+// account acting there. It caches what it learns, and is not safe for
+// concurrent use.
+type RouteChecker struct {
+	g         *IndexedGraph
+	checkers  []ActorChecker
+	refusals  map[[2]*Node][]Refusal
+	inTokens  map[*Node][]func(windowssecurity.SID) bool
+	noDenials bool
+}
+
+// NewRouteChecker returns a RouteChecker for g.
+func NewRouteChecker(g *IndexedGraph) *RouteChecker {
+	checkers := NewActorCheckers(g)
+	return &RouteChecker{
+		g:         g,
+		checkers:  checkers,
+		refusals:  map[[2]*Node][]Refusal{},
+		inTokens:  map[*Node][]func(windowssecurity.SID) bool{},
+		noDenials: len(checkers) == 0,
+	}
+}
+
+// Refused returns the edge types of eb from from to to that a deny refuses
+// to actor, the account acting at from. A route whose acting account is
+// not known, as one starting at a group, stands for every member, and
+// nothing is refused to it.
+func (rc *RouteChecker) Refused(actor, from, to *Node, eb EdgeBitmap) EdgeBitmap {
+	var refused EdgeBitmap
+	if actor == nil || rc.noDenials {
+		return refused
+	}
+	key := [2]*Node{from, to}
+	found, done := rc.refusals[key]
+	if !done {
+		all, _ := rc.g.GetEdge(from, to)
+		for _, c := range rc.checkers {
+			found = append(found, c.Refusers(from, to, all.Merge(eb))...)
+		}
+		rc.refusals[key] = found
+	}
+	if len(found) == 0 {
+		return refused
+	}
+	tokens, done := rc.inTokens[actor]
+	if !done {
+		for _, c := range rc.checkers {
+			tokens = append(tokens, c.InToken(actor))
+		}
+		rc.inTokens[actor] = tokens
+	}
+	for _, r := range found {
+		if !eb.IsSet(r.Edge) {
+			continue
+		}
+		for _, inToken := range tokens {
+			if r.RefusedTo(inToken) {
+				refused = refused.Set(r.Edge)
+				break
+			}
+		}
+	}
+	return refused
+}

@@ -16,6 +16,8 @@ query = %searchtype% %label:%(nodefilter)-[edgefilter]%{n,m}%->%label:%(nodefilt
 
 WALK, TRAIL and ACYCLIC traverse shortest-path-first. REACH finds all routes at once.
 
+A route acts as the nearest account before each step: entering a user or computer makes it the one acting, and groups and other objects keep the account before them. WALK, TRAIL and ACYCLIC leave out a path when an ACL deny refuses one of its steps every edge type to the account acting there; an edge from a group can be refused to members who are also in a denied group. A path starting at a group stands for every member, and nothing is refused to it. Paths that change direction are not checked.
+
 | Keyword | Description |
 |---------|-------------|
 | WALK | All traversals allowed, including loops (not recommended). |

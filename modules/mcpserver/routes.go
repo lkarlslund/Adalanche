@@ -16,22 +16,26 @@ const (
 	defaultRouteDepth = 6
 	maxRouteDepth     = 12
 	defaultRoutes     = 5
-	maxRoutes         = 25
-	defaultReachHops  = 3
-	maxReachHops      = 10
-	defaultHopSample  = 5
-	maxHopSample      = 50
+	// maxRouteExpansions bounds the search for routes no deny refuses.
+	maxRouteExpansions = 200000
+	maxRoutes          = 25
+	defaultReachHops   = 3
+	maxReachHops       = 10
+	defaultHopSample   = 5
+	maxHopSample       = 50
 )
 
 func (s *Server) addRouteTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "get_edge_path_details",
-		Description: "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set). For an ACE, get_acl shows it in full.",
+		Name: "get_edge_path_details",
+		Description: "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set). For an ACE, get_acl shows it in full. " +
+			"Each step names the account acting there, the nearest account before it, and marks edge types a deny refuses to that account.",
 	}, s.getEdgePathDetails)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "explain_routes",
 		Description: "Show the shortest routes by which one node can reach a target node, or any node matching a filter such as (tag=hvt), " +
-			"each step with its edge types, probabilities and causes. Use it to answer how an account can become a domain admin, and why.",
+			"each step with its edge types, probabilities and causes. Use it to answer how an account can become a domain admin, and why. " +
+			"Routes a deny refuses are left out: an edge from a group is refused to a member when a deny for the member, or for another group it is in, comes first in the target's ACL.",
 	}, s.explainRoutes)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "reach_summary",
@@ -54,11 +58,13 @@ type EdgeCause struct {
 type EdgeTypeDetail struct {
 	Type        string      `json:"type"`
 	Probability int         `json:"probability"`
+	Refused     bool        `json:"refused,omitempty" jsonschema:"a deny refuses this edge type to the account acting on the route"`
 	Causes      []EdgeCause `json:"causes,omitempty"`
 }
 
-// edgeTypes explains an edge's types that are in only (all when blank).
-func (s *Server) edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, only engine.EdgeBitmap) []EdgeTypeDetail {
+// edgeTypes explains an edge's types that are in only (all when blank),
+// marking those in refused.
+func (s *Server) edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, only, refused engine.EdgeBitmap) []EdgeTypeDetail {
 	if !only.IsBlank() {
 		eb = eb.Intersect(only)
 	}
@@ -80,7 +86,7 @@ func (s *Server) edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, on
 	}
 	var result []EdgeTypeDetail
 	for _, edge := range eb.Edges() {
-		result = append(result, EdgeTypeDetail{edge.String(), int(edge.Probability(from, to, &eb)), causes[edge]})
+		result = append(result, EdgeTypeDetail{edge.String(), int(edge.Probability(from, to, &eb)), refused.IsSet(edge), causes[edge]})
 	}
 	slices.SortFunc(result, func(a, b EdgeTypeDetail) int {
 		return cmp.Or(cmp.Compare(b.Probability, a.Probability), cmp.Compare(a.Type, b.Type))
@@ -93,6 +99,8 @@ type RouteStep struct {
 	From      NodeBrief        `json:"from"`
 	To        NodeBrief        `json:"to"`
 	Reversed  bool             `json:"reversed,omitempty" jsonschema:"the edge runs from to to from"`
+	ActingAs  *NodeBrief       `json:"acting_as,omitempty" jsonschema:"the account acting at this step: the nearest account at or before from; absent when the route starts at a group, standing for every member"`
+	Refused   bool             `json:"refused,omitempty" jsonschema:"a deny refuses every edge type of this step to the account acting there"`
 	EdgeTypes []EdgeTypeDetail `json:"edge_types"`
 }
 
@@ -101,8 +109,9 @@ type pathInput struct {
 }
 
 type pathOutput struct {
-	Meta  Meta        `json:"meta"`
-	Steps []RouteStep `json:"steps"`
+	Meta    Meta        `json:"meta"`
+	Refused bool        `json:"refused,omitempty" jsonschema:"a deny refuses some step of the path to the account acting there, so the path does not hold"`
+	Steps   []RouteStep `json:"steps"`
 }
 
 func (s *Server) getEdgePathDetails(_ context.Context, _ *mcp.CallToolRequest, in pathInput) (*mcp.CallToolResult, pathOutput, error) {
@@ -126,6 +135,10 @@ func (s *Server) getEdgePathDetails(_ context.Context, _ *mcp.CallToolRequest, i
 		nodes[i] = node
 	}
 	out := pathOutput{Meta: s.Meta()}
+	routes := engine.NewRouteChecker(g)
+	// Who acts is followed only along a path that runs with its edges.
+	var actor *engine.Node
+	forward := true
 	for i := 1; i < len(nodes); i++ {
 		from, to, reversed := nodes[i-1], nodes[i], false
 		eb, found := g.GetEdge(from, to)
@@ -134,8 +147,23 @@ func (s *Server) getEdgePathDetails(_ context.Context, _ *mcp.CallToolRequest, i
 				return nil, pathOutput{}, fmt.Errorf("no edge between %s and %s", in.NodeIDs[i-1], in.NodeIDs[i])
 			}
 			from, to, reversed = to, from, true
+			forward = false
 		}
-		out.Steps = append(out.Steps, RouteStep{s.Brief(nodes[i-1]), s.Brief(nodes[i]), reversed, s.edgeTypes(g, from, to, eb, engine.EdgeBitmap{})})
+		step := RouteStep{From: s.Brief(nodes[i-1]), To: s.Brief(nodes[i]), Reversed: reversed}
+		var refused engine.EdgeBitmap
+		if forward {
+			if engine.IsActor(from) {
+				actor = from
+			}
+			if actor != nil {
+				step.ActingAs = s.briefOf(actor)
+			}
+			refused = routes.Refused(actor, from, to, eb)
+			step.Refused = refused == eb
+			out.Refused = out.Refused || step.Refused
+		}
+		step.EdgeTypes = s.edgeTypes(g, from, to, eb, engine.EdgeBitmap{}, refused)
+		out.Steps = append(out.Steps, step)
 	}
 	return nil, out, nil
 }
@@ -184,13 +212,15 @@ type Route struct {
 }
 
 type explainOutput struct {
-	Meta       Meta      `json:"meta"`
-	From       NodeBrief `json:"from"`
-	Targets    int       `json:"targets"`
-	Reachable  bool      `json:"reachable"`
-	Shortest   int       `json:"shortest_length,omitempty"`
-	Routes     []Route   `json:"routes,omitempty"`
-	MoreRoutes bool      `json:"more_routes" jsonschema:"more shortest routes exist than are listed"`
+	Meta         Meta      `json:"meta"`
+	From         NodeBrief `json:"from"`
+	Targets      int       `json:"targets"`
+	Reachable    bool      `json:"reachable"`
+	Shortest     int       `json:"shortest_length,omitempty"`
+	Routes       []Route   `json:"routes,omitempty"`
+	MoreRoutes   bool      `json:"more_routes" jsonschema:"more shortest routes exist than are listed"`
+	RefusedSteps int       `json:"refused_steps,omitempty" jsonschema:"steps left out of routes because a deny refuses them to the account acting there"`
+	Limited      bool      `json:"search_limited,omitempty" jsonschema:"the search stopped early; routes may be missing"`
 }
 
 func (s *Server) targets(g *engine.IndexedGraph, to *NodeRef, filter string) (map[*engine.Node]bool, error) {
@@ -241,50 +271,67 @@ func (s *Server) explainRoutes(ctx context.Context, _ *mcp.CallToolRequest, in e
 	out := explainOutput{Meta: s.Meta(), From: s.Brief(source), Targets: len(targets)}
 
 	// How far each node is from the nearest target, found backwards from
-	// the targets; the level that reaches the source is the last needed.
+	// the targets one level at a time, as far as routes need.
 	distance := map[*engine.Node]int{}
 	var frontier []*engine.Node
 	for target := range targets {
 		distance[target] = 0
 		frontier = append(frontier, target)
 	}
-	steps := 0
-	for depth := 1; depth <= maxDepth && len(frontier) > 0; depth++ {
-		if _, found := distance[source]; found {
-			break
-		}
+	level, steps := 0, 0
+	extend := func() {
+		level++
 		var next []*engine.Node
 		for _, node := range frontier {
 			g.IterateEdges(node, engine.In, func(from *engine.Node, eb engine.EdgeBitmap) bool {
 				steps++
 				if _, seen := distance[from]; !seen && edges.usable(from, node, eb) {
-					distance[from] = depth
+					distance[from] = level
 					next = append(next, from)
 				}
 				return !cancelled(ctx, steps)
 			})
 		}
-		if err := ctx.Err(); err != nil {
-			return nil, explainOutput{}, err
-		}
 		frontier = next
 	}
-	length, reachable := distance[source]
+	for level < maxDepth && len(frontier) > 0 {
+		if _, found := distance[source]; found {
+			break
+		}
+		extend()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, explainOutput{}, err
+	}
+	shortest, reachable := distance[source]
 	if !reachable {
 		return nil, out, nil
 	}
-	out.Reachable, out.Shortest = true, length
 
-	// Shortest routes run through nodes one nearer the targets at each step.
+	// The shortest routes are listed. The distances leave denies out, so
+	// routes of each length are searched in turn until one holds, skipping
+	// steps a deny refuses to the account acting there; the distances only
+	// prune.
+	routes := engine.NewRouteChecker(g)
 	limit := clampLimit(in.MaxRoutes, defaultRoutes, maxRoutes)
-	var walk func(node *engine.Node, path []*engine.Node)
-	walk = func(node *engine.Node, path []*engine.Node) {
-		if len(out.Routes) > limit {
+	expansions := 0
+	var walk func(node, actor *engine.Node, path []*engine.Node, remaining int)
+	walk = func(node, actor *engine.Node, path []*engine.Node, remaining int) {
+		if len(out.Routes) > limit || out.Limited {
 			return
 		}
 		path = append(path, node)
+		if engine.IsActor(node) {
+			actor = node
+		}
 		if distance[node] == 0 {
-			out.Routes = append(out.Routes, s.route(g, path, edges))
+			if remaining == 0 {
+				out.Routes = append(out.Routes, s.route(g, path, edges, routes))
+			}
+			return
+		}
+		if expansions++; expansions > maxRouteExpansions || cancelled(ctx, expansions) {
+			out.Limited = true
 			return
 		}
 		type candidate struct {
@@ -293,35 +340,58 @@ func (s *Server) explainRoutes(ctx context.Context, _ *mcp.CallToolRequest, in e
 		}
 		var next []candidate
 		g.IterateEdges(node, engine.Out, func(to *engine.Node, eb engine.EdgeBitmap) bool {
-			if d, found := distance[to]; found && d == distance[node]-1 && edges.usable(node, to, eb) {
-				eb = eb.Intersect(edges.types)
-				next = append(next, candidate{to, eb.MaxProbability(node, to)})
+			if d, found := distance[to]; !found || d > remaining-1 || !edges.usable(node, to, eb) || slices.Contains(path, to) {
+				return true
 			}
+			eb = eb.Intersect(edges.types)
+			if routes.Refused(actor, node, to, eb) == eb {
+				out.RefusedSteps++
+				return true
+			}
+			next = append(next, candidate{to, eb.MaxProbability(node, to)})
 			return true
 		})
 		slices.SortFunc(next, func(a, b candidate) int {
 			return cmp.Or(cmp.Compare(b.probability, a.probability), cmp.Compare(a.node.Label(), b.node.Label()), cmp.Compare(a.node.ID(), b.node.ID()))
 		})
 		for _, c := range next {
-			walk(c.node, path)
+			walk(c.node, actor, path, remaining-1)
 		}
 	}
-	walk(source, nil)
+	for length := shortest; length <= maxDepth && len(out.Routes) == 0 && !out.Limited; length++ {
+		// A route of this length passes nodes up to one less from a target.
+		for level < length-1 && len(frontier) > 0 {
+			extend()
+		}
+		walk(source, nil, nil, length)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, explainOutput{}, err
+	}
+	if len(out.Routes) > 0 {
+		out.Reachable, out.Shortest = true, len(out.Routes[0].Steps)
+	}
 	if len(out.Routes) > limit {
 		out.Routes, out.MoreRoutes = out.Routes[:limit], true
 	}
 	return nil, out, nil
 }
 
-func (s *Server) route(g *engine.IndexedGraph, path []*engine.Node, edges routeEdges) Route {
+func (s *Server) route(g *engine.IndexedGraph, path []*engine.Node, edges routeEdges, routes *engine.RouteChecker) Route {
 	route := Route{}
+	var actor *engine.Node
 	for i, node := range path {
 		route.Nodes = append(route.Nodes, s.Brief(node))
-		if i == 0 {
-			continue
+		if i > 0 {
+			from := path[i-1]
+			eb, _ := g.GetEdge(from, node)
+			step := RouteStep{From: s.Brief(from), To: s.Brief(node), ActingAs: s.briefOf(actor)}
+			step.EdgeTypes = s.edgeTypes(g, from, node, eb, edges.types, routes.Refused(actor, from, node, eb.Intersect(edges.types)))
+			route.Steps = append(route.Steps, step)
 		}
-		eb, _ := g.GetEdge(path[i-1], node)
-		route.Steps = append(route.Steps, RouteStep{s.Brief(path[i-1]), s.Brief(node), false, s.edgeTypes(g, path[i-1], node, eb, edges.types)})
+		if engine.IsActor(node) {
+			actor = node
+		}
 	}
 	return route
 }

@@ -315,6 +315,6 @@ func BenchmarkResolveHubGraph(b *testing.B) {
 }
 
 func searchFrom(q AQLquery, start *engine.Node) graph.Graph[*engine.Node, engine.EdgeBitmap] {
-	g, _ := q.resolveEdgesFrom(NewResolverOptions(), start, q.datasource.RankedAdjacency())
+	g, _ := q.resolveEdgesFrom(NewResolverOptions(), start, q.datasource.RankedAdjacency(), engine.NewRouteChecker(q.datasource))
 	return g
 }

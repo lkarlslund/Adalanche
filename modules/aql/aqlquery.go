@@ -130,12 +130,13 @@ func (aqlq *AQLquery) resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			routes := engine.NewRouteChecker(aqlq.datasource)
 			for position := range jobs {
 				if full.Load() || opts.cancelled() != nil {
 					results <- startResult{position: position}
 					continue
 				}
-				g, limited := aqlq.resolveEdgesFrom(opts, starts[position], adjacency)
+				g, limited := aqlq.resolveEdgesFrom(opts, starts[position], adjacency, routes)
 				results <- startResult{position, g, limited}
 			}
 		}()
@@ -189,6 +190,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 	opts ResolverOptions,
 	startObject *engine.Node,
 	adjacency *engine.RankedAdjacency,
+	routes *engine.RouteChecker,
 ) (graph.Graph[*engine.Node, engine.EdgeBitmap], bool) {
 	ranks := adjacency.Ranks
 	committedGraph := graph.NewGraph[*engine.Node, engine.EdgeBitmap]()
@@ -236,7 +238,9 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 		// completed path in queue
 		if currentState.currentSearchIndex == maxSearchIndex {
-			// do deduplication checks here if needed
+			if paths.refused(currentState.path, aqlq.datasource, routes) {
+				continue
+			}
 			paths.commit(currentState.path, aqlq.datasource, committedGraph)
 			continue
 		}
