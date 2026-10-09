@@ -65,13 +65,13 @@ if ($env:SKIP_FRONTEND_VENDOR -ne "1") {
 }
 
 $COMMIT = git rev-parse --short HEAD
-$VERSION = git describe --tags --exclude latest --exclude devbuild
-$DIRTYFILES = git status --porcelain
-$BUILDER = "go"
-
-if ("$DIRTYFILES" -ne "") {
-  $VERSION = "$VERSION-local-changes"
+# The release workflow passes the release tag; otherwise the build identity
+# comes from scripts/build-number.ps1.
+$VERSION = $env:VERSION
+if ([string]::IsNullOrWhiteSpace($VERSION)) {
+  $VERSION = & "$PSScriptRoot/scripts/build-number.ps1"
 }
+$BUILDER = "go"
 
 # enable GOEXPERIMENT greenteagc
 $env:GOEXPERIMENT = "greenteagc"

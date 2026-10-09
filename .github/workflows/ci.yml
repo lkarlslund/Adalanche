@@ -5,6 +5,8 @@ on:
     branches:
       - master
   pull_request:
+  # The rolling release runs the same checks before publishing.
+  workflow_call:
 
 permissions:
   contents: read

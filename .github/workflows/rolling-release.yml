@@ -1,0 +1,179 @@
+name: Rolling release
+
+# Twice a day, master is released as r<commit count> when it changed since the
+# last release and the full CI passes. A release whose assets went missing is
+# repaired instead of releasing again.
+on:
+  schedule:
+    - cron: "0 0,12 * * *"
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: Rebuild and re-upload the assets of the current release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rolling-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.meta.outputs.publish }}
+      repair: ${{ steps.meta.outputs.repair }}
+      tag: ${{ steps.meta.outputs.tag }}
+      previous: ${{ steps.meta.outputs.previous }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute release metadata
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force_rebuild || false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(gh release list --limit 100 --exclude-drafts --json tagName \
+            --jq '[.[].tagName | select(test("^r[0-9]+$"))] | sort_by(ltrimstr("r") | tonumber) | last // ""')"
+          tag="$(pwsh -NoProfile -File scripts/build-number.ps1 -Release)"
+          if [[ ! "$tag" =~ ^r[0-9]+$ ]]; then
+            echo "::error::unexpected build number $tag"
+            exit 1
+          fi
+
+          publish=true
+          repair=false
+          if [[ -n "$latest" && "$(git rev-parse HEAD)" == "$(git rev-parse "$latest^{commit}")" ]]; then
+            checksums="$(gh release view "$latest" --json assets --jq '[.assets[].name | select(endswith(".sha256"))] | length')"
+            if [[ "$FORCE" == "true" || "$checksums" == "0" ]]; then
+              echo "Repairing $latest"
+              repair=true
+              tag="$latest"
+            else
+              echo "No changes since $latest"
+              publish=false
+            fi
+          fi
+
+          previous="$latest"
+          if [[ -z "$previous" ]]; then
+            previous="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          fi
+          {
+            echo "publish=$publish"
+            echo "repair=$repair"
+            echo "tag=$tag"
+            echo "previous=$previous"
+          } >>"$GITHUB_OUTPUT"
+
+  ci:
+    name: CI
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish ${{ needs.plan.outputs.tag }}
+    needs:
+      - plan
+      - ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-win7 toolchain
+        shell: bash
+        run: |
+          sudo chmod 777 /opt
+          mkdir -p /opt/go-win7
+          curl -fL https://github.com/XTLS/go-win7/releases/download/patched-1.27.1/go-for-win7-linux-amd64.zip -o go-win7.zip
+          echo "4f0434fceea1b1c80c6d3511f0f777b0dc3b1260f172f1bf1ec202575bd36ec1  go-win7.zip" | sha256sum --check
+          unzip -qq go-win7.zip -d /opt/go-win7
+          sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
+
+      - name: Install CycloneDX gomod
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: modules/frontend/vendor-src/package-lock.json
+
+      - name: Build
+        env:
+          VERSION: ${{ needs.plan.outputs.tag }}
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd binaries
+          for f in *; do
+            [[ "$f" == *.sha256 ]] && continue
+            sha256sum "$f" > "$f.sha256"
+          done
+
+      - name: Release notes
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          PREVIOUS: ${{ needs.plan.outputs.previous }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          range=HEAD
+          if [[ -n "$PREVIOUS" ]]; then
+            range="$PREVIOUS..HEAD"
+          fi
+          {
+            echo "## $TAG"
+            echo
+            echo "### Changes"
+            echo
+            git log --no-merges --format='- %s (%h)' "$range"
+          } > release-notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          REPAIR: ${{ needs.plan.outputs.repair }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$REPAIR" == "true" ]]; then
+            gh release upload "$TAG" binaries/* --clobber
+            gh release edit "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" binaries/* --target "$GITHUB_SHA" --title "$TAG" \
+              --notes-file release-notes.md --latest
+          fi
