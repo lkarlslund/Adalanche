@@ -62,7 +62,8 @@
     if (!(Number.isFinite(displaySize) && displaySize > 0)) {
       return null;
     }
-    const radiusPx = displaySize;
+    // Display sizes scale with the camera; scaleSize gives screen pixels.
+    const radiusPx = typeof renderer.scaleSize === "function" ? renderer.scaleSize(displaySize) : displaySize;
     return {
       id: nodeId,
       x,

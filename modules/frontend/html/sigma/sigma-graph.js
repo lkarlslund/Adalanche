@@ -29,9 +29,6 @@
   const createWorkspaceSigmaViewport = (typeof window !== "undefined" && window.createWorkspaceSigmaViewport)
     ? window.createWorkspaceSigmaViewport
     : null;
-  const createWorkspaceSigmaNodeImageProgram = (typeof window !== "undefined" && window.createWorkspaceSigmaNodeImageProgram)
-    ? window.createWorkspaceSigmaNodeImageProgram
-    : null;
   if (!RenderMetrics) {
     return;
   }
@@ -42,7 +39,8 @@
     typeof createWorkspaceSigmaInteractions !== "function" ||
     typeof createWorkspaceSigmaRenderer !== "function" ||
     typeof createWorkspaceSigmaViewport !== "function" ||
-    typeof createWorkspaceSigmaNodeImageProgram !== "function"
+    !SigmaRenderer.rendering ||
+    !SigmaRenderer.layers
   ) {
     return;
   }
@@ -86,20 +84,8 @@
       const cfg = isObject(config) ? config : {};
       this.container = cfg.container;
       this.graph = new Graphology.Graph({ multi: false, type: "mixed" });
-      this.renderer = new SigmaRenderer(this.graph, this.container, {
-        allowInvalidContainer: true,
-        renderLabels: true,
-        renderEdgeLabels: true,
-        enableEdgeHoverEvents: "debounce",
-        labelRenderedSizeThreshold: 8,
-        labelDensity: 1,
-        defaultNodeType: "image",
-        defaultEdgeType: "line",
-        nodeProgramClasses: {
-          image: createWorkspaceSigmaNodeImageProgram(),
-        },
-        zIndex: true,
-      });
+      this.renderer = new SigmaRenderer(this.graph, this.container,
+        Rendering.sigmaOptions(SigmaRenderer, () => (this.renderer ? this.renderer.getRenderParams() : null)));
       this.batchDepth = 0;
       this.pendingRefresh = false;
       this.nodeData = new Map();
@@ -302,7 +288,6 @@
         label: data.label || "",
         color: data.color || "#6c757d",
         size: Number(this.themeConfig.edge.width || 2),
-        type: Rendering.edgeTypeFromTheme(this.themeConfig),
       };
     }
 
