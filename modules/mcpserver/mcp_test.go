@@ -32,6 +32,7 @@ type fixedSource struct {
 
 func (f fixedSource) Status() frontend.WebServiceStatus { return f.status }
 func (f fixedSource) Graph() *engine.IndexedGraph       { return f.g }
+func (f fixedSource) Docs() DocsFS                      { return nil }
 
 // testGraph: users u1..u5 control a group, the group controls an admin
 // account, which controls the target tagged hvt. The group's edge to the

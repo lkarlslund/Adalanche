@@ -28,13 +28,13 @@ const (
 func (s *Server) addQueryTools() {
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "validate_aql",
-		Description: "Check that an AQL query parses, without running it.",
+		Description: "Check that an AQL query parses, without running it. get_doc with name aql describes the query language.",
 	}, s.validateAQL)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name: "run_aql",
 		Description: "Run an AQL query, such as REACH start:(tag=hvt)<-[()]{1,6}-end:(type=Person), and describe the result: totals, nodes per hop from the start nodes, " +
 			"and the nodes nearest the start with the edges between them. Nodes that lead on to the start the same way are merged by default, so large results stay readable. " +
-			"REACH finds every edge on a route and is fast; ACYCLIC lists paths and can be slow.",
+			"REACH finds every edge on a route and is fast; ACYCLIC lists paths and can be slow. get_doc with name aql describes the query language.",
 	}, s.runAQL)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "list_saved_queries",

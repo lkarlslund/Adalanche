@@ -31,12 +31,15 @@ func init() {
 type graphSource interface {
 	Status() frontend.WebServiceStatus
 	Graph() *engine.IndexedGraph
+	// Docs is where the documentation is read from, or nil.
+	Docs() DocsFS
 }
 
 type webSource struct{ ws *frontend.WebService }
 
 func (w webSource) Status() frontend.WebServiceStatus { return w.ws.Status() }
 func (w webSource) Graph() *engine.IndexedGraph       { return w.ws.SuperGraph }
+func (w webSource) Docs() DocsFS                      { return w.ws.UnionFS }
 
 // Server is the MCP server of one web service.
 type Server struct {
@@ -77,6 +80,7 @@ func newServer(source graphSource) *Server {
 	s.addQueryTools()
 	s.addRouteTools()
 	s.addACLTools()
+	s.addDocTools()
 	s.addResources()
 	extensionsLock.Lock()
 	defer extensionsLock.Unlock()
@@ -86,7 +90,7 @@ func newServer(source graphSource) *Server {
 	return s
 }
 
-const instructions = `Adalanche holds a graph of directory and machine objects (users, groups, computers, machines, GPOs and more) and the edges between them. An edge from A to B means A can do something to B, such as reset its password or control it through group membership; edge types name what, and edges record why they exist. Start with get_status and list_schema, find nodes with find_nodes, and use explain_routes to show how one node can reach others. Queries use AQL; list_saved_queries has ready-made ones. Node ids (123@k3f9) hold only for one load of the graph, named by the tag after the @: they change whenever the graph loads again, and ids from an earlier load are refused. To refer to a node later, or across conversations, use its key (such as objectSid=S-1-5-...), which every node carries and which tools take as id. Passwords, hashes and keys are never returned.`
+const instructions = `Adalanche holds a graph of directory and machine objects (users, groups, computers, machines, GPOs and more) and the edges between them. An edge from A to B means A can do something to B, such as reset its password or control it through group membership; edge types name what, and edges record why they exist. Start with get_status and list_schema, find nodes with find_nodes, and use explain_routes to show how one node can reach others. Queries use AQL: read its documentation with get_doc (name aql) before writing one, and list_saved_queries has ready-made ones; list_docs lists the rest of the documentation. Node ids (123@k3f9) hold only for one load of the graph, named by the tag after the @: they change whenever the graph loads again, and ids from an earlier load are refused. To refer to a node later, or across conversations, use its key (such as objectSid=S-1-5-...), which every node carries and which tools take as id. Passwords, hashes and keys are never returned.`
 
 // handler serves MCP over streamable HTTP. Browsers on other sites cannot
 // call it; the SDK also refuses requests addressed to other host names
