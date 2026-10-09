@@ -101,8 +101,8 @@ type ResultNode struct {
 
 // ResultEdge is an edge of a query result.
 type ResultEdge struct {
-	From        uint32   `json:"from"`
-	To          uint32   `json:"to"`
+	From        string   `json:"from"`
+	To          string   `json:"to"`
 	EdgeTypes   []string `json:"edge_types"`
 	Probability int      `json:"probability"`
 	Flow        int      `json:"flow"`
@@ -173,14 +173,14 @@ func (s *Server) run(ctx context.Context, queryText string, o QueryOptions) (run
 	for _, postprocess := range frontend.PostProcessors {
 		*result = postprocess(*result)
 	}
-	out := describe(result, clampLimit(o.MaxNodes, defaultResultNodes, maxResultNodes), clampLimit(o.MaxEdges, defaultResultEdges, maxResultEdges))
+	out := s.describe(g, result, clampLimit(o.MaxNodes, defaultResultNodes, maxResultNodes), clampLimit(o.MaxEdges, defaultResultEdges, maxResultEdges))
 	out.Meta, out.Query, out.Incomplete = s.Meta(), queryText, limits
 	return out, nil
 }
 
 // describe summarises a result: every node counted, and the nodes nearest
 // the start nodes described with the edges between them.
-func describe(result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, maxEdges int) runOutput {
+func (s *Server) describe(g *engine.IndexedGraph, result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, maxEdges int) runOutput {
 	out := runOutput{
 		TotalNodes:  result.Order(),
 		TotalEdges:  result.Size(),
@@ -190,7 +190,7 @@ func describe(result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, ma
 	nodes := make([]ResultNode, 0, result.Order())
 	for node, data := range result.Nodes() {
 		out.NodeTypes[node.Type().Lookup()]++
-		rn := ResultNode{NodeBrief: Brief(node)}
+		rn := ResultNode{NodeBrief: s.Brief(node)}
 		if hop, found := data["_hop"].(int); found {
 			rn.Hop = &hop
 			out.NodesPerHop[strconv.Itoa(hop)]++
@@ -204,7 +204,9 @@ func describe(result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, ma
 			members, _ := data["_members"].([]aql.MergedMember)
 			for _, member := range members[:min(len(members), memberSample)] {
 				id, _ := strconv.ParseUint(strings.TrimPrefix(member.ID, "n"), 10, 32)
-				rn.Members = append(rn.Members, NodeBrief{NodeID: uint32(id), Label: member.Label, Type: rn.Type})
+				if node, found := g.LookupNodeByID(engine.NodeID(id)); found {
+					rn.Members = append(rn.Members, s.Brief(node))
+				}
 			}
 		}
 		folded, _ := data["_folded"].([]aql.MergedMember)
@@ -224,14 +226,15 @@ func describe(result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, ma
 	out.NodesTruncated = len(nodes) > maxNodes
 	out.Nodes = nodes[:min(len(nodes), maxNodes)]
 
-	described := map[uint32]bool{}
+	described := map[string]bool{}
 	for _, n := range out.Nodes {
 		described[n.NodeID] = true
 	}
 	var edges []ResultEdge
 	result.IterateEdges(func(source, target *engine.Node, eb engine.EdgeBitmap, flow int) bool {
-		if described[uint32(source.ID())] && described[uint32(target.ID())] {
-			edges = append(edges, ResultEdge{uint32(source.ID()), uint32(target.ID()), eb.StringSlice(), int(eb.MaxProbability(source, target)), flow})
+		from, to := s.nodeID(source.ID()), s.nodeID(target.ID())
+		if described[from] && described[to] {
+			edges = append(edges, ResultEdge{from, to, eb.StringSlice(), int(eb.MaxProbability(source, target)), flow})
 		}
 		return true
 	})

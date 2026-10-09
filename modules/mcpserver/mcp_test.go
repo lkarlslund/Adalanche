@@ -13,6 +13,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/engine/enginetest"
 	"github.com/lkarlslund/adalanche/modules/frontend"
+	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -97,10 +98,20 @@ func call(t *testing.T, session *mcp.ClientSession, tool string, args map[string
 	return ""
 }
 
+// idOf gives a node's id as tools do, tagged with the current load.
+func idOf(t *testing.T, session *mcp.ClientSession, node *engine.Node) string {
+	t.Helper()
+	var status statusOutput
+	if msg := call(t, session, "get_status", nil, &status); msg != "" || status.Meta.Load == "" {
+		t.Fatalf("no load tag: %s", msg)
+	}
+	return strconv.FormatUint(uint64(node.ID()), 10) + "@" + status.Meta.Load
+}
+
 func TestSecretsStayInside(t *testing.T) {
 	g, nodes := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
-	admin := map[string]any{"id": strconv.FormatUint(uint64(nodes["admin"].ID()), 10)}
+	admin := map[string]any{"id": idOf(t, session, nodes["admin"])}
 
 	var details nodeDetailsOutput
 	if msg := call(t, session, "get_node_details", admin, &details); msg != "" {
@@ -136,7 +147,7 @@ func TestExplainRoutesWithCauses(t *testing.T) {
 	g, nodes := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
 	var out explainOutput
-	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": nodes["u1"].ID()}, "to_filter": "(tag=hvt)"}, &out); msg != "" {
+	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["u1"])}, "to_filter": "(tag=hvt)"}, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if !out.Reachable || out.Shortest != 3 || len(out.Routes) != 1 {
@@ -154,7 +165,7 @@ func TestExplainRoutesWithCauses(t *testing.T) {
 		t.Errorf("causes of group > admin: %+v", causes)
 	}
 
-	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": nodes["target"].ID()}, "to": map[string]any{"id": nodes["u1"].ID()}}, &out); msg != "" || out.Reachable {
+	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["target"])}, "to": map[string]any{"id": idOf(t, session, nodes["u1"])}}, &out); msg != "" || out.Reachable {
 		t.Errorf("routes run against edge direction: %v %s", out.Reachable, msg)
 	}
 }
@@ -163,7 +174,7 @@ func TestReachSummaryAndNeighbors(t *testing.T) {
 	g, nodes := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
 	var reach reachOutput
-	if msg := call(t, session, "reach_summary", map[string]any{"id": nodes["target"].ID(), "direction": "in"}, &reach); msg != "" {
+	if msg := call(t, session, "reach_summary", map[string]any{"id": idOf(t, session, nodes["target"]), "direction": "in"}, &reach); msg != "" {
 		t.Fatal(msg)
 	}
 	var counts []int
@@ -175,7 +186,7 @@ func TestReachSummaryAndNeighbors(t *testing.T) {
 	}
 
 	var neighbors neighborsOutput
-	if msg := call(t, session, "get_neighbors", map[string]any{"id": nodes["group"].ID(), "direction": "in", "limit": 2}, &neighbors); msg != "" {
+	if msg := call(t, session, "get_neighbors", map[string]any{"id": idOf(t, session, nodes["group"]), "direction": "in", "limit": 2}, &neighbors); msg != "" {
 		t.Fatal(msg)
 	}
 	if neighbors.Total != 5 || len(neighbors.Edges) != 2 || !neighbors.Truncated || neighbors.Edges[0].Neighbor.Label != "u1" {
@@ -233,5 +244,35 @@ func TestCrossOriginRefused(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Errorf("cross-site request got %d", recorder.Code)
+	}
+}
+
+// Node ids hold for one load of the graph: ids without the tag, or with
+// another load's, are refused, and keys name nodes across loads.
+func TestNodeIDsAndKeys(t *testing.T) {
+	g, nodes := testGraph(t)
+	enginetest.Set(g, nodes["admin"], engine.ObjectSid, engine.NV(windowssecurity.MustParseStringSID("S-1-5-21-1-2-3-1001")))
+	session := connect(t, fixedSource{g, frontend.Ready})
+	id := idOf(t, session, nodes["admin"])
+	number, _, _ := strings.Cut(id, "@")
+
+	var details nodeDetailsOutput
+	for _, args := range []map[string]any{
+		{"id": number},
+		{"id": number + "@ffffff"},
+	} {
+		if msg := call(t, session, "get_node_details", args, &details); msg == "" {
+			t.Errorf("node id %v was taken", args["id"])
+		}
+	}
+	if msg := call(t, session, "get_node_details", map[string]any{"id": id}, &details); msg != "" || details.Node.Label != "admin" {
+		t.Fatalf("current id: %s", msg)
+	}
+	if details.Node.Key != "objectSid=S-1-5-21-1-2-3-1001" {
+		t.Fatalf("key %q", details.Node.Key)
+	}
+	var byKey nodeDetailsOutput
+	if msg := call(t, session, "get_node_details", map[string]any{"id": details.Node.Key}, &byKey); msg != "" || byKey.Node.NodeID != id {
+		t.Errorf("by key: %s %+v", msg, byKey.Node.NodeBrief)
 	}
 }

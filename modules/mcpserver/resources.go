@@ -49,8 +49,9 @@ type statusOutput struct {
 }
 
 func (s *Server) getStatus(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, statusOutput, error) {
+	g, err := s.Graph()
 	out := statusOutput{Meta: s.Meta(), Version: version.ProgramVersionShort()}
-	if g, err := s.Graph(); err == nil {
+	if err == nil {
 		out.Statistics = map[string]int{"Nodes": g.Order(), "Edges": g.Size()}
 		for nodeType, count := range g.Statistics() {
 			if nodeType != 0 && count != 0 {

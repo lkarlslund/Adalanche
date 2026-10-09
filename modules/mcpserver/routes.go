@@ -55,7 +55,7 @@ type EdgeTypeDetail struct {
 }
 
 // edgeTypes explains an edge's types that are in only (all when blank).
-func edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, only engine.EdgeBitmap) []EdgeTypeDetail {
+func (s *Server) edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, only engine.EdgeBitmap) []EdgeTypeDetail {
 	if !only.IsBlank() {
 		eb = eb.Intersect(only)
 	}
@@ -64,8 +64,8 @@ func edgeTypes(g *engine.IndexedGraph, from, to *engine.Node, eb, only engine.Ed
 		causes[p.Edge] = append(causes[p.Edge], EdgeCause{
 			Kind:   p.Source.Kind.String(),
 			Detail: p.Source.Detail,
-			About:  briefOf(p.Source.About),
-			SetOn:  briefOf(p.Source.Origin(from, to)),
+			About:  s.briefOf(p.Source.About),
+			SetOn:  s.briefOf(p.Source.Origin(from, to)),
 		})
 	}
 	var result []EdgeTypeDetail
@@ -87,7 +87,7 @@ type RouteStep struct {
 }
 
 type pathInput struct {
-	NodeIDs []uint32 `json:"node_ids" jsonschema:"node ids in order along the path"`
+	NodeIDs []string `json:"node_ids" jsonschema:"node ids, as tools give them, in order along the path"`
 }
 
 type pathOutput struct {
@@ -105,9 +105,13 @@ func (s *Server) getEdgePathDetails(_ context.Context, _ *mcp.CallToolRequest, i
 	}
 	nodes := make([]*engine.Node, len(in.NodeIDs))
 	for i, id := range in.NodeIDs {
-		node, found := g.LookupNodeByID(engine.NodeID(id))
+		nodeID, err := s.parseNodeID(id)
+		if err != nil {
+			return nil, pathOutput{}, err
+		}
+		node, found := g.LookupNodeByID(nodeID)
 		if !found {
-			return nil, pathOutput{}, fmt.Errorf("node id %d not found", id)
+			return nil, pathOutput{}, fmt.Errorf("node id %q not found", id)
 		}
 		nodes[i] = node
 	}
@@ -117,11 +121,11 @@ func (s *Server) getEdgePathDetails(_ context.Context, _ *mcp.CallToolRequest, i
 		eb, found := g.GetEdge(from, to)
 		if !found {
 			if eb, found = g.GetEdge(to, from); !found {
-				return nil, pathOutput{}, fmt.Errorf("no edge between %d and %d", in.NodeIDs[i-1], in.NodeIDs[i])
+				return nil, pathOutput{}, fmt.Errorf("no edge between %s and %s", in.NodeIDs[i-1], in.NodeIDs[i])
 			}
 			from, to, reversed = to, from, true
 		}
-		out.Steps = append(out.Steps, RouteStep{Brief(nodes[i-1]), Brief(nodes[i]), reversed, edgeTypes(g, from, to, eb, engine.EdgeBitmap{})})
+		out.Steps = append(out.Steps, RouteStep{s.Brief(nodes[i-1]), s.Brief(nodes[i]), reversed, s.edgeTypes(g, from, to, eb, engine.EdgeBitmap{})})
 	}
 	return nil, out, nil
 }
@@ -224,7 +228,7 @@ func (s *Server) explainRoutes(ctx context.Context, _ *mcp.CallToolRequest, in e
 		return nil, explainOutput{}, err
 	}
 	maxDepth := clampLimit(in.MaxDepth, defaultRouteDepth, maxRouteDepth)
-	out := explainOutput{Meta: s.Meta(), From: Brief(source), Targets: len(targets)}
+	out := explainOutput{Meta: s.Meta(), From: s.Brief(source), Targets: len(targets)}
 
 	// How far each node is from the nearest target, found backwards from
 	// the targets; the level that reaches the source is the last needed.
@@ -302,12 +306,12 @@ func (s *Server) explainRoutes(ctx context.Context, _ *mcp.CallToolRequest, in e
 func (s *Server) route(g *engine.IndexedGraph, path []*engine.Node, edges routeEdges) Route {
 	route := Route{}
 	for i, node := range path {
-		route.Nodes = append(route.Nodes, Brief(node))
+		route.Nodes = append(route.Nodes, s.Brief(node))
 		if i == 0 {
 			continue
 		}
 		eb, _ := g.GetEdge(path[i-1], node)
-		route.Steps = append(route.Steps, RouteStep{Brief(path[i-1]), Brief(node), false, edgeTypes(g, path[i-1], node, eb, edges.types)})
+		route.Steps = append(route.Steps, RouteStep{s.Brief(path[i-1]), s.Brief(node), false, s.edgeTypes(g, path[i-1], node, eb, edges.types)})
 	}
 	return route
 }
@@ -359,7 +363,7 @@ func (s *Server) reachSummary(ctx context.Context, _ *mcp.CallToolRequest, in re
 		return nil, reachOutput{}, fmt.Errorf("direction must be out or in")
 	}
 	sample := clampLimit(in.SamplePerHop, defaultHopSample, maxHopSample)
-	out := reachOutput{Meta: s.Meta(), Node: Brief(node), Direction: name}
+	out := reachOutput{Meta: s.Meta(), Node: s.Brief(node), Direction: name}
 
 	seen := map[*engine.Node]bool{node: true}
 	frontier := []*engine.Node{node}
@@ -394,7 +398,7 @@ func (s *Server) reachSummary(ctx context.Context, _ *mcp.CallToolRequest, in re
 			return cmp.Or(cmp.Compare(a.Label(), b.Label()), cmp.Compare(a.ID(), b.ID()))
 		})
 		for _, n := range next[:min(len(next), sample)] {
-			summary.Sample = append(summary.Sample, Brief(n))
+			summary.Sample = append(summary.Sample, s.Brief(n))
 		}
 		out.Hops = append(out.Hops, summary)
 		out.Total += len(next)

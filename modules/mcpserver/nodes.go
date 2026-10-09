@@ -32,8 +32,8 @@ func clampLimit(limit, fallback, most int) int {
 
 // NodeRef names a node.
 type NodeRef struct {
-	LocateBy string `json:"locate_by,omitempty" jsonschema:"how id names the node: nodeid (default), dn, sid, guid, or an attribute name"`
-	ID       any    `json:"id" jsonschema:"the node id (a number), distinguished name, SID, GUID or attribute value"`
+	LocateBy string `json:"locate_by,omitempty" jsonschema:"how id names the node: nodeid or key (worked out from id when left out), dn, sid, guid, or an attribute name"`
+	ID       any    `json:"id" jsonschema:"a node_id (123@k3f9) or key (objectSid=S-1-5-...) as tools give them, or a distinguished name, SID, GUID or attribute value"`
 }
 
 // text returns the id as given, whether as a number or a string.
@@ -54,15 +54,23 @@ func (r NodeRef) text() string {
 func (s *Server) Lookup(g *engine.IndexedGraph, ref NodeRef) (*engine.Node, error) {
 	id := ref.text()
 	switch strings.ToLower(strings.TrimSpace(ref.LocateBy)) {
-	case "", "nodeid", "id":
-		nodeID, err := strconv.ParseUint(strings.TrimPrefix(id, "n"), 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid node id %q", id)
+	case "":
+		// A key holds "="; anything else is taken as a node id.
+		if strings.Contains(id, "=") && !strings.Contains(id, "@") {
+			return s.lookupKey(g, id)
 		}
-		if node, found := g.LookupNodeByID(engine.NodeID(nodeID)); found {
+		fallthrough
+	case "nodeid", "id", "node_id":
+		nodeID, err := s.parseNodeID(id)
+		if err != nil {
+			return nil, err
+		}
+		if node, found := g.LookupNodeByID(nodeID); found {
 			return node, nil
 		}
-		return nil, fmt.Errorf("node id %d not found", nodeID)
+		return nil, fmt.Errorf("node id %q not found", id)
+	case "key":
+		return s.lookupKey(g, id)
 	case "dn", "distinguishedname":
 		if node, found := g.Find(engine.DistinguishedName, engine.NV(id)); found {
 			return node, nil
@@ -101,26 +109,6 @@ func (s *Server) Lookup(g *engine.IndexedGraph, ref NodeRef) (*engine.Node, erro
 	}
 }
 
-// NodeBrief names a node.
-type NodeBrief struct {
-	NodeID uint32 `json:"node_id"`
-	Label  string `json:"label"`
-	Type   string `json:"type"`
-}
-
-// Brief names a node.
-func Brief(node *engine.Node) NodeBrief {
-	return NodeBrief{NodeID: uint32(node.ID()), Label: node.Label(), Type: node.Type().Lookup()}
-}
-
-func briefOf(node *engine.Node) *NodeBrief {
-	if node == nil {
-		return nil
-	}
-	b := Brief(node)
-	return &b
-}
-
 // NodeSummary describes a node with its attributes, secrets masked.
 type NodeSummary struct {
 	NodeBrief
@@ -133,7 +121,7 @@ type NodeSummary struct {
 // leaving out hidden ones and masking secrets.
 func (s *Server) Summary(node *engine.Node, selected []string) NodeSummary {
 	summary := NodeSummary{
-		NodeBrief:         Brief(node),
+		NodeBrief:         s.Brief(node),
 		DistinguishedName: sanitizeValue(node.DN()),
 		Attributes:        map[string][]string{},
 	}
@@ -239,7 +227,7 @@ func (s *Server) findNodes(_ context.Context, _ *mcp.CallToolRequest, in findNod
 
 	out := findNodesOutput{Meta: s.Meta(), Total: total, Returned: nodes.Len(), Truncated: total > skip+nodes.Len()}
 	nodes.Iterate(func(n *engine.Node) bool {
-		summary := NodeSummary{NodeBrief: Brief(n), DistinguishedName: sanitizeValue(n.DN())}
+		summary := NodeSummary{NodeBrief: s.Brief(n), DistinguishedName: sanitizeValue(n.DN())}
 		if len(in.Attributes) > 0 {
 			summary = s.Summary(n, in.Attributes)
 		}
@@ -272,7 +260,7 @@ func (s *Server) getNodeDetails(_ context.Context, _ *mcp.CallToolRequest, in no
 	if err != nil {
 		return nil, nodeDetailsOutput{}, err
 	}
-	out := nodeDetailsOutput{Meta: s.Meta(), Node: s.Summary(node, in.Attributes), Parent: briefOf(node.Parent())}
+	out := nodeDetailsOutput{Meta: s.Meta(), Node: s.Summary(node, in.Attributes), Parent: s.briefOf(node.Parent())}
 	g.IterateEdges(node, engine.Out, func(*engine.Node, engine.EdgeBitmap) bool { out.EdgesOut++; return true })
 	g.IterateEdges(node, engine.In, func(*engine.Node, engine.EdgeBitmap) bool { out.EdgesIn++; return true })
 	return nil, out, nil
@@ -340,7 +328,7 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 		return nil, neighborsOutput{}, fmt.Errorf("direction must be out, in or both")
 	}
 
-	out := neighborsOutput{Meta: s.Meta(), Node: Brief(node), ByType: map[string]int{}}
+	out := neighborsOutput{Meta: s.Meta(), Node: s.Brief(node), ByType: map[string]int{}}
 	var all []NeighborEdge
 	for _, direction := range directions {
 		g.IterateEdges(node, direction, func(other *engine.Node, eb engine.EdgeBitmap) bool {
@@ -354,7 +342,7 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 			if direction == engine.In {
 				from, to, name = other, node, "in"
 			}
-			all = append(all, NeighborEdge{name, Brief(other), eb.StringSlice(), int(eb.MaxProbability(from, to))})
+			all = append(all, NeighborEdge{name, s.Brief(other), eb.StringSlice(), int(eb.MaxProbability(from, to))})
 			out.ByType[other.Type().Lookup()]++
 			return !cancelled(ctx, len(all))
 		})

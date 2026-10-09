@@ -42,6 +42,11 @@ func (w webSource) Graph() *engine.IndexedGraph       { return w.ws.SuperGraph }
 type Server struct {
 	source graphSource
 	mcp    *mcp.Server
+
+	// The graph node ids were last given out for, and its load tag.
+	loadLock  sync.Mutex
+	loadGraph *engine.IndexedGraph
+	load      string
 }
 
 var (
@@ -80,7 +85,7 @@ func newServer(source graphSource) *Server {
 	return s
 }
 
-const instructions = `Adalanche holds a graph of directory and machine objects (users, groups, computers, machines, GPOs and more) and the edges between them. An edge from A to B means A can do something to B, such as reset its password or control it through group membership; edge types name what, and edges record why they exist. Start with get_status and list_schema, find nodes with find_nodes, and use explain_routes to show how one node can reach others. Queries use AQL; list_saved_queries has ready-made ones. Node ids are stable for as long as the server runs. Passwords, hashes and keys are never returned.`
+const instructions = `Adalanche holds a graph of directory and machine objects (users, groups, computers, machines, GPOs and more) and the edges between them. An edge from A to B means A can do something to B, such as reset its password or control it through group membership; edge types name what, and edges record why they exist. Start with get_status and list_schema, find nodes with find_nodes, and use explain_routes to show how one node can reach others. Queries use AQL; list_saved_queries has ready-made ones. Node ids (123@k3f9) hold only for one load of the graph, named by the tag after the @: they change whenever the graph loads again, and ids from an earlier load are refused. To refer to a node later, or across conversations, use its key (such as objectSid=S-1-5-...), which every node carries and which tools take as id. Passwords, hashes and keys are never returned.`
 
 // handler serves MCP over streamable HTTP. Browsers on other sites cannot
 // call it; the SDK also refuses requests addressed to other host names
@@ -110,6 +115,7 @@ func (s *Server) Graph() (*engine.IndexedGraph, error) {
 	if s.source.Status() != frontend.Ready || g == nil {
 		return nil, errNotReady
 	}
+	s.loadTag(g)
 	return g, nil
 }
 
@@ -117,12 +123,13 @@ func (s *Server) Graph() (*engine.IndexedGraph, error) {
 type Meta struct {
 	Status string `json:"status"`
 	Ready  bool   `json:"ready"`
+	Load   string `json:"load,omitempty" jsonschema:"tag of this load of the graph; node ids carry it and change when it does"`
 }
 
 // Meta returns the status part of a tool result.
 func (s *Server) Meta() Meta {
 	status := s.source.Status()
-	return Meta{Status: status.String(), Ready: status == frontend.Ready}
+	return Meta{Status: status.String(), Ready: status == frontend.Ready, Load: s.currentTag()}
 }
 
 // cancelled reports whether the client has given up on a tool call; long
