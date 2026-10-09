@@ -648,3 +648,74 @@ func TestResolveStopsWhenCancelled(t *testing.T) {
 		}
 	}
 }
+
+func TestAQLReachRoutes(t *testing.T) {
+	// s1 reaches e1 through a and through b, b less likely; e2 directly but
+	// unlikely, and through c in two edges. s2 reaches e1 through a.
+	graph := []string{
+		"s1 -hop-> a", "a -hop-> e1", "s1 -weak-> b", "b -hop-> e1",
+		"s1 -weak-> e2", "s1 -hop-> c", "c -hop-> e2",
+		"s2 -hop-> a",
+	}
+	for _, tt := range []struct {
+		aql  string
+		want []string
+	}{
+		{
+			// Fewest edges first, then the most likely.
+			aql:  "REACH CHEAPEST start:(name=s*)-[AQLTestHop,AQLTestWeak]{1,3}->end:(name=e*)",
+			want: []string{"a -hop-> e1 flow=2", "s1 -hop-> a flow=1", "s1 -weak-> e2 flow=1", "s2 -hop-> a flow=1"},
+		},
+		{
+			// From the one start, against the edges.
+			aql:  "REACH CHEAPEST start:(name=e1)<-[AQLTestHop,AQLTestWeak]{1,3}-end:(name=s*)",
+			want: []string{"a -hop-> e1 flow=2", "s1 -hop-> a flow=1", "s2 -hop-> a flow=1"},
+		},
+		{
+			// Every shortest route; flow counts routes over what is kept.
+			aql:  "REACH SHORTEST start:(name=s*)-[AQLTestHop,AQLTestWeak]{1,3}->end:(name=e*)",
+			want: []string{"a -hop-> e1 flow=2", "b -hop-> e1 flow=1", "s1 -hop-> a flow=1", "s1 -weak-> b flow=1", "s1 -weak-> e2 flow=1", "s2 -hop-> a flow=1"},
+		},
+		{
+			aql:  "REACH start:(name=s*)-[AQLTestHop,AQLTestWeak]{1,3}->end:(name=e*)",
+			want: []string{"a -hop-> e1 flow=2", "b -hop-> e1 flow=1", "c -hop-> e2 flow=1", "s1 -hop-> a flow=1", "s1 -hop-> c flow=1", "s1 -weak-> b flow=1", "s1 -weak-> e2 flow=1", "s2 -hop-> a flow=1"},
+		},
+	} {
+		for _, seed := range []uint64{0, 1, 2} {
+			if got, want := runQuery(t, testGraph(t, seed, graph...), tt.aql, NewResolverOptions()), strings.Join(tt.want, "\n"); got != want {
+				t.Errorf("%s (seed %d) gives\n%s\nwant\n%s", tt.aql, seed, got, want)
+			}
+		}
+	}
+
+	g := testGraph(t, 0, graph...)
+	for _, aql := range []string{
+		"ACYCLIC CHEAPEST start:(name=s*)-[AQLTestHop]{1,3}->end:(name=e*)",
+		"REACH CHEAPEST SHORTEST start:(name=s*)-[AQLTestHop]{1,3}->end:(name=e*)",
+	} {
+		if _, err := ParseAQLQuery(aql, g); err == nil {
+			t.Errorf("%s parsed", aql)
+		}
+	}
+	resolver, err := ParseAQLQuery("REACH CHEAPEST start:(name=s*)-[AQLTestHop]->mid:()-[AQLTestHop]->end:(name=e*)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolver.Resolve(NewResolverOptions()); err == nil {
+		t.Error("CHEAPEST over two steps resolved")
+	}
+}
+
+// x is both a start and an end, so s -> x and x -> e are each a route; a
+// route from s through x to e is not, as x does not match the path node
+// filter. Recombining the edges must not count it.
+func TestAQLReachRecombinesOnlyThroughPassableNodes(t *testing.T) {
+	g := testGraph(t, 0, "s -hop-> x", "x -hop-> e")
+	want := "s -hop-> x flow=1\nx -hop-> e flow=1"
+	for _, mode := range []string{"REACH", "REACH SHORTEST", "REACH CHEAPEST"} {
+		aql := mode + " start:(|(name=s)(name=x))-[AQLTestHop,(name=m*)]{1,3}->end:(|(name=x)(name=e))"
+		if got := runQuery(t, g, aql, NewResolverOptions()); got != want {
+			t.Errorf("%s gives\n%s\nwant\n%s", aql, got, want)
+		}
+	}
+}

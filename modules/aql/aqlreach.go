@@ -68,6 +68,9 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 		s.maxDepth = 255 // the default the other modes use
 	}
 	s.maxDepth = min(s.maxDepth, int(reachUnreached)-1)
+	if aqlq.Routes != RoutesAll && !s.recombinable() {
+		return nil, errors.New("REACH CHEAPEST and SHORTEST need a query of one step in one direction, with no path node filter and at most one edge required")
+	}
 
 	for i, step := range aqlq.Next {
 		s.stepLayer = append(s.stepLayer, len(s.layerStep))
@@ -304,7 +307,13 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 		}
 	}
 
-	if err := s.countFlows(edges, nodeLength); err != nil {
+	var routesNote string
+	if s.aqlq.Routes != RoutesAll {
+		var err error
+		if routesNote, err = s.pairRoutes(edges, nodeLength); err != nil {
+			return nil, err
+		}
+	} else if err := s.countFlows(edges, nodeLength); err != nil {
 		return nil, err
 	}
 
@@ -424,6 +433,9 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 	}
 	if limited != "" {
 		result.Limited(limited)
+	}
+	if routesNote != "" {
+		result.Limited(routesNote)
 	}
 	ui.Debug().Msgf("REACH found %v nodes and %v edges", result.Order(), result.Size())
 	return &result, nil

@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/lkarlslund/adalanche/modules/aql"
@@ -35,7 +36,7 @@ func TestQueriesRefuseDeniedAccounts(t *testing.T) {
 		{"refused and allowed accounts", true, true, []string{"granted", "target", "allowed"}, 1},
 		{"allowed account only", false, true, []string{"granted", "target", "allowed"}, 1},
 	} {
-		for _, mode := range []string{"REACH", "ACYCLIC"} {
+		for _, mode := range []string{"REACH", "REACH CHEAPEST", "REACH SHORTEST", "ACYCLIC"} {
 			t.Run(mode+"/"+tt.name, func(t *testing.T) {
 				denied := engine.NewNode(engine.Name, "denied", engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, mustSID(t, deniedSID))
 				granted := engine.NewNode(engine.Name, "granted", engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, mustSID(t, grantedSID))
@@ -92,5 +93,56 @@ func TestQueriesRefuseDeniedAccounts(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The cheapest route from an account to a user runs through a group whose
+// grant a deny refuses to the account; CHEAPEST keeps a longer route that
+// acts as another account the deny does not cover.
+func TestCheapestRouteGoesAroundADeny(t *testing.T) {
+	const (
+		deniedSID  = "S-1-5-21-1-2-3-1101"
+		grantedSID = "S-1-5-21-1-2-3-1102"
+	)
+	acl, err := engine.ParseSDDL("D:(D;;CR;;;" + deniedSID + ")(A;;CR;;;" + grantedSID + ")")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd := &engine.SecurityDescriptor{Control: engine.CONTROLFLAG_DACL_PRESENT, DACL: acl}
+	denied := engine.NewNode(engine.Name, "denied", engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, mustSID(t, deniedSID))
+	granted := engine.NewNode(engine.Name, "granted", engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, mustSID(t, grantedSID))
+	other := engine.NewNode(engine.Name, "other", engine.Type, engine.NodeTypeGroup.ValueString(), engine.ObjectSid, mustSID(t, "S-1-5-21-1-2-3-1103"))
+	target := engine.NewNode(engine.Name, "target", engine.Type, engine.NodeTypeUser.ValueString(), engine.ObjectSid, mustSID(t, "S-1-5-21-1-2-3-1200"))
+	both := engine.NewNode(engine.Name, "both", engine.Type, engine.NodeTypeUser.ValueString(), engine.ObjectSid, mustSID(t, "S-1-5-21-1-2-3-1201"))
+	helper := engine.NewNode(engine.Name, "helper", engine.Type, engine.NodeTypeUser.ValueString(), engine.ObjectSid, mustSID(t, "S-1-5-21-1-2-3-1202"))
+	g := newADTestGraph(denied, granted, other, target, both, helper)
+	enginetest.Set(g, target, engine.NTSecurityDescriptor, engine.NV(sd))
+	enginetest.Tag(g, target, "account_enabled")
+	enginetest.Tag(g, helper, "account_enabled")
+	enginetest.Update(g, func(tx *engine.Tx) {
+		tx.EdgeBecause(granted, target, activedirectory.EdgeResetPassword, ACECause(1, acl.Entries[1]))
+		tx.EdgeTo(both, denied, activedirectory.EdgeMemberOfGroup)
+		tx.EdgeTo(both, granted, activedirectory.EdgeMemberOfGroup)
+		tx.EdgeTo(both, other, activedirectory.EdgeMemberOfGroup)
+		tx.EdgeTo(other, helper, activedirectory.EdgeResetPassword)
+		tx.EdgeTo(helper, granted, activedirectory.EdgeMemberOfGroup)
+	})
+
+	resolver, err := aql.ParseAQLQuery("REACH CHEAPEST start:(name=target)<-[]{1,5}-end:(name=both)", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := resolver.Resolve(aql.NewResolverOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	result.IterateEdges(func(source, target *engine.Node, _ engine.EdgeBitmap, flow int) bool {
+		got = append(got, source.Label()+">"+target.Label())
+		return true
+	})
+	slices.Sort(got)
+	if want := []string{"both>other", "granted>target", "helper>granted", "other>helper"}; !slices.Equal(got, want) {
+		t.Errorf("edges %v, want %v", got, want)
 	}
 }

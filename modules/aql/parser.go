@@ -59,12 +59,16 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 		Traversal:  ShortestFirst,
 	}
 
+	shortest, cheapest := false, false
 	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "LONGEST":
 			result.Traversal = LongestFirst
 		case "SHORTEST":
 			result.Traversal = ShortestFirst
+			shortest = true
+		case "CHEAPEST":
+			cheapest = true
 		case "LIKELY":
 			result.Traversal = ProbableShortest
 		case "UNLIKELY":
@@ -82,6 +86,18 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 			return nil, fmt.Errorf("unknown query mode: %v", ts.Token().Value)
 		}
 		ts.Next()
+	}
+	// With REACH, SHORTEST and CHEAPEST say which routes to keep between
+	// each start and end node.
+	switch {
+	case cheapest && shortest:
+		return nil, errors.New("use either SHORTEST or CHEAPEST")
+	case cheapest && result.Mode != Reach:
+		return nil, errors.New("CHEAPEST needs REACH")
+	case cheapest:
+		result.Routes = RoutesCheapest
+	case shortest && result.Mode == Reach:
+		result.Routes = RoutesShortest
 	}
 
 	// first there must be a wherefilter

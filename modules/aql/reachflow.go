@@ -25,13 +25,10 @@ import (
 // Recombining the result's edges is only exact for a single step with no
 // path node filter and a single direction; other queries keep a flow of 1.
 func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength map[engine.NodeIndex]int) error {
-	if len(s.aqlq.Next) != 1 {
+	if !s.recombinable() {
 		return nil
 	}
 	step := s.aqlq.Next[0]
-	if step.MinIterations > 1 || step.pathNodeRequirementCache != nil || (step.Direction != engine.In && step.Direction != engine.Out) {
-		return nil
-	}
 	depth := min(s.maxDepth, max(step.MaxIterations, 1))
 	ds := s.aqlq.datasource
 
@@ -221,6 +218,8 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 		isTarget[v] = true
 	}
 
+	passable := s.passable
+
 	// States are numbered as they are reached; per state, the routes of
 	// each length from an attacker (forward) and to a target (backward).
 	type state struct {
@@ -328,6 +327,9 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 		var next []int32
 		epoch++
 		for _, n := range frontier {
+			if l > 0 && !passable(states[n].node) {
+				continue
+			}
 			count := forward[int(n)*width+l]
 			for _, m := range expand(n) {
 				forward[int(m.to)*width+l+1] += count
@@ -361,6 +363,9 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 		var next []int32
 		epoch++
 		for _, n := range frontier {
+			if l > 0 && !passable(states[n].node) {
+				continue
+			}
 			count := backward[int(n)*width+l]
 			for _, p := range reverse[n] {
 				backward[int(p)*width+l+1] += count
@@ -406,8 +411,12 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 			after := upTo[int(m.to)*width : (int(m.to)+1)*width]
 			var routes float64
 			for l1, c := range f[:depth] {
-				if c > 0 {
-					routes += c * after[depth-1-l1]
+				if c > 0 && (l1 == 0 || passable(states[n].node)) {
+					if passable(states[m.to].node) {
+						routes += c * after[depth-1-l1]
+					} else {
+						routes += c * backward[int(m.to)*width] // m.to ends the route
+					}
 				}
 			}
 			if routes == 0 {
@@ -427,6 +436,17 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 	for n, st := range states {
 		before := shortest(forward[n*width : (n+1)*width])
 		after := shortest(backward[n*width : (n+1)*width])
+		if !passable(st.node) && before > 0 && after > 0 {
+			// A route may only start or end here.
+			switch {
+			case forward[n*width] > 0:
+				before = 0
+			case backward[n*width] > 0:
+				after = 0
+			default:
+				continue
+			}
+		}
 		if before < 0 || after < 0 || before+after > depth {
 			continue
 		}

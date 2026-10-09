@@ -21,6 +21,7 @@ type AQLquery struct {
 	sourceCache        []*engine.IndexedGraph
 	Next               []EdgeSearcher // count is n-1
 	Mode               QueryMode
+	Routes             ReachRoutes // which routes REACH keeps
 	Traversal          Priority
 	OverAllProbability engine.Probability
 }

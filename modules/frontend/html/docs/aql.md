@@ -25,6 +25,17 @@ A route acts as the nearest account before each step: entering a user or compute
 | ACYCLIC | A path never visits a node twice, and nodes already in the result graph are not reused (default). |
 | REACH | Every edge that lies on at least one route from a start node to an end node within the query's rules and the depth limit. Routes may revisit nodes. The result does not depend on search order. Over the node limit, only the shortest routes that fit are kept. For a query of one step, an edge's flow is the number of routes through it, and a route an ACL deny refuses to the account using it is not counted: an edge from a group can be refused to members who are also in a denied group. Other REACH queries give every edge a flow of 1. |
 
+### Which REACH routes to keep
+
+REACH keeps every route by default. For a query of one step in one direction, with no path node filter and at most one edge required, two keywords after REACH keep fewer:
+
+| Keyword | Keeps |
+|---------|-------|
+| REACH CHEAPEST | One route between each start and end node: the fewest edges, then the most likely (the product of edge probabilities), then a fixed node order. A route a deny refuses to the account acting on it is replaced by the cheapest one no deny refuses, or left out. An edge's flow is the number of start and end pairs whose route uses it, so removing it takes away that many routes. With too many pairs to search each, one route is kept for each node on the larger side, from the nearest node on the smaller side, and the result says so. |
+| REACH SHORTEST | Every shortest route between each start and end node. Flow counts the routes no deny refuses over the edges kept, as for REACH. |
+
+Example: `REACH CHEAPEST start:(objectSid=S-1-5-21-*-512)<-[]{1,8}-end:(type=Person)` draws one route from each user that can become a domain admin.
+
 ## Labels
 
 You can label node sets with `label:` before node filters. The UI highlights `start` and `end` labels specially.
