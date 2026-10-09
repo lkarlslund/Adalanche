@@ -24,7 +24,17 @@ jobs:
       - name: Install verification tools
         shell: bash
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          # staticcheck v0.8.1 bundles an x/tools that cannot read Go 1.27.2
+          # export data; build it with a newer one.
+          tools="$(mktemp -d)"
+          (
+            cd "$tools"
+            go mod init tools >/dev/null
+            printf '//go:build tools\npackage tools\n\nimport _ "honnef.co/go/tools/cmd/staticcheck"\n' > tools.go
+            go get honnef.co/go/tools@v0.8.1 golang.org/x/tools@v0.51.0
+            go mod tidy
+            go build -o "$(go env GOPATH)/bin/staticcheck" honnef.co/go/tools/cmd/staticcheck
+          )
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
       - name: Run Go tests
