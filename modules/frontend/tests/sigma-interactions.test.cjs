@@ -56,7 +56,6 @@ function stubGraph() {
         },
         relativePoint(event) { return {x: event.clientX, y: event.clientY}; },
         getNodeAtPosition: () => "",
-        getEdgeAtPosition: () => "",
         setNodePosition(id, p) { positions[id] = [p.x, p.y]; },
         positions,
         nodePosition: (id) => ({x: positions[id][0], y: positions[id][1]}),
@@ -108,4 +107,27 @@ test("only a shift-press for the selection box is kept from sigma", () => {
     graph.selectionState = null;
     graph.container.fire("pointerdown", touch);
     assert.ok(!touch.stopped, "touch stays with sigma");
+});
+
+test("edges come from sigma's picking: hover follows the pointer, clicks go to the edge", () => {
+    const window = load();
+    const graph = stubGraph();
+    window.createWorkspaceSigmaInteractions(graph).install();
+    const {handlers} = graph.renderer;
+    const names = () => graph.notified.map(([name, p]) => name + (p.edgeId ? ":" + p.edgeId + ":" + p.hovered : ""));
+
+    handlers.enterEdge({edge: "e1", event: {x: 10, y: 10, original: pointer("pointermove", 10, 10)}});
+    window.fire("pointermove", pointer("pointermove", 12, 11, {target: graph.container}));
+    const follow = graph.notified[1][1];
+    assert.deepEqual([follow.clientPosition.x, follow.clientPosition.y], [12, 11], "the hover card follows the pointer");
+
+    graph.container.fire("click", pointer("click", 12, 11));
+    assert.equal(graph.notified[2][0], "edgeclick");
+    assert.equal(graph.notified[2][1].edgeId, "e1");
+
+    handlers.leaveEdge({edge: "e1", event: {x: 40, y: 40, original: pointer("pointermove", 40, 40)}});
+    window.fire("pointermove", pointer("pointermove", 41, 41, {target: graph.container}));
+    graph.container.fire("click", pointer("click", 41, 41));
+    assert.deepEqual(names(), ["edgehoverchanged:e1:true", "edgehoverchanged:e1:true", "edgeclick:e1:undefined",
+        "edgehoverchanged:e1:false", "backgroundclick"]);
 });

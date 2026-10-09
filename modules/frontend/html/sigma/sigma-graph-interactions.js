@@ -15,7 +15,9 @@
 
   function createWorkspaceSigmaInteractions(graph) {
     const listeners = [];
-    const EDGE_HIT_TOLERANCE_PX = 8;
+    // Sigma picks edges on the GPU and tells us when the pointer enters or
+    // leaves one; clicks and the hover card use the edge it last entered.
+    let pointerEdgeId = "";
 
     function bind(target, eventName, handler, options) {
       if (!target || typeof target.addEventListener !== "function") return;
@@ -51,7 +53,7 @@
         return;
       }
       graph.hoveredNodeId = "";
-      const edgeId = graph.getEdgeAtPosition(point.x, point.y, EDGE_HIT_TOLERANCE_PX) || graph.hoveredEdgeId || "";
+      const edgeId = pointerEdgeId;
       if (edgeId) {
         graph.notify("edgeclick", {
           edgeId,
@@ -81,7 +83,7 @@
         });
         return;
       }
-      const edgeId = graph.getEdgeAtPosition(point.x, point.y, EDGE_HIT_TOLERANCE_PX) || graph.hoveredEdgeId || "";
+      const edgeId = pointerEdgeId;
       if (edgeId) {
         graph.notify("edgecontextmenu", {
           edgeId,
@@ -121,11 +123,9 @@
     function handleMouseMove(event) {
       if (isTouch(event)) return;
       const point = graph.relativePoint(event);
-      const onGraphSurface = eventTargetsGraphSurface(event);
-      if (onGraphSurface) {
-        updateHoveredEdge(point, event);
-      } else if (!graph.selectionState && graph.hoveredEdgeId) {
-        updateHoveredEdge(null, event);
+      if (pointerEdgeId && !graph.selectionState && eventTargetsGraphSurface(event)) {
+        // The hover card follows the pointer along the edge.
+        notifyEdgeHover(pointerEdgeId, true, point, event);
       }
       if (graph.selectionState) {
         const dx = Number(point.x || 0) - Number(graph.selectionState.startX || 0);
@@ -188,6 +188,20 @@
             hovered: false,
             originalEvent: event && event.event ? event.event : {},
           });
+        });
+        graph.renderer.on("enterEdge", (event) => {
+          const id = String(event && event.edge ? event.edge : "");
+          if (!id) return;
+          pointerEdgeId = id;
+          const coords = event.event || {};
+          notifyEdgeHover(id, true, { x: coords.x, y: coords.y }, coords.original);
+        });
+        graph.renderer.on("leaveEdge", (event) => {
+          const id = String(event && event.edge ? event.edge : "");
+          if (!id) return;
+          if (pointerEdgeId === id) pointerEdgeId = "";
+          const coords = event.event || {};
+          notifyEdgeHover(id, false, { x: coords.x, y: coords.y }, coords.original);
         });
         // Sigma drags nodes; a selected node takes the selection along.
         graph.renderer.setSettings({
@@ -259,66 +273,15 @@
       }
     }
 
-    function updateHoveredEdge(point, originalEvent) {
-      const clientPosition = RenderMetrics.eventClientPosition(originalEvent);
-      if (!point) {
-        const prevEdgeId = String(graph.hoveredEdgeId || "");
-        if (!prevEdgeId) return;
-        debugLog("edge.leave", { edgeId: prevEdgeId, reason: "pointer-left-graph-surface" });
-        graph.notify("edgehoverchanged", {
-          edgeId: prevEdgeId,
-          hovered: false,
-          originalEvent: originalEvent || {},
-          viewportPosition: null,
-          clientPosition,
-        });
-        return;
-      }
-      if (graph.hoveredNodeId) {
-        if (graph.hoveredEdgeId) {
-          debugLog("edge.leave", { edgeId: graph.hoveredEdgeId });
-          graph.notify("edgehoverchanged", {
-            edgeId: graph.hoveredEdgeId,
-            hovered: false,
-            originalEvent: originalEvent || {},
-            viewportPosition: point,
-            clientPosition,
-          });
-        }
-        return;
-      }
-      const nextEdgeId = graph.getEdgeAtPosition(point.x, point.y, EDGE_HIT_TOLERANCE_PX) || "";
-      const prevEdgeId = String(graph.hoveredEdgeId || "");
-      if (prevEdgeId && prevEdgeId === nextEdgeId) {
-        graph.notify("edgehoverchanged", {
-          edgeId: nextEdgeId,
-          hovered: true,
-          originalEvent: originalEvent || {},
-          viewportPosition: point,
-          clientPosition,
-        });
-        return;
-      }
-      if (prevEdgeId) {
-        debugLog("edge.leave", { edgeId: prevEdgeId });
-        graph.notify("edgehoverchanged", {
-          edgeId: prevEdgeId,
-          hovered: false,
-          originalEvent: originalEvent || {},
-          viewportPosition: point,
-          clientPosition,
-        });
-      }
-      if (nextEdgeId) {
-        debugLog("edge.enter", { edgeId: nextEdgeId });
-        graph.notify("edgehoverchanged", {
-          edgeId: nextEdgeId,
-          hovered: true,
-          originalEvent: originalEvent || {},
-          viewportPosition: point,
-          clientPosition,
-        });
-      }
+    function notifyEdgeHover(edgeId, hovered, point, originalEvent) {
+      debugLog(hovered ? "edge.hover" : "edge.leave", { edgeId });
+      graph.notify("edgehoverchanged", {
+        edgeId,
+        hovered,
+        originalEvent: originalEvent || {},
+        viewportPosition: point,
+        clientPosition: RenderMetrics.eventClientPosition(originalEvent),
+      });
     }
 
     return {

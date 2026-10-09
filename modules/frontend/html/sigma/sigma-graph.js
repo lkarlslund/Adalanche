@@ -63,22 +63,6 @@
     return [];
   }
 
-  function pointToSegmentDistance(pointX, pointY, startX, startY, endX, endY) {
-    const dx = endX - startX;
-    const dy = endY - startY;
-    if (dx === 0 && dy === 0) {
-      const px = pointX - startX;
-      const py = pointY - startY;
-      return Math.sqrt((px * px) + (py * py));
-    }
-    const t = Math.max(0, Math.min(1, (((pointX - startX) * dx) + ((pointY - startY) * dy)) / ((dx * dx) + (dy * dy))));
-    const nearestX = startX + (t * dx);
-    const nearestY = startY + (t * dy);
-    const distX = pointX - nearestX;
-    const distY = pointY - nearestY;
-    return Math.sqrt((distX * distX) + (distY * distY));
-  }
-
   class WorkspaceSigmaGraph {
     constructor(config) {
       const cfg = isObject(config) ? config : {};
@@ -127,39 +111,6 @@
 
     getNodeAtPosition(x, y) {
       return RenderMetrics.nodeAtPoint(this.renderer, this, this.nodeIds(), x, y);
-    }
-
-    getEdgeAtPosition(x, y, extraTolerance) {
-      const pointX = Number(x);
-      const pointY = Number(y);
-      if (!Number.isFinite(pointX) || !Number.isFinite(pointY) || !this.renderer || typeof this.renderer.graphToViewport !== "function") {
-        return "";
-      }
-      const hitTolerance = Math.max(0, Number(extraTolerance || 0));
-      let bestEdgeId = "";
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (const edgeId of this.edgeIds()) {
-        if (!this.graph.hasEdge(edgeId)) continue;
-        const endpoints = this.edgeEndpoints(edgeId);
-        if (!endpoints.source || !endpoints.target || !this.graph.hasNode(endpoints.source) || !this.graph.hasNode(endpoints.target)) continue;
-        const sourcePos = this.nodePosition(endpoints.source);
-        const targetPos = this.nodePosition(endpoints.target);
-        const sourceViewport = this.renderer.graphToViewport(sourcePos) || {};
-        const targetViewport = this.renderer.graphToViewport(targetPos) || {};
-        const sx = Number(sourceViewport.x);
-        const sy = Number(sourceViewport.y);
-        const tx = Number(targetViewport.x);
-        const ty = Number(targetViewport.y);
-        if (!Number.isFinite(sx) || !Number.isFinite(sy) || !Number.isFinite(tx) || !Number.isFinite(ty)) continue;
-        const visibleWidth = Math.max(1, Number(this.themeConfig && this.themeConfig.edge && this.themeConfig.edge.width || 2));
-        const allowedDistance = (visibleWidth / 2) + hitTolerance;
-        const distance = pointToSegmentDistance(pointX, pointY, sx, sy, tx, ty);
-        if (distance <= allowedDistance && distance < bestDistance) {
-          bestDistance = distance;
-          bestEdgeId = edgeId;
-        }
-      }
-      return bestEdgeId;
     }
 
     nodeIDsInViewportRect(rect) {

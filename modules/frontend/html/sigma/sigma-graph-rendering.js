@@ -118,8 +118,9 @@
         itemSizesReference: "screen",
         labelRenderedSizeThreshold: 8,
         labelDensity: 1,
-        // Edges are found by the workspace itself.
-        enableEdgeEvents: false,
+        // Edges are picked on the GPU, with some slack around thin lines.
+        enableEdgeEvents: true,
+        edgePickingPadding: 8,
       },
       primitives: {
         nodes: {
