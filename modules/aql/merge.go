@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
@@ -245,6 +246,25 @@ func MergeNodes(g *graph.Graph[*engine.Node, engine.EdgeBitmap], side engine.Edg
 		merged.Limited(reason)
 	}
 	return &merged
+}
+
+// Represented counts, by node type, the nodes a drawn node stands for: the
+// node itself or the members merged into it, and the nodes folded into it,
+// found by lookup.
+func Represented(node *engine.Node, data map[string]any, lookup func(engine.NodeID) (*engine.Node, bool)) map[engine.NodeType]int {
+	merged, _ := data["_merged"].(int)
+	counts := map[engine.NodeType]int{node.Type(): max(merged, 1)}
+	folded, _ := data["_folded"].([]MergedMember)
+	for _, member := range folded {
+		id, err := strconv.ParseUint(strings.TrimPrefix(member.ID, "n"), 10, 32)
+		if err != nil {
+			continue
+		}
+		if n, found := lookup(engine.NodeID(id)); found {
+			counts[n.Type()]++
+		}
+	}
+	return counts
 }
 
 // setHops records in "_hop" how many edges each node is from the query's

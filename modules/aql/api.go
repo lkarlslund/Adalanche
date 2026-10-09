@@ -92,16 +92,23 @@ func init() {
 				ui.Info().Msgf("Pruning islands removed %v nodes, leaving %v nodes", prunedislands, results.Order())
 			}
 
+			// Merged and folded nodes are counted as the nodes they stand
+			// for, so the totals do not depend on how the result is drawn.
 			var objecttypes [256]int
-
+			var total int
 			nodenamecounts := make(map[string]int)
-			for node := range results.Nodes() {
-				reference := results.GetNodeData(node, "reference")
-				if reference != nil {
-					nodenamecounts[reference.(string)]++
+			for node, data := range results.Nodes() {
+				var represented int
+				for nodetype, count := range Represented(node, data, ws.SuperGraph.LookupNodeByID) {
+					objecttypes[nodetype] += count
+					represented += count
 				}
-
-				objecttypes[node.Type()]++
+				total += represented
+				// Folded nodes are never start or end nodes.
+				if reference, _ := data["reference"].(string); reference != "" {
+					merged, _ := data["_merged"].(int)
+					nodenamecounts[reference] += max(merged, 1)
+				}
 			}
 
 			resulttypes := make(map[string]int)
@@ -128,6 +135,9 @@ func init() {
 				EndNodes   int `json:"end_nodes"`
 
 				Total int `json:"total"`
+				// Drawn is how many nodes are drawn, fewer than Total when
+				// nodes are merged or folded.
+				Drawn int `json:"drawn"`
 				Edges int `json:"edges"`
 
 				// Why the result holds less than everything the query
@@ -138,7 +148,8 @@ func init() {
 
 				ResultTypes:    resulttypes,
 				NodeNameCounts: nodenamecounts,
-				Total:          results.Order(),
+				Total:          total,
+				Drawn:          results.Order(),
 				Edges:          results.Size(),
 				Limits:         limits,
 

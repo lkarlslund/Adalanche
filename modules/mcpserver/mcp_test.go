@@ -201,8 +201,9 @@ func TestRunAQLMergesAndCountsHops(t *testing.T) {
 	if msg := call(t, session, "run_aql", map[string]any{"query": "REACH start:(tag=hvt)<-[]{1,4}-end:(name=u*)"}, &out); msg != "" {
 		t.Fatal(msg)
 	}
-	if out.TotalNodes != 4 || out.NodesPerHop["3"] != 1 {
-		t.Fatalf("%d nodes, per hop %v; want the five users merged into one at hop 3", out.TotalNodes, out.NodesPerHop)
+	if out.DrawnNodes != 4 || out.TotalNodes != 8 || out.NodesPerHop["3"] != 5 {
+		t.Fatalf("%d drawn, %d nodes, per hop %v; want the five users drawn as one at hop 3 and counted as five",
+			out.DrawnNodes, out.TotalNodes, out.NodesPerHop)
 	}
 	last := out.Nodes[len(out.Nodes)-1]
 	if last.Merged != 5 || len(last.Members) != 5 || last.Role != "end" || last.Hop == nil || *last.Hop != 3 {

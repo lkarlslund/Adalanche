@@ -111,8 +111,9 @@ type ResultEdge struct {
 type runOutput struct {
 	Meta           Meta           `json:"meta"`
 	Query          string         `json:"query"`
-	TotalNodes     int            `json:"total_nodes"`
-	TotalEdges     int            `json:"total_edges"`
+	TotalNodes     int            `json:"total_nodes" jsonschema:"nodes in the result, counting every member of a merged node and every node folded into a machine"`
+	DrawnNodes     int            `json:"drawn_nodes" jsonschema:"nodes after merging and folding, as listed under nodes"`
+	TotalEdges     int            `json:"total_edges" jsonschema:"edges between drawn nodes"`
 	NodeTypes      map[string]int `json:"node_types"`
 	NodesPerHop    map[string]int `json:"nodes_per_hop"`
 	Incomplete     []string       `json:"incomplete,omitempty" jsonschema:"why the result holds less than everything the query matches"`
@@ -182,20 +183,25 @@ func (s *Server) run(ctx context.Context, queryText string, o QueryOptions) (run
 // the start nodes described with the edges between them.
 func (s *Server) describe(g *engine.IndexedGraph, result *graph.Graph[*engine.Node, engine.EdgeBitmap], maxNodes, maxEdges int) runOutput {
 	out := runOutput{
-		TotalNodes:  result.Order(),
+		DrawnNodes:  result.Order(),
 		TotalEdges:  result.Size(),
 		NodeTypes:   map[string]int{},
 		NodesPerHop: map[string]int{},
 	}
 	nodes := make([]ResultNode, 0, result.Order())
 	for node, data := range result.Nodes() {
-		out.NodeTypes[node.Type().Lookup()]++
+		var represented int
+		for nodeType, count := range aql.Represented(node, data, g.LookupNodeByID) {
+			out.NodeTypes[nodeType.Lookup()] += count
+			represented += count
+		}
+		out.TotalNodes += represented
 		rn := ResultNode{NodeBrief: s.Brief(node)}
 		if hop, found := data["_hop"].(int); found {
 			rn.Hop = &hop
-			out.NodesPerHop[strconv.Itoa(hop)]++
+			out.NodesPerHop[strconv.Itoa(hop)] += represented
 		} else {
-			out.NodesPerHop["unreached"]++
+			out.NodesPerHop["unreached"] += represented
 		}
 		rn.Role, _ = data["reference"].(string)
 		rn.Tier, _ = data["tier"].(string)

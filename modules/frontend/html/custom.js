@@ -308,6 +308,12 @@ async function aqlanalyze(e) {
       '<tr><td class="text-end pe-3">' +
       data.total +
       "</td><td>total nodes in analysis</td></tr>";
+    if (data.drawn > 0 && data.drawn != data.total) {
+      info +=
+        '<tr><td class="text-end pe-3">' +
+        data.drawn +
+        "</td><td>nodes drawn after merging</td></tr>";
+    }
     info += "</table>";
     if (Array.isArray(data.limits) && data.limits.length > 0) {
       info += "<hr/><b>Incomplete result</b>";
