@@ -247,15 +247,21 @@ func (s *reachSearch) routeLength(layer int, v engine.NodeIndex) int {
 	return int(s.forward[state]) + int(s.backward[state])
 }
 
+// reachKey is an edge of a REACH result, in the edge's own direction.
+type reachKey struct{ from, to engine.NodeIndex }
+
+// reachResultEdge is the edge types on a REACH result edge, the length of
+// the shortest route through it, and its flow (see countFlows).
+type reachResultEdge struct {
+	edges  engine.EdgeBitmap
+	length int
+	flow   int
+}
+
 func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
-	type edgeKey struct{ from, to engine.NodeIndex }
-	type resultEdge struct {
-		edges  engine.EdgeBitmap
-		length int
-	}
 	nodeLength := map[engine.NodeIndex]int{}
 	reference := map[engine.NodeIndex]int{}
-	edges := map[edgeKey]resultEdge{}
+	edges := map[reachKey]reachResultEdge{}
 
 	for layer := range s.layerStep {
 		for _, v := range s.active[layer] {
@@ -282,19 +288,24 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 				if after == reachUnreached || before+1+int(after) > s.maxDepth {
 					return
 				}
-				key := edgeKey{v, target}
+				key := reachKey{v, target}
 				if edge.direction == engine.In {
-					key = edgeKey{target, v}
+					key = reachKey{target, v}
 				}
 				re, found := edges[key]
 				if !found {
 					re.length = before + 1 + int(after)
+					re.flow = 1
 				}
 				re.edges = re.edges.Merge(s.aqlq.datasource.EdgeComboToEdgeBitmap(edge.combo))
 				re.length = min(re.length, before+1+int(after))
 				edges[key] = re
 			})
 		}
+	}
+
+	if err := s.countFlows(edges, nodeLength); err != nil {
+		return nil, err
 	}
 
 	ds := s.aqlq.datasource
@@ -408,7 +419,7 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 	}
 	for key, re := range edges {
 		if re.length <= cutoff {
-			result.AddEdgeFlow(ds.NodeAt(key.from), ds.NodeAt(key.to), re.edges, 1)
+			result.AddEdgeFlow(ds.NodeAt(key.from), ds.NodeAt(key.to), re.edges, re.flow)
 		}
 	}
 	if limited != "" {

@@ -235,7 +235,7 @@ func TestAQLModesReuseAcrossTheResult(t *testing.T) {
 		{"WALK", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
 		{"TRAIL", shortOnly},
 		{"ACYCLIC", shortOnly},
-		{"REACH", []string{"a -hop-> m flow=1", "m -hop-> e flow=1", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
+		{"REACH", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
 	} {
 		aql := tt.mode + " start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)"
 		if got, want := runQuery(t, g(), aql, NewResolverOptions()), strings.Join(tt.want, "\n"); got != want {
@@ -338,7 +338,7 @@ func TestAQLReach(t *testing.T) {
 			name:  "routes may revisit a node",
 			graph: []string{"s -hop-> a", "a -hop-> b", "b -hop-> a", "a -hop-> e"},
 			aql:   "REACH start:(name=s)-[AQLTestHop]{1,4}->end:(name=e)",
-			want:  []string{"a -hop-> b flow=1", "a -hop-> e flow=1", "b -hop-> a flow=1", "s -hop-> a flow=1"},
+			want:  []string{"a -hop-> b flow=1", "a -hop-> e flow=2", "b -hop-> a flow=1", "s -hop-> a flow=2"},
 		},
 		{
 			name:  "a loop too long for the step is left out",

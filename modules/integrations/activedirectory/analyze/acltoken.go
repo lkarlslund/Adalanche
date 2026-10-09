@@ -71,6 +71,11 @@ type membershipGraph interface {
 // memberSIDs returns the SIDs of every group n is a member of, directly or
 // through nesting.
 func memberSIDs(g membershipGraph, n *engine.Node) map[windowssecurity.SID]struct{} {
+	return memberSIDsCached(g, n, &tokenClosures)
+}
+
+// memberSIDsCached is memberSIDs with the group closures cached in closures.
+func memberSIDsCached(g membershipGraph, n *engine.Node, closures *sync.Map) map[windowssecurity.SID]struct{} {
 	home := machineOf(n)
 	memberOf := engine.EdgeBitmap{}.Set(activedirectory.EdgeMemberOfGroup)
 	// A machine's local groups are in a token only on that machine: the
@@ -97,7 +102,7 @@ func memberSIDs(g membershipGraph, n *engine.Node) map[windowssecurity.SID]struc
 	} else {
 		key = fmt.Sprint(home.ID(), nodeIDs(direct))
 	}
-	if cached, found := tokenClosures.Load(key); found {
+	if cached, found := closures.Load(key); found {
 		return cached.(map[windowssecurity.SID]struct{})
 	}
 	sids := map[windowssecurity.SID]struct{}{}
@@ -115,7 +120,7 @@ func memberSIDs(g membershipGraph, n *engine.Node) map[windowssecurity.SID]struc
 			return true
 		})
 	}
-	tokenClosures.Store(key, sids)
+	closures.Store(key, sids)
 	return sids
 }
 

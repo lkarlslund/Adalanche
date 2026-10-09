@@ -343,24 +343,24 @@ func (a ACL) IsObjectClassAccessAllowedFor(index int, testObject *Node, mask Mas
 		return false
 	}
 	if a.containsdeny {
-		// Only preceding deny ACEs can invalidate this grant, and one that
-		// denies any of the requested rights does (MS-DTYP 2.5.3.2).
-		for _, deny := range a.Entries[:index] {
-			if deny.Type != ACETYPE_ACCESS_DENIED && deny.Type != ACETYPE_ACCESS_DENIED_OBJECT {
-				continue
-			}
-			if deny.ACEFlags&ACEFLAG_INHERIT_ONLY_ACE != 0 || deny.Mask&mask == 0 {
-				continue
-			}
-			if !inTrusteeToken(deny.SID, grant.SID, trusteeToken) {
-				continue
-			}
-			if deny.appliesTo(testObject, guid, ao) {
-				return false
-			}
-		}
+		return !a.DeniedBefore(index, testObject, mask, guid, ao, func(sid windowssecurity.SID) bool {
+			return inTrusteeToken(sid, grant.SID, trusteeToken)
+		})
 	}
 	return true
+}
+
+// DeniedBefore reports whether a deny ACE before index refuses any of mask
+// for guid on testObject to a token holding the SIDs inToken reports. Only
+// preceding denies can invalidate a grant, and one that denies any of the
+// requested rights does (MS-DTYP 2.5.3.2).
+func (a ACL) DeniedBefore(index int, testObject *Node, mask Mask, guid uuid.UUID, ao *IndexedGraph, inToken func(windowssecurity.SID) bool) bool {
+	for _, deny := range a.Entries[:index] {
+		if inToken(deny.SID) && deny.Refuses(testObject, mask, guid, ao) {
+			return true
+		}
+	}
+	return false
 }
 
 // inTrusteeToken reports whether sid is in the token of everyone holding
