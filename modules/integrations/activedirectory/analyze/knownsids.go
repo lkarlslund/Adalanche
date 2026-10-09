@@ -33,8 +33,9 @@ var (
 		strings.ToLower("Brugere af Fjernskrivebord"): windowssecurity.RemoteDesktopUsersSID, // DK
 		strings.ToLower("Superbrugere"):               windowssecurity.PowerUsersSID,         // DK
 
-		strings.ToLower("Administrators"):       windowssecurity.AdministratorsSID,     // EN
-		strings.ToLower("Remote Desktop Users"): windowssecurity.RemoteDesktopUsersSID, // EN
+		strings.ToLower("Administrators"):        windowssecurity.AdministratorsSID,     // EN
+		strings.ToLower("Remote Desktop Users"):  windowssecurity.RemoteDesktopUsersSID, // EN
+		strings.ToLower("Distributed COM Users"): windowssecurity.DCOMUsersSID,          // EN
 
 		strings.ToLower("Administratoren"): windowssecurity.AdministratorsSID, // DE
 		strings.ToLower("Administrateurs"): windowssecurity.AdministratorsSID, // FR
@@ -48,10 +49,10 @@ func TranslateLocalizedNameToSID(name string) (windowssecurity.SID, error) {
 	if sid, found := nameTranslationTable[strings.ToLower(name)]; found {
 		return sid, nil
 	}
-	return windowssecurity.SID(""), errors.New("Localized group name not found")
+	return windowssecurity.SID(""), errors.New("localized group name not found")
 }
 
-func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func FindDomain(ao engine.GraphReader) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	var domain *engine.Node
 	domain, err = FindDomainNode(ao)
 	if err != nil {
@@ -60,17 +61,32 @@ func FindDomain(ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix 
 	return GetDomainInfo(domain, ao)
 }
 
-func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
+// FindDomainNodes returns the domain objects in the graph: the domainDNS
+// objects with a SID.
+func FindDomainNodes(ao engine.GraphReader) []*engine.Node {
+	var domains []*engine.Node
+	if found, ok := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS")); ok {
+		found.Iterate(func(n *engine.Node) bool {
+			if n.HasAttr(engine.ObjectSid) {
+				domains = append(domains, n)
+			}
+			return true
+		})
+	}
+	return domains
+}
+
+func FindDomainNode(ao engine.GraphReader) (domain *engine.Node, err error) {
 	domaindns, found := ao.FindMulti(engine.ObjectClass, engine.NV("domainDNS"))
 	if !found {
-		err = errors.New("No domain info found in collection")
+		err = errors.New("no domain info found in collection")
 		return
 	}
 
 	domaindns.Iterate(func(curdomain *engine.Node) bool {
 		if curdomain.HasAttr(engine.ObjectSid) {
 			if domain != nil {
-				err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+				err = errors.New("found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 				return true
 			}
 			domain = curdomain
@@ -79,16 +95,16 @@ func FindDomainNode(ao *engine.IndexedGraph) (domain *engine.Node, err error) {
 	})
 
 	if domain == nil {
-		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		err = errors.New("could not find domainDNS in object shard collection, giving up")
 		return
 	}
 	return
 }
 
-func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
+func GetDomainInfo(domain *engine.Node, ao engine.GraphReader) (domaincontext, netbiosname, dnssuffix string, domainsid windowssecurity.SID, err error) {
 	if domain.HasAttr(engine.ObjectSid) {
 		if domaincontext != "" {
-			err = errors.New("Found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
+			err = errors.New("found multiple domainDNS in same path - please place each set of domain objects in their own subpath")
 			return
 		}
 		domaincontext = domain.OneAttrString(engine.DistinguishedName)
@@ -96,7 +112,7 @@ func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext,
 	}
 
 	if domaincontext == "" {
-		err = errors.New("Could not find domainDNS in object shard collection, giving up")
+		err = errors.New("could not find domainDNS in object shard collection, giving up")
 		return
 	}
 
@@ -106,7 +122,7 @@ func GetDomainInfo(domain *engine.Node, ao *engine.IndexedGraph) (domaincontext,
 		NCName, engine.NV(domaincontext),
 	)
 	if !found {
-		err = fmt.Errorf("Could not find crossRef object for %v", domaincontext)
+		err = fmt.Errorf("could not find crossRef object for %v", domaincontext)
 		return
 	}
 

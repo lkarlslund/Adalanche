@@ -2,20 +2,6 @@ package graph
 
 import "slices"
 
-type CoarseGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
-	coarseGraph *Graph[NodeType, EdgeType]
-	fineGraph   *Graph[NodeType, EdgeType]
-}
-
-type coarseNode[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
-	originalNodes []NodeType
-}
-
-type coarseEdge[NodeType GraphNodeInterface[NodeType]] struct {
-	from NodeType
-	to   NodeType
-}
-
 // Coarsen creates a coarsened version of the graph by merging nodes and edges
 func (g *Graph[NodeType, EdgeType]) CoarsenOuterNodes() Graph[NodeType, EdgeType] {
 	newGraph := g.Clone()

@@ -8,17 +8,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lkarlslund/adalanche/modules/ui"
 	"golang.org/x/sys/windows/registry"
 )
 
-func ReadRegistryKey(item string) (any, error) {
-	if strings.Index(item, `*`) != -1 {
+func splitRegistryPath(item string) (registry.Key, string, string, error) {
+	if strings.Contains(item, `*`) {
 		// Globbing not supported yet ... let's see later :-)
-		return nil, errors.New("globbing not supported yet")
+		return 0, "", "", errors.New("globbing not supported yet")
 	}
 
 	regparts := strings.Split(item, "\\")
+	if len(regparts) < 2 {
+		return 0, "", "", fmt.Errorf("invalid registry path %q", item)
+	}
 
 	keypath := strings.Join(regparts[1:len(regparts)-1], "\\")
 	valuename := regparts[len(regparts)-1]
@@ -37,18 +39,61 @@ func ReadRegistryKey(item string) (any, error) {
 	case "HKCC", "HKEY_CURRENT_CONFIG":
 		hive = registry.CURRENT_CONFIG
 	default:
-		return nil, fmt.Errorf("Unsupported registry hive name %v, skipping %v", hive, item)
+		return 0, "", "", fmt.Errorf("Unsupported registry hive name %v, skipping %v", hive, item)
 	}
 
-	var value any
+	return hive, keypath, valuename, nil
+}
 
-	k, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+func ReadRegistrySubKeyNames(item string) ([]string, error) {
+	hive, keypath, _, err := splitRegistryPath(item + `\placeholder`)
 	if err != nil {
-		ui.Warn().Msgf("Problem opening registry key %v (%v) / %v: %v", hivename, hive, keypath, err)
+		return nil, err
+	}
+
+	k, err := registry.OpenKey(hive, keypath, registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err != nil {
 		return nil, err
 	}
 	defer k.Close()
 
+	return k.ReadSubKeyNames(-1)
+}
+
+// ReadRegistryDWORD reads an exact DWORD value without coercing strings or QWORDs.
+func ReadRegistryDWORD(item string) (uint32, error) {
+	hive, keypath, valuename, err := splitRegistryPath(item)
+	if err != nil {
+		return 0, err
+	}
+	key, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+	if err != nil {
+		return 0, err
+	}
+	defer key.Close()
+	value, kind, err := key.GetIntegerValue(valuename)
+	if errors.Is(err, registry.ErrUnexpectedType) || (err == nil && kind != registry.DWORD) {
+		return 0, fmt.Errorf("registry type %v: %w", kind, errors.ErrUnsupported)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return uint32(value), nil
+}
+
+func ReadRegistryKey(item string) (any, error) {
+	hive, keypath, valuename, err := splitRegistryPath(item)
+	if err != nil {
+		return nil, err
+	}
+
+	k, err := registry.OpenKey(hive, keypath, registry.QUERY_VALUE|registry.WOW64_64KEY)
+	if err != nil {
+		return nil, err
+	}
+	defer k.Close()
+
+	var value any
 	var valtype uint32
 	value, valtype, err = k.GetStringValue(valuename)
 	if err != nil {
@@ -56,7 +101,7 @@ func ReadRegistryKey(item string) (any, error) {
 			switch valtype {
 			case registry.NONE, registry.LINK, registry.RESOURCE_LIST, registry.FULL_RESOURCE_DESCRIPTOR, registry.RESOURCE_REQUIREMENTS_LIST:
 				// skip trying
-				return nil, fmt.Errorf("Unsupported registry type %v for key %v", valtype, valuename)
+				return nil, fmt.Errorf("registry type %v: %w", valtype, errors.ErrUnsupported)
 			case registry.SZ, registry.EXPAND_SZ:
 				// strange, that should have worked
 			case registry.BINARY:
@@ -67,11 +112,8 @@ func ReadRegistryKey(item string) (any, error) {
 				value, _, err = k.GetStringsValue(valuename)
 			}
 		} else {
-			return nil, fmt.Errorf("Problem getting registry value %v: %v", item, err)
+			return nil, fmt.Errorf("read registry value: %w", err)
 		}
-	}
-	if err != nil {
-		ui.Warn().Msgf("Problem reading registry value %v: %v", valuename, err)
 	}
 	return value, err
 }

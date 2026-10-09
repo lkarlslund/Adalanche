@@ -9,9 +9,11 @@ import (
 
 type Info struct {
 	basedata.Common
-	RegistryData RegistryData `json:",omitempty"`
-	Machine      Machine
-	LoginInfos   []LogonInfo `json:",omitempty"`
+	CollectionResults basedata.CollectionResults `json:",omitempty"`
+	RegistryData      RegistryData               `json:",omitempty"`
+	AssessmentData    string                     `json:",omitempty"` // Versioned, allowlisted metadata; no secret payloads.
+	Machine           Machine
+	LoginInfos        []LogonInfo `json:",omitempty"`
 	// Hardware        shared.Hardware        `json:",omitempty"`
 	Network                                 NetworkInformation
 	Users                                   Users            `json:",omitempty"`
@@ -28,8 +30,12 @@ type Info struct {
 	UnprivilegedCollection bool `json:",omitempty"` // True if we know that the collector ran without admin rights, so some data will be missing
 }
 type Machine struct {
-	Name              string `json:",omitempty"`
-	LocalSID          string `json:",omitempty"`
+	Name     string `json:",omitempty"`
+	LocalSID string `json:",omitempty"`
+	// SMBIOSUUID is the system UUID from the firmware. Unlike the machine SID
+	// it changes when a virtual machine is cloned, so two collections with
+	// the same SIDs but different UUIDs are different machines.
+	SMBIOSUUID        string `json:",omitempty"`
 	Domain            string `json:",omitempty"`
 	ComputerDomainSID string `json:",omitempty"`
 	Architecture      string `json:",omitempty"`
@@ -86,6 +92,17 @@ type Share struct {
 	Type        int    `json:",omitempty"`
 }
 type RegistryData map[string]any
+
+// CollectionSettings retains settings and acquisition metadata from one capture.
+// It deliberately excludes file contents, task arguments and other payloads.
+type CollectionSettings struct {
+	basedata.Common
+	RegistryData           RegistryData               `json:",omitempty"`
+	CollectionResults      basedata.CollectionResults `json:",omitempty"`
+	UnprivilegedCollection bool                       `json:",omitempty"`
+	AssessmentData         string                     `json:",omitempty"`
+}
+
 type Services []Service
 type Service struct {
 	RegistryOwner        string   `json:",omitempty"`

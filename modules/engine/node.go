@@ -13,17 +13,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/icza/gox/stringsx"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/adalanche/modules/jsoncodec"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 var threadbuckets = runtime.NumCPU() * runtime.NumCPU() * 64
 var threadsafeobjectmutexes = make([]sync.RWMutex, threadbuckets)
-
-var AttributeNodeId = NewAttribute("nodeID").Flag(Single, Hidden, DropWhenMerging)
 
 var uniqueNodeID atomic.Uint32
 
@@ -32,9 +30,11 @@ var UnknownGUID = uuid.UUID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 var BlankSID = windowssecurity.SID("")
 
 type Node struct {
+	id         NodeID
 	sdcache    *SecurityDescriptor
 	parent     *Node
-	sid        atomic.Value // windowssecurity.SID
+	sid        atomic.Pointer[windowssecurity.SID] // cached SID(), reset when objectSid changes
+	home       atomic.Uint64                       // home graph ID and position, see nodePositions
 	children   NodeSlice
 	values     AttributesAndValues
 	objecttype NodeType
@@ -50,15 +50,17 @@ func NewNode(flexinit ...any) *Node {
 	return &result
 }
 
-// Temporary workaround
+// NodeID identifies a node within one running process. IDs are assigned in
+// creation order and are not stable across restarts or reloads.
 type NodeID uint32
 
+// InvalidNodeID is never assigned; it means the node has no ID, which only
+// happens for a Node that was not created through NewNode.
+const InvalidNodeID NodeID = 0
+
+// ID returns the node's process-local ID, or InvalidNodeID if none was assigned.
 func (o *Node) ID() NodeID {
-	n := o.OneAttr(AttributeNodeId)
-	if n == nil {
-		return 0
-	}
-	return NodeID(n.Raw().(int64))
+	return o.id
 }
 
 func (o *Node) lockbucket() int {
@@ -81,19 +83,67 @@ func (o *Node) runlock() {
 	threadsafeobjectmutexes[o.lockbucket()].RUnlock()
 }
 
-func (o *Node) Absorb(source *Node) {
-	o.AbsorbEx(source, false)
+// foldInto merges a reference into the node it stands for: its values,
+// its place in the tree and its children. The reference is discarded.
+func (target *Node) foldInto(source *Node) {
+	// Attributes both had end up sorted, so folding A into B and B into A
+	// give the same values.
+	var both []Attribute
+	source.AttrIterator(func(attr Attribute, _ AttributeValues) bool {
+		if target.HasAttr(attr) {
+			both = append(both, attr)
+		}
+		return true
+	})
+	target.absorb(source)
+	for _, attr := range both {
+		if values := target.Attr(attr); values.Len() > 1 {
+			sorted := slices.Clone(values)
+			sorted.Sort()
+			target.set(attr, sorted...)
+		}
+	}
+	if source.parent != nil {
+		parent := source.parent
+		if target.parent == nil {
+			target.parent = parent
+			parent.children.Add(target)
+		}
+		parent.removeChild(source)
+		source.parent = nil
+	}
+	source.children.Iterate(func(child *Node) bool {
+		target.children.Add(child)
+		child.parent = target
+		return true
+	})
+	source.children = NodeSlice{}
+	// The security descriptor attribute is not kept after import, only the
+	// parsed cache, so it moves over.
+	if source.sdcache != nil {
+		if target.sdcache == nil {
+			target.sdcache = source.sdcache
+		} else if !source.sdcache.Equals(target.sdcache) {
+			ui.Error().Msgf("Can not merge security descriptors between %v and %v", source.Label(), target.Label())
+		}
+	}
+	target.objecttype = 0 // recalculated from the merged values
+}
+
+func (o *Node) absorb(source *Node) {
+	o.absorbEx(source, false)
 }
 
 // Absorbs data and edge relationships from another object, sucking the soul out of it
 // The sources empty shell should be discarded afterwards (i.e. not appear in an Graph collection)
-func (target *Node) AbsorbEx(source *Node, fast bool) {
+func (target *Node) absorbEx(source *Node, fast bool) {
 	if target == source {
 		panic("Can't absorb myself")
 	}
 
 	newvalues := target.values.Merge(&source.values)
-	target.values = *newvalues
+	target.values.Replace(newvalues)
+	target.sid.Store(nil)
 }
 
 func mergeValues(v1, v2 AttributeValues) AttributeValues {
@@ -149,13 +199,13 @@ func (s StringMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	tokens := []xml.Token{start}
 
 	for key, values := range s {
-		t := xml.StartElement{Name: xml.Name{"", key}}
+		t := xml.StartElement{Name: xml.Name{Space: "", Local: key}}
 		for _, value := range values {
-			tokens = append(tokens, t, xml.CharData(value), xml.EndElement{t.Name})
+			tokens = append(tokens, t, xml.CharData(value), xml.EndElement{Name: t.Name})
 		}
 	}
 
-	tokens = append(tokens, xml.EndElement{start.Name})
+	tokens = append(tokens, xml.EndElement{Name: start.Name})
 
 	for _, t := range tokens {
 		err := e.EncodeToken(t)
@@ -178,7 +228,7 @@ func (o *Node) NameStringMap() StringMap {
 }
 
 func (o *Node) MarshalJSON() ([]byte, error) {
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(o.NameStringMap())
+	return jsoncodec.JSON.Marshal(o.NameStringMap())
 }
 
 func (o *Node) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
@@ -225,7 +275,7 @@ func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 	for _, attr := range primaryidattrs {
 		if o.HasAttr(attr) {
 			val := o.OneAttr(attr)
-			if val != nil {
+			if !val.IsNil() {
 				return attr, val
 			}
 		}
@@ -253,11 +303,11 @@ func (o *Node) Type() NodeType {
 
 func (o *Node) ObjectCategoryGUID(ao *IndexedGraph) uuid.UUID {
 	// if o.objectcategoryguid == NullGUID {
-	guid := o.OneAttrRaw(ObjectCategoryGUID)
-	if guid == nil {
+	guid, found := o.OneAttrGUID(ObjectCategoryGUID)
+	if !found {
 		return UnknownGUID
 	}
-	return guid.(uuid.UUID)
+	return guid
 	// return o.objectcategoryguid
 }
 
@@ -294,6 +344,18 @@ func (o *Node) get(attr Attribute) (AttributeValues, bool) {
 // Auto locking version
 func (o *Node) Get(attr Attribute) (AttributeValues, bool) {
 	return o.get(attr)
+}
+
+// Project returns a new node, in no graph, holding the given attributes of
+// this one, such as for exporting chosen fields.
+func (o *Node) Project(attrs ...Attribute) *Node {
+	no := NewNode()
+	for _, attr := range attrs {
+		if values, found := o.get(attr); found {
+			no.set(attr, values...)
+		}
+	}
+	return no
 }
 
 // Returns synthetic blank attribute value if it isn't set
@@ -334,15 +396,18 @@ func (o *Node) OneAttrRaw(attr Attribute) any {
 	return nil
 }
 
+// OneAttr returns the attribute's value when it has exactly one, or the nil value.
 func (o *Node) OneAttr(attr Attribute) AttributeValue {
 	a := o.Attr(attr)
-	if a == nil {
-		return nil
-	}
 	if a.Len() == 1 {
 		return a.First()
 	}
-	return nil
+	return AttributeValue{}
+}
+
+// OneAttrGUID returns a single GUID value without allocating.
+func (o *Node) OneAttrGUID(attr Attribute) (uuid.UUID, bool) {
+	return o.OneAttr(attr).AsGUID()
 }
 
 func (o *Node) HasAttr(attr Attribute) bool {
@@ -395,10 +460,6 @@ func (o *Object) AttrTimestamp(attr Attribute) (time.Time, bool) { // FIXME, swi
 	return t, true
 }
 */
-
-func (o *Node) SetFlex(flexinit ...any) {
-	o.setFlex(flexinit...)
-}
 
 var avsPool = sync.Pool{
 	New: func() any {
@@ -477,7 +538,7 @@ func (o *Node) setFlex(flexinit ...any) {
 			}
 
 			newvalue := NV(i)
-			if newvalue == nil || (ignoreblanks && newvalue.IsZero()) {
+			if newvalue.IsNil() || (ignoreblanks && newvalue.IsZero()) {
 				if ignoreblanks {
 					continue
 				}
@@ -495,27 +556,27 @@ func (o *Node) setFlex(flexinit ...any) {
 	avsPool.Put(slice)
 }
 
-func (o *Node) Set(a Attribute, values ...AttributeValue) {
-	o.set(a, values...)
-}
-
-func (o *Node) Add(a Attribute, values ...AttributeValue) {
-	o.add(a, values...)
-}
-
-func (o *Node) Clear(a Attribute) {
-	o.values.Clear(a)
-}
-
-func (o *Node) Tag(v string) {
-	if !o.HasTag(v) {
-		o.Add(Tag, NV(v))
+func (o *Node) clear(a Attribute) {
+	o.values.mu.Lock()
+	o.values.clear(a)
+	o.values.mu.Unlock()
+	if a == ObjectSid {
+		o.sid.Store(nil)
 	}
 }
 
 // FIXME performance optimization/redesign needed, but needs to work with Objects indexes
 func (o *Node) HasTag(v string) bool {
 	tags, found := o.Get(Tag)
+	return hasTag(tags, found, v)
+}
+
+func (o *Node) hasTagNoLock(v string) bool {
+	tags, found := o.values.get(Tag)
+	return hasTag(tags, found, v)
+}
+
+func hasTag(tags AttributeValues, found bool, v string) bool {
 	if !found {
 		return false
 	}
@@ -530,19 +591,77 @@ func (o *Node) HasTag(v string) bool {
 	return exists
 }
 
+// union adds the values an attribute does not have yet. When the node
+// already had values, the result is sorted, so the same values arrive at the
+// same order whichever came first. It reports whether anything changed.
+func (o *Node) union(a Attribute, values AttributeValues) bool {
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	existing, _ := o.values.get(a)
+	var missing AttributeValues
+	for _, v := range values {
+		if !slices.ContainsFunc(existing, func(e AttributeValue) bool { return CompareAttributeValues(e, v) }) &&
+			!slices.ContainsFunc(missing, func(e AttributeValue) bool { return CompareAttributeValues(e, v) }) {
+			missing = append(missing, v)
+		}
+	}
+	if len(missing) == 0 {
+		return false
+	}
+	merged := make(AttributeValues, 0, len(existing)+len(missing))
+	merged = append(append(merged, existing...), missing...)
+	if len(existing) > 0 {
+		merged.Sort()
+	}
+	o.setNoLock(a, merged)
+	return true
+}
+
 func (o *Node) add(a Attribute, values ...AttributeValue) {
-	oldvalues, found := o.values.Get(a)
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	o.addNoLock(a, AttributeValues(values))
+}
+
+func (o *Node) addNoLock(a Attribute, values AttributeValues) {
+	oldvalues, found := o.values.get(a)
 	if !found {
-		o.set(a, values...)
+		o.setNoLock(a, values)
 	} else {
 		data := make([]AttributeValue, len(oldvalues)+len(values))
 		copy(data, oldvalues)
 		copy(data[len(oldvalues):], values)
-		o.set(a, data...)
+		o.setNoLock(a, data)
 	}
 }
 
 func (o *Node) set(a Attribute, values ...AttributeValue) {
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	o.setNoLock(a, AttributeValues(values))
+}
+
+// setMany sets attrs[i] to values[i], with room for the new ones made once
+// rather than growing the node's storage attribute by attribute.
+func (o *Node) setMany(attrs []Attribute, values []AttributeValue) {
+	o.values.mu.Lock()
+	defer o.values.mu.Unlock()
+	added := 0
+	for _, a := range attrs {
+		if _, found := o.values.find(a); !found {
+			added++
+		}
+	}
+	o.values.reserve(added)
+	for i, a := range attrs {
+		o.setNoLock(a, values[i:i+1])
+	}
+}
+
+func (o *Node) setNoLock(a Attribute, values AttributeValues) {
+	if a == ObjectSid {
+		o.sid.Store(nil)
+	}
 	if a.HasFlag(Single) && len(values) > 1 {
 		ui.Warn().Msgf("Setting multiple values on non-multival attribute %v: %v", a.String(), strings.Join(AttributeValues(values).StringSlice(), ", "))
 	}
@@ -579,9 +698,12 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 				}
 			}
 
-			if o.HasAttr(DataSource) {
+			if datasourceValues, found := o.values.get(DataSource); found {
 				netbios, _, didsplit := strings.Cut(dlln, "\\")
-				datasource := o.OneAttrString(DataSource)
+				datasource := ""
+				if datasourceValues.Len() > 0 {
+					datasource = datasourceValues.First().String()
+				}
 				if didsplit &&
 					!strings.EqualFold(datasource, netbios) &&
 					!strings.HasPrefix(netbios, "NT-") &&
@@ -589,7 +711,7 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 					!strings.HasSuffix(netbios, " NT") &&
 					netbios != "BUILTIN" &&
 					netbios != "IIS APPPOOL" {
-					ui.Warn().Msgf("Node DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), o.OneAttrString(DataSource))
+					ui.Warn().Msgf("Node DataSource and downlevel NETBIOS name conflict: %v / %v", value.String(), datasource)
 				}
 			}
 
@@ -604,12 +726,12 @@ func (o *Node) set(a Attribute, values ...AttributeValue) {
 
 	// Check it's not nil
 	for _, value := range values {
-		if value == nil {
+		if value.IsNil() {
 			panic("tried to set nil value")
 		}
 	}
 
-	o.values.Set(a, values)
+	o.values.set(a, values)
 }
 
 func (o *Node) Meta() map[string]string {
@@ -625,7 +747,10 @@ func (o *Node) Meta() map[string]string {
 
 func (o *Node) init() {
 	o.values.init()
-	o.Set(AttributeNodeId, NV(uniqueNodeID.Add(1)))
+	o.id = NodeID(uniqueNodeID.Add(1))
+	if o.id == InvalidNodeID {
+		panic("node ID space exhausted")
+	}
 }
 
 func (o *Node) String() string {
@@ -692,23 +817,17 @@ var ErrEmptySecurityDescriptorAttribute = errors.New("empty nTSecurityDescriptor
 
 // Return the object's SID
 func (o *Node) SID() windowssecurity.SID {
-	var sid windowssecurity.SID
-	cachedSid := o.sid.Load()
-	if cachedSid == nil {
-		if asid, ok := o.get(ObjectSid); ok {
-			if asid.Len() == 1 {
-				if sid, ok = asid.First().Raw().(windowssecurity.SID); ok {
-					o.sid.Store(sid)
-					cachedSid = sid
-				}
-			}
-		}
-		if cachedSid == nil { // Still not found, so cache blank
-			o.sid.Store(BlankSID)
-			cachedSid = BlankSID
+	if cached := o.sid.Load(); cached != nil {
+		return *cached
+	}
+	sid := BlankSID // blank unless there is exactly one SID
+	if asid, ok := o.get(ObjectSid); ok && asid.Len() == 1 {
+		if s, ok := asid.First().AsSID(); ok {
+			sid = s
 		}
 	}
-	return cachedSid.(windowssecurity.SID)
+	o.sid.Store(&sid)
+	return sid
 }
 
 // Look up edge
@@ -721,7 +840,7 @@ func (o *Node) AttrIterator(f func(attr Attribute, avs AttributeValues) bool) {
 	o.values.Iterate(f)
 }
 
-func (o *Node) ChildOf(parent *Node) {
+func (o *Node) childOf(parent *Node) {
 	if o.parent != nil {
 		// Unlock, as we call thing that lock in the debug message
 		ui.Trace().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
@@ -736,16 +855,7 @@ func (o *Node) ChildOf(parent *Node) {
 	parent.unlock()
 }
 
-func (o *Node) childOf(parent *Node) {
-	if o.parent != nil {
-		ui.Debug().Msgf("Node %v already has %v as parent, so I'm not assigning %v as parent", o.Label(), o.parent.Label(), parent.Label())
-		return
-	}
-	o.parent = parent
-	parent.children.Add(o)
-}
-
-func (o *Node) Adopt(child *Node) {
+func (o *Node) adopt(child *Node) {
 	o.lock()
 	if o.hasChild(child) {
 		panic("can't adopt same child twice")
@@ -762,18 +872,6 @@ func (o *Node) Adopt(child *Node) {
 	}
 	child.parent = o
 	child.unlock()
-}
-
-func (o *Node) adopt(child *Node) {
-	if child.parent == nil {
-		panic("can't adopt same child twice")
-	}
-	o.children.Add(child)
-
-	if child.parent != nil {
-		child.parent.removeChild(child)
-	}
-	child.parent = o
 }
 
 func (o *Node) hasChild(child *Node) bool {

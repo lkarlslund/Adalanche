@@ -1,4 +1,10 @@
-﻿.vscode
+.vscode
 __debug_bin*
 data
 binaries/*
+.codex/
+.cache/
+
+# Rust build output
+target/
+**/target/

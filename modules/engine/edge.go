@@ -18,6 +18,7 @@ type DetailFunction func(source, target *Node, edge *EdgeBitmap) string
 
 func (pm Edge) RegisterProbabilityCalculator(doCalc ProbabilityCalculatorFunction) Edge {
 	edgeInfos[pm].probability = doCalc
+	edgeInfos[pm].fixedProbability = nil
 	return pm
 }
 
@@ -247,20 +248,12 @@ func (eb EdgeBitmap) Edges() []Edge {
 
 type Edge byte
 
-type BulkEdgeRequest struct {
-	From       NodeIndex
-	To         NodeIndex
-	EdgeBitmap EdgeBitmap
-	Edge       Edge
-	Merge      bool
-	Clear      bool
-}
-
 var edgeMutex sync.RWMutex
 var edgeNames = make(map[string]Edge)
 var edgeInfos []*edgeInfo
 
 type edgeInfo struct {
+	fixedProbability             *Probability
 	Tags                         map[string]struct{}
 	probability                  ProbabilityCalculatorFunction
 	detailer                     DetailFunction

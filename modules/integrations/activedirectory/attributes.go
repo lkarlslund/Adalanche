@@ -5,8 +5,6 @@ import (
 )
 
 var (
-	EdgeForeignIdentity = engine.NewEdge("ForeignIdentity")
-
 	DistinguishedName                       = engine.NewAttribute("distinguishedName").Tag("AD").Flag(engine.Unique).Flag(engine.Single)
 	ObjectClass                             = engine.NewAttribute("objectClass").Tag("AD")
 	ObjectCategory                          = engine.NewAttribute("objectCategory").Tag("AD").Flag(engine.Single)
@@ -46,7 +44,7 @@ var (
 	AdminCount                              = engine.NewAttribute("adminCount").Tag("AD")
 	LogonHours                              = engine.NewAttribute("logonHours").Tag("AD")
 	BadPwdCount                             = engine.NewAttribute("badPwdCount").Tag("AD").Type(engine.AttributeTypeInt)
-	GPCFileSysPath                          = engine.NewAttribute("gPCFileSysPath").Tag("AD").Flag(engine.Merge)
+	GPCFileSysPath                          = engine.NewAttribute("gPCFileSysPath").Tag("AD")
 	SchemaIDGUID                            = engine.NewAttribute("schemaIDGUID").Tag("AD").Type(engine.AttributeTypeGUID)
 	PossSuperiors                           = engine.NewAttribute("possSuperiors")
 	SystemPossSuperiors                     = engine.NewAttribute("systemPossSuperiors")
@@ -83,8 +81,8 @@ var (
 	MSDSHostServiceAccount                  = engine.NewAttribute("msDS-HostServiceAccount").Tag("AD")
 	MSDSHostServiceAccountBL                = engine.NewAttribute("msDS-HostServiceAccountBL").Tag("AD")
 
-	MSmcsAdmPwdExpirationTime    = engine.NewAttribute("ms-mcs-AdmPwdExpirationTime").Tag("AD").Type(engine.AttributeTypeTime)    // LAPS V1 password timeout
-	MSLAPSPasswordExpirationTime = engine.NewAttribute("ms-LAPS-PasswordExpirationTime").Tag("AD").Type(engine.AttributeTypeTime) // LAPS V2 password timeout
+	MSmcsAdmPwdExpirationTime    = engine.NewAttribute("ms-mcs-AdmPwdExpirationTime").Tag("AD").Type(engine.AttributeTypeTime)   // LAPS V1 password timeout
+	MSLAPSPasswordExpirationTime = engine.NewAttribute("msLAPS-PasswordExpirationTime").Tag("AD").Type(engine.AttributeTypeTime) // LAPS V2 password timeout (also set for DSRM passwords on DCs)
 
 	SecurityIdentifier       = engine.NewAttribute("securityIdentifier").Type(engine.AttributeTypeSID)
 	TrustDirection           = engine.NewAttribute("trustDirection").Type(engine.AttributeTypeInt)
@@ -99,6 +97,10 @@ var (
 	GPOptions                = engine.NewAttribute("gPOptions").Tag("AD")
 	ScriptPath               = engine.NewAttribute("scriptPath").Tag("AD").Flag(engine.Single)
 	MSPKICertificateNameFlag = engine.NewAttribute("msPKI-Certificate-Name-Flag").Tag("AD").Type(engine.AttributeTypeInt)
+	MSPKIEnrollmentFlag      = engine.NewAttribute("msPKI-Enrollment-Flag").Tag("AD").Type(engine.AttributeTypeInt)
+	MSPKIRASignature         = engine.NewAttribute("msPKI-RA-Signature").Tag("AD").Type(engine.AttributeTypeInt)
+	MSPKITemplateSchemaVer   = engine.NewAttribute("msPKI-Template-Schema-Version").Tag("AD").Type(engine.AttributeTypeInt)
+	SearchFlags              = engine.NewAttribute("searchFlags").Tag("AD").Type(engine.AttributeTypeInt)
 	PKIExtendedUsage         = engine.NewAttribute("pKIExtendedKeyUsage").Tag("AD")
 	PKIExpirationPeriod      = engine.NewAttribute("pKIExpirationPeriod").Tag("AD")
 	PKIOverlapPeriod         = engine.NewAttribute("pKIOverlapPeriod").Tag("AD")

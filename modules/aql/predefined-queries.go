@@ -1,5 +1,11 @@
 package aql
 
+// issuableWithoutApproval matches certificate templates that a CA publishes
+// and that issue without CA manager approval (msPKI-Enrollment-Flag
+// CT_FLAG_PEND_ALL_REQUESTS, 0x2) or authorized signatures
+// (msPKI-RA-Signature), see MS-CRTD 2.26 and 2.27.
+const issuableWithoutApproval = "(tag=published)(!(msPKI-Enrollment-Flag:and:=2))(|(msPKI-RA-Signature=0)(!(msPKI-RA-Signature=*)))"
+
 var (
 	PredefinedQueries = []QueryDefinition{
 		{
@@ -42,12 +48,12 @@ var (
 		},
 		{
 			Name:     "Enroll in ESC1 vulnerable certificate templates (client auth + pose as anyone)",
-			Query:    "ACYCLIC start:(&(type=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.5.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))<-[CertificateEnroll]-()<-[]{1,6}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(type=PKI-Certificate-Template)" + issuableWithoutApproval + "(msPKI-Certificate-Name-Flag:and:=1)(|(pKIExtendedKeyUsage=1.3.6.1.5.5.7.3.2)(pKIExtendedKeyUsage=1.3.6.1.5.2.3.4)(pKIExtendedKeyUsage=1.3.6.1.4.1.311.20.2.2)(pKIExtendedKeyUsage=2.5.29.37.0)(pKIExtendedKeyUsage:count:=0)))<-[CertificateEnroll]-()<-[]{1,6}-end:(|(type=Person)(type=Group))",
 			Category: "Certificate Services",
 		},
 		{
 			Name:     "Enroll in ESC15 vulnerable certificate templates (v1 + pose as anyone)",
-			Query:    "ACYCLIC start:(&(type=PKI-Certificate-Template)(msPKI-Certificate-Name-Flag:and:=1)(msPKI-Template-Schema-Version=1))<-[CertificateEnroll]-()<-[]{0,10}-end:(|(type=Person)(type=Group))",
+			Query:    "ACYCLIC start:(&(type=PKI-Certificate-Template)" + issuableWithoutApproval + "(msPKI-Certificate-Name-Flag:and:=1)(msPKI-Template-Schema-Version=1))<-[CertificateEnroll]-()<-[]{0,10}-end:(|(type=Person)(type=Group))",
 			Category: "Certificate Services",
 		},
 		{
@@ -87,7 +93,7 @@ var (
 		},
 		{
 			Name:     "What can accounts that have a password older than 5 years reach?",
-			Query:    "ACYCLIC start:(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:<-5Y)(!(userAccountControl:and:=2)))-[]{1,6}->end:()",
+			Query:    "ACYCLIC start:(&(objectClass=Person)(!(pwdLastSet=0))(pwdLastSet:since:< -5Y)(!(userAccountControl:and:=2)))-[]{1,6}->end:()",
 			Category: "Active Directory",
 		},
 		{

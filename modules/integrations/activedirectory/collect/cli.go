@@ -3,8 +3,7 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,15 +11,15 @@ import (
 	"syscall"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
+	"github.com/lkarlslund/adalanche/modules/collection"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/pkg/errors"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	clicollect "github.com/lkarlslund/adalanche/modules/cli/collect"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/util"
-	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -67,7 +66,7 @@ var (
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
 	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, kerberoscache, ntlm, ntlmpth (password is hash)")
 
-	purgeolddata = Command.Flags().Bool("purgeolddata", false, "Purge existing data from the datapath if connection to DC is successfull")
+	_ = Command.Flags().Bool("purgeolddata", false, "Purge existing data from the datapath if connection to DC is successfull")
 
 	authmode AuthMode
 	tlsmode  TLSmode
@@ -77,12 +76,26 @@ var (
 func init() {
 
 	clicollect.Collect.AddCommand(Command)
+	Command.Flags().MarkDeprecated("purgeolddata", "each domain folder is now replaced when collection completes")
 	Command.PreRunE = PreRun
 	Command.RunE = Execute
 }
 
 // Checks that we have enough data to proceed with the real run
 func PreRun(cmd *cobra.Command, args []string) error {
+	if err := clicollect.ValidateFormat(); err != nil {
+		return err
+	}
+	if *pagesize < 0 {
+		return fmt.Errorf("pagesize cannot be negative")
+	}
+	for name, value := range map[string]string{"objects": *collectobjects, "schema": *collectschema, "configuration": *collectconfiguration, "other": *collectother, "gpos": *collectgpos} {
+		if value != "auto" {
+			if _, err := util.ParseBool(value); err != nil {
+				return fmt.Errorf("invalid %s selection", name)
+			}
+		}
+	}
 	if *adexplorerfile != "" || *ntdsfile != "" {
 		// That's all we need for this run to work
 		return nil
@@ -164,18 +177,33 @@ func PreRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func Execute(cmd *cobra.Command, args []string) error {
+func Execute(cmd *cobra.Command, args []string) (resultErr error) {
 	datapath := *cli.Datapath
+	run, err := clicollect.StartRun(datapath, map[string]string{
+		"objects": *collectobjects, "schema": *collectschema, "configuration": *collectconfiguration,
+		"other": *collectother, "gpos": *collectgpos,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { resultErr = run.Finish(resultErr) }()
+	dump := func(ad interface {
+		Dump(DumpOptions) ([]activedirectory.RawObject, error)
+	}, options DumpOptions) ([]activedirectory.RawObject, error) {
+		objects, err := ad.Dump(options)
+		return objects, run.Record(options.WriteToFile, collection.AD, err)
+	}
 
 	cp, _ := util.ParseBool(*collectgpos)
 	var gpostocollect []*activedirectory.RawObject
 	var netbiosname string
+	var staged *clicollect.StagedDirectory
 
 	if *adexplorerfile != "" {
 		// Active Directory Explorer file
 		ui.Info().Msgf("Collecting objects from AD Explorer snapshot %v ...", *adexplorerfile)
 
-		ad := ADExplorerDumper{
+		ad := &ADExplorerDumper{
 			path:        *adexplorerfile,
 			performance: *adexplorerboost,
 		}
@@ -187,7 +215,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		do := DumpOptions{
 			ReturnObjects: false,
-			WriteToFile:   filepath.Join(datapath, filepath.Base(*adexplorerfile)+".objects.msgp.lz4"),
+			WriteToFile:   filepath.Join(datapath, filepath.Base(*adexplorerfile)+adCollectionSuffix()),
 		}
 
 		if *collectgpos == "auto" || cp {
@@ -202,9 +230,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		_, err = ad.Dump(do)
+		_, err = dump(ad, do)
 		if err != nil {
-			os.Remove(do.WriteToFile)
+			removeFailedLegacyDump(do.WriteToFile)
 			return fmt.Errorf("problem collecting Active Directory objects: %v", err)
 		}
 
@@ -216,7 +244,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		// Active Directory Explorer file
 		ui.Info().Msgf("Collecting objects from NTDS.DIT file %v ...", *ntdsfile)
 
-		ad := NTDSDumper{
+		ad := &NTDSDumper{
 			path: *ntdsfile,
 		}
 
@@ -227,7 +255,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 		do := DumpOptions{
 			// ReturnObjects: true,
-			WriteToFile: filepath.Join(datapath, filepath.Base(*ntdsfile)+".objects.msgp.lz4"),
+			WriteToFile: filepath.Join(datapath, filepath.Base(*ntdsfile)+adCollectionSuffix()),
 		}
 
 		cp, _ := util.ParseBool(*collectgpos)
@@ -244,7 +272,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 
 		// err = ad.DebugDump()
-		objects, err := ad.Dump(do)
+		objects, err := dump(ad, do)
 		if len(objects) > 0 {
 			debugfilename := do.WriteToFile + ".json"
 			ui.Debug().Msgf("Writing %v debug objects to %v", len(objects), debugfilename)
@@ -253,17 +281,15 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 
 		if err != nil {
-			os.Remove(do.WriteToFile)
+			removeFailedLegacyDump(do.WriteToFile)
 			return fmt.Errorf("problem collecting Active Directory objects: %v", err)
 		}
 
 		ad.Disconnect()
 	} else {
 		// Active Directory dump directly from AD controller
-		var ad LDAPDumper
-
 		// Find usable DC from list of servers
-		ad = CreateDumper(options)
+		ad := CreateDumper(options)
 
 		err := ad.Connect()
 		if err != nil {
@@ -286,7 +312,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 			ReturnObjects: true,
 		}
 
-		rootdse, err := ad.Dump(do)
+		rootdse, err := dump(ad, do)
 		if err != nil {
 			return fmt.Errorf("problem querying Active Directory RootDSE: %w", err)
 		}
@@ -333,30 +359,28 @@ func Execute(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Auto adjust this to local domain, most users don't understand that each domain needs it's own path
-		if datapath == "data" {
-			datapath = filepath.Join("data", domainContext)
+		// Each domain has its own folder. It is collected into a staging folder
+		// beside it and replaces the previous data only when collection is complete.
+		staged, err = clicollect.StageDirectory(filepath.Join(datapath, domainContext))
+		if err != nil {
+			return err
 		}
-
-		// Clean up old data if requested
-		if _, err := os.Stat(datapath); err == nil && *purgeolddata {
-			ui.Info().Msgf("Removing old data from %v", datapath)
-			os.RemoveAll(datapath)
-		}
-
-		// Ensure output folder exists
-		if _, err := os.Open(datapath); os.IsNotExist(err) {
-			err = os.MkdirAll(datapath, 0755)
-			if err != nil {
-				return err
+		defer func() {
+			if resultErr != nil {
+				run.DropArtifacts(staged.Path)
+				if err := staged.Abort(); err != nil {
+					ui.Warn().Msgf("Problem removing incomplete data in %v: %v", staged.Path, err)
+				}
 			}
-		}
+		}()
+		datapath = staged.Path
+		ui.Info().Msgf("Collecting domain data for %v", staged.Target)
 
 		ui.Info().Msg("Saving RootDSE ...")
-		_, err = ad.Dump(DumpOptions{
+		_, err = dump(ad, DumpOptions{
 			SearchBase:  "",
 			Scope:       ldap.ScopeBaseObject,
-			WriteToFile: filepath.Join(datapath, domainContext+".RootDSE.objects.msgp.lz4"),
+			WriteToFile: filepath.Join(datapath, domainContext+".RootDSE"+adCollectionSuffix()),
 		})
 		if err != nil {
 			return fmt.Errorf("problem saving Active Directory RootDSE: %w", err)
@@ -379,10 +403,10 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if (*collectschema == "auto" && schemaContext != "") || cs {
 			ui.Info().Msgf("Collecting schema objects from %v ...", schemaContext)
 			do.SearchBase = schemaContext
-			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
-			_, err = ad.Dump(do)
+			do.WriteToFile = filepath.Join(datapath, do.SearchBase+adCollectionSuffix())
+			_, err = dump(ad, do)
 			if err != nil {
-				os.Remove(do.WriteToFile)
+				removeFailedLegacyDump(do.WriteToFile)
 				return fmt.Errorf("problem collecting Active Directory schema objects: %v", err)
 			}
 			ui.Info().Msgf("Collected %v objects from schema context", ad.Len())
@@ -392,7 +416,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if (*collectconfiguration == "auto" && configContext != "") || cs {
 			ui.Info().Msgf("Collecting configuration objects from %v ...", configContext)
 			do.SearchBase = configContext
-			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
+			do.WriteToFile = filepath.Join(datapath, do.SearchBase+adCollectionSuffix())
 
 			if *collectgpos == "auto" || cp {
 				do.OnObject = func(ro *activedirectory.RawObject) error {
@@ -403,9 +427,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			_, err = ad.Dump(do)
+			_, err = dump(ad, do)
 			if err != nil {
-				os.Remove(do.WriteToFile)
+				removeFailedLegacyDump(do.WriteToFile)
 				return fmt.Errorf("problem collecting Active Directory configuration objects: %v", err)
 			}
 			ui.Info().Msgf("Collected %v objects from configuration context", ad.Len())
@@ -417,11 +441,11 @@ func Execute(cmd *cobra.Command, args []string) error {
 			for _, context := range otherContexts {
 				ui.Info().Msgf("Collecting from base DN %v ...", context)
 				do.SearchBase = context
-				do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
+				do.WriteToFile = filepath.Join(datapath, do.SearchBase+adCollectionSuffix())
 
-				_, err = ad.Dump(do)
+				_, err = dump(ad, do)
 				if err != nil {
-					os.Remove(do.WriteToFile)
+					removeFailedLegacyDump(do.WriteToFile)
 					return fmt.Errorf("problem collecting Active Directory Forest DNS objects: %v", err)
 				}
 				ui.Info().Msgf("Collected %v objects from base DN %v", ad.Len(), context)
@@ -432,7 +456,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if (*collectobjects == "auto" && domainContext != "") || cs {
 			ui.Info().Msgf("Collecting main AD objects from %v ...", domainContext)
 			do.SearchBase = domainContext
-			do.WriteToFile = filepath.Join(datapath, do.SearchBase+".objects.msgp.lz4")
+			do.WriteToFile = filepath.Join(datapath, do.SearchBase+adCollectionSuffix())
 
 			if *collectgpos == "auto" || cp {
 				do.OnObject = func(ro *activedirectory.RawObject) error {
@@ -443,9 +467,9 @@ func Execute(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			_, err = ad.Dump(do)
+			_, err = dump(ad, do)
 			if err != nil {
-				os.Remove(do.WriteToFile)
+				removeFailedLegacyDump(do.WriteToFile)
 				return fmt.Errorf("problem collecting Active Directory objects: %v", err)
 			}
 		}
@@ -463,7 +487,7 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 		for _, object := range gpostocollect {
 			// Let's check if it this is a GPO and then add som fake attributes to represent it
-			if gpfsp, found := object.Attributes["gPCFileSysPath"]; found {
+			if gpfsp, found := object.Attributes["gPCFileSysPath"]; found && len(gpfsp) > 0 {
 				domainContext := util.ExtractDomainContextFromDistinguishedName(object.DistinguishedName)
 
 				gpodisplayname := object.Attributes["displayName"]
@@ -481,81 +505,34 @@ func Execute(cmd *cobra.Command, args []string) error {
 				}
 				ui.Info().Msgf("Collecting group policy files from %v ...", gppath)
 
-				_, err := os.Stat(gppath)
+				if len(gpoguid) != 1 {
+					return fmt.Errorf("policy identifier is missing")
+				}
+				gpuuid, err := uuid.FromString(gpoguid[0])
 				if err != nil {
-					ui.Warn().Msg("Can't access path, aborting this GPO ...")
+					return fmt.Errorf("policy identifier: %w", err)
+				}
+				gpoinfo := activedirectory.GPOdump{
+					Common:  basedata.GetCommonData(),
+					GPOinfo: activedirectory.GPOinfo{GUID: gpuuid, Path: originalpath, DomainDN: domainContext, DomainNetbios: netbiosname},
+				}
+				if *clicollect.CollectionFormat == "v2" {
+					path := filepath.Join(datapath, gpoguid[0]+collection.GPOSuffix)
+					err := writePolicyFiles(cmd.Context(), path, gpoinfo, gppath)
+					if err := run.Record(path, collection.GPO, err); err != nil {
+						return err
+					}
 				} else {
-					gpoinfo := activedirectory.GPOdump{
-						Common: basedata.GetCommonData(),
-					}
-
-					gpuuid, _ := uuid.FromString(gpoguid[0])
-
-					gpoinfo.GPOinfo.GUID = gpuuid
-					gpoinfo.GPOinfo.Path = originalpath // The original path is kept, we don't care
-					gpoinfo.GPOinfo.DomainDN = domainContext
-					gpoinfo.GPOinfo.DomainNetbios = netbiosname
-
-					offset := len(gppath)
-					var filescollected int
-					filepath.WalkDir(gppath, func(curpath string, d fs.DirEntry, err error) error {
-						if !d.IsDir() &&
-							(strings.HasSuffix(strings.ToLower(curpath), ".adm") || strings.HasSuffix(strings.ToLower(curpath), ".admx")) {
-							// Skip .adm(x) files that slipped in here
-							return nil
-						}
-
-						var fileinfo activedirectory.GPOfileinfo
-						fileinfo.IsDir = d.IsDir()
-						if !fileinfo.IsDir {
-							if info, err := d.Info(); err == nil {
-								fileinfo.Timestamp = info.ModTime()
-								fileinfo.Size = info.Size()
-							}
-						}
-						fileinfo.RelativePath = curpath[offset:]
-
-						if gppath == originalpath {
-							// Do file ACL analysis if we're reading directly from SYSVOL
-							owner, dacl, err := windowssecurity.GetOwnerAndDACL(curpath, windowssecurity.SE_FILE_OBJECT)
-							if err == nil {
-								fileinfo.OwnerSID = owner
-								fileinfo.DACL = dacl
-							} else {
-								ui.Warn().Msgf("Problem getting %v DACL: %v", curpath, err)
-							}
-						}
-						if !d.IsDir() {
-							filescollected++
-
-							rawfile, err := ioutil.ReadFile(curpath)
-							if err == nil {
-								fileinfo.Contents = rawfile
-							} else {
-								ui.Warn().Msgf("Problem getting %v contents: %v", curpath, err)
-							}
-						}
-						gpoinfo.GPOinfo.Files = append(gpoinfo.GPOinfo.Files, fileinfo)
-						return nil
-					})
-
-					if filescollected == 0 {
-						ui.Warn().Msgf("No files found/accessible in %v", gppath)
-					}
-
-					gpodatafile := filepath.Join(datapath, gpoguid[0]+".gpodata.json")
-					f, err := os.Create(gpodatafile)
+					gpoinfo = collectPolicyFiles(gpoinfo, gppath)
+					data, err := json.MarshalIndent(gpoinfo, "", "  ")
 					if err != nil {
-						ui.Error().Msgf("Problem writing GPO information to %v: %v", gpodatafile, err)
-						continue
+						return err
 					}
-					defer f.Close()
-
-					encoder := json.NewEncoder(f)
-					encoder.SetIndent("", "  ")
-					err = encoder.Encode(gpoinfo)
-					if err != nil {
-						ui.Error().Msgf("Problem marshalling GPO information to %v: %v", gpodatafile, err)
+					if err := clicollect.WriteFileAtomic(filepath.Join(datapath, gpoguid[0]+".gpodata.json"), func(w io.Writer) error {
+						_, err := w.Write(data)
+						return err
+					}); err != nil {
+						return err
 					}
 				}
 			} else {
@@ -564,5 +541,21 @@ func Execute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if staged != nil {
+		if err := staged.Commit(); err != nil {
+			return err
+		}
+		if err := run.MoveArtifacts(staged.Path, staged.Target); err != nil {
+			return err
+		}
+		ui.Info().Msgf("Domain data saved to %v", staged.Target)
+	}
 	return nil
+}
+
+func adCollectionSuffix() string {
+	if *clicollect.CollectionFormat == "v2" {
+		return collection.ADSuffix
+	}
+	return ".objects.msgp.lz4"
 }

@@ -429,7 +429,7 @@ func LsaEnumerateAccountsWithUserRight(hPolicy syscall.Handle, userright string)
 	var users []windowssecurity.SID
 
 	for i := 0; i < int(count); i++ {
-		nativesid := ((*[32768]uintptr)(unsafe.Pointer(bufferptr)))[i]
+		nativesid := ((*[32768]unsafe.Pointer)(unsafe.Pointer(bufferptr)))[i]
 		sid, err := windowssecurity.SIDFromPtr(nativesid)
 		if err != nil {
 			return nil, err

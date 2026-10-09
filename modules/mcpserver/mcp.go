@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/aql"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/frontend"
@@ -631,11 +631,10 @@ func (s *server) lookupNode(g *engine.IndexedGraph, locateBy, id string) (*engin
 		if _, err := fmt.Sscan(id, &index); err != nil {
 			return nil, fmt.Errorf("invalid index: %w", err)
 		}
-		node, found := g.IndexToNode(engine.NodeIndex(index))
-		if !found {
+		if index < 0 || index >= int64(g.Order()) {
 			return nil, fmt.Errorf("node index %d not found", index)
 		}
-		return node, nil
+		return g.NodeAt(engine.NodeIndex(index)), nil
 	case "nodeid":
 		var nodeID int64
 		if _, err := fmt.Sscan(id, &nodeID); err != nil {

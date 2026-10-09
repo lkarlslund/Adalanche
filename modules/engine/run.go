@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
@@ -14,113 +13,104 @@ import (
 
 // Loads, processes and merges everything. It's magic, just in code
 func Run(paths ...string) (*IndexedGraph, error) {
+	latestMemoryStatistics.Store(nil)
 	starttime := time.Now()
 
 	var activeLoaders []Loader
 	gonk.SetGrowStrategy(gonk.Double)
 
-	overallprogress := ui.ProgressBar("Loading and analyzing", 8)
+	if err := ValidateProcessors(); err != nil {
+		return nil, err
+	}
+
+	progress := newRunProgress()
+	defer progress.finish()
+
+	// One graph for everything: loaders write into it through load
+	// transactions, each under its own root node.
+	globalGraph := NewAnalysisGraph()
 
 	for _, lg := range loadergenerators {
 		loader := lg()
 
 		ui.Debug().Msgf("Initializing loader for %v", loader.Name())
-		err := loader.Init()
+		target := newLoadTarget(globalGraph, LoaderID(len(activeLoaders)), loader.Name())
+		err := loader.Init(target)
 		if err != nil {
 			ui.Fatal().Msgf("Loader %v init failure: %v", loader.Name(), err.Error())
 		}
 		activeLoaders = append(activeLoaders, loader)
 	}
 
-	// Load everything
-	loadbar := ui.ProgressBar("Loading data", 0)
+	phaseStart := time.Now()
+	timed := func(phase string) {
+		commits, waiting, holding := globalGraph.takeCommitStats()
+		ui.Info().Msgf("Phase %v took %v (%v commits holding the commit lock %v, waiting for it %v)", phase, time.Since(phaseStart), commits, holding, waiting)
+		phaseStart = time.Now()
+	}
 
-	var allLoaderGraphs []loaderGraphInfo
-
-	// Process each data folder
-	los, err := loadWithLoaders(activeLoaders, paths, func(cur, max int) {
+	// Load everything. The loaders report files: a positive max sets the
+	// total, a negative one adds to it; a positive cur sets the count, a
+	// negative one adds to it.
+	progress.stage("Loading files", shareLoading)
+	var filesDone, filesTotal int
+	err := loadWithLoaders(globalGraph, activeLoaders, paths, func(cur, max int) {
 		if max > 0 {
-			loadbar.ChangeMax(int64(max))
+			filesTotal = max
 		} else if max < 0 {
-			loadbar.ChangeMax(loadbar.GetMax() + int64(-max))
+			filesTotal -= max
 		}
 		if cur > 0 {
-			loadbar.Set(int64(cur))
+			filesDone = cur
 		} else {
-			loadbar.Add(int64(-cur))
+			filesDone -= cur
 		}
+		progress.within(filesDone, filesTotal)
 	})
 	if err != nil {
 		return nil, err
 	}
-	allLoaderGraphs = append(allLoaderGraphs, los...)
-	loadbar.Finish()
+	timed("loading")
 
-	overallprogress.Add(1)
-
-	var preprocessWG sync.WaitGroup
-	var graphsToMerge []*IndexedGraph
-	for _, os := range allLoaderGraphs {
-		if os.Objects.Order() < 2 {
-			// Don't bother with empty objects
-			continue
-		}
-
-		graphsToMerge = append(graphsToMerge, os.Objects)
-
-		// Pimp my performance speedup
-		os.Objects.BulkLoadEdges(true)
-
-		preprocessWG.Add(1)
-		go func(lobj loaderGraphInfo) {
-			var loaderid LoaderID
-			for i, loader := range activeLoaders {
-				if loader == lobj.Loader {
-					loaderid = LoaderID(i)
-					break
-				}
-			}
-
-			for priority := BeforeMergeLow; priority <= BeforeMergeFinal; priority++ {
-				status := fmt.Sprintf("Preprocessing %v priority %v with %v objects", lobj.Loader.Name(), priority.String(), lobj.Objects.Order())
-				ui.Debug().Msg(status)
-				Process(lobj.Objects, status, loaderid, priority)
-				lobj.Objects.FlushEdges()
-			}
-
-			preprocessWG.Done()
-		}(os)
+	progress.stage("Loader processors", shareLoaderProcessors)
+	if err := runPhase(globalGraph, AnyLoader, LoaderPhase, progress.within); err != nil {
+		return nil, fmt.Errorf("preprocessing: %w", err)
 	}
-	preprocessWG.Wait()
-
+	timed("loader processors")
 	runtime.GC()
 	debug.FreeOSMemory()
-	overallprogress.Add(1)
+	timed("garbage collection")
 
-	// Merging all subgraphs into the globalGraph
-	globalGraph, err := MergeGraphs(graphsToMerge)
-	if err != nil {
+	progress.stage("Resolving references", shareFinishingLoading)
+	if err := globalGraph.finishLoading(progress.within); err != nil {
 		return nil, err
 	}
+	timed("finishing loading")
 
-	// Free background processes so we can get rid of everything
-	for _, g := range graphsToMerge {
-		g.BulkLoadEdges(false)
-	}
-
-	clear(graphsToMerge)
-	clear(allLoaderGraphs)
 	runtime.GC()
 	debug.FreeOSMemory()
+	timed("garbage collection")
 
-	overallprogress.Add(1)
-
-	for priority := AfterMergeLow; priority <= AfterMergeFinal; priority++ {
-		PostProcess(globalGraph, priority)
-		runtime.GC()
-		overallprogress.Add(1)
+	progress.stage("Analysis processors", shareAnalysis)
+	postprocessStart := time.Now()
+	if err := runPhase(globalGraph, AnyLoader, AnalysisPhase, progress.within); err != nil {
+		return nil, err
 	}
+	ui.Info().Msgf("Time to finish post-processing %v", time.Since(postprocessStart))
+	phaseStart = time.Now()
+	runtime.GC()
+	timed("garbage collection")
 
+	progress.stage("Graph attributes", shareGraphAttributes)
+	if err := calculateGraphAttributes(globalGraph); err != nil {
+		return nil, err
+	}
+	timed("graph attributes")
+	if err := finalizeGraph(globalGraph); err != nil {
+		return nil, err
+	}
+	timed("finalizing")
+	captureMemoryStatistics(globalGraph)
 	ui.Info().Msgf("Time to UI done in %v", time.Since(starttime))
 
 	type statentry struct {
@@ -167,23 +157,10 @@ func Run(paths ...string) (*IndexedGraph, error) {
 	// Force GC
 	runtime.GC()
 
-	// After all this loading and merging, it's time to do release unused RAM
+	// After all this loading and analysis, release unused memory
 	debug.FreeOSMemory()
 
 	gonk.SetGrowStrategy(gonk.FourItems)
 
-	overallprogress.Add(1)
-	overallprogress.Finish()
-
 	return globalGraph, err
-}
-
-func PostProcess(ao *IndexedGraph, priority ProcessPriority) {
-	starttime := time.Now()
-
-	// Do global post-processing
-	Process(ao, fmt.Sprintf("Postprocessing priority %v", priority.String()), -1, priority)
-	ao.FlushEdges()
-
-	ui.Info().Msgf("Time to finish post-processing %v", time.Since(starttime))
 }

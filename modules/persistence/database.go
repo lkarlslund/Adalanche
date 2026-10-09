@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/lkarlslund/adalanche/modules/cli"
+	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/spf13/cobra"
 	"github.com/ugorji/go/codec"
 	"go.etcd.io/bbolt"
@@ -30,7 +32,7 @@ var (
 		Use:   "restore",
 		Short: "Restores the persistence database from JSON",
 	}
-	input = restoreCmd.Flags().String("input", "persistence-dump.json", "Input file to restore")
+	_ = restoreCmd.Flags().String("input", "persistence-dump.json", "Input file to restore")
 )
 
 func init() {
@@ -44,9 +46,18 @@ func getDB() (*bbolt.DB, error) {
 	if datastore != nil {
 		return datastore, nil
 	}
-	var err error
-	datastore, err = bbolt.Open(filepath.Join(*cli.Datapath, "persistence.bbolt"), 0666, nil)
-	return datastore, err
+	// Another adalanche process using the same data path holds an exclusive
+	// lock on the database; waiting for it without a limit looks like a hang.
+	path := filepath.Join(*cli.Datapath, "persistence.bbolt")
+	db, err := bbolt.Open(path, 0666, &bbolt.Options{Timeout: 3 * time.Second})
+	if errors.Is(err, bbolt.ErrTimeout) {
+		return nil, fmt.Errorf("%v is in use by another adalanche process with the same data path; stop it or use another data path", path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	datastore = db
+	return datastore, nil
 
 	// pogreb.SetLogger(ui.New(zerolog.ConsoleWriter{
 	// 	Out:        colorable.NewColorableStdout(),
@@ -72,7 +83,7 @@ type Store[i Identifiable] struct {
 func GetStorage[i Identifiable](bucketname string, cached bool) Store[i] {
 	db, err := getDB()
 	if err != nil {
-		panic(err) // FIXME
+		ui.Fatal().Msgf("Persistence database: %v", err)
 	}
 	s := Store[i]{
 		db:         db,
@@ -187,12 +198,12 @@ func (s Store[p]) List() ([]p, error) {
 func dump(cmd *cobra.Command, args []string) error {
 	db, err := getDB()
 	if err != nil {
-		return fmt.Errorf("Could not open database: %v", err)
+		return fmt.Errorf("could not open database: %v", err)
 	}
 	// Open output file for writing
 	jsonfile, err := os.Create(*output)
 	if err != nil {
-		return fmt.Errorf("Could not open output file: %v", err)
+		return fmt.Errorf("could not open output file: %v", err)
 	}
 	fmt.Fprintln(jsonfile, "[")
 	// Iterate over all buckets, and dump all the data

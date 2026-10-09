@@ -1,13 +1,22 @@
 package collect
 
 import (
+	"strconv"
+
 	"github.com/amidaware/taskmaster"
+	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"golang.org/x/sys/windows"
 )
 
 func ConvertRegisteredTask(rt taskmaster.RegisteredTask) localmachine.RegisteredTask {
+	return ConvertRegisteredTaskWithResults(rt, make(basedata.CollectionResults))
+}
+
+// ConvertRegisteredTaskWithResults retains action security acquisition outcomes.
+// outcomes must be initialized and exclusively owned by the caller.
+func ConvertRegisteredTaskWithResults(rt taskmaster.RegisteredTask, outcomes basedata.CollectionResults) localmachine.RegisteredTask {
 	return localmachine.RegisteredTask{
 		Name: rt.Name,
 		Path: rt.Path,
@@ -24,6 +33,7 @@ func ConvertRegisteredTask(rt taskmaster.RegisteredTask) localmachine.Registered
 						if e.Path != "" {
 							executable := resolvepath(e.Path)
 							ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+							outcomes["tasks/action-security/"+rt.Path+"/"+strconv.Itoa(i)] = basedata.CollectionResultFromError(err)
 							if err == nil {
 								a[i].PathOwner = ownersid.String()
 								a[i].PathDACL = dacl

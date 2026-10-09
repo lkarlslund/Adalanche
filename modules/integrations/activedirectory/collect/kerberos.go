@@ -89,7 +89,7 @@ func (state *GSSAPIState) NegotiateSaslAuth(input []byte, authzid string) ([]byt
 	}
 
 	if (token.Flags & 0b1) == 0 {
-		return nil, fmt.Errorf("Got a Wrapped token that's not from the server")
+		return nil, fmt.Errorf("got a wrapped token that's not from the server")
 	}
 
 	key := state.ekey
@@ -106,7 +106,7 @@ func (state *GSSAPIState) NegotiateSaslAuth(input []byte, authzid string) ([]byt
 
 	pl := token.Payload
 	if len(pl) != 4 {
-		return nil, fmt.Errorf("Server send bad final token for SASL GSSAPI Handshake")
+		return nil, fmt.Errorf("server sent bad final token for SASL GSSAPI handshake")
 	}
 
 	// We never want a security layer

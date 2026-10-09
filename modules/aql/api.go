@@ -55,17 +55,29 @@ func init() {
 				ui.Warn().Msgf("Problem parsing resolver options: %v", err)
 			}
 
+			// The search stops if the client gives up on it.
+			opts.Context = c.Request.Context()
 			results, err := resolver.Resolve(opts)
 			if err != nil {
+				if c.Request.Context().Err() != nil {
+					ui.Info().Msg("Graph query cancelled by the client")
+					c.Status(499) // client closed request
+					return
+				}
 				c.String(500, "Error resolving AQL query: %v", err)
 				return
 			}
 
+			// Postprocessors may build a new graph, so the limits are taken first.
+			limits := results.Limits()
 			for _, postprocessor := range frontend.PostProcessors {
 				*results = postprocessor(*results)
 			}
 
 			ui.Info().Msgf("Graph query resulted in %v nodes", results.Order())
+			for _, limit := range limits {
+				ui.Info().Msgf("Graph query result is incomplete: %v", limit)
+			}
 
 			// PruneIslands
 			var prunedislands int
@@ -99,7 +111,7 @@ func init() {
 				}
 			}
 
-			cytograph, err := frontend.GenerateCytoscapeJS(ws.SuperGraph, *results, false)
+			cytograph, err := frontend.GenerateCytoscapeJS(ws.SuperGraph, *results, true)
 			if err != nil {
 				c.String(500, "Error generating cytoscape graph: %v", err)
 				return
@@ -109,13 +121,18 @@ func init() {
 				NodeNameCounts map[string]int `json:"nodecounts"`
 				ResultTypes    map[string]int `json:"resulttypes"`
 
-				Elements *frontend.CytoElements `json:"elements"`
+				Elements   *frontend.CytoElements `json:"elements"`
+				EdgeCombos [][]string             `json:"edgecombos"`
 
 				StartNodes int `json:"start_nodes"`
 				EndNodes   int `json:"end_nodes"`
 
 				Total int `json:"total"`
 				Edges int `json:"edges"`
+
+				// Why the result holds less than everything the query
+				// matches; empty when it is complete.
+				Limits []string `json:"limits,omitempty"`
 			}{
 				// Reversed: mode != "normal", //FIXME
 
@@ -123,8 +140,10 @@ func init() {
 				NodeNameCounts: nodenamecounts,
 				Total:          results.Order(),
 				Edges:          results.Size(),
+				Limits:         limits,
 
-				Elements: &cytograph.Elements,
+				Elements:   &cytograph.Elements,
+				EdgeCombos: cytograph.EdgeCombos,
 			}
 
 			c.JSON(200, response)

@@ -12,8 +12,6 @@ import (
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	ldap "github.com/lkarlslund/ldap/v3"
-	"github.com/pierrec/lz4/v4"
-	"github.com/tinylib/msgp/msgp"
 	"os"
 	osuser "os/user"
 	"strings"
@@ -23,7 +21,8 @@ type AD struct {
 	conn   *ldap.Conn
 	cbData []byte
 	LDAPOptions
-	items int
+	items  int
+	server string
 }
 
 func (ad *AD) Connect() error {
@@ -35,11 +34,12 @@ func (ad *AD) Connect() error {
 		err = ad.connectToServer(server)
 		if err == nil {
 			chosenserver = server
+			ad.server = server
 			break
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("Problem connecting to any server: %v", err)
+		return fmt.Errorf("problem connecting to any server: %v", err)
 	}
 	ad.conn.Debug.Enable(ad.Debug)
 	var gerr error
@@ -181,26 +181,13 @@ func (ad *AD) RootDn() string {
 	return "dc=" + strings.Replace(ad.Domain, ".", ",dc=", -1)
 }
 func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	do.Source, do.Method = ad.server, "ldap"
 	ad.items = 0
-	var e *msgp.Writer
-	if do.WriteToFile != "" {
-		outfile, err := os.Create(do.WriteToFile)
-		if err != nil {
-			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
-		}
-		defer outfile.Close()
-		boutfile := lz4.NewWriter(outfile)
-		lz4options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
-			lz4.ChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Level9),
-			lz4.ConcurrencyOption(-1),
-		}
-		boutfile.Apply(lz4options...)
-		defer boutfile.Close()
-		e = msgp.NewWriter(boutfile)
+	w, writeErr := newDumpWriter(do)
+	if writeErr != nil {
+		return nil, writeErr
 	}
+	defer w.Abort()
 	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
 	defer bar.Finish()
 	var controls []ldap.Control
@@ -239,8 +226,8 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 			newObject := activedirectory.RawObject{}
 			err = newObject.IngestLDAP(entry)
 			if err == nil {
-				if e != nil {
-					err = newObject.EncodeMsg(e)
+				if w != nil {
+					err = w.Write(&newObject)
 					if err != nil {
 						return nil, fmt.Errorf("problem encoding LDAP object %v: %v", newObject.DistinguishedName, err)
 					}
@@ -274,8 +261,8 @@ func (ad *AD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		break
 	}
 	bar.Finish()
-	if e != nil {
-		e.Flush()
+	if err := w.Commit(); err != nil {
+		return objects, err
 	}
 	return objects, nil
 }

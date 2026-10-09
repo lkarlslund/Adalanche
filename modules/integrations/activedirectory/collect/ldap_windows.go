@@ -6,7 +6,6 @@ package collect
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"runtime"
 	"syscall"
 	"time"
@@ -19,9 +18,7 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	ldap "github.com/lkarlslund/ldap/v3"
 	"github.com/lkarlslund/ldap/v3/gssapi"
-	"github.com/pierrec/lz4/v4"
 	"github.com/pkg/errors"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func GetSSPIClient() (ldap.GSSAPIClient, error) {
@@ -97,6 +94,7 @@ type WAD struct {
 	conn WLDAP
 
 	collected int
+	server    string
 }
 
 func (a *WAD) Connect() error {
@@ -106,6 +104,7 @@ func (a *WAD) Connect() error {
 		err = a.connectToServer(server)
 		if err == nil {
 			chosenserver = server
+			a.server = server
 			break
 		}
 		ui.Error().Msgf("Problem connecting to %v: %v - trying next server...", server, err)
@@ -276,28 +275,14 @@ func (a *WAD) Disconnect() error {
 }
 
 func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	do.Source, do.Method = a.server, "ldap"
 	timeout_secs := int32(timeout.Seconds())
 
-	var e *msgp.Writer
-	if do.WriteToFile != "" {
-		outfile, err := os.Create(do.WriteToFile)
-		if err != nil {
-			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
-		}
-		defer outfile.Close()
-
-		boutfile := lz4.NewWriter(outfile)
-		lz4options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
-			lz4.ChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Level9),
-			lz4.ConcurrencyOption(-1),
-		}
-		boutfile.Apply(lz4options...)
-		defer boutfile.Close()
-		e = msgp.NewWriter(boutfile)
+	w, writeErr := newDumpWriter(do)
+	if writeErr != nil {
+		return nil, writeErr
 	}
+	defer w.Abort()
 
 	bar := ui.ProgressBar("Dumping from "+do.SearchBase+" ...", -1)
 	defer bar.Finish()
@@ -410,15 +395,17 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 				attr = entry.next_attribute(ber)
 			}
 
-			if e != nil {
-				err = item.EncodeMsg(e)
+			if w != nil {
+				err = w.Write(&item)
 				if err != nil {
 					return nil, fmt.Errorf("problem encoding LDAP object %v: %v", item.DistinguishedName, err)
 				}
 			}
 
 			if do.OnObject != nil {
-				do.OnObject(&item)
+				if err := do.OnObject(&item); err != nil {
+					return nil, err
+				}
 			}
 
 			if do.ReturnObjects {
@@ -444,7 +431,7 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 		if do.ChunkSize > 0 {
 			cookie, _, err := a.conn.ParsePageControl(controls)
 			if err != nil {
-				ui.Debug().Msgf("Error parsing page controls: %v", err)
+				return objects, fmt.Errorf("parsing page controls: %w", err)
 			}
 
 			if cookie == nil || cookie.len == 0 {
@@ -472,8 +459,11 @@ func (a *WAD) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
 	runtime.KeepAlive(scarray)
 
 	bar.Finish()
-	if e != nil {
-		e.Flush()
+	if err != nil {
+		return objects, err
+	}
+	if err := w.Commit(); err != nil {
+		return objects, err
 	}
 
 	return objects, err

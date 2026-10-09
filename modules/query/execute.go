@@ -61,27 +61,20 @@ func NodeFilterExecute(q NodeFilter, ao *engine.IndexedGraph) *engine.IndexedGra
 
 	for _, foundindex := range potentialindexes {
 		if foundindex.results.Len() != 0 {
-			filteredobjects := engine.NewIndexedGraph()
-
 			// best working index is first
 			if foundindex.queryIndex == -1 {
 				// not an AND query with subitems
-
-				foundindex.results.Iterate(func(o *engine.Node) bool {
-					filteredobjects.Add(o)
-					return true
-				})
-			} else {
-				// can be optimized by patching out the index matched query filter (remove queryIndex item from filter)
-				foundindex.results.Iterate(func(o *engine.Node) bool {
-					if q.Evaluate(o) {
-						filteredobjects.Add(o)
-					}
-					return true
-				})
+				return engine.NewResultGraph(foundindex.results)
 			}
-
-			return filteredobjects
+			// can be optimized by patching out the index matched query filter (remove queryIndex item from filter)
+			matching := engine.NewNodeSlice(foundindex.results.Len())
+			foundindex.results.Iterate(func(o *engine.Node) bool {
+				if q.Evaluate(o) {
+					matching.Add(o)
+				}
+				return true
+			})
+			return engine.NewResultGraph(matching)
 		}
 	}
 

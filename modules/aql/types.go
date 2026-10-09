@@ -12,18 +12,12 @@ type AQLresolver interface {
 	Resolve(ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error)
 }
 
-type IndexLookup struct {
-	v engine.AttributeValue
-	a engine.Attribute
-}
-
 type NodeQuery struct {
-	IndexLookup IndexLookup      // Possible start of search, quickly narrows it down
-	Selector    query.NodeFilter // Where style boolean approval filter for objects
-	OrderBy     NodeSorter       // Sorting
-	Reference   string           // For cross result reference
-	Skip        int              // Skipping
-	Limit       int              // Limiting
+	Selector  query.NodeFilter // Where style boolean approval filter for objects
+	OrderBy   NodeSorter       // Sorting
+	Reference string           // For cross result reference
+	Skip      int              // Skipping
+	Limit     int              // Limiting
 }
 
 func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {
@@ -39,12 +33,7 @@ func (nq NodeQuery) Populate(ao *engine.IndexedGraph) *engine.IndexedGraph {
 		}
 		n.Skip(nq.Skip)
 		n.Limit(nq.Limit)
-		no := engine.NewIndexedGraph()
-		n.Iterate(func(o *engine.Node) bool {
-			no.Add(o)
-			return true
-		})
-		result = no
+		result = engine.NewResultGraph(n)
 	}
 	return result
 }
@@ -96,6 +85,21 @@ type AQLqueryUnion struct {
 
 func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	var result *graph.Graph[*engine.Node, engine.EdgeBitmap]
+	// Nodes are merged once the queries' results are combined, comparing
+	// them by the side all the queries agree on.
+	merge := opts.MergeNodes
+	opts.MergeNodes = MergeOff
+	side := engine.Any
+	for i, q := range aqlqu.queries {
+		var s engine.EdgeDirection = engine.Any
+		if aqlq, ok := q.(AQLquery); ok {
+			s = aqlq.startSide()
+		}
+		if i > 0 && s != side {
+			s = engine.Any
+		}
+		side = s
+	}
 	for _, q := range aqlqu.queries {
 		g, err := q.Resolve(opts)
 		if err != nil {
@@ -109,17 +113,22 @@ func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.N
 			}
 		}
 	}
-	// Post process options
+	if err := opts.cancelled(); err != nil {
+		return nil, err
+	}
+	if result != nil {
+		result = arrangeNodes(result, merge, side)
+	}
 	return result, nil
 }
 
 type QueryMode int
 
 const (
-	Walk    QueryMode = iota // No Homomorphism
-	Trail                    // Edge homomorphism (unique edges)
-	Acyclic                  // Node homomorphism (unique nodes)
-	Simple                   // Partial node-isomorphism
+	Walk    QueryMode = iota // Any route, including loops
+	Trail                    // No edge used twice in a path or already in the result
+	Acyclic                  // No node visited twice in a path or already in the result
+	Reach                    // Every edge on any route within the query's rules
 )
 
 type id struct {

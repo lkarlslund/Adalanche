@@ -5,22 +5,17 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/binstruct"
-	"github.com/pierrec/lz4/v4"
-	"github.com/tinylib/msgp/msgp"
 )
 
 type ADEXAttributeType uint32
@@ -356,15 +351,11 @@ func (wsl *WStringLength) BinaryDecode(r binstruct.Reader) error {
 		data = data[:len(data)-1]
 	}
 
-	// Get the slice header
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&data))
+	if len(data)%2 != 0 {
+		return fmt.Errorf("wstring payload has odd byte length %d", len(data))
+	}
 
-	// The length and capacity of the slice are different.
-	header.Len /= 2
-	header.Cap /= 2
-
-	// Convert slice header to an []int32
-	udata := *(*[]uint16)(unsafe.Pointer(&header))
+	udata := unsafe.Slice((*uint16)(unsafe.Pointer(unsafe.SliceData(data))), len(data)/2)
 
 	result := WStringLength(string(utf16.Decode(udata)))
 	*wsl = result
@@ -451,6 +442,7 @@ func (adex *ADExplorerDumper) Disconnect() error {
 }
 
 func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject, error) {
+	do.Source, do.Method = adex.path, "snapshot"
 	var dec binstruct.Reader
 
 	// Ordinary reader or in-memory reader for way better performance due to excessive seeks
@@ -458,7 +450,7 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		dec = binstruct.NewReader(adex.rawfile, binary.LittleEndian, false)
 	} else {
 		ui.Info().Msg("Loading raw AD Explorer snapshot into memory")
-		adexplorerbytes, err := ioutil.ReadAll(adex.rawfile)
+		adexplorerbytes, err := io.ReadAll(adex.rawfile)
 		if err != nil {
 			return nil, fmt.Errorf("error reading ADExplorer file: %v", err)
 		}
@@ -483,30 +475,11 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 		return nil, fmt.Errorf("invalid AD Explorer data file marker: %v", header.Version)
 	}
 
-	var e *msgp.Writer
-	if do.WriteToFile != "" {
-		err = os.MkdirAll(filepath.Dir(do.WriteToFile), 0755)
-		if err != nil {
-			return nil, fmt.Errorf("problem creating directory: %v", err)
-		}
-		outfile, err := os.Create(do.WriteToFile)
-		if err != nil {
-			return nil, fmt.Errorf("problem opening domain cache file: %v", err)
-		}
-		defer outfile.Close()
-
-		boutfile := lz4.NewWriter(outfile)
-		lz4options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			// lz4.BlockSizeOption(lz4.BlockSize(51 * 1024)),
-			lz4.ChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Level9),
-			lz4.ConcurrencyOption(-1),
-		}
-		boutfile.Apply(lz4options...)
-		defer boutfile.Close()
-		e = msgp.NewWriter(boutfile)
+	w, writeErr := newDumpWriter(do)
+	if writeErr != nil {
+		return nil, writeErr
 	}
+	defer w.Abort()
 
 	bar := ui.ProgressBar("Converting objects from AD Explorer snapshot", int64(header.ObjectCount))
 
@@ -527,15 +500,17 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 
 		item.DistinguishedName = item.Attributes["distinguishedName"][0]
 
-		if e != nil {
-			err = item.EncodeMsg(e)
+		if w != nil {
+			err = w.Write(&item)
 			if err != nil {
 				return nil, fmt.Errorf("problem encoding LDAP object %v: %v", item.DistinguishedName, err)
 			}
 		}
 
 		if do.OnObject != nil {
-			do.OnObject(&item)
+			if err := do.OnObject(&item); err != nil {
+				return nil, err
+			}
 		}
 
 		if do.ReturnObjects {
@@ -546,8 +521,11 @@ func (adex *ADExplorerDumper) Dump(do DumpOptions) ([]activedirectory.RawObject,
 	}
 
 	bar.Finish()
-	if e != nil {
-		e.Flush()
+	if err != nil {
+		return objects, err
+	}
+	if err := w.Commit(); err != nil {
+		return objects, err
 	}
 
 	return objects, err

@@ -2,10 +2,11 @@ package collect
 
 import (
 	"bytes"
-	"maps"
+	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -14,45 +15,76 @@ import (
 
 	winio "github.com/Microsoft/go-winio"
 	"github.com/amidaware/taskmaster"
-	"github.com/antchfx/xmlquery"
 	ewin "github.com/elastic/go-windows"
-	"github.com/gravwell/gravwell/v3/winevent"
 	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/version"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	winapi "github.com/lkarlslund/go-win64api"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
-func Collect() (localmachine.Info, error) {
+// Each inventory section is an independent collector. Sections run in
+// parallel after the machine identity is known; see RegisterCollector.
+func init() {
+	RegisterCollector(Collector{Name: "machine", Stage: StageIdentity, Collect: collectMachine})
+	for _, c := range []Collector{
+		{Name: "network", Collect: collectNetwork},
+		{Name: "autologon", Collect: collectAutologon},
+		{Name: "appcompat-cache", Collect: collectAppCompatCache},
+		{Name: "management-agents", Collect: collectManagementAgents},
+		{Name: "shares", Collect: collectShares},
+		// The task scheduler library initializes its own single-threaded apartment.
+		{Name: "tasks", Thread: ThreadLocked, Collect: collectTasks},
+		{Name: "logons", Collect: collectLogons},
+		{Name: "availability", Collect: collectAvailability},
+		{Name: "services", Collect: collectServices},
+		{Name: "users", Collect: collectUsers},
+		{Name: "groups", Collect: collectGroups},
+		{Name: "registry", Collect: collectRegistry},
+		{Name: "software", Collect: collectSoftware},
+		{Name: "privileges", Collect: collectPrivileges},
+	} {
+		c.Stage = StageInventory
+		RegisterCollector(c)
+	}
+}
+
+func openLocalMachineKey(path string, access uint32) (registry.Key, error) {
+	return registry.OpenKey(registry.LOCAL_MACHINE, path, access|registry.WOW64_64KEY)
+}
+
+func collectMachine(env *Env) func(*Result) {
+	outcomes := env.Outcomes
 	if !is64Bit && os64Bit {
 		ui.Debug().Msgf("Running as 32-bit on 64-bit system")
 	}
 
 	isUnprivileged := !windows.GetCurrentProcessToken().IsElevated()
-
 	if isUnprivileged {
 		ui.Warn().Msg("Collection is being run as an unelevated process. This will limit collected data and affect analysis results. ")
 	}
 
-	// MACHINE
-	hostname, _ := os.Hostname()
+	hostname, err := os.Hostname()
+	outcomes["machine/hostname"] = basedata.CollectionResultFromError(err)
 	hostsid, _ := winio.LookupSidByName(hostname)
 
 	var domain *uint16
 	var status uint32
-	syscall.NetGetJoinInformation(nil, &domain, &status)
-	defer syscall.NetApiBufferFree((*byte)(unsafe.Pointer(domain)))
+	joinErr := syscall.NetGetJoinInformation(nil, &domain, &status)
+	outcomes["machine/join-information"] = basedata.CollectionResultFromError(joinErr)
+	if domain != nil {
+		defer syscall.NetApiBufferFree((*byte)(unsafe.Pointer(domain)))
+	}
 
 	sysinfo, err := ewin.GetNativeSystemInfo()
+	outcomes["machine/system-information"] = basedata.CollectionResultFromError(err)
 	if err != nil {
 		ui.Warn().Msgf("Problem getting system information: %v", err)
 	}
 
-	isdomainjoined := status == syscall.NetSetupDomainName
+	isdomainjoined := joinErr == nil && status == syscall.NetSetupDomainName
 	var hostdomainsid string
 	if isdomainjoined {
 		hostdomainsid, _ = winio.LookupSidByName(hostname + "$")
@@ -61,37 +93,20 @@ func Collect() (localmachine.Info, error) {
 	machineinfo := localmachine.Machine{
 		Name:               hostname,
 		LocalSID:           hostsid,
-		Domain:             winapi.UTF16toString(domain),
 		IsDomainJoined:     isdomainjoined,
 		ComputerDomainSID:  hostdomainsid,
 		Architecture:       sysinfo.ProcessorArchitecture.String(),
 		NumberOfProcessors: int(sysinfo.NumberOfProcessors),
 	}
-
-	var interfaceinfo []localmachine.NetworkInterfaceInfo
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		ui.Warn().Msgf("Problem getting network adapter information: %v", err)
-	} else {
-		for _, iface := range interfaces {
-			addrs, _ := iface.Addrs()
-			var addrstrings []string
-			for _, addr := range addrs {
-				addrstrings = append(addrstrings, addr.String())
-			}
-			interfaceinfo = append(interfaceinfo, localmachine.NetworkInterfaceInfo{
-				Name:       iface.Name,
-				MACAddress: iface.HardwareAddr.String(),
-				Flags:      uint(iface.Flags),
-				Addresses:  addrstrings,
-			})
-		}
+	if domain != nil {
+		machineinfo.Domain = winapi.UTF16toString(domain)
 	}
+	smbiosuuid, err := collectSMBIOSUUID()
+	outcomes["machine/smbios-uuid"] = basedata.CollectionResultFromError(err)
+	machineinfo.SMBIOSUUID = smbiosuuid
 
-	currentversion_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\Windows NT\CurrentVersion`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	currentversion_key, err := openLocalMachineKey(`SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.READ)
+	outcomes["machine/version"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		defer currentversion_key.Close()
 		machineinfo.ProductName, _, _ = currentversion_key.GetStringValue("ProductName")
@@ -100,19 +115,14 @@ func Collect() (localmachine.Info, error) {
 		machineinfo.BuildBranch, _, _ = currentversion_key.GetStringValue("BuildBranch")
 		machineinfo.MajorVersionNumber, _, _ = currentversion_key.GetIntegerValue("CurrentVersionMajorNumber")
 		machineinfo.Version, _, _ = currentversion_key.GetStringValue("CurrentVersion")
-		machineinfo.BuildNumber, _, _ = currentversion_key.GetStringValue("CurrentBuildNumber")
 		machineinfo.DisplayVersion, _, _ = currentversion_key.GetStringValue("DisplayVersion")
 		machineinfo.BuildLab, _, _ = currentversion_key.GetStringValue("BuildLab")
 		machineinfo.LCUVer, _, _ = currentversion_key.GetStringValue("LCUVer")
-		UBR, _, _ := currentversion_key.GetStringValue("UBR")
-		if UBR != "" {
-			machineinfo.BuildNumber += "." + UBR
-		}
 	}
+	machineinfo.BuildNumber = collectBuildNumber(windowssecurity.ReadRegistryKey, windowssecurity.ReadRegistryDWORD, outcomes)
 
-	productoptions_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Control\ProductOptions`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	productoptions_key, err := openLocalMachineKey(`SYSTEM\CurrentControlSet\Control\ProductOptions`, registry.READ)
+	outcomes["machine/product-options"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		defer productoptions_key.Close()
 		machineinfo.ProductType, _, _ = productoptions_key.GetStringValue("ProductType")
@@ -122,548 +132,427 @@ func Collect() (localmachine.Info, error) {
 		}
 	}
 
-	// We use this in order to not collect 4612 events from DCs
-	// isdomaincontroller := strings.EqualFold(cinfo.Machine.ProductType, "LANMANNT")
+	return func(r *Result) {
+		r.Info.Machine = machineinfo
+		r.Info.UnprivilegedCollection = isUnprivileged // Indicate if the collection was running with low privs, so we can issue annoying warnings when loading them
+	}
+}
 
-	// AUTOLOGON - FREE CREDENTIALS
-	winlogon_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-	if err == nil {
-		defer winlogon_key.Close()
-		pwd, _, _ := winlogon_key.GetStringValue(`DefaultPassword`)
-		if pwd != "" {
-			machineinfo.DefaultUsername, _, _ = winlogon_key.GetStringValue(`DefaultUsername`)
-			machineinfo.DefaultDomain, _, _ = winlogon_key.GetStringValue(`DefaultDomain`)
+func collectNetwork(env *Env) func(*Result) {
+	var interfaceinfo []localmachine.NetworkInterfaceInfo
+	interfaces, err := net.Interfaces()
+	env.Outcomes["network/interfaces"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		ui.Warn().Msgf("Problem getting network adapter information: %v", err)
+	}
+	for _, iface := range interfaces {
+		addrs, addrErr := iface.Addrs()
+		env.Outcomes["network/addresses/"+iface.Name] = basedata.CollectionResultFromError(addrErr)
+		var addrstrings []string
+		for _, addr := range addrs {
+			addrstrings = append(addrstrings, addr.String())
 		}
-		pwd, _, _ = winlogon_key.GetStringValue(`AltDefaultPassword`)
-		if pwd != "" {
-			machineinfo.AltDefaultUsername, _, _ = winlogon_key.GetStringValue(`AltDefaultUsername`)
-			machineinfo.AltDefaultDomain, _, _ = winlogon_key.GetStringValue(`AltDefaultDomain`)
+		interfaceinfo = append(interfaceinfo, localmachine.NetworkInterfaceInfo{
+			Name:       iface.Name,
+			MACAddress: iface.HardwareAddr.String(),
+			Flags:      uint(iface.Flags),
+			Addresses:  addrstrings,
+		})
+	}
+	connectivity := TestInternet()
+	return func(r *Result) {
+		r.Info.Network = localmachine.NetworkInformation{
+			InternetConnectivity: connectivity,
+			NetworkInterfaces:    interfaceinfo,
 		}
 	}
+}
 
-	// APP COMPAT CACHE - LAST 1024 PROGRAM EXECUTIONS
-	system_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SYSTEM`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-	if err == nil {
-		defer system_key.Close()
-		subnames, _ := system_key.ReadSubKeyNames(-1)
-		for _, subkey := range subnames {
-			appcache_key, err := registry.OpenKey(system_key, subkey+`\Control\Session Manager\AppCompatCache`,
-				registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-			if err == nil {
-				defer appcache_key.Close()
-				cache, _, err := appcache_key.GetBinaryValue(`AppCompatCache`)
-				if err == nil {
-					// Export data
-					var skipit bool
-					for _, existingcache := range machineinfo.AppCache {
-						if bytes.Equal(existingcache, cache) {
-							skipit = true
-							break
-						}
-					}
-					if !skipit {
-						machineinfo.AppCache = append(machineinfo.AppCache, cache)
-					}
-				}
-			}
+// AUTOLOGON - FREE CREDENTIALS. Only the account is kept, never the password.
+func collectAutologon(env *Env) func(*Result) {
+	winlogon_key, err := openLocalMachineKey(`SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`, registry.QUERY_VALUE)
+	env.Outcomes["autologon/open"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return nil
+	}
+	defer winlogon_key.Close()
+	var username, domain, altusername, altdomain string
+	if pwd, _, _ := winlogon_key.GetStringValue(`DefaultPassword`); pwd != "" {
+		username, _, _ = winlogon_key.GetStringValue(`DefaultUsername`)
+		domain, _, _ = winlogon_key.GetStringValue(`DefaultDomain`)
+	}
+	if pwd, _, _ := winlogon_key.GetStringValue(`AltDefaultPassword`); pwd != "" {
+		altusername, _, _ = winlogon_key.GetStringValue(`AltDefaultUsername`)
+		altdomain, _, _ = winlogon_key.GetStringValue(`AltDefaultDomain`)
+	}
+	return func(r *Result) {
+		r.Info.Machine.DefaultUsername, r.Info.Machine.DefaultDomain = username, domain
+		r.Info.Machine.AltDefaultUsername, r.Info.Machine.AltDefaultDomain = altusername, altdomain
+	}
+}
+
+// APP COMPAT CACHE - LAST 1024 PROGRAM EXECUTIONS
+func collectAppCompatCache(env *Env) func(*Result) {
+	system_key, err := openLocalMachineKey(`SYSTEM`, registry.ENUMERATE_SUB_KEYS)
+	env.Outcomes["appcompat-cache/open"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return nil
+	}
+	defer system_key.Close()
+	subnames, err := system_key.ReadSubKeyNames(-1)
+	env.Outcomes["appcompat-cache/enumerate"] = basedata.CollectionResultFromError(err)
+	var caches [][]byte
+	for _, subkey := range subnames {
+		if !strings.HasPrefix(strings.ToLower(subkey), "controlset") {
+			continue
+		}
+		appcache_key, err := registry.OpenKey(system_key, subkey+`\Control\Session Manager\AppCompatCache`, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err != nil {
+			continue
+		}
+		cache, _, err := appcache_key.GetBinaryValue(`AppCompatCache`)
+		appcache_key.Close()
+		env.Outcomes["appcompat-cache/value/"+subkey] = basedata.CollectionResultFromError(err)
+		if err == nil && !containsBytes(caches, cache) {
+			caches = append(caches, cache)
 		}
 	}
+	return func(r *Result) { r.Info.Machine.AppCache = caches }
+}
 
+func containsBytes(list [][]byte, value []byte) bool {
+	for _, existing := range list {
+		if bytes.Equal(existing, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectManagementAgents(env *Env) func(*Result) {
+	var sccm, wuserver, wustatus string
 	// SCCM SETTINGS
-	ccmsetup_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\CCMSetup`,
-		registry.QUERY_VALUE|registry.WOW64_64KEY)
+	ccmsetup_key, err := openLocalMachineKey(`SOFTWARE\Microsoft\CCMSetup`, registry.QUERY_VALUE)
+	env.Outcomes["management/sccm"] = basedata.CollectionResultFromError(err)
 	if err == nil {
-		defer ccmsetup_key.Close()
-		machineinfo.SCCMLastValidMP, _, _ = ccmsetup_key.GetStringValue(`LastValidMP`)
+		sccm, _, _ = ccmsetup_key.GetStringValue(`LastValidMP`)
+		ccmsetup_key.Close()
 	}
-
 	// WSUS SETTINGS
-	wu_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate`,
-		registry.QUERY_VALUE|registry.WOW64_64KEY)
+	wu_key, err := openLocalMachineKey(`SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate`, registry.QUERY_VALUE)
+	env.Outcomes["management/wsus"] = basedata.CollectionResultFromError(err)
 	if err == nil {
-		defer wu_key.Close()
-		machineinfo.WUServer, _, _ = wu_key.GetStringValue(`WUServer`)
-		machineinfo.WUStatusServer, _, _ = wu_key.GetStringValue(`WUStatusServer`)
+		wuserver, _, _ = wu_key.GetStringValue(`WUServer`)
+		wustatus, _, _ = wu_key.GetStringValue(`WUStatusServer`)
+		wu_key.Close()
 	}
+	return func(r *Result) {
+		r.Info.Machine.SCCMLastValidMP = sccm
+		r.Info.Machine.WUServer, r.Info.Machine.WUStatusServer = wuserver, wustatus
+	}
+}
 
-	// SHARES
+func collectShares(env *Env) func(*Result) {
+	outcomes := env.Outcomes
 	var sharesinfo localmachine.Shares
 
-	shares_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Services\LanmanServer\Shares`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-	if err == nil {
-		defer shares_key.Close()
-		permissions_key, err := registry.OpenKey(shares_key,
-			`Security`,
-			registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-		if err == nil {
-			defer permissions_key.Close()
-
-			shares, err := shares_key.ReadValueNames(-1)
-			if err == nil {
-				for _, share := range shares {
-					permissions, _, _ := permissions_key.GetBinaryValue(share)
-					shareinfo := localmachine.Share{
-						Name: share,
-						DACL: permissions,
-					}
-
-					share_settings, _, err := shares_key.GetStringsValue(share)
-					if err == nil {
-						for _, share_setting := range share_settings {
-							ss := strings.Split(share_setting, "=")
-							if len(ss) == 2 {
-								switch ss[0] {
-								case "Type":
-									stype, _ := strconv.Atoi(ss[1])
-									shareinfo.Type = stype
-								case "ShareName":
-									shareinfo.Name = ss[1]
-								case "Remark":
-									shareinfo.Remark = ss[1]
-								case "Path":
-									shareinfo.Path = ss[1]
-								}
-							}
-						}
-					}
-
-					if shareinfo.Path != "" {
-						ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(shareinfo.Path, windows.SE_FILE_OBJECT)
-						if err == nil {
-							shareinfo.PathOwner = ownersid.String()
-							shareinfo.PathDACL = dacl
-						}
-					}
-
-					// if stype >= 16 {
-					sharesinfo = append(sharesinfo, shareinfo)
-					// }
-				}
-			}
-		}
-	}
-
-	// SCHEDULED TASKS
-	var scheduledtasksinfo taskmaster.RegisteredTaskCollection
-	ts, err := taskmaster.Connect()
-	if err == nil {
-		scheduledtasksinfo, err = ts.GetRegisteredTasks()
-		if err == nil {
-			scheduledtasksinfo.Release()
-		}
-		ts.Disconnect()
-	}
-
-	// GATHER INTERESTING STUFF FROM EVENT ui
-
-	// chn, _ := wineventlog.Channels()
-	// for _, channel := range chn {
-	// 	fmt.Println(channel)
-	// }
-
-	// Who has logged on and when https://nasbench.medium.com/finding-forensic-goodness-in-obscure-windows-event-logs-60e978ea45a3
-	// Event 811 and 812 :-)
-	type LogonTypeUser struct {
-		User                      string
-		LogonType                 uint32
-		AuthenticationPackageName string
-	}
-
-	loginmap := make(map[LogonTypeUser]localmachine.LogonInfo)
-
-	/*
-		elog, err := winevent.NewStream(winevent.EventStreamParams{
-			Channel:  "Microsoft-Windows-Winlogon/Operational",
-			EventIDs: "811,812",
-			BuffSize: 2048000,
-		}, 0)
-
-		if err == nil {
-			for {
-				events, _, _, err := elog.Read()
-				if err != nil {
-					// fmt.Println(err)
-					break
-				}
-				for _, event := range events {
-					// fmt.Println(string(event.Buff))
-					doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
-					if err == nil {
-						i := xmlquery.FindOne(doc, "//Event//System//EventID")
-						if i.InnerText() == "811" {
-							// Login
-							user := xmlquery.FindOne(doc, "//Event//System//Security//@UserID")
-							// LoginType
-
-							timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
-
-							us := user.InnerText()
-							t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
-
-							if t.After(amonthago) {
-								monthmap[us] = monthmap[us] + 1
-							}
-							if t.After(aweekago) {
-								weekmap[us] = weekmap[us] + 1
-							}
-							if t.After(adayago) {
-								daymap[us] = daymap[us] + 1
-							}
-							// fmt.Printf("%v logged in %v", user.InnerText(), timestamp.InnerText())
-						}
-					}
-				}
-			}
-		}
-	*/
-
-	// // Security Logs
-	slog, err := winevent.NewStream(winevent.EventStreamParams{
-		Channel:  "Security",
-		EventIDs: "4624",
-		BuffSize: 2048000,
-	}, 0)
-
+	shares_key, err := openLocalMachineKey(`SYSTEM\CurrentControlSet\Services\LanmanServer\Shares`, registry.READ)
+	outcomes["shares/open"] = basedata.CollectionResultFromError(err)
 	if err != nil {
-		ui.Error().Msgf("Problem opening security event log: %v", err)
-	} else {
-		for {
-			events, _, _, err := slog.Read()
-			if err != nil {
-				ui.Error().Msgf("Problem getting more events: %v", err)
-				break
-			}
+		return nil
+	}
+	defer shares_key.Close()
+	permissions_key, err := registry.OpenKey(shares_key, `Security`, registry.READ|registry.WOW64_64KEY)
+	outcomes["shares/security-open"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return nil
+	}
+	defer permissions_key.Close()
 
-			for _, event := range events {
-				// fmt.Println(string(event.Buff))
+	shares, err := shares_key.ReadValueNames(-1)
+	outcomes["shares/enumerate"] = basedata.CollectionResultFromError(err)
+	for _, share := range shares {
+		permissions, _, permissionErr := permissions_key.GetBinaryValue(share)
+		outcomes["shares/security/"+share] = basedata.CollectionResultFromError(permissionErr)
+		shareinfo := localmachine.Share{
+			Name: share,
+			DACL: permissions,
+		}
 
-				doc, err := xmlquery.Parse(bytes.NewReader(bytes.Trim(event.Buff, "\x00")))
-				if err != nil {
-					ui.Error().Msgf("Problem parsing XML of %v: %v", string(event.Buff), err)
-				} else {
-					i := xmlquery.FindOne(doc, "/Event/System/EventID")
-					if i.InnerText() == "4624" {
-						timestamp := xmlquery.FindOne(doc, "/Event/System/TimeCreated/@SystemTime")
-						t, _ := time.Parse(time.RFC3339Nano, timestamp.InnerText())
-
-						logontype := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LogonType']`).InnerText()
-						targetusersid := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserSid']`).InnerText()
-						targetusername := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetUserName']`).InnerText()
-						targetdomainname := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='TargetDomainName']`).InnerText()
-						authenticationpackagename := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='AuthenticationPackageName']`).InnerText()
-						lmpackagename := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='LmPackageName']`).InnerText()
-						logontypeint, _ := strconv.ParseInt(logontype, 10, 32)
-						ipaddress := xmlquery.FindOne(doc, `/Event/EventData/Data[@Name='IpAddress']`).InnerText()
-						if ipaddress == "244.230.0.0" { // Avoid Windows 7 RDP 8.0 bug - https://learn.microsoft.com/en-us/troubleshoot/windows-client/remote/invalid-client-ip-address-port-number-event-4624
-							ipaddress = ""
-						}
-
-						if len(lmpackagename) > 1 {
-							authenticationpackagename = lmpackagename
-						}
-
-						lookup := LogonTypeUser{
-							LogonType:                 uint32(logontypeint),
-							User:                      targetdomainname + "/" + targetusername,
-							AuthenticationPackageName: authenticationpackagename,
-						}
-						entry, found := loginmap[lookup]
-						if !found {
-							entry = localmachine.LogonInfo{
-								User:                      targetusername,
-								Domain:                    targetdomainname,
-								SID:                       targetusersid,
-								LogonType:                 uint32(logontypeint),
-								AuthenticationPackageName: authenticationpackagename,
-								FirstSeen:                 t,
-								LastSeen:                  t,
-								Count:                     1,
-							}
-							if len(ipaddress) > 1 {
-								entry.IpAddress = []string{ipaddress}
-							}
-						} else {
-							if entry.SID == "" {
-								entry.SID = targetusersid
-							}
-							if t.Before(entry.FirstSeen) {
-								entry.FirstSeen = t
-							}
-							if t.After(entry.LastSeen) {
-								entry.LastSeen = t
-							}
-							if len(ipaddress) > 1 && !slices.Contains(entry.IpAddress, ipaddress) {
-								entry.IpAddress = append(entry.IpAddress, ipaddress)
-							}
-							entry.Count++
-						}
-						ui.Debug().Msgf("Updating login map %v to %v", lookup, entry)
-						loginmap[lookup] = entry
-					} else {
-						ui.Info().Msgf("Skipping event %v", string(event.Buff))
-					}
+		share_settings, _, err := shares_key.GetStringsValue(share)
+		outcomes["shares/settings/"+share] = basedata.CollectionResultFromError(err)
+		for _, share_setting := range share_settings {
+			ss := strings.Split(share_setting, "=")
+			if len(ss) == 2 {
+				switch ss[0] {
+				case "Type":
+					stype, _ := strconv.Atoi(ss[1])
+					shareinfo.Type = stype
+				case "ShareName":
+					shareinfo.Name = ss[1]
+				case "Remark":
+					shareinfo.Remark = ss[1]
+				case "Path":
+					shareinfo.Path = ss[1]
 				}
 			}
 		}
-	}
 
-	// MACHINE AVAILABILITY
-	var timeonmonth, timeonweek, timeonday time.Duration
-	elog, err := winevent.NewStream(winevent.EventStreamParams{
-		Channel: "System",
-		Providers: []string{
-			"Eventlog",
-			"Microsoft-Windows-Kernel-General",
-			"Microsoft-Windows-Power",
-			"Microsoft-Windows-Power-Troubleshooter",
-		},
-		EventIDs: "1,12,13,42,6008",
-		BuffSize: 2048000,
-	}, 0)
-
-	var availabilityinfo localmachine.Availability
-	var laststart, laststop time.Time
-	laststart = laststart.Add(time.Minute) // First hit in event ui might be a shutdown event, so we just assume it was powered on ages ago
-	if err == nil {
-		for {
-			events, _, _, err := elog.Read()
-			if err != nil {
-				// fmt.Println(err)
-				break
+		if shareinfo.Path != "" {
+			ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(shareinfo.Path, windows.SE_FILE_OBJECT)
+			outcomes["shares/path-security/"+share] = basedata.CollectionResultFromError(err)
+			if err == nil {
+				shareinfo.PathOwner = ownersid.String()
+				shareinfo.PathDACL = dacl
 			}
-			for _, event := range events {
-				doc, err := xmlquery.Parse(bytes.NewReader(event.Buff))
-				if err == nil {
-					providername := xmlquery.FindOne(doc, "//Event//System//Provider").SelectAttr("Name")
-					eventid := xmlquery.FindOne(doc, "//Event//System//EventID").InnerText()
-
-					timestamp := xmlquery.FindOne(doc, "//Event//System//TimeCreated//@SystemTime")
-					t, err := time.Parse(time.RFC3339Nano, timestamp.InnerText())
-					if err == nil {
-						switch eventid {
-						case "1": // Power on
-							if providername == "Microsoft-Windows-Power-Troubleshooter" {
-								eventdata := xmlquery.Find(doc, "//Event//EventData//Data")
-								for _, event := range eventdata {
-									if event.SelectAttr("Name") == "SleepTime" {
-										st, err := time.Parse(time.RFC3339Nano, event.InnerText())
-										if err == nil {
-											laststop = st
-											// Might be an interval ...
-											if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
-												// ui.Info().Msgf("%v -> %v", laststart, laststop)
-												registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
-												laststart = time.Time{}
-												laststop = time.Time{}
-											}
-										}
-									} else if event.SelectAttr("Name") == "WakeTime" {
-										st, err := time.Parse(time.RFC3339Nano, event.InnerText())
-										if err == nil {
-											laststart = st
-										}
-									}
-								}
-
-								laststart = t
-								// ui.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
-								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
-							}
-						case "12": // Startup
-							if providername == "Microsoft-Windows-Kernel-General" {
-								laststart = t
-								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
-							}
-						case "13": // Shutdown
-							if providername == "Microsoft-Windows-Kernel-General" {
-								laststop = t
-								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
-							}
-						case "42": // Sleep
-							if providername == "Microsoft-Windows-Kernel-Power" {
-								laststop = t
-								// ui.Info().Msgf("%v %v %v %v", t, providername, eventid, string(event.Buff))
-								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
-							}
-						case "6008": // Unexpected shutdown
-							if providername == "Eventlog" {
-								laststop = t
-								// ui.Info().Msgf("%v %v %v", t, providername, eventid)
-							}
-						}
-					}
-
-					if !laststart.IsZero() && !laststop.IsZero() && laststart.Before(laststop) {
-						// ui.Info().Msgf("%v -> %v", laststart, laststop)
-						registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
-						laststart = time.Time{}
-						laststop = time.Time{}
-					}
-				}
-			}
-
 		}
-		if !laststart.IsZero() && laststop.IsZero() {
-			laststop = time.Now() // We're still running we assume ;-D
-			registertimes(laststart, laststop, &timeonmonth, &timeonweek, &timeonday)
+		sharesinfo = append(sharesinfo, shareinfo)
+	}
+	return func(r *Result) { r.Info.Shares = sharesinfo }
+}
+
+func collectTasks(env *Env) func(*Result) {
+	ts, err := taskmaster.Connect()
+	env.Outcomes["tasks/connect"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return nil
+	}
+	defer ts.Disconnect()
+	scheduledtasksinfo, err := ts.GetRegisteredTasks()
+	env.Outcomes["tasks/enumerate"] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return nil
+	}
+	defer scheduledtasksinfo.Release()
+	tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
+	for i, task := range scheduledtasksinfo {
+		tasks[i] = ConvertRegisteredTaskWithResults(task, env.Outcomes)
+	}
+	return func(r *Result) { r.Info.Tasks = tasks }
+}
+
+// eventLogResult records a bounded event-log read. Reaching the event limit is
+// recorded as a collection limit, so an incomplete history is never mistaken
+// for a complete one.
+func eventLogResult(truncated bool, unparsed int, err error) basedata.CollectionResult {
+	result := nativeCollectionResult(err)
+	if result.Status == basedata.CollectionCollected {
+		switch {
+		case truncated:
+			result.ErrorCode = "collection_limit"
+		case unparsed > 0:
+			result.ErrorCode = "unparsed_events"
 		}
 	}
-	// ui.Info().Msgf("%v %v %v", timeonmonth, timeonweek, timeonday)
-	availabilityinfo = localmachine.Availability{
-		Day:   uint64(timeonday.Minutes()),
-		Week:  uint64(timeonweek.Minutes()),
-		Month: uint64(timeonmonth.Minutes()),
+	return result
+}
+
+// Who has logged on and when, newest first within the logon window.
+func collectLogons(env *Env) func(*Result) {
+	logons := newLogonAggregator()
+	unparsed := 0
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	query := fmt.Sprintf("*[System[(EventID=4624) and TimeCreated[timediff(@SystemTime) <= %d]]]", logonEventWindow.Milliseconds())
+	truncated, err := readNativeEvents(ctx, "Security", query, evtQueryReverseDirection, logonEventLimit, func(raw string) error {
+		if logons.add([]byte(raw)) != nil {
+			unparsed++ // Event text is not logged: it names users and addresses.
+		}
+		return nil
+	})
+	env.Outcomes["events/logons"] = eventLogResult(truncated, unparsed, err)
+	if err != nil {
+		ui.Warn().Msgf("Problem reading logon events: %v", err)
 	}
+	if unparsed > 0 {
+		ui.Warn().Msgf("Skipped %v logon events that could not be interpreted", unparsed)
+	}
+	result := logons.logons()
+	return func(r *Result) { r.Info.LoginInfos = result }
+}
+
+// MACHINE AVAILABILITY from power and boot events, oldest first.
+func collectAvailability(env *Env) func(*Result) {
+	tracker := newAvailabilityTracker(time.Now())
+	unparsed := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	query := fmt.Sprintf("*[System[Provider[@Name='Eventlog' or @Name='Microsoft-Windows-Kernel-General' or @Name='Microsoft-Windows-Kernel-Power' or @Name='Microsoft-Windows-Power-Troubleshooter'] and (EventID=1 or EventID=12 or EventID=13 or EventID=42 or EventID=6008) and TimeCreated[timediff(@SystemTime) <= %d]]]", availabilityEventWindow.Milliseconds())
+	truncated, err := readNativeEvents(ctx, "System", query, evtQueryForwardDirection, availabilityEventLimit, func(raw string) error {
+		if tracker.add([]byte(raw)) != nil {
+			unparsed++
+		}
+		return nil
+	})
+	env.Outcomes["events/availability"] = eventLogResult(truncated, unparsed, err)
+	if err != nil {
+		return nil // Without events, uptime is unknown rather than zero.
+	}
+	availability := tracker.result()
+	return func(r *Result) { r.Info.Availability = availability }
+}
+
+func collectServices(env *Env) func(*Result) {
+	outcomes := env.Outcomes
 
 	// SERVICE CONTROL MANAGER SECURITY DESCRIPTOR FROM REGISTRY
 	var scmsd []byte
-	securitykey, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\ServiceGroupOrder\Security`, registry.QUERY_VALUE|registry.SET_VALUE|registry.WOW64_64KEY)
+	securitykey, err := openLocalMachineKey(`SYSTEM\CurrentControlSet\Control\ServiceGroupOrder\Security`, registry.QUERY_VALUE)
 	if err != nil {
 		ui.Warn().Msgf("Problem opening service security key for service control manager: %v, skipping\n", err)
 	} else {
-		defer securitykey.Close()
-		// Read the security descriptor
 		scmsd, _, err = securitykey.GetBinaryValue("Security")
+		securitykey.Close()
 		if err != nil {
 			ui.Error().Msgf("Problem reading security descriptor for service control manager: %v, skipping\n", err)
 		}
 	}
+	outcomes["services/manager-security"] = basedata.CollectionResultFromError(err)
 
-	// SERVICES
 	var servicesinfo localmachine.Services
-	services_key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Services`,
-		registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	services_key, err := openLocalMachineKey(`SYSTEM\CurrentControlSet\Services`, registry.READ)
+	outcomes["services/open"] = basedata.CollectionResultFromError(err)
 	if err == nil {
 		defer services_key.Close()
 		services, err := services_key.ReadSubKeyNames(-1)
-		if err == nil {
-			for _, service := range services {
-				service_key, err := registry.OpenKey(services_key, service,
-					registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-				if err == nil {
-					stype, _, _ := service_key.GetIntegerValue("Type")
-					if stype >= 16 {
-						// get service details
-						displayname, _, _ := service_key.GetStringValue("DisplayName")
-						description, _, _ := service_key.GetStringValue("Description")
-						objectname, _, _ := service_key.GetStringValue("ObjectName")
-						objectnamesid, _ := winio.LookupSidByName(objectname)
-						imagepath, _, _ := service_key.GetStringValue("ImagePath")
-						requiredPrivileges, _, _ := service_key.GetStringsValue("RequiredPrivileges")
-						start, _, _ := service_key.GetIntegerValue("Start")
-
-						// Grab service key security
-						registryowner, registrydacl, _ := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service+``, windows.SE_REGISTRY_KEY)
-
-						// get security descriptor under Security/Security
-						var sd []byte
-						service_key_security, err := registry.OpenKey(service_key, `Security`,
-							registry.READ|registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-						if err == nil {
-							sd, _, _ = service_key_security.GetBinaryValue("Security")
-						}
-
-						// let's see if we can grab a DACL
-						var imagepathowner string
-						var imageexecutable string
-						var imagepathdacl []byte
-
-						if imagepath != "" {
-							// Windows service executable names is a hot effin mess
-							if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
-								// Avoid mapping on 32-bit on 64-bit SYSWOW
-								imagepath = `%SystemRoot%\` + imagepath
-							} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
-								imagepath = `%SystemRoot%\` + imagepath[12:]
-							} else if strings.HasPrefix(imagepath, `\??\`) {
-								imagepath = imagepath[4:]
-							}
-
-							// find the executable name ... windows .... arrrgh
-							var executable string
-							if imagepath[0] == '"' {
-								// Quoted
-								nextquote := strings.Index(imagepath[1:], `"`)
-								if nextquote != -1 {
-									executable = imagepath[1 : nextquote+1]
-								}
-							} else {
-								// Unquoted
-								trypath := imagepath
-								for {
-									statpath := resolvepath(trypath)
-									ui.Debug().Msgf("Trying %v -> %v", trypath, statpath)
-									if _, err = os.Stat(statpath); err == nil {
-										executable = trypath
-										break
-									}
-									lastspace := strings.LastIndex(trypath, " ")
-									if lastspace == -1 {
-										break // give up
-									}
-									trypath = imagepath[:lastspace]
-									if !strings.HasSuffix(strings.ToLower(trypath), ".exe") {
-										trypath += ".exe"
-									}
-								}
-							}
-							ui.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
-							executable = resolvepath(executable)
-							imageexecutable = executable
-							if executable != "" {
-								ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
-								if err == nil {
-									imagepathowner = ownersid.String()
-									imagepathdacl = dacl
-								} else {
-									ui.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
-								}
-							} else {
-								ui.Warn().Msgf("Could not resolve executable %v", imagepath)
-							}
-						}
-
-						servicesinfo = append(servicesinfo, localmachine.Service{
-							RegistryOwner:        registryowner.String(),
-							RegistryDACL:         registrydacl,
-							Name:                 service,
-							DisplayName:          displayname,
-							Description:          description,
-							ImagePath:            imagepath,
-							ImageExecutable:      imageexecutable,
-							ImageExecutableOwner: imagepathowner,
-							ImageExecutableDACL:  imagepathdacl,
-							Start:                int(start),
-							Type:                 int(stype),
-							Account:              objectname,
-							AccountSID:           objectnamesid,
-							RequiredPrivileges:   requiredPrivileges,
-							SecurityDescriptor:   sd,
-						})
-					}
-					service_key.Close()
-				}
+		outcomes["services/enumerate"] = basedata.CollectionResultFromError(err)
+		for _, service := range services {
+			if s, ok := collectService(services_key, service, outcomes); ok {
+				servicesinfo = append(servicesinfo, s)
 			}
 		}
 	}
+	return func(r *Result) {
+		r.Info.ServiceControlManagerSecurityDescriptor = scmsd
+		r.Info.Services = servicesinfo
+	}
+}
 
-	// LOCAL USERS AND GROUPS
-	domainsid, _ := windowssecurity.ParseStringSID(machineinfo.ComputerDomainSID)
+func collectService(services_key registry.Key, service string, outcomes basedata.CollectionResults) (localmachine.Service, bool) {
+	service_key, err := registry.OpenKey(services_key, service, registry.READ|registry.WOW64_64KEY)
+	outcomes["services/open/"+service] = basedata.CollectionResultFromError(err)
+	if err != nil {
+		return localmachine.Service{}, false
+	}
+	defer service_key.Close()
+	stype, _, typeErr := service_key.GetIntegerValue("Type")
+	outcomes["services/type/"+service] = basedata.CollectionResultFromError(typeErr)
+	if stype < 16 {
+		return localmachine.Service{}, false
+	}
+	// get service details
+	displayname, _, _ := service_key.GetStringValue("DisplayName")
+	description, _, _ := service_key.GetStringValue("Description")
+	objectname, _, _ := service_key.GetStringValue("ObjectName")
+	objectnamesid, _ := winio.LookupSidByName(objectname)
+	imagepath, _, _ := service_key.GetStringValue("ImagePath")
+	requiredPrivileges, _, _ := service_key.GetStringsValue("RequiredPrivileges")
+	start, _, _ := service_key.GetIntegerValue("Start")
+
+	// Grab service key security
+	registryowner, registrydacl, aclErr := windowssecurity.GetOwnerAndDACL(`MACHINE\SYSTEM\CurrentControlSet\Services\`+service, windows.SE_REGISTRY_KEY)
+	outcomes["services/registry-security/"+service] = basedata.CollectionResultFromError(aclErr)
+
+	// get security descriptor under Security/Security
+	var sd []byte
+	service_key_security, err := registry.OpenKey(service_key, `Security`, registry.READ|registry.WOW64_64KEY)
+	if err == nil {
+		sd, _, err = service_key_security.GetBinaryValue("Security")
+		service_key_security.Close()
+	}
+	outcomes["services/security/"+service] = basedata.CollectionResultFromError(err)
+
+	// let's see if we can grab a DACL
+	var imagepathowner string
+	var imageexecutable string
+	var imagepathdacl []byte
+
+	if imagepath != "" {
+		// Windows service executable names is a hot effin mess
+		if strings.HasPrefix(strings.ToLower(imagepath), `system32\`) {
+			// Avoid mapping on 32-bit on 64-bit SYSWOW
+			imagepath = `%SystemRoot%\` + imagepath
+		} else if strings.HasPrefix(imagepath, `\SystemRoot\`) {
+			imagepath = `%SystemRoot%\` + imagepath[12:]
+		} else if strings.HasPrefix(imagepath, `\??\`) {
+			imagepath = imagepath[4:]
+		}
+
+		// find the executable name ... windows .... arrrgh
+		var executable string
+		if strings.HasPrefix(imagepath, `"`) {
+			// Quoted
+			nextquote := strings.Index(imagepath[1:], `"`)
+			if nextquote != -1 {
+				executable = imagepath[1 : nextquote+1]
+			}
+		} else {
+			// Unquoted
+			trypath := imagepath
+			for {
+				statpath := resolvepath(trypath)
+				ui.Debug().Msgf("Trying %v -> %v", trypath, statpath)
+				if _, err = os.Stat(statpath); err == nil {
+					executable = trypath
+					break
+				}
+				lastspace := strings.LastIndex(trypath, " ")
+				if lastspace == -1 {
+					break // give up
+				}
+				trypath = imagepath[:lastspace]
+				if !strings.HasSuffix(strings.ToLower(trypath), ".exe") {
+					trypath += ".exe"
+				}
+			}
+		}
+		ui.Debug().Msgf("Imagepath %v is mapped to executable %v", imagepath, executable)
+		executable = resolvepath(executable)
+		imageexecutable = executable
+		if executable != "" {
+			ownersid, dacl, err := windowssecurity.GetOwnerAndDACL(executable, windows.SE_FILE_OBJECT)
+			outcomes["services/executable-security/"+service] = basedata.CollectionResultFromError(err)
+			if err == nil {
+				imagepathowner = ownersid.String()
+				imagepathdacl = dacl
+			} else {
+				ui.Warn().Msgf("Problem getting security info for %v: %v", executable, err)
+			}
+		} else {
+			ui.Warn().Msgf("Could not resolve executable %v", imagepath)
+		}
+	}
+
+	return localmachine.Service{
+		RegistryOwner:        registryowner.String(),
+		RegistryDACL:         registrydacl,
+		Name:                 service,
+		DisplayName:          displayname,
+		Description:          description,
+		ImagePath:            imagepath,
+		ImageExecutable:      imageexecutable,
+		ImageExecutableOwner: imagepathowner,
+		ImageExecutableDACL:  imagepathdacl,
+		Start:                int(start),
+		Type:                 int(stype),
+		Account:              objectname,
+		AccountSID:           objectnamesid,
+		RequiredPrivileges:   requiredPrivileges,
+		SecurityDescriptor:   sd,
+	}, true
+}
+
+// LOCAL USERS
+func collectUsers(env *Env) func(*Result) {
+	machine := env.Info.Machine
+	domainsid, _ := windowssecurity.ParseStringSID(machine.ComputerDomainSID)
 
 	var usersinfo localmachine.Users
-	users, _ := winapi.ListLocalUsers()
+	users, usersErr := winapi.ListLocalUsers()
+	env.Outcomes["users/enumerate"] = basedata.CollectionResultFromError(usersErr)
 	for _, user := range users {
 		usersid, _ := windowssecurity.ParseStringSID(user.SID)
-		if machineinfo.IsDomainJoined && usersid.StripRID() == domainsid.StripRID() {
+		if machine.IsDomainJoined && usersid.StripRID() == domainsid.StripRID() {
 			// This is a domain account, so we're running on a DC? skip it
 			continue
 		}
@@ -684,17 +573,23 @@ func Collect() (localmachine.Info, error) {
 			NumberOfLogins:       int(user.NumberOfLogons),
 		})
 	}
+	return func(r *Result) { r.Info.Users = usersinfo }
+}
 
-	// GROUPS
+// LOCAL GROUPS
+func collectGroups(env *Env) func(*Result) {
 	var groupsinfo localmachine.Groups
-	groups, _ := winapi.ListLocalGroups()
+	groups, groupsErr := winapi.ListLocalGroups()
+	env.Outcomes["groups/enumerate"] = basedata.CollectionResultFromError(groupsErr)
 	for _, group := range groups {
-		groupsid, _ := winio.LookupSidByName(group.Name)
+		groupsid, sidErr := winio.LookupSidByName(group.Name)
+		env.Outcomes["groups/identity/"+group.Name] = basedata.CollectionResultFromError(sidErr)
 		grp := localmachine.Group{
 			Name: group.Name,
 			SID:  groupsid,
 		}
-		members, _ := winapi.LocalGroupGetMembers(group.Name)
+		members, membersErr := winapi.LocalGroupGetMembers(group.Name)
+		env.Outcomes["groups/members/"+group.Name] = basedata.CollectionResultFromError(membersErr)
 		for _, member := range members {
 			grp.Members = append(grp.Members, localmachine.Member{
 				Name: member.DomainAndName,
@@ -703,91 +598,81 @@ func Collect() (localmachine.Info, error) {
 		}
 		groupsinfo = append(groupsinfo, grp)
 	}
+	return func(r *Result) { r.Info.Groups = groupsinfo }
+}
 
-	registrydata := CollectRegistryItems()
+func collectRegistry(env *Env) func(*Result) {
+	registrydata := CollectRegistryItemsWithResults(env.Outcomes)
+	return func(r *Result) { r.Info.RegistryData = registrydata }
+}
 
-	dumpedsoftwareinfo, _ := winapi.InstalledSoftwareList()
-	var softwareinfo []localmachine.Software
-	if len(dumpedsoftwareinfo) > 0 {
-		softwareinfo = make([]localmachine.Software, len(dumpedsoftwareinfo))
-		for i, sw := range dumpedsoftwareinfo {
-			softwareinfo[i] = localmachine.Software{
-				DisplayName:     sw.DisplayName,
-				DisplayVersion:  sw.DisplayVersion,
-				Arch:            sw.Arch,
-				Publisher:       sw.Publisher,
-				InstallDate:     sw.InstallDate,
-				EstimatedSize:   sw.EstimatedSize,
-				Contact:         sw.Contact,
-				HelpLink:        sw.HelpLink,
-				InstallSource:   sw.InstallSource,
-				InstallLocation: sw.InstallLocation,
-				UninstallString: sw.UninstallString,
-				VersionMajor:    sw.VersionMajor,
-				VersionMinor:    sw.VersionMinor,
-			}
+func collectSoftware(env *Env) func(*Result) {
+	dumpedsoftwareinfo, softwareErr := winapi.InstalledSoftwareList()
+	// The provider does not expose nested enumeration errors. Record only the
+	// call outcome, not a claim that the software inventory is complete.
+	env.Outcomes["software/provider-call"] = basedata.CollectionResultFromError(softwareErr)
+	softwareinfo := make([]localmachine.Software, len(dumpedsoftwareinfo))
+	for i, sw := range dumpedsoftwareinfo {
+		softwareinfo[i] = localmachine.Software{
+			DisplayName:     sw.DisplayName,
+			DisplayVersion:  sw.DisplayVersion,
+			Arch:            sw.Arch,
+			Publisher:       sw.Publisher,
+			InstallDate:     sw.InstallDate,
+			EstimatedSize:   sw.EstimatedSize,
+			Contact:         sw.Contact,
+			HelpLink:        sw.HelpLink,
+			InstallSource:   sw.InstallSource,
+			InstallLocation: sw.InstallLocation,
+			UninstallString: sw.UninstallString,
+			VersionMajor:    sw.VersionMajor,
+			VersionMinor:    sw.VersionMinor,
 		}
 	}
+	if len(softwareinfo) == 0 {
+		softwareinfo = nil
+	}
+	return func(r *Result) { r.Info.Software = softwareinfo }
+}
 
-	// Fix this if we need the data later on
-	// hwinfo, osinfo, meminfo, _, _, _ := winapi.GetSystemProfile()
-
+func collectPrivileges(env *Env) func(*Result) {
 	var privilegesinfo localmachine.Privileges
 	pol, err := LsaOpenPolicy("", _POLICY_LOOKUP_NAMES|_POLICY_VIEW_LOCAL_INFORMATION)
-	if err == nil {
-		for _, privilege := range PRIVILEGE_NAMES {
-			sids, err := LsaEnumerateAccountsWithUserRight(*pol, string(privilege))
-			if err == nil {
-				sidstrings := make([]string, len(sids))
-				for i, sid := range sids {
-					sidstrings[i] = sid.String()
-				}
-				privilegesinfo = append(privilegesinfo, localmachine.Privilege{
-					Name:         string(privilege),
-					AssignedSIDs: sidstrings,
-				})
-			} else if err != STATUS_NO_MORE_ENTRIES && err != NO_MORE_DATA_IS_AVAILABLE {
-				ui.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
-			}
-		}
-		LsaClose(*pol)
-	} else {
+	env.Outcomes["privileges/open"] = basedata.CollectionResultFromError(err)
+	if err != nil {
 		ui.Warn().Msgf("Could not open LSA policy: %v", err)
+		return nil
 	}
-
-	info := localmachine.Info{
-		Common: basedata.Common{
-			Collector: "collector",
-			Commit:    version.Commit,
-			Collected: time.Now(),
-		},
-		UnprivilegedCollection: isUnprivileged, // Indicate if the collection was running with low privs, so we can issue annoying warnings when loading them
-		Machine:                machineinfo,
-		// Hardware: hwinfo,
-		Network: localmachine.NetworkInformation{
-			InternetConnectivity: TestInternet(),
-			NetworkInterfaces:    interfaceinfo,
-		},
-		// OperatingSystem: osinfo,
-		// Memory:          meminfo,
-		Availability:                            availabilityinfo,
-		LoginInfos:                              slices.Collect(maps.Values(loginmap)),
-		Users:                                   usersinfo,
-		Groups:                                  groupsinfo,
-		RegistryData:                            registrydata,
-		Shares:                                  sharesinfo,
-		Services:                                servicesinfo,
-		ServiceControlManagerSecurityDescriptor: scmsd,
-		Software:                                softwareinfo,
-		Tasks: func() []localmachine.RegisteredTask {
-			tasks := make([]localmachine.RegisteredTask, len(scheduledtasksinfo))
-			for i, task := range scheduledtasksinfo {
-				tasks[i] = ConvertRegisteredTask(task)
+	defer LsaClose(*pol)
+	for _, privilege := range PRIVILEGE_NAMES {
+		sids, err := LsaEnumerateAccountsWithUserRight(*pol, string(privilege))
+		result := privilegeResult(err)
+		env.Outcomes["privileges/assignments/"+string(privilege)] = result
+		if err == nil {
+			sidstrings := make([]string, len(sids))
+			for i, sid := range sids {
+				sidstrings[i] = sid.String()
 			}
-			return tasks
-		}(),
-		Privileges: privilegesinfo,
+			privilegesinfo = append(privilegesinfo, localmachine.Privilege{
+				Name:         string(privilege),
+				AssignedSIDs: sidstrings,
+			})
+		} else if result.Status != basedata.CollectionCollected && result.Status != basedata.CollectionNotFound {
+			ui.Warn().Msgf("Problem enumerating %v: %v", privilege, err)
+		}
 	}
+	return func(r *Result) { r.Info.Privileges = privilegesinfo }
+}
 
-	return info, nil
+// LsaEnumerateAccountsWithUserRight reports an empty assignment list as "no
+// more items", and a right this Windows version does not define (such as
+// SeUnsolicitedInputPrivilege on current releases) as "no such privilege".
+func privilegeResult(err error) basedata.CollectionResult {
+	switch {
+	case err == nil, errors.Is(err, windows.ERROR_NO_MORE_ITEMS), err == STATUS_NO_MORE_ENTRIES, err == NO_MORE_DATA_IS_AVAILABLE:
+		return basedata.CollectionResultFromError(nil)
+	case errors.Is(err, windows.ERROR_NO_SUCH_PRIVILEGE):
+		return basedata.CollectionResult{Status: basedata.CollectionNotFound, ErrorCode: "errno:1313"}
+	}
+	return basedata.CollectionResultFromError(err)
 }

@@ -2,56 +2,54 @@ package analyze
 
 import (
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
+	adanalyze "github.com/lkarlslund/adalanche/modules/integrations/activedirectory/analyze"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func LinkSCCM(ao *engine.IndexedGraph) {
-	ao.Iterate(func(o *engine.Node) bool {
-		if o.HasAttr(WUServer) || o.HasAttr(SCCMServer) {
-			var hosts []string
-			controltype := "unknown"
-			if hostname := o.OneAttrString(WUServer); hostname != "" {
-				controltype = "WSUS"
-				hosts = append(hosts, hostname)
-			} else if hostname := o.OneAttrString(SCCMServer); hostname != "" {
-				controltype = "SCCM"
-				hosts = append(hosts, hostname)
-			}
+func LinkSCCMProcessor(tx *engine.Tx) {
+	// Only machines name update servers, and servers are machines: match
+	// host names among them instead of indexing the whole graph.
+	machines, _ := tx.FindMulti(engine.Type, engine.NV("Machine"))
+	byDNSName := map[string][]*engine.Node{}
+	byName := map[string][]*engine.Node{}
+	machines.Iterate(func(m *engine.Node) bool {
+		m.Attr(DNSHostname).Iterate(func(v engine.AttributeValue) bool {
+			byDNSName[strings.ToLower(v.String())] = append(byDNSName[strings.ToLower(v.String())], m)
+			return true
+		})
+		m.Attr(engine.Name).Iterate(func(v engine.AttributeValue) bool {
+			byName[strings.ToLower(v.String())] = append(byName[strings.ToLower(v.String())], m)
+			return true
+		})
+		return true
+	})
 
-			for _, host := range hosts {
-				// Try full DNS name
-				servers, found := ao.FindTwoMulti(
-					DNSHostname, engine.NV(host),
-					engine.Type, engine.NV("Machine"),
-				)
-				// .. or fallback to just the name
-				if !found {
-					servers, found = ao.FindTwoMulti(
-						engine.Name, engine.NV(host),
-						engine.Type, engine.NV("Machine"),
-					)
-				}
-				if !found {
-					// try to parse host as IP
-					ip := net.ParseIP(host)
-					if ip != nil {
-						ui.Warn().Msgf("Controlling %v server is referred to by IP address %v, unable to link it", controltype, host)
-					}
-					continue
-				}
-				if !found {
-					ui.Warn().Msgf("Could not find controlling %v server %v for %v", controltype, host, o.Label())
-					continue
-				}
-				servers.Iterate(func(server *engine.Node) bool {
-					ao.EdgeTo(server, o, EdgeControlsUpdates)
-					return true
-				})
+	machines.Iterate(func(o *engine.Node) bool {
+		host, controltype := o.OneAttrString(WUServer), "WSUS"
+		if host == "" {
+			host, controltype = o.OneAttrString(SCCMServer), "SCCM"
+		}
+		if host == "" {
+			return true
+		}
+		// Try full DNS name, or fall back to just the name
+		servers := byDNSName[strings.ToLower(host)]
+		if len(servers) == 0 {
+			servers = byName[strings.ToLower(host)]
+		}
+		if len(servers) == 0 {
+			if net.ParseIP(host) != nil {
+				ui.Warn().Msgf("Controlling %v server is referred to by IP address %v, unable to link it", controltype, host)
 			}
+			return true
+		}
+		for _, server := range servers {
+			tx.EdgeBecause(server, o, EdgeControlsUpdates, Collected(controltype+" server setting"))
 		}
 		return true
 	})
@@ -59,16 +57,19 @@ func LinkSCCM(ao *engine.IndexedGraph) {
 
 func init() {
 	loader.AddProcessor(
-		LinkSCCM,
-		"Link SCCM and WSUS servers to controlled computers",
-		engine.AfterMerge,
-	)
+		LinkSCCMProcessor,
+		engine.Processor{
+			Description: "Link SCCM and WSUS servers to controlled computers",
+			Phase:       engine.AnalysisPhase,
+			Needs:       []engine.Product{adanalyze.ProductMachines},
+			Provides:    []engine.Product{ProductUpdateControl},
+		})
 	loader.AddProcessor(
 
-		func(ao *engine.IndexedGraph) {
+		func(tx *engine.Tx) {
 			var mut sync.Mutex
 			sids := make(map[windowssecurity.SID][]*engine.Node)
-			ao.IterateParallel(func(o *engine.Node) bool {
+			tx.IterateParallel(func(o *engine.Node) bool {
 				if o.Type() != engine.NodeTypeMachine {
 					return true
 				}
@@ -91,13 +92,15 @@ func init() {
 						if i == j {
 							continue
 						}
-						ao.EdgeTo(nodes[i], nodes[j], EdgeSIDCollision)
+						tx.EdgeBecause(nodes[i], nodes[j], EdgeSIDCollision, engine.Source{Kind: adanalyze.SourceInference, Detail: "machines with the same local SID"})
 					}
 				}
 			}
 
 		},
-		"Local SID collisions",
-		engine.AfterMerge,
-	)
+		engine.Processor{
+			Description: "Local SID collisions",
+			Phase:       engine.AnalysisPhase,
+			Provides:    []engine.Product{ProductSIDCollisions},
+		})
 }

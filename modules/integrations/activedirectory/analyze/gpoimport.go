@@ -7,21 +7,27 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/go-ini/ini"
+	"github.com/lkarlslund/adalanche/modules/basedata"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 	"golang.org/x/text/encoding/unicode"
+	"gopkg.in/ini.v1"
 )
 
 var (
-	gPCFileSysPath = engine.NewAttribute("gPCFileSysPath").Flag(engine.Merge)
+	gPCFileSysPath          = engine.NewAttribute("gPCFileSysPath")
+	gpoFlags                = engine.NewAttribute("flags")
+	gpoDirectoryVersion     = engine.NewAttribute("versionNumber")
+	gpoFunctionalityVersion = engine.NewAttribute("gPCFunctionalityVersion")
+	gpoFileVersion          = engine.NewAttribute("gpoFileSystemVersion")
 
-	AbsolutePath    = engine.NewAttribute("absolutePath").Flag(engine.Single)
-	RelativePath    = engine.NewAttribute("relativePath").Flag(engine.Single)
-	BinarySize      = engine.NewAttribute("binarySize").Flag(engine.Single)
-	ExposedPassword = engine.NewAttribute("exposedPassword")
+	AbsolutePath         = engine.NewAttribute("absolutePath").Flag(engine.Single)
+	RelativePath         = engine.NewAttribute("relativePath").Flag(engine.Single)
+	BinarySize           = engine.NewAttribute("binarySize").Flag(engine.Single)
+	ExposedPassword      = engine.NewAttribute("exposedPassword")
+	GPOCollectionResults = engine.NewAttribute("gpoCollectionResults")
 
 	EdgeExposesPassword       = engine.NewEdge("ExposesPassword").Tag("Pivot")
 	EdgeContainsSensitiveData = engine.NewEdge("ContainsSensitiveData")
@@ -35,20 +41,41 @@ var (
 	EdgeModifyDACL            = engine.NewEdge("FileModifyDACL").Tag("Pivot")
 )
 
-func init() {
-	engine.AddMergeApprover("Don't merge differing relative paths from GPOs", func(a, b *engine.Node) (*engine.Node, error) {
-		if a.HasAttr(RelativePath) || b.HasAttr(RelativePath) {
-			return nil, engine.ErrDontMerge
-		}
-		return nil, nil
-	})
-}
-
 var cpasswordusername = regexp.MustCompile(`(?i)cpassword="(?P<password>[^"]+)[^>]+(runAs|userName)="(?P<username>[^"]+)"`)
 var usernamecpassword = regexp.MustCompile(`(?i)(runAs|userName)="(?P<username>[^"]+)[^>]+cpassword="(?P<password>[^"]+)"`)
 
+// ImportGPOInfo adds a policy collection to the graph in one transaction.
+// Nothing is added when the import fails.
 func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error {
-	gpoobject, _ := ao.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	tx := ao.Begin("policy " + ginfo.Path)
+	if err := importGPOInfo(ginfo, tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
+	// The GPO is identified by its domain and GUID, which the directory's
+	// GPO object and machines' policy results also carry. A path that is not
+	// a SYSVOL policy path keeps its own node.
+	identity := activedirectory.GPOIdentityFromPath(ginfo.Path)
+	domainContext := ginfo.DomainDN
+	if domainContext == "" && identity != "" {
+		domain, _, _ := strings.Cut(identity, "/")
+		domainContext = "DC=" + strings.Join(strings.Split(domain, "."), ",DC=")
+	}
+	var gpoobject engine.TxNode
+	if identity != "" {
+		gpoobject, _ = tx.FindOrAdd(activedirectory.GPOIdentity, engine.NV(identity),
+			gPCFileSysPath, engine.NV(ginfo.Path))
+	} else {
+		gpoobject, _ = tx.FindOrAdd(gPCFileSysPath, engine.NV(ginfo.Path))
+	}
+	// Builtin principals in the GPO's files and ACLs are those of its domain.
+	gpoobject.SetFlex(engine.IgnoreBlanks, engine.DomainContext, domainContext)
+	if err := retainPolicyResults(gpoobject, ginfo.Common, ginfo.CollectionResults); err != nil {
+		return err
+	}
 
 	for _, item := range ginfo.Files {
 		relativepath := strings.ToLower(strings.ReplaceAll(item.RelativePath, "\\", "/"))
@@ -63,7 +90,7 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			objecttype = "Directory"
 		}
 
-		itemobject := ao.AddNew(
+		itemobject := tx.AddNew(
 			engine.IgnoreBlanks,
 			AbsolutePath, absolutepath,
 			RelativePath, relativepath,
@@ -72,29 +99,42 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			BinarySize, item.Size,
 			activedirectory.WhenChanged, item.Timestamp,
 		)
+		if err := retainPolicyResults(itemobject, ginfo.Common, item.CollectionResults); err != nil {
+			return err
+		}
 
-		if strings.EqualFold(relativepath, "/adm") ||
-			strings.EqualFold(relativepath, "/gpt.ini") {
+		if relativepath == "/gpt.ini" || relativepath == "gpt.ini" {
+			if status := item.CollectionResults["contents"].Status; status != basedata.CollectionUnknown && status != basedata.CollectionCollected {
+				continue
+			}
+			if policy, err := ini.LoadSources(ini.LoadOptions{Insensitive: true}, item.Contents); err == nil {
+				if version, err := policy.Section("General").Key("Version").Uint64(); err == nil && version <= 0xffffffff {
+					gpoobject.Set(gpoFileVersion, engine.NV(int64(version)))
+				}
+			}
+			continue
+		}
+		if strings.EqualFold(relativepath, "/adm") {
 			// not really useful from an attack perspective
 			continue
 		}
 		if relativepath == "/" {
-			ao.EdgeTo(itemobject, gpoobject, EdgeFSPartOfGPO)
-			gpoobject.Adopt(itemobject)
+			tx.EdgeBecause(itemobject, gpoobject, EdgeFSPartOfGPO, Inferred("the GPO's SYSVOL folder"))
+			itemobject.ChildOf(gpoobject)
 		} else {
 			parentpath := filepath.Join(ginfo.Path, filepath.Dir(relativepath))
 			if parentpath == "" {
 				parentpath = "/"
 			}
 
-			parent, _ := ao.FindOrAdd(AbsolutePath, engine.NV(parentpath))
-			ao.EdgeTo(itemobject, parent, EdgeFSPartOfGPO)
-			parent.Adopt(itemobject)
+			parent, _ := tx.FindOrAdd(AbsolutePath, engine.NV(parentpath))
+			tx.EdgeBecause(itemobject, parent, EdgeFSPartOfGPO, Inferred("the GPO's SYSVOL folder"))
+			itemobject.ChildOf(parent)
 		}
 
 		if !item.OwnerSID.IsNull() {
-			owner := ao.FindOrAddAdjacentSID(item.OwnerSID, nil)
-			ao.EdgeTo(owner, itemobject, EdgeOwns)
+			owner := tx.FindOrAddAdjacentSID(item.OwnerSID, gpoobject)
+			tx.EdgeBecause(owner, itemobject, EdgeOwns, FileOwnerCause())
 		}
 
 		if item.DACL != nil {
@@ -102,24 +142,24 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			if err != nil {
 				return err
 			}
-			for _, entry := range dacl.Entries {
-				entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+			for index, entry := range dacl.Entries {
+				entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 				if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 					if item.IsDir && entry.Mask&engine.FILE_ADD_FILE != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeFileCreate)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeFileCreate, FileACECause(index, entry))
 					}
 					if item.IsDir && entry.Mask&engine.FILE_ADD_SUBDIRECTORY != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeDirCreate)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeDirCreate, FileACECause(index, entry))
 					}
 					if !item.IsDir && entry.Mask&engine.FILE_WRITE_DATA != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeFileWrite)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeFileWrite, FileACECause(index, entry))
 					}
 					if entry.Mask&engine.RIGHT_WRITE_OWNER != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeTakeOwnership) // Not sure about this one
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeTakeOwnership, FileACECause(index, entry)) // Not sure about this one
 					}
 					if entry.Mask&engine.RIGHT_WRITE_DACL != 0 {
-						ao.EdgeTo(entrysidobject, itemobject, EdgeModifyDACL)
+						tx.EdgeBecause(entrysidobject, itemobject, EdgeModifyDACL, FileACECause(index, entry))
 					}
 				}
 			}
@@ -136,52 +176,46 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 			}
 			for _, match := range cpasswordusername.FindAllStringSubmatch(line, -1) {
 				ui.Debug().Msgf("Found password in %s", item.RelativePath)
-				ui.Debug().Msgf("Password: %v", match)
-				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
 				exposed = append(exposed, struct{ Username, Password string }{match[cpasswordusername.SubexpIndex("username")], match[cpasswordusername.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			for _, match := range usernamecpassword.FindAllStringSubmatch(line, -1) {
-				ui.Debug().Msgf("Found username in %s", item.RelativePath)
-				ui.Debug().Msgf("Password: %v", match)
-				ui.Debug().Msgf("GPO Dump\n%s", item.Contents)
+				ui.Debug().Msgf("Found password in %s", item.RelativePath)
 				exposed = append(exposed, struct{ Username, Password string }{match[usernamecpassword.SubexpIndex("username")], match[usernamecpassword.SubexpIndex("password")]})
 				unhandledpass = false
 			}
 			if unhandledpass {
-				ui.Error().Msgf("Unhandled password in %s", item.RelativePath)
-				ui.Error().Msgf("GPO Dump\n%s", item.Contents)
-				ui.Fatal().Msg("Please submit bugreport on Github with redacted account name and redacted password")
+				return fmt.Errorf("unrecognized credential entry in GPO file %q; import incomplete", item.RelativePath)
 			}
 		}
 		for _, e := range exposed {
 			// New object to contain the sensitive data
-			expobj := ao.AddNew(
+			expobj := tx.AddNew(
 				engine.Type, "ExposedPassword",
 				engine.DisplayName, "Exposed password for "+e.Username,
 				engine.Description, "Password is exposed in GPO with GUID "+ginfo.GUID.String(),
-				engine.ObjectGUID, ginfo.GUID,
 				ExposedPassword, e.Password,
 				RelativePath, relativepath,
 				AbsolutePath, filepath.Join(ginfo.Path, relativepath),
 			)
 
 			// The account targeted
-			var target *engine.Node
+			var target engine.TxNode
 			if strings.Contains(e.Username, "\\") {
-				target, _ = ao.FindOrAdd(
+				target, _ = tx.FindOrAdd(
 					engine.DownLevelLogonName, engine.NV(e.Username),
 				)
 			} else {
-				target, _ = ao.FindOrAdd(
+				target, _ = tx.FindOrAdd(
 					engine.SAMAccountName, engine.NV(e.Username),
 				)
 			}
 
 			// GPO exposes this object
-			ao.EdgeTo(itemobject, expobj, EdgeContainsSensitiveData)
+			tx.EdgeBecause(itemobject, expobj, EdgeContainsSensitiveData, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "Group Policy Preferences password"})
+			expobj.ChildOf(itemobject)
 			// Exposed password leaks this object
-			ao.EdgeTo(expobj, target, EdgeExposesPassword)
+			tx.EdgeBecause(expobj, target, EdgeExposesPassword, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "Group Policy Preferences password"})
 
 			// Everyone that can read the file can then read the password
 			if item.DACL != nil {
@@ -189,12 +223,12 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 				if err != nil {
 					return err
 				}
-				for _, entry := range dacl.Entries {
-					entrysidobject, _ := ao.FindOrAdd(activedirectory.ObjectSid, engine.NV(entry.SID))
+				for index, entry := range dacl.Entries {
+					entrysidobject := tx.FindOrAddAdjacentSID(entry.SID, gpoobject)
 
 					if entry.Type == engine.ACETYPE_ACCESS_ALLOWED && (entry.SID.Component(2) == 21 || entry.SID == windowssecurity.EveryoneSID || entry.SID == windowssecurity.AuthenticatedUsersSID) {
 						if entry.Mask&engine.FILE_READ_DATA != 0 {
-							ao.EdgeTo(entrysidobject, expobj, EdgeReadSensitiveData)
+							tx.EdgeBecause(entrysidobject, expobj, EdgeReadSensitiveData, FileACECause(index, entry))
 						}
 					}
 				}
@@ -204,49 +238,59 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 		switch relativepath {
 		case "/machine/preferences/groups/groups.xml", "/machine/microsoft/windows nt/secedit/gpttmpl.inf":
 			var pairs []SIDpair
-
+			setting := gpoGroupPreference
 			if strings.HasSuffix(relativepath, ".xml") {
 				pairs = GPOparseGroups(string(item.Contents))
 			} else if strings.HasSuffix(relativepath, ".inf") {
 				pairs = GPOparseGptTmplInf(string(item.Contents))
+				setting = gpoRestrictedGroups
 			}
 
 			for _, sidpair := range pairs {
-				var member *engine.Node
-				if sidpair.MemberSID == "" {
-					if strings.Contains(sidpair.MemberName, "\\") || strings.Contains(sidpair.MemberName, "@") {
-						ui.Debug().Msgf("GPO member with \\ or @ detected: %v", sidpair.MemberName)
-					} else {
-						// Just use the name, we assume it's a domain object
-						member, _ = ao.FindOrAdd(engine.SAMAccountName, engine.NV(sidpair.MemberName))
-					}
-				} else {
-					// Use the SID
-					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
-					if err == nil {
-						member = ao.FindOrAddSID(membersid)
-					}
-				}
-				if member != nil {
-					switch sidpair.GroupSID {
-					case "S-1-5-32-544":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalAdminRights)
-					case "S-1-5-32-562":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalDCOMRights)
-					case "S-1-5-32-555":
-						ao.EdgeTo(member, gpoobject, activedirectory.EdgeLocalRDPRights)
-					case "":
+				_, known := localGroupEdge(sidpair.GroupSID)
+				if !known {
+					if sidpair.GroupSID == "" {
 						ui.Warn().Msgf("GPO indicating group membership, but no group SID found for %s", sidpair.GroupName)
 					}
-				} else {
-					ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
+					continue
 				}
+				switch {
+				case sidpair.MemberSID != "":
+					membersid, err := windowssecurity.ParseStringSID(sidpair.MemberSID)
+					if err != nil {
+						ui.Warn().Msgf("Detected local group membership via GPO, but could not parse SID %v for member %v", sidpair.MemberSID, sidpair.MemberName)
+						continue
+					}
+					// The member gets the right on the machines the GPO
+					// applies to, which are known once loading has finished.
+					tx.FindOrAddAdjacentSID(membersid, gpoobject)
+					gpoobject.Add(GPOLocalGroupMemberSID, engine.NV(gpoGrant{sidpair.GroupSID, membersid.String(), setting}.value()))
+				case sidpair.MemberName != "":
+					// Names, including ones with preference variables, are
+					// resolved after loading, when the whole directory is known.
+					gpoobject.Add(GPOLocalGroupMember, engine.NV(gpoGrant{sidpair.GroupSID, sidpair.MemberName, setting}.value()))
+				}
+			}
+
+		case "/user/preferences/groups/groups.xml":
+			// User-side items apply on whichever computer an in-scope user
+			// logs on to, which the directory alone does not tell us. Keep
+			// them visible on the GPO.
+			for _, sidpair := range GPOparseGroups(string(item.Contents)) {
+				member := sidpair.MemberName
+				switch {
+				case sidpair.CurrentUser:
+					member = "<logged on user>"
+				case sidpair.MemberSID != "":
+					member = sidpair.MemberSID
+				}
+				gpoobject.Add(GPOUserLocalGroupMember, engine.NV(sidpair.GroupSID+"|"+member))
 			}
 
 			// Description: "Indicates that a GPO deploys a scheduled task which is running from an UNC path (FIXME, not done yet!)",
 		case "/machine/preferences/scheduledtasks/scheduledtasks.xml":
-			for _, task := range GPOparseScheduledTasks(string(item.Contents)) {
-				ui.Warn().Msgf("Scheduled task: %v ... FIXME!", task)
+			if tasks := GPOparseScheduledTasks(string(item.Contents)); len(tasks) > 0 {
+				ui.Warn().Msgf("GPO scheduled-task analysis is not implemented (%d tasks in %s)", len(tasks), item.RelativePath)
 			}
 		// Description: "Detects startup or shutdown scripts from GPOs",
 		case "/machine/scripts/scripts.ini":
@@ -280,9 +324,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					engine.DistinguishedName, engine.NV(fmt.Sprintf("CN=Startup Script %v from GPO %v,CN=synthetic", scriptnum, ginfo.GUID)),
 					engine.Name, engine.NV("Machine startup script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
-				ao.Add(sob)
-				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
-				sob.ChildOf(gpoobject) // tree
+				script := tx.Add(sob)
+				tx.EdgeBecause(script, gpoobject, activedirectory.EdgeMachineScript, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "machine scripts (scripts.ini)"})
+				script.ChildOf(gpoobject) // tree
 				scriptnum++
 			}
 
@@ -299,9 +343,9 @@ func ImportGPOInfo(ginfo activedirectory.GPOdump, ao *engine.IndexedGraph) error
 					engine.Type, engine.NV("Script"),
 					engine.Name, engine.NV("Machine shutdown script "+strings.Trim(k1.String()+" "+k2.String(), " ")),
 				)
-				ao.Add(sob)
-				ao.EdgeTo(sob, gpoobject, activedirectory.EdgeMachineScript)
-				sob.ChildOf(gpoobject)
+				script := tx.Add(sob)
+				tx.EdgeBecause(script, gpoobject, activedirectory.EdgeMachineScript, engine.Source{Kind: SourceGPO, About: gpoobject, Detail: "machine scripts (scripts.ini)"})
+				script.ChildOf(gpoobject)
 				scriptnum++
 			}
 		}
@@ -327,7 +371,7 @@ type Action struct {
 
 var (
 	uncexec       = regexp.MustCompile(`\\\\.*\\.*\\.*\.(cmd|bat|ps1|vbs|exe|dll)`)
-	importantsids = regexp.MustCompile(`S-1-5-32-(544|555|562)`)
+	importantsids = regexp.MustCompile(`^S-1-5-32-(544|555|562)$`)
 )
 
 func GPOparseScheduledTasks(rawxml string) []string {
@@ -363,10 +407,12 @@ type Group struct {
 }
 
 type Properties struct {
-	Action  string `xml:"action,attr"`
-	SID     string `xml:"groupSid,attr"`
-	Name    string `xml:"groupName,attr"`
-	Members Members
+	Action         string `xml:"action,attr"`
+	SID            string `xml:"groupSid,attr"`
+	Name           string `xml:"groupName,attr"`
+	UserAction     string `xml:"userAction,attr"`
+	RemoveAccounts string `xml:"removeAccounts,attr"`
+	Members        Members
 }
 
 type Members struct {
@@ -385,27 +431,49 @@ type SIDpair struct {
 	GroupName  string
 	MemberSID  string
 	MemberName string
+	// CurrentUser is set when a user-side preference item adds whoever is
+	// logged on (userAction="ADD").
+	CurrentUser bool
 }
 
+// GPOparseGroups returns the local group memberships a Groups.xml preference
+// file adds (MS-GPPREF 2.2.1.11). Update (also the default when no action is
+// given) and Replace add members; Create leaves an existing group untouched
+// and Delete removes it, so neither adds to the built-in groups tracked here.
+// A group named only by groupName is translated from its well-known name.
 func GPOparseGroups(rawxml string) []SIDpair {
 	var results []SIDpair
 	var groups Groups
-	err := xml.Unmarshal([]byte(rawxml), &groups)
-	if err == nil {
-		for _, group := range groups.Group {
-			for _, prop := range group.Properties {
-				if prop.Action == "U" && importantsids.MatchString(prop.SID) {
-					for _, member := range prop.Members.Member {
-						if member.Action == "ADD" {
-							results = append(results, SIDpair{
-								GroupSID:   prop.SID,
-								GroupName:  prop.Name,
-								MemberSID:  member.SID,
-								MemberName: member.Name,
-							})
-						}
-					}
+	if err := xml.Unmarshal([]byte(rawxml), &groups); err != nil {
+		return nil
+	}
+	for _, group := range groups.Group {
+		for _, prop := range group.Properties {
+			action := strings.ToUpper(prop.Action)
+			if action != "" && action != "U" && action != "R" {
+				continue
+			}
+			groupsid := prop.SID
+			if groupsid == "" {
+				if sid, err := TranslateLocalizedNameToSID(strings.TrimSuffix(strings.TrimSpace(prop.Name), " (built-in)")); err == nil {
+					groupsid = sid.String()
 				}
+			}
+			if !importantsids.MatchString(groupsid) {
+				continue
+			}
+			for _, member := range prop.Members.Member {
+				if strings.EqualFold(member.Action, "ADD") {
+					results = append(results, SIDpair{
+						GroupSID:   groupsid,
+						GroupName:  prop.Name,
+						MemberSID:  member.SID,
+						MemberName: member.Name,
+					})
+				}
+			}
+			if strings.EqualFold(prop.UserAction, "ADD") && prop.RemoveAccounts != "1" {
+				results = append(results, SIDpair{GroupSID: groupsid, GroupName: prop.Name, CurrentUser: true})
 			}
 		}
 	}

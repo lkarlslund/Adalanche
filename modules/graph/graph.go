@@ -3,6 +3,7 @@ package graph
 import (
 	"errors"
 	"maps"
+	"slices"
 
 	"github.com/gammazero/deque"
 )
@@ -31,12 +32,17 @@ type Graph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[Ed
 	nodes              map[NodeType]map[string]any
 	edges              map[NodePair[NodeType]]Edge[EdgeType]
 	cleanupEdgesNeeded bool
+	limits             []string
 }
 
 func NewGraph[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]]() Graph[NodeType, EdgeType] {
+	return NewGraphWithCapacity[NodeType, EdgeType](0, 0)
+}
+
+func NewGraphWithCapacity[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](nodeCapacity, edgeCapacity int) Graph[NodeType, EdgeType] {
 	return Graph[NodeType, EdgeType]{
-		nodes: make(map[NodeType]map[string]any),
-		edges: make(map[NodePair[NodeType]]Edge[EdgeType]),
+		nodes: make(map[NodeType]map[string]any, nodeCapacity),
+		edges: make(map[NodePair[NodeType]]Edge[EdgeType], edgeCapacity),
 	}
 }
 
@@ -45,8 +51,23 @@ func (pg *Graph[NodeType, EdgeType]) Clone() Graph[NodeType, EdgeType] {
 	if pg != nil {
 		newGraph.edges = maps.Clone(pg.edges)
 		newGraph.nodes = maps.Clone(pg.nodes)
+		newGraph.limits = slices.Clone(pg.limits)
 	}
 	return newGraph
+}
+
+// Limited records that the graph holds less than everything that was asked
+// for, because a limit stopped what built it.
+func (pg *Graph[NodeType, EdgeType]) Limited(reason string) {
+	if !slices.Contains(pg.limits, reason) {
+		pg.limits = append(pg.limits, reason)
+	}
+}
+
+// Limits returns why the graph holds less than everything asked for, or
+// nothing when it is complete.
+func (pg *Graph[NodeType, EdgeType]) Limits() []string {
+	return pg.limits
 }
 
 func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
@@ -54,7 +75,7 @@ func (pg *Graph[NodeType, EdgeType]) Nodes() map[NodeType]map[string]any {
 }
 
 func (pg *Graph[NodeType, EdgeType]) AddNode(newnode NodeType) {
-	if !pg.HasNode(newnode) {
+	if _, found := pg.nodes[newnode]; !found {
 		pg.nodes[newnode] = nil
 	}
 }
@@ -101,7 +122,7 @@ func (pg *Graph[NodeType, EdgeType]) autoCleanupEdges() {
 	if !pg.cleanupEdgesNeeded {
 		return
 	}
-	for pair, _ := range pg.edges {
+	for pair := range pg.edges {
 		if !pg.HasNode(pair.Source) || !pg.HasNode(pair.Target) {
 			delete(pg.edges, pair)
 		}
@@ -129,6 +150,17 @@ func (pg *Graph[NodeType, EdgeType]) AddEdge(source, target NodeType, edge EdgeT
 	existing := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
 	existing.Edge = edge
 	existing.Flow++
+	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
+}
+
+// AddEdgeFlow is AddEdge repeated flow times: it sets the edge and adds flow
+// to the count of paths using it.
+func (pg *Graph[NodeType, EdgeType]) AddEdgeFlow(source, target NodeType, edge EdgeType, flow int) {
+	pg.AddNode(source)
+	pg.AddNode(target)
+	existing := pg.edges[NodePair[NodeType]{Source: source, Target: target}]
+	existing.Edge = edge
+	existing.Flow += flow
 	pg.edges[NodePair[NodeType]{Source: source, Target: target}] = existing
 }
 
@@ -203,6 +235,9 @@ func (pg *Graph[NodeType, EdgeType]) Merge(npg Graph[NodeType, EdgeType]) {
 			pg.edges[otherconnection] = otheredge
 		}
 	}
+	for _, reason := range npg.limits {
+		pg.Limited(reason)
+	}
 }
 
 // SCCKosaraju Kosaraju's Algorithm for finding strongly connected components (two DFS passes)
@@ -213,14 +248,14 @@ func (pg Graph[NodeType, EdgeType]) SCCKosaraju() [][]NodeType {
 	offsetToNode := make([]NodeType, len(pg.nodes))
 
 	var i int
-	for nodeid, _ := range pg.nodes {
+	for nodeid := range pg.nodes {
 		nodeToOffset[nodeid] = i
 		offsetToNode[i] = nodeid
 		i++
 	}
 
 	neighbours := make([][]int, len(pg.nodes))
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		node := nodeToOffset[connection.Source]
 		neighbours[node] = append(neighbours[node], nodeToOffset[connection.Target])
 	}
@@ -392,7 +427,7 @@ func (pg Graph[NodeType, EdgeType]) FloydWarshall() (map[NodeType]map[NodeType]i
 	}
 
 	// Set initial edge weights
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		// Use edge.Flow as weight, minimum 1
 		weight := 1
 		if weight >= INF {
@@ -499,12 +534,12 @@ func (pg Graph[NodeType, EdgeType]) AdjacencyMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	adjacencyMap := make(map[NodeType][]NodeType)
 	// Ensure everything is in there
-	for id, _ := range pg.nodes {
+	for id := range pg.nodes {
 		adjacencyMap[id] = nil
 	}
 
 	// Add every connection
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		adjacencyMap[connection.Source] = append(adjacencyMap[connection.Source], connection.Target)
 	}
 	return adjacencyMap
@@ -515,12 +550,12 @@ func (pg Graph[NodeType, EdgeType]) PredecessorMap() map[NodeType][]NodeType {
 	pg.autoCleanupEdges()
 	predecessorMap := make(map[NodeType][]NodeType)
 	// Ensure everything is in there
-	for id, _ := range pg.nodes {
+	for id := range pg.nodes {
 		predecessorMap[id] = nil
 	}
 
 	// Add every connection
-	for connection, _ := range pg.edges {
+	for connection := range pg.edges {
 		predecessorMap[connection.Target] = append(predecessorMap[connection.Target], connection.Source)
 	}
 	return predecessorMap
@@ -610,7 +645,7 @@ func (pg Graph[NodeType, EdgeType]) outerNodes(reverse bool) []NodeType {
 	pg.autoCleanupEdges()
 	pointedTo := make(map[NodeType]struct{})
 
-	for pair, _ := range pg.edges {
+	for pair := range pg.edges {
 		if reverse {
 			pointedTo[pair.Source] = struct{}{}
 		} else {
@@ -633,7 +668,7 @@ func (pg Graph[NodeType, EdgeType]) Islands() []NodeType {
 	pg.autoCleanupEdges()
 	pointedToOrFrom := make(map[NodeType]struct{})
 
-	for connections, _ := range pg.edges {
+	for connections := range pg.edges {
 		pointedToOrFrom[connections.Source] = struct{}{}
 		pointedToOrFrom[connections.Target] = struct{}{}
 	}
@@ -660,30 +695,30 @@ func (pg Graph[NodeType, EdgeType]) Size() int {
 }
 
 type SCCDAG[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]] struct {
-	NodeToSCC map[NodeType]int     // Map each original node to its SCC index
-	Edges     map[int]map[int]bool // Edge from SCC i → SCC j
-	Nodes     [][]NodeType         // Each SCC as a slice of nodes
+	NodeToSCC map[NodeType]int   // Map each original node to its SCC index
+	Edges     []map[int]struct{} // Edge from SCC i → SCC j
+	Nodes     [][]NodeType       // Each SCC as a slice of nodes
 }
 
 func CollapseSCCs[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](sccs [][]NodeType, g Graph[NodeType, EdgeType]) SCCDAG[NodeType, EdgeType] {
-	nodeToSCC := make(map[NodeType]int)
+	nodeToSCC := make(map[NodeType]int, len(g.nodes))
 	for i, scc := range sccs {
 		for _, n := range scc {
 			nodeToSCC[n] = i
 		}
 	}
 
-	edges := make(map[int]map[int]bool)
-	for i := range sccs {
-		edges[i] = make(map[int]bool)
-	}
+	edges := make([]map[int]struct{}, len(sccs))
 
 	// Build SCC-DAG
 	for pair := range g.edges {
 		srcSCC := nodeToSCC[pair.Source]
 		tgtSCC := nodeToSCC[pair.Target]
 		if srcSCC != tgtSCC {
-			edges[srcSCC][tgtSCC] = true
+			if edges[srcSCC] == nil {
+				edges[srcSCC] = make(map[int]struct{})
+			}
+			edges[srcSCC][tgtSCC] = struct{}{}
 		}
 	}
 
@@ -695,27 +730,23 @@ func CollapseSCCs[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInter
 }
 
 func TopoSortDAG[NodeType GraphNodeInterface[NodeType], EdgeType GraphEdgeInterface[EdgeType]](dag SCCDAG[NodeType, EdgeType]) []int {
-	indegree := make(map[int]int)
-	for i := range dag.Nodes {
-		indegree[i] = 0
-	}
+	indegree := make([]int, len(dag.Nodes))
 	for _, targets := range dag.Edges {
 		for tgt := range targets {
 			indegree[tgt]++
 		}
 	}
 
-	var queue []int
+	queue := make([]int, 0, len(dag.Nodes))
 	for i, deg := range indegree {
 		if deg == 0 {
 			queue = append(queue, i)
 		}
 	}
 
-	var order []int
-	for len(queue) > 0 {
-		u := queue[0]
-		queue = queue[1:]
+	order := make([]int, 0, len(dag.Nodes))
+	for head := 0; head < len(queue); head++ {
+		u := queue[head]
 		order = append(order, u)
 		for v := range dag.Edges[u] {
 			indegree[v]--

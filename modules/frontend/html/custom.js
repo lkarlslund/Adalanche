@@ -2,6 +2,8 @@ window.onpopstate = function (event) {
   document.body.innerHTML = event.state;
 };
 
+let statusHideTimer = null;
+
 function translateAutoTheme(theme) {
   if (theme === "auto") {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -11,15 +13,13 @@ function translateAutoTheme(theme) {
 
 function setTheme(theme) {
   document.documentElement.setAttribute("data-bs-theme", theme);
-  if (window.cy) {
-    cy.style(cytostyle);
-    applyEdgeStyles(cy);
-    applyNodeStyles(cy);
+  if (window.graph) {
+    refreshGraphTheme();
   }
 }
 
 function applyPreferredTheme() {
-  const themeMode = getpref("theme", "auto");
+  const themeMode = pref("theme", "auto");
   setTheme(translateAutoTheme(themeMode));
 }
 
@@ -27,11 +27,15 @@ document.addEventListener("preferences.loaded", applyPreferredTheme);
 document.addEventListener("preferences.updated", (event) => {
   if (event?.detail?.key === "theme") {
     applyPreferredTheme();
+    return;
+  }
+  if (event?.detail?.key === "graph.edgewidth" && window.graph) {
+    refreshGraphTheme();
   }
 });
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (getpref("theme", "auto") === "auto") {
+  if (pref("theme", "auto") === "auto") {
     applyPreferredTheme();
   }
 });
@@ -70,6 +74,9 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
   if (!wm) {
     return true;
   }
+  if (width <= 0 && typeof content === "string" && content.includes('class="node-details"')) {
+    width = Math.min(736, window.innerWidth * 0.6);
+  }
   return wm.openWindow({
     id,
     title,
@@ -80,10 +87,14 @@ function new_window(id, title, content, alignment = "topleft", height = 0, width
   });
 }
 
-function busystatus(busytext) {
+function busystatus(busytext, onCancel) {
   const status = document.getElementById("status");
   if (!status) {
     return;
+  }
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
   }
   status.innerHTML =
     `<div class="text-center pb-3">` +
@@ -98,8 +109,13 @@ function busystatus(busytext) {
   <div class="sk-chase-dot"></div>
   <div class="sk-chase-dot"></div>
 </div>
-            </div>`;
+            </div>` +
+    (onCancel ? `<div class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary" id="busycancel">Cancel</button></div>` : "");
   status.style.display = "";
+  const cancel = document.getElementById("busycancel");
+  if (cancel && onCancel) {
+    cancel.addEventListener("click", onCancel, { once: true });
+  }
 }
 
 function encodeaqlquery() {
@@ -126,6 +142,11 @@ function encodeaqlquery() {
       }
     });
   });
+  // Graph visualization option that changes what the server returns.
+  const mergeNodes = document.querySelector('#mergenodes input[name="merge_nodes"]:checked');
+  if (mergeNodes) {
+    payload.merge_nodes = mergeNodes.value;
+  }
   return JSON.stringify(payload);
 }
 
@@ -210,8 +231,33 @@ function clearElement(id) {
   el.innerHTML = "";
 }
 
+// The running analysis, so it can be cancelled; the server stops searching
+// when its request goes away. A tab runs one analysis at a time: the
+// Analyze button waits for it, and anything else that starts an analysis
+// replaces it.
+let analysisController = null;
+let queryInvalid = false;
+
+function updateAnalyzeButton() {
+  const analyzeButton = document.getElementById("aqlanalyzebutton");
+  if (analyzeButton) {
+    analyzeButton.disabled = queryInvalid || analysisController !== null;
+  }
+}
+
+function cancelAnalysis() {
+  if (analysisController) {
+    analysisController.abort();
+  }
+}
+
 async function aqlanalyze(e) {
-  busystatus("Analyzing");
+  // A new analysis replaces one still running.
+  cancelAnalysis();
+  const controller = new AbortController();
+  analysisController = controller;
+  updateAnalyzeButton();
+  busystatus("Analyzing", cancelAnalysis);
 
   try {
     const data = await fetchJSON("/api/aql/analyze", {
@@ -220,7 +266,11 @@ async function aqlanalyze(e) {
         "Content-Type": "application/json; charset=utf-8",
       },
       body: encodeaqlquery(),
+      signal: controller.signal,
     });
+    if (analysisController !== controller) {
+      return;
+    }
 
     if (data.total == 0) {
       setHTML("status", "No results");
@@ -228,8 +278,12 @@ async function aqlanalyze(e) {
       return;
     }
 
-    // Remove all windows
-    document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    const wm = getWindowManager();
+    if (wm && Array.isArray(wm.windows)) {
+      wm.windows = [];
+    } else {
+      document.querySelectorAll("#windows .window").forEach((el) => el.remove());
+    }
 
     var info = "";
     if (data.nodecounts["start"] > 0 && data.nodecounts["end"] > 0) {
@@ -254,19 +308,21 @@ async function aqlanalyze(e) {
       '<tr><td class="text-end pe-3">' +
       data.total +
       "</td><td>total nodes in analysis</td></tr>";
-    if (data.removed > 0) {
-      info +=
-        '<tr><td class="text-end pe-3"><b>' +
-        data.removed +
-        "</b></td><td><b>nodes were removed by node limiter</b></td></tr>";
-    }
     info += "</table>";
+    if (Array.isArray(data.limits) && data.limits.length > 0) {
+      info += "<hr/><b>Incomplete result</b>";
+      data.limits.forEach((limit) => {
+        const line = document.createElement("div");
+        line.textContent = limit;
+        info += line.outerHTML;
+      });
+    }
 
     new_window("results", "Query results", info);
 
     // Single Alpine state write collapses immediately; $persist+backend adapter
     // handles saving state.
-    if (getpref("ui.hide.options.on.analysis", false)) {
+    if (prefBool("ui.hide.options.on.analysis", false)) {
       if (window.Alpine && typeof window.Alpine.$data === "function") {
         const optionsRoot = document.getElementById("options");
         if (optionsRoot) {
@@ -277,7 +333,7 @@ async function aqlanalyze(e) {
         }
       }
     }
-    if (getpref("ui.hide.query.on.analysis", false)) {
+    if (prefBool("ui.hide.query.on.analysis", false)) {
       window.dispatchEvent(
         new CustomEvent("ui:set-query-open", {
           detail: false,
@@ -285,15 +341,30 @@ async function aqlanalyze(e) {
       );
     }
 
-    new Promise((resolve) => {
-      initgraph(data.elements);
-    });
+    await initgraph(data.elements, data.edgecombos);
 
     history.pushState(document.body.innerHTML, "adalanche");
   } catch (err) {
+    if (controller.signal.aborted) {
+      // Replaced by a newer analysis, or cancelled from its status.
+      if (analysisController === controller) {
+        setHTML("status", "Analysis cancelled");
+        setVisible("status", true);
+        statusHideTimer = setTimeout(() => {
+          setVisible("status", false);
+          statusHideTimer = null;
+        }, 3000);
+      }
+      return;
+    }
     toast("Problem loading graph", getErrorText(err), "error");
     clearElement("status");
     setVisible("status", false);
+  } finally {
+    if (analysisController === controller) {
+      analysisController = null;
+      updateAnalyzeButton();
+    }
   }
 }
 
@@ -456,7 +527,7 @@ function toast(title, contents, toastclass) {
   }
   Toastify({
     text: toastbody,
-    duration: 1000000,
+    duration: 10000,
     // avatar: icon,
     // destination: "https://github.com/apvarun/toastify-js",
     newWindow: true,
@@ -653,36 +724,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  const nodeInfoButton = document.getElementById("node-info");
-  if (nodeInfoButton) {
-    nodeInfoButton.addEventListener("click", function () {
-      /* get json data and show window on success */
-      fetchJSON("backend/nodes")
-        .then(function (data) {
-          var details = renderdetails(data);
-          new_window("node_info", "Known Nodes", details);
-        })
-        .catch(function (err) {
-          toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
-        });
-    });
-  }
-
-  const edgeInfoButton = document.getElementById("edge-info");
-  if (edgeInfoButton) {
-    edgeInfoButton.addEventListener("click", function () {
-      /* get json data and show window on success */
-      fetchJSON("backend/edges")
-        .then(function (data) {
-          var details = renderdetails(data);
-          new_window("edge_info", "Known Edges", details);
-        })
-        .catch(function (err) {
-          toast("API Error", "Couldn't load details:" + getErrorText(err), "error");
-        });
-    });
-  }
-
   const highlightButton = document.getElementById("highlightbutton");
   if (highlightButton) {
     highlightButton.addEventListener("click", function () {
@@ -726,16 +767,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const searchAndHighlight = document.getElementById("searchandhighlight");
         if (searchAndHighlight) {
           searchAndHighlight.addEventListener("click", function () {
-            if (cy && highlighttext) {
+            if (window.graph && highlighttext) {
               fetchJSON(
                 buildURL("/api/search/get-ids", {
                   query: highlighttext.value,
                 })
               ).then(function (data) {
-                cy.$("*").unselect();
-                for (var id of data) {
-                  cy.$("#" + id).select();
-                }
+                selectGraphNodes(Array.isArray(data) ? data : []);
               });
             }
           });
@@ -757,21 +795,17 @@ document.addEventListener("DOMContentLoaded", function () {
           })
         )
           .then(function () {
-            const analyzeButton = document.getElementById("aqlanalyzebutton");
             const queryError = document.getElementById("aqlqueryerror");
-            if (analyzeButton) {
-              analyzeButton.disabled = false;
-            }
+            queryInvalid = false;
+            updateAnalyzeButton();
             if (queryError) {
               queryError.style.display = "none";
             }
           })
           .catch(function (err) {
-            const analyzeButton = document.getElementById("aqlanalyzebutton");
             const queryError = document.getElementById("aqlqueryerror");
-            if (analyzeButton) {
-              analyzeButton.disabled = true;
-            }
+            queryInvalid = true;
+            updateAnalyzeButton();
             if (queryError) {
               queryError.innerHTML = getErrorText(err);
               queryError.style.display = "";
@@ -792,7 +826,13 @@ document.addEventListener("DOMContentLoaded", function () {
         "</b></div>";
       setHTML("status", statustext);
       setVisible("status", true);
-      setTimeout(() => setVisible("status", false), 15000);
+      if (statusHideTimer) {
+        clearTimeout(statusHideTimer);
+      }
+      statusHideTimer = setTimeout(() => {
+        setVisible("status", false);
+        statusHideTimer = null;
+      }, 15000);
       setHTML("programinfo", data.adalanche.program + " " + data.adalanche.shortversion);
     })
     .catch(function (err) {
@@ -826,7 +866,7 @@ function hasReadyInitialQuery() {
 }
 
 function autorun_query() {
-  if (!initial_query_set || !settings_loaded || !data_loaded || !getpref("ui.run.query.on.startup", true) || initial_query_has_run) {
+  if (!initial_query_set || !settings_loaded || !data_loaded || !prefBool("ui.run.query.on.startup", true) || initial_query_has_run) {
     return;
   }
 
@@ -860,10 +900,10 @@ function exploreTree() {
     },
     async onNodeClick(node) {
       try {
-        const data = await fetchJSON("api/details/id/" + node.id);
+        const data = await fetchJSON("api/details/nodeid/" + node.id);
         const details = renderdetails(data);
         let windowname = "details_" + node.id;
-        if (getpref("ui.open.details.in.same.window", true)) {
+        if (prefBool("ui.open.details.in.same.window", true)) {
           windowname = "node_details";
         }
         new_window(windowname, "Item details", details);

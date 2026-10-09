@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify-ci:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify successful CI run for this commit
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const headSha = context.sha;
+            const { owner, repo } = context.repo;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+              owner,
+              repo,
+              head_sha: headSha,
+              per_page: 100
+            });
+
+            const ciRun = runs.find((run) =>
+              run.name === "CI" &&
+              run.status === "completed" &&
+              run.conclusion === "success"
+            );
+
+            if (!ciRun) {
+              core.setFailed(`No successful CI run found for commit ${headSha}. Wait for CI before tagging a release.`);
+            }
+
+  publish:
+    name: Publish Release
+    needs: verify-ci
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-win7 toolchain
+        shell: bash
+        run: |
+          sudo chmod 777 /opt
+          mkdir -p /opt/go-win7
+          curl -fL https://github.com/XTLS/go-win7/releases/download/patched-1.27.1/go-for-win7-linux-amd64.zip -o go-win7.zip
+          echo "4f0434fceea1b1c80c6d3511f0f777b0dc3b1260f172f1bf1ec202575bd36ec1  go-win7.zip" | sha256sum --check
+          unzip -qq go-win7.zip -d /opt/go-win7
+          sudo ln -f -s /opt/go-win7/bin/go /usr/bin/go-win7
+
+      - name: Install release prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends powershell curl unzip
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: modules/frontend/vendor-src/package-lock.json
+
+      - name: Build release artifacts
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" binaries/* --clobber
+          else
+            gh release create "$tag" binaries/* --title "$tag"
+          fi

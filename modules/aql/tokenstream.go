@@ -30,7 +30,7 @@ func Parse(input string) (*TokenStream, error) {
 		}
 		token, ok := t.(Token)
 		if !ok {
-			return nil, errors.New("Unexpected token type from lexer")
+			return nil, errors.New("unexpected token type from lexer")
 		}
 		result.data = append(result.data, token)
 	}

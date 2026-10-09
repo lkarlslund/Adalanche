@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/gorilla/websocket"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -70,7 +70,26 @@ func AddUIEndpoints(ws *WebService) {
 		c.JSON(200, gin.H{"success": true})
 	})
 	backend.GET("types", func(c *gin.Context) {
-		c.JSON(200, typeInfos)
+		type typeInfo struct {
+			Name            string `json:"name"`
+			Icon            string `json:"icon"`
+			BackgroundColor string `json:"background-color"`
+			Description     string `json:"description"`
+		}
+		result := make(map[string]typeInfo)
+		for _, objectType := range engine.NodeTypes() {
+			name := objectType.DisplayName
+			if name == "" {
+				name = objectType.Lookup
+			}
+			result[objectType.Lookup] = typeInfo{
+				Name:            name,
+				Icon:            objectType.Icon,
+				BackgroundColor: objectType.BackgroundColor,
+				Description:     objectType.Description,
+			}
+		}
+		c.JSON(200, result)
 	})
 	backend.GET("statistics", func(c *gin.Context) {
 		var result struct {
@@ -192,6 +211,11 @@ func AddUIEndpoints(ws *WebService) {
 type APINodeDetails struct {
 	ID                engine.NodeID       `json:"id"`
 	Label             string              `json:"label"`
+	Type              string              `json:"type"`
+	TypeLabel         string              `json:"typeLabel,omitempty"`
+	Icon              string              `json:"icon,omitempty"`
+	IdentityField     string              `json:"identityField,omitempty"`
+	Identity          string              `json:"identity,omitempty"`
 	DistinguishedName string              `json:"distinguishedname"`
 	Attributes        map[string][]string `json:"attributes"`
 	// CanPwn            map[string][]string `json:"can_pwn"`
@@ -199,17 +223,49 @@ type APINodeDetails struct {
 }
 
 type APIEdgeDetails struct {
-	From  APINodeDetails                `json:"from"`
-	To    APINodeDetails                `json:"to"`
-	Edges map[string]engine.Probability `json:"edges"`
+	From    APINodeDetails                `json:"from"`
+	To      APINodeDetails                `json:"to"`
+	Edges   map[string]engine.Probability `json:"edges"`
+	Sources []APIEdgeSource               `json:"sources,omitempty"`
+}
+
+// APIEdgeSource is one recorded cause of an edge type.
+type APIEdgeSource struct {
+	Edge   string      `json:"edge"`
+	Kind   string      `json:"kind"`
+	Detail string      `json:"detail,omitempty"`
+	About  *APINodeRef `json:"about,omitempty"`  // what the cause is about, such as the GPO
+	SetOn  *APINodeRef `json:"set_on,omitempty"` // where it was set, such as the object an inherited ACE came from
+}
+
+type APINodeRef struct {
+	ID    engine.NodeID `json:"id"`
+	Label string        `json:"label"`
+}
+
+func apiNodeRef(n *engine.Node) *APINodeRef {
+	if n == nil {
+		return nil
+	}
+	return &APINodeRef{ID: n.ID(), Label: n.Label()}
 }
 
 func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 	od := APINodeDetails{
 		ID:                o.ID(),
 		Label:             o.Label(),
+		Type:              o.Type().String(),
 		DistinguishedName: o.DN(),
 		Attributes:        o.ValueMap(),
+	}
+	for _, kind := range engine.NodeTypes() {
+		if kind.Name == od.Type {
+			od.TypeLabel, od.Icon = kind.DisplayName, kind.Icon
+			break
+		}
+	}
+	if attribute, value := o.PrimaryID(); attribute != engine.NonExistingAttribute && !value.IsNil() {
+		od.IdentityField, od.Identity = attribute.String(), value.String()
 	}
 	if pretty {
 		for k, slice := range od.Attributes {
@@ -231,7 +287,11 @@ func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 func apiEdgeDetails(g *engine.IndexedGraph, from, to *engine.Node) (APIEdgeDetails, bool) {
 	eb, found := g.GetEdge(from, to)
 	if !found {
-		return APIEdgeDetails{}, false
+		eb, found = g.GetEdge(to, from)
+		if !found {
+			return APIEdgeDetails{}, false
+		}
+		from, to = to, from
 	}
 
 	ed := APIEdgeDetails{
@@ -244,6 +304,15 @@ func apiEdgeDetails(g *engine.IndexedGraph, from, to *engine.Node) (APIEdgeDetai
 		ed.Edges[e.String()] = e.Probability(from, to, &eb)
 		return true
 	})
+	for _, p := range g.EdgeSources(from, to) {
+		ed.Sources = append(ed.Sources, APIEdgeSource{
+			Edge:   p.Edge.String(),
+			Kind:   p.Source.Kind.String(),
+			Detail: p.Source.Detail,
+			About:  apiNodeRef(p.Source.About),
+			SetOn:  apiNodeRef(p.Source.Origin(from, to)),
+		})
+	}
 	return ed, true
 }
 
@@ -278,13 +347,6 @@ func AddDataEndpoints(ws *WebService) {
 		var o *engine.Node
 		var found bool
 		switch strings.ToLower(c.Param("locateby")) {
-		case "id":
-			index, err := strconv.ParseInt(c.Param("id"), 10, 64)
-			if err != nil {
-				c.String(500, "Error parsing index")
-				return
-			}
-			o, found = ws.SuperGraph.IndexToNode(engine.NodeIndex(index))
 		case "nodeid":
 			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 			if err != nil {
@@ -321,7 +383,57 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 
+		if c.Query("format") == "raw" {
+			details := apiNodeDetails(o, false)
+			for _, values := range details.Attributes {
+				for i, value := range values {
+					if !util.IsPrintableString(value) {
+						values[i] = util.Hexify(value)
+					}
+				}
+			}
+			c.Header("Cache-Control", "no-store")
+			c.JSON(200, details)
+			return
+		}
 		c.JSON(200, apiNodeDetails(o, true))
+	})
+	// Returns one attribute for many nodes, for views that need a value per
+	// drawn node (such as sizing by a score) without loading their details.
+	// Nodes are given by graph id ("n123" or "123"); nodes without exactly
+	// one value are left out.
+	api.POST("nodes/attribute", ws.RequireData(Ready), func(c *gin.Context) {
+		var request struct {
+			Attribute string   `json:"attribute"`
+			IDs       []string `json:"ids"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.String(400, "Error parsing request: %v", err)
+			return
+		}
+		attribute := engine.LookupAttribute(request.Attribute)
+		if attribute == engine.NonExistingAttribute {
+			c.String(404, "Unknown attribute %v", request.Attribute)
+			return
+		}
+		values := make(map[string]any, len(request.IDs))
+		for _, id := range request.IDs {
+			number, err := strconv.ParseInt(strings.TrimPrefix(id, "n"), 10, 64)
+			if err != nil {
+				c.String(400, "Error parsing ID")
+				return
+			}
+			node, found := ws.SuperGraph.LookupNodeByID(engine.NodeID(number))
+			if !found {
+				continue
+			}
+			if value, found := node.AttrInt(attribute); found {
+				values[id] = value
+			} else if value := node.OneAttr(attribute); !value.IsNil() {
+				values[id] = value.String()
+			}
+		}
+		c.JSON(200, values)
 	})
 	api.GET("edges/:locateby/:ids", ws.RequireData(Ready), func(c *gin.Context) {
 		var o *engine.Node
@@ -331,20 +443,6 @@ func AddDataEndpoints(ws *WebService) {
 		nodes := make([]*engine.Node, len(ids))
 
 		switch strings.ToLower(c.Param("locateby")) {
-		case "id":
-			for i, id := range ids {
-				thisId, err := strconv.ParseInt(id, 10, 64)
-				if err != nil {
-					c.String(500, "Error parsing ID")
-					return
-				}
-				o, found = ws.SuperGraph.IndexToNode(engine.NodeIndex(thisId))
-				if !found {
-					c.AbortWithStatus(404)
-					return
-				}
-				nodes[i] = o
-			}
 		case "nodeid":
 			for i, id := range ids {
 				thisId, err := strconv.ParseInt(id, 10, 64)
@@ -506,7 +604,7 @@ func AddDataEndpoints(ws *WebService) {
 		}
 		pb := ui.ProgressBar("Extracting words", int64(ws.SuperGraph.Order()))
 		wordmap := make(map[string]struct{})
-		ws.SuperGraph.Iterate(func(object *engine.Node) bool {
+		ws.SuperGraph.IterateStable(func(object *engine.Node) bool {
 			pb.Add(1)
 			for _, attr := range scrapeatttributes {
 				if attr != engine.NonExistingAttribute {

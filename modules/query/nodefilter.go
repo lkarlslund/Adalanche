@@ -446,10 +446,7 @@ func (tc AttributeComparison) Evaluate(a engine.Attribute, o *engine.Node) bool 
 		default:
 			panic("Unknown comparator")
 		}
-		if matched {
-			return false
-		}
-		return true
+		return !matched
 	})
 	return matched
 }
@@ -558,7 +555,7 @@ func (hsm HasStringMatch) ToWhereClause(a string) string {
 }
 
 type HasGlobMatch struct {
-	Match         glob.Glob
+	Match         *glob.Pattern
 	Globstr       string
 	Casesensitive bool
 }

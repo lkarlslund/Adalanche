@@ -27,3 +27,13 @@ func TestServiceNameToServiceSID(t *testing.T) {
 		})
 	}
 }
+
+func TestSIDAddComponent(t *testing.T) {
+	domain := MustParseStringSID("S-1-5-21-1-2-3")
+	if got, want := domain.AddComponent(513), MustParseStringSID("S-1-5-21-1-2-3-513"); got != want {
+		t.Fatalf("AddComponent gives %v, want %v", got, want)
+	}
+	if got := MustParseStringSID("S-1-5-21-1-2-3-1001").StripRID().AddComponent(513).String(); got != "S-1-5-21-1-2-3-513" {
+		t.Fatalf("replacing the RID gives %v", got)
+	}
+}

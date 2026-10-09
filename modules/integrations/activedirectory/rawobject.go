@@ -3,11 +3,12 @@ package activedirectory
 import (
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/ui"
 	"github.com/lkarlslund/adalanche/modules/util"
@@ -28,11 +29,8 @@ func (r *RawObject) Init() {
 }
 
 func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
-	newobject := engine.NewNode()
-
-	newobject.SetFlex(
-		DistinguishedName, engine.NV(r.DistinguishedName),
-	) // This is possibly repeated in member attributes, so dedup it
+	flex := make([]any, 0, 2+2*len(r.Attributes))
+	flex = append(flex, DistinguishedName, engine.NVString(r.DistinguishedName))
 
 	// Reusable slice
 	var convertedvalues []engine.AttributeValue
@@ -53,11 +51,11 @@ func (r *RawObject) ToObject(onlyKnownAttributes bool) *engine.Node {
 
 		convertedvalues = EncodeAttributeData(attribute, convertedvalues, values)
 		if len(convertedvalues) > 0 {
-			newobject.Set(attribute, convertedvalues...)
+			flex = append(flex, attribute, engine.AttributeValues(slices.Clone(convertedvalues)))
 		}
 	}
 
-	return newobject
+	return engine.NewNode(flex...)
 }
 
 func (item *RawObject) IngestLDAP(source *ldap.Entry) error {
@@ -95,14 +93,14 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 		case MsPKIRoamingTimeStamp:
 			// https://www.sysadmins.lv/blog-en/how-to-convert-ms-pki-roaming-timestamp-attribute.aspx
 			t := util.FiletimeToTime(binary.LittleEndian.Uint64([]byte(value[8:])))
-			attributevalue = engine.NV(t)
+			attributevalue = engine.NVTime(t)
 		case AccountExpires, CreationTime, PwdLastSet, LastLogon, LastLogonTimestamp, MSmcsAdmPwdExpirationTime, MSLAPSPasswordExpirationTime, BadPasswordTime:
 			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
 				if intval == 0 {
-					attributevalue = engine.NV(intval)
+					attributevalue = engine.NVInt(intval)
 				} else {
 					t := util.FiletimeToTime(uint64(intval))
-					attributevalue = engine.NV(t)
+					attributevalue = engine.NVTime(t)
 				}
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), value, err)
@@ -116,13 +114,13 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			switch len(tvalue) {
 			case 14:
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
-					attributevalue = engine.NV(t)
+					attributevalue = engine.NVTime(t)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
 			case 12:
 				if t, err := time.Parse("060102150405", tvalue); err == nil {
-					attributevalue = engine.NV(t)
+					attributevalue = engine.NVTime(t)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to timestamp: %v", attribute.String(), tvalue, err)
 				}
@@ -134,20 +132,20 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			secs := nss / 10000000
 			var period string
 			if (secs%31536000) == 0 && (secs/31536000) > 1 {
-				period = fmt.Sprintf("v% years", secs/31536000)
+				period = fmt.Sprintf("%v years", secs/31536000)
 			} else if (secs%2592000) == 0 && (secs/2592000) > 1 {
-				period = fmt.Sprintf("v% months", secs/2592000)
+				period = fmt.Sprintf("%v months", secs/2592000)
 			} else if (secs%604800) == 0 && (secs/604800) > 1 {
-				period = fmt.Sprintf("v% weeks", secs/604800)
+				period = fmt.Sprintf("%v weeks", secs/604800)
 			} else if (secs%86400) == 0 && (secs/86400) > 1 {
-				period = fmt.Sprintf("v% days", secs/86400)
+				period = fmt.Sprintf("%v days", secs/86400)
 			} else if (secs%3600) == 0 && (secs/3600) > 1 {
-				period = fmt.Sprintf("v% hours", secs/3600)
+				period = fmt.Sprintf("%v hours", secs/3600)
 			}
 			if period != "" {
-				attributevalue = engine.NV(period)
+				attributevalue = engine.NVString(period)
 			} else {
-				attributevalue = engine.NV(value)
+				attributevalue = engine.NVString(value)
 			}
 		case AttributeSecurityGUID, SchemaIDGUID, MSDSConsistencyGUID, RightsGUID:
 			switch len(value) {
@@ -155,14 +153,14 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				guid, err := uuid.FromBytes([]byte(value))
 				if err == nil {
 					guid = util.SwapUUIDEndianess(guid)
-					attributevalue = engine.NV(guid)
+					attributevalue = engine.NVGUID(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 				}
 			case 36:
 				guid, err := uuid.FromString(value)
 				if err == nil {
-					attributevalue = engine.NV(guid)
+					attributevalue = engine.NVGUID(guid)
 				} else {
 					ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), value, err)
 				}
@@ -171,13 +169,13 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 			guid, err := uuid.FromBytes([]byte(value))
 			if err == nil {
 				// 	guid = SwapUUIDEndianess(guid)
-				attributevalue = engine.NV(guid)
+				attributevalue = engine.NVGUID(guid)
 			} else {
 				ui.Warn().Msgf("Failed to convert attribute %v value %2x to GUID: %v", attribute.String(), []byte(value), err)
 			}
 		case ObjectSid, SIDHistory, SecurityIdentifier, CreatorSID:
 			sid, _, _ := windowssecurity.BytesToSID([]byte(value))
-			attributevalue = engine.NV(sid)
+			attributevalue = engine.NVSID(sid)
 		case MSDSAllowedToActOnBehalfOfOtherIdentity, FRSRootSecurity, MSDFSLinkSecurityDescriptorv2,
 			MSDSGroupMSAMembership, NTSecurityDescriptor, PKIEnrollmentAccess:
 			sd, err := engine.CacheOrParseSecurityDescriptor(value)
@@ -189,10 +187,10 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 		default:
 			// AUTO CONVERSION - WHAT COULD POSSIBLY GO WRONG
 			if value == "true" || value == "TRUE" {
-				attributevalue = engine.NV(true)
+				attributevalue = engine.NVBool(true)
 				break
 			} else if value == "false" || value == "FALSE" {
-				attributevalue = engine.NV(true)
+				attributevalue = engine.NVBool(false)
 				break
 			}
 
@@ -201,22 +199,24 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 				tvalue := strings.TrimSuffix(value, "Z")  // strip "Z"
 				tvalue = strings.TrimSuffix(tvalue, ".0") // strip ".0"
 				if t, err := time.Parse("20060102150405", tvalue); err == nil {
-					attributevalue = engine.NV(t)
+					attributevalue = engine.NVTime(t)
 					break
 				}
 			}
 
-			// Integer
-			if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
-				attributevalue = engine.NV(intval)
-				break
+			// Integer. Check the shape first: a failed parse allocates an error.
+			if looksLikeInteger(value) {
+				if intval, err := strconv.ParseInt(value, 10, 64); err == nil {
+					attributevalue = engine.NVInt(intval)
+					break
+				}
 			}
 
 			// Just a string
-			attributevalue = engine.NV(value)
+			attributevalue = engine.NVString(value)
 		}
 
-		if attributevalue != nil {
+		if !attributevalue.IsNil() {
 			destination = append(destination, attributevalue)
 		} else {
 			skipped++
@@ -224,4 +224,20 @@ func EncodeAttributeData(attribute engine.Attribute, destination []engine.Attrib
 	}
 
 	return destination
+}
+
+// looksLikeInteger reports whether s could parse as a base-10 int64.
+func looksLikeInteger(s string) bool {
+	if len(s) > 0 && (s[0] == '-' || s[0] == '+') {
+		s = s[1:]
+	}
+	if len(s) == 0 || len(s) > 19 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }

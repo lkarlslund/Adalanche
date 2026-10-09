@@ -1,10 +1,8 @@
 package engine
 
 import (
-	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/lkarlslund/adalanche/modules/ui"
 )
@@ -15,14 +13,13 @@ type AttributeGetFunc func(o *Node, a Attribute) (v AttributeValues, found bool)
 type AttributeSetFunc func(o *Node, a Attribute, v AttributeValues) error
 
 type attributeinfo struct {
-	onset          AttributeSetFunc
-	onget          AttributeGetFunc
-	name           string
-	description    string
-	tags           []string
-	mergeSuccesses atomic.Uint64 // number of successfull merges where this attribute was the deciding factor
-	atype          AttributeType
-	flags          AttributeFlag
+	onset       AttributeSetFunc
+	onget       AttributeGetFunc
+	name        string
+	description string
+	tags        []string
+	atype       AttributeType
+	flags       AttributeFlag
 }
 
 type AttributeFlag uint64
@@ -34,6 +31,7 @@ const (
 	Merge                           // Try to merge on this
 	Single                          // Can only hold one value
 	DropWhenMerging                 // Node being merged from does not contribute this attribute
+	Fuzzy                           // A Merge key that names a thing loosely, such as an address; tried after strict keys
 )
 
 type AttributeType uint8
@@ -52,28 +50,23 @@ const (
 	AttributeTypeSecurityDescriptor
 )
 
-type mergeapproverinfo struct {
-	mergefunc mergefunc
-	// priority  int
-	name string
-}
-
-var mergeapprovers []mergeapproverinfo
 var attributeinfos []attributeinfo
 
 var (
 	NonExistingAttribute = ^Attribute(0)
 
-	DistinguishedName     = NewAttribute("distinguishedName").Flag(Single, Unique, Merge)
-	ObjectClass           = NewAttribute("objectClass")
-	ObjectCategory        = NewAttribute("objectCategory").Flag(Single)
-	Type                  = NewAttribute("type").Flag(Single)
-	Name                  = NewAttribute("name").Flag(Single)
-	DisplayName           = NewAttribute("displayName").Flag(Single)
-	LDAPDisplayName       = NewAttribute("lDAPDisplayName").Flag(Single)
-	Description           = NewAttribute("description")
-	SAMAccountName        = NewAttribute("sAMAccountName").Flag(Single)
-	ObjectSid             = NewAttribute("objectSid").Flag(Single) // Single, but not unique! Strange yes, but in the final results there are multiple objects with the same SID
+	DistinguishedName = NewAttribute("distinguishedName").Flag(Single, Unique, Merge)
+	ObjectClass       = NewAttribute("objectClass")
+	ObjectCategory    = NewAttribute("objectCategory").Flag(Single)
+	Type              = NewAttribute("type").Flag(Single)
+	Name              = NewAttribute("name").Flag(Single)
+	DisplayName       = NewAttribute("displayName").Flag(Single)
+	LDAPDisplayName   = NewAttribute("lDAPDisplayName").Flag(Single)
+	Description       = NewAttribute("description")
+	SAMAccountName    = NewAttribute("sAMAccountName").Flag(Single)
+	// ObjectSid is single-valued but not unique: builtin and machine SIDs
+	// repeat per domain and machine, so references by SID carry a scope.
+	ObjectSid             = NewAttribute("objectSid").Flag(Single, Merge)
 	ObjectGUID            = NewAttribute("objectGUID").Flag(Single, Merge, Unique)
 	NTSecurityDescriptor  = NewAttribute("nTSecurityDescriptor").Flag(Single)
 	SchemaIDGUID          = NewAttribute("schemaIDGUID")
@@ -91,39 +84,16 @@ var (
 	DataLoader = NewAttribute("dataLoader").SetDescription("Where did data in this object come from")
 	DataSource = NewAttribute("dataSource").SetDescription("Data from different sources are never merged together")
 
-	IPAddress          = NewAttribute("iPAddress").Flag(Merge)
+	IPAddress          = NewAttribute("iPAddress").Flag(Merge, Fuzzy)
 	DownLevelLogonName = NewAttribute("downLevelLogonName").Flag(Merge, Single)
-	UserPrincipalName  = NewAttribute("userPrincipalName").Flag(Merge, Single)
-	NetbiosDomain      = NewAttribute("netbiosDomain").Flag(Single) // Used to merge users with - if we only have a DOMAIN\USER type of info
-	DomainContext      = NewAttribute("domainContext").Flag(Single)
+	// An account logs on under several names in UPN form (its explicit
+	// UPN, the implicit sAMAccountName@dnsdomain), so this is not single.
+	UserPrincipalName = NewAttribute("userPrincipalName").Flag(Merge)
+	NetbiosDomain     = NewAttribute("netbiosDomain").Flag(Single) // Used to merge users with - if we only have a DOMAIN\USER type of info
+	DomainContext     = NewAttribute("domainContext").Flag(Single)
 
 	Tag = NewAttribute("tag")
 )
-
-// func init() {
-// AddMergeApprover("Merge SIDs", func(a, b *Node) (*Node, error) {
-// 	asid := a.SID()
-// 	bsid := b.SID()
-// 	if asid.IsBlank() || bsid.IsBlank() {
-// 		return nil, nil
-// 	}
-
-// 	if asid != bsid {
-// 		return nil, ErrDontMerge
-// 	}
-// 	if asid.Component(2) == 21 {
-// 		return nil, nil // Merge, these should be universally mappable !?
-// 	}
-
-// 	asource := a.OneAttr(DataSource)
-// 	bsource := b.OneAttr(DataSource)
-// 	if CompareAttributeValues(asource, bsource) {
-// 		// Stuff from GPOs can have non universal SIDs but should still be mapped
-// 		return nil, nil
-// 	}
-// 	return nil, ErrDontMerge
-// })
-// }
 
 type Attribute uint16
 
@@ -200,25 +170,6 @@ func (a Attribute) Flag(flags ...AttributeFlag) Attribute {
 
 func (a Attribute) HasFlag(flag AttributeFlag) bool {
 	return (attributeinfos[a].flags & flag) != 0
-}
-
-var ErrDontMerge = errors.New("Dont merge objects using any methods")
-var ErrMergeOnThis = errors.New("Merge on this attribute")
-
-type mergefunc func(a, b *Node) (*Node, error)
-
-func StandardMerge(attr Attribute, a, b *Node) (*Node, error) {
-	return nil, nil
-}
-
-// AddMergeApprover adds a new function that can object to an object merge, or forever hold its silence
-func AddMergeApprover(name string, mf mergefunc) {
-	attributemutex.Lock()
-	mergeapprovers = append(mergeapprovers, mergeapproverinfo{
-		name:      name,
-		mergefunc: mf,
-	})
-	attributemutex.Unlock()
 }
 
 func (a Attribute) Tag(t string) Attribute {

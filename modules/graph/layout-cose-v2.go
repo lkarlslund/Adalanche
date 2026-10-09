@@ -263,7 +263,7 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 		edgesSlice := make([]struct{ src, dst int }, len(currentGraph.edges))
 		nodeDegree := make([]int, len(currentNodes))
 		i := 0
-		for edge, _ := range currentGraph.edges {
+		for edge := range currentGraph.edges {
 			srcID := currentNodeMap[edge.Source].id
 			dstID := currentNodeMap[edge.Target].id
 			edgesSlice[i] = struct{ src, dst int }{
@@ -332,11 +332,11 @@ func (pg Graph[NodeType, EdgeType]) COSELayoutV2(settings COSELayoutOptions) map
 				for gy := 0; gy < gridSize; gy++ {
 					for gx := 0; gx < gridSize; gx++ {
 						workChan <- forceGridWork{
-							gridX:    gx,
-							gridY:    gy,
-							gridSize: gridSize,
-							grid:     grid,
-							nodes:    currentNodes,
+							gridX:        gx,
+							gridY:        gy,
+							gridSize:     gridSize,
+							grid:         grid,
+							nodes:        currentNodes,
 							neighborSpan: neighborSpan,
 						}
 					}

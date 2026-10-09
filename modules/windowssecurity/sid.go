@@ -33,7 +33,7 @@ var sidDeduplicator gsync.MapOf[SID, SID]
 
 func BytesToSID(data []byte) (SID, []byte, error) {
 	if len(data) == 0 {
-		return "", data, errors.New("No data supplied")
+		return "", data, errors.New("no data supplied")
 	}
 	if data[0] != 0x01 {
 		if len(data) > 32 {
@@ -63,7 +63,7 @@ func ParseStringSID(input string) (SID, error) {
 	}
 	subauthoritycount := strings.Count(input, "-") - 2
 	if subauthoritycount < 0 {
-		return "", errors.New("Less than one subauthority found")
+		return "", errors.New("less than one subauthority found")
 	}
 	if input[0] != 'S' {
 		return "", errors.New("SID must start with S")
@@ -205,19 +205,20 @@ func (sid SID) AddComponent(component uint32) SID {
 	newsid := make([]byte, len(sid)+4)
 	copy(newsid, sid)
 	binary.LittleEndian.PutUint32(newsid[len(sid):], component)
-	newsid[1] = byte(len(newsid)/4) - 2 // Adjust internal length
 	return SID(newsid)
 }
 
-func SIDFromPtr(data uintptr) (SID, error) {
-	bytes := (*[1024]byte)(unsafe.Pointer(data))
-	if bytes[0] != 0x01 {
-		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", bytes[0:32])
+func SIDFromPtr(data unsafe.Pointer) (SID, error) {
+	header := unsafe.Slice((*byte)(data), 8)
+	if header[0] != 0x01 {
+		return "", fmt.Errorf("SID revision must be 1 (dump %x ...)", header)
 	}
-	subauthoritycount := int(bytes[1])
-	var sid = make([]byte, 6+4*subauthoritycount)
+	subauthoritycount := int(header[1])
+	sidEnd := 8 + 4*subauthoritycount
+	raw := unsafe.Slice((*byte)(data), sidEnd)
+	sid := make([]byte, sidEnd-2)
 
-	copy(sid, bytes[2:len(sid)])
+	copy(sid, raw[2:sidEnd])
 	return SID(sid), nil
 }
 

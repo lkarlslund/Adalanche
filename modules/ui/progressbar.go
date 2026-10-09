@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/gookit/color"
 	"github.com/pterm/pterm"
+	"golang.org/x/term"
 )
 
 type progressBar struct {
@@ -40,7 +42,13 @@ type progressBar struct {
 var (
 	pbLock       sync.Mutex
 	progressbars = map[*progressBar]struct{}{}
+
+	progressEnabled atomic.Bool
 )
+
+func init() {
+	progressEnabled.Store(true)
+}
 
 type ProgressReport struct {
 	StartTime      time.Time
@@ -53,6 +61,10 @@ type ProgressReport struct {
 }
 
 func GetProgressReport() []ProgressReport {
+	if !ProgressEnabled() {
+		return nil
+	}
+
 	pbLock.Lock()
 	pbr := make([]ProgressReport, len(progressbars))
 	var i int
@@ -75,6 +87,14 @@ func GetProgressReport() []ProgressReport {
 	}
 	pbLock.Unlock()
 	return pbr[:i]
+}
+
+func SetProgressEnabled(enabled bool) {
+	progressEnabled.Store(enabled)
+}
+
+func ProgressEnabled() bool {
+	return progressEnabled.Load()
 }
 
 func ProgressBar(title string, max int64) *progressBar {
@@ -103,9 +123,11 @@ func ProgressBar(title string, max int64) *progressBar {
 	pb.Start()
 
 	// Save it
-	pbLock.Lock()
-	progressbars[&pb] = struct{}{}
-	pbLock.Unlock()
+	if ProgressEnabled() {
+		pbLock.Lock()
+		progressbars[&pb] = struct{}{}
+		pbLock.Unlock()
+	}
 
 	return &pb
 }
@@ -140,16 +162,44 @@ func (pb *progressBar) SetTitle(title string) {
 }
 
 func (pb *progressBar) Finish() {
+	if !ProgressEnabled() {
+		pb.Done = true
+		return
+	}
+
 	// Save it
 	pbLock.Lock()
 	delete(progressbars, pb)
 	pbLock.Unlock()
 
 	pb.Done = true
+
+	// A finished bar leaves nothing behind on the terminal.
+	outputMutex.Lock()
+	clearProgressLine(pb.writer)
+	outputMutex.Unlock()
 }
 
+// stdoutIsTerminal says whether bars are drawn: in a log written to a file
+// or pipe they would only repeat lines.
+var stdoutIsTerminal = term.IsTerminal(int(os.Stdout.Fd()))
+
 func (pb *progressBar) update() {
-	if time.Since(pb.Lastupdate) < 1*time.Second {
+	if !ProgressEnabled() {
+		return
+	}
+	var currentPercentage float32
+	if total := atomic.LoadInt64(&pb.Total); total > 0 {
+		currentPercentage = float32(atomic.LoadInt64(&pb.Current)) * 100 / float32(total)
+	}
+	if currentPercentage > 100 {
+		currentPercentage = 100
+	}
+	// The web UI reads the percentage, so it is kept current even when the
+	// bar is not drawn.
+	pb.Percent = currentPercentage
+
+	if (pb.writer == nil && !stdoutIsTerminal) || time.Since(pb.Lastupdate) < 1*time.Second {
 		return
 	}
 
@@ -162,17 +212,6 @@ func (pb *progressBar) update() {
 	var after string
 
 	width := pterm.GetTerminalWidth()
-
-	var currentPercentage float32
-	if pb.Total > 0 {
-		currentPercentage = float32(pb.Current) * 100 / float32(pb.Total)
-	}
-
-	if currentPercentage > 100 {
-		currentPercentage = 100
-	}
-
-	pb.Percent = currentPercentage
 
 	decoratorCount := pterm.Gray("[") + pterm.LightWhite(pb.Current) + pterm.Gray("/") + pterm.LightWhite(pb.Total) + pterm.Gray("]")
 

@@ -8,8 +8,10 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
+	"github.com/lkarlslund/adalanche/modules/collection"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/frontend"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -29,46 +31,57 @@ var (
 
 	adsource = engine.NV("Active Directory")
 	LoaderID = engine.AddLoader(func() engine.Loader { return (&ADLoader{}) })
-
-	defaultNamingContext = engine.NewAttribute("defaultNamingContext")
+	_        = engine.NewAttribute("defaultNamingContext")
 )
 
 type convertqueueitem struct {
 	object *activedirectory.RawObject
-	ao     *engine.IndexedGraph
+	shard  *adShard
+}
+
+// adShard is one folder of AD data, staged in one load transaction that is
+// committed when loading is done. Objects are identified by DN, so an object
+// seen from several domains (such as the schema) becomes one node.
+type adShard struct {
+	lock    sync.Mutex
+	tx      *engine.Tx
+	handles []engine.TxNode
+}
+
+func (s *adShard) add(o *engine.Node) {
+	s.lock.Lock()
+	s.handles = append(s.handles, s.tx.AddIdentified(o, engine.DistinguishedName))
+	s.lock.Unlock()
 }
 
 type ADLoader struct {
+	failed atomic.Uint64
+	target engine.LoadTarget
 
 	// Deduplicator for DNs that are somehow imported twice
 	importeddns map[string]struct{}
 
 	objectstoconvert chan convertqueueitem
 
-	shardobjects gsync.MapOf[string, *engine.IndexedGraph]
+	shardobjects gsync.MapOf[string, *adShard]
 
 	// Usernames that are enuerable using LDAP Nom nom or similar bruteforcers
 	usernamesfiles []string
 
 	done sync.WaitGroup
 
-	importmutex    sync.Mutex
 	importcnf      bool // Import CNF (conflict) objects (experimental)
 	importdel      bool // Import deleted objects (experimental)
 	warnhardened   bool // Warn about hardened objects
 	importhardened bool // Import hardened objects
 }
 
-type domaininfo struct {
-	suffix      string
-	netbiosname string
-}
-
 func (ld *ADLoader) Name() string {
 	return adsource.String()
 }
 
-func (ld *ADLoader) Init() error {
+func (ld *ADLoader) Init(target engine.LoadTarget) error {
+	ld.target = target
 	ld.importcnf = *importcnf
 	ld.importdel = *importdel
 
@@ -125,7 +138,7 @@ func (ld *ADLoader) Init() error {
 					}
 				}
 
-				item.ao.Add(o)
+				item.shard.add(o)
 			}
 			ld.done.Done()
 		}()
@@ -134,21 +147,67 @@ func (ld *ADLoader) Init() error {
 	return nil
 }
 
-func (ld *ADLoader) getShard(path string) *engine.IndexedGraph {
-	shard := filepath.Dir(path)
-
-	new_ao := engine.NewLoaderObjects(ld)
-	ao, _ := ld.shardobjects.LoadOrStore(shard, new_ao)
-	return ao
+func (ld *ADLoader) getShard(path string) *adShard {
+	folder := filepath.Dir(path)
+	if shard, found := ld.shardobjects.Load(folder); found {
+		return shard
+	}
+	shard, _ := ld.shardobjects.LoadOrStore(folder, &adShard{tx: ld.target.Begin("AD objects from " + folder)})
+	return shard
 }
 
-func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
+func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) (resultErr error) {
+	defer func() {
+		if resultErr != nil && resultErr != engine.ErrUninterested {
+			ld.failed.Add(1)
+		}
+	}()
+	if strings.HasSuffix(path, collection.ADSuffix) {
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		// Preflight before admitting any records to the shared analysis shard.
+		verified, err := collection.NewReader(f, collection.AD)
+		if err != nil {
+			return err
+		}
+		err = activedirectory.ValidateObjects(&activedirectory.ObjectReader{Container: verified})
+		verified.Close()
+		if err != nil {
+			return err
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		r, err := collection.NewReader(f, collection.AD)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+		objects := activedirectory.ObjectReader{Container: r}
+		shard := ld.getShard(path)
+		for {
+			object, err := objects.Next()
+			if err == io.EOF {
+				if r.Completion.Outcome != "complete" {
+					ui.Warn().Msgf("AD collection acquisition status: %s", r.Completion.Outcome)
+				}
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			ld.objectstoconvert <- convertqueueitem{object, shard}
+		}
+	}
 	if strings.HasSuffix(path, ".objects.msgp.lz4") {
-		ao := ld.getShard(path)
+		shard := ld.getShard(path)
 
 		cachefile, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("Problem opening domain cache file: %v", err)
+			return fmt.Errorf("problem opening domain cache file: %v", err)
 		}
 		defer cachefile.Close()
 
@@ -181,11 +240,11 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 			var rawObject activedirectory.RawObject
 			err = rawObject.DecodeMsg(d)
 			if err == nil {
-				ld.objectstoconvert <- convertqueueitem{&rawObject, ao}
+				ld.objectstoconvert <- convertqueueitem{&rawObject, shard}
 			} else if msgp.Cause(err) == io.EOF {
 				return nil
 			} else {
-				return fmt.Errorf("Problem decoding object: %v", err)
+				return fmt.Errorf("problem decoding object: %v", err)
 			}
 		}
 	} else if strings.HasSuffix(path, ".usernames.txt") {
@@ -194,39 +253,50 @@ func (ld *ADLoader) Load(path string, cb engine.ProgressCallbackFunc) error {
 	return engine.ErrUninterested
 }
 
-func (ld *ADLoader) Close() ([]*engine.IndexedGraph, error) {
+func (ld *ADLoader) Close() error {
 	close(ld.objectstoconvert)
 	ld.done.Wait()
 
-	var aos []*engine.IndexedGraph
-	ld.shardobjects.Range(func(path string, ao *engine.IndexedGraph) bool {
-		_, netbiosname, _, _, err := FindDomain(ao)
-		if err != nil {
-			ui.Fatal().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
-		} else {
-			// Indicate from which domain we saw this if we have the data
-			nb := engine.NV(netbiosname)
-			ao.Iterate(func(o *engine.Node) bool {
-				o.SetFlex(engine.DataSource, nb)
-				return true
-			})
+	var commitErr error
+	failures := ld.failed.Load()
+	ld.shardobjects.Range(func(path string, shard *adShard) bool {
+		if failures == 0 {
+			_, netbiosname, _, _, err := FindDomain(shard.tx)
+			if err != nil {
+				ui.Fatal().Msgf("Can't apply unique source for AD data from %v, this will give errors during object merging: %v", path, err)
+			} else {
+				// Indicate from which domain we saw this if we have the data
+				nb := engine.NV(netbiosname)
+				for _, h := range shard.handles {
+					h.SetFlex(engine.DataSource, nb)
+				}
+			}
 		}
-
-		aos = append(aos, ao)
+		if err := shard.tx.Commit(); err != nil && commitErr == nil {
+			commitErr = err
+		}
+		shard.handles = nil
 		return true // next
 	})
+	if failures != 0 {
+		return fmt.Errorf("%d AD collections failed to import", failures)
+	}
+	if commitErr != nil {
+		return commitErr
+	}
 
-	if len(aos) > 0 && len(ld.usernamesfiles) > 0 {
+	if len(ld.usernamesfiles) > 0 {
 		// Add special object to find the files later
 		var v engine.AttributeValues
 		for _, uf := range ld.usernamesfiles {
 			v = append(v, engine.NV(uf))
 		}
-		aos[0].AddNew(
+		tx := ld.target.Begin("AD usernames files")
+		tx.AddNew(
 			engine.Name, engine.NV("$$USERNAMEFILES$$"),
 			engine.A("files"), v,
 		)
+		return tx.Commit()
 	}
-
-	return aos, nil
+	return nil
 }

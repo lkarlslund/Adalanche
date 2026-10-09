@@ -2,106 +2,42 @@ package engine
 
 import (
 	"math"
-	"sort"
+	"sync"
 
+	gsync "github.com/SaveTheRbtz/generic-sync-map-go"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-func (g *IndexedGraph) processIncomingEdges(queuesize int) {
-	bulkProcessBuffer := make([]BulkEdgeRequest, 0, queuesize)
+// adjacency holds a direction's edges by node index: each node's targets
+// and their edge combinations.
+type adjacency []map[NodeIndex]EdgeCombo
 
-	// continue running while incomingEdges is not closed
-	// add new edges to buffer while there is space
-	// if buffer is full or a signal comes in on flushEdges process buffer
-
-	for {
-		select {
-		case ep, ok := <-g.incomingEdges:
-			if !ok {
-				g.bulkloading = false
-				if len(bulkProcessBuffer) > 0 {
-					g.processBulkEdges(bulkProcessBuffer)
-				}
-				g.bulkWorkers.Done()
-				return
-			}
-			bulkProcessBuffer = append(bulkProcessBuffer, ep)
-
-			if len(bulkProcessBuffer) >= cap(bulkProcessBuffer) {
-				g.processBulkEdges(bulkProcessBuffer)
-				bulkProcessBuffer = bulkProcessBuffer[:0]
-			}
-		case <-g.flushEdges:
-			if len(bulkProcessBuffer) > 0 {
-				g.processBulkEdges(bulkProcessBuffer)
-				bulkProcessBuffer = bulkProcessBuffer[:0]
-			}
-		}
+func (a adjacency) get(from NodeIndex) map[NodeIndex]EdgeCombo {
+	if int(from) < len(a) {
+		return a[from]
 	}
+	return nil
 }
 
-func (g *IndexedGraph) processBulkEdges(eps []BulkEdgeRequest) {
-	// sort eps by from, to to improve cache locality
-	sort.Slice(eps, func(i, j int) bool {
-		if eps[i].From == eps[j].From {
-			return eps[i].To < eps[j].To
-		}
-		return eps[i].From < eps[j].From
-	})
-
-	var lastFrom, lastTo NodeIndex
-	var lastEdge EdgeBitmap
-
-	g.edgeMutex.Lock()
-	first := true
-	for _, ep := range eps {
-		if ep.From != lastFrom || ep.To != lastTo {
-			if first {
-				first = false
-			} else {
-				// save it
-				g.saveEdge(lastFrom, lastTo, lastEdge, Out)
-				g.saveEdge(lastTo, lastFrom, lastEdge, In)
-			}
-
-			lastFrom = ep.From
-			lastTo = ep.To
-			lastEdge, _ = g.loadEdge(lastFrom, lastTo, Out)
-		}
-		// Modify edge
-		if ep.Edge == NonExistingEdge {
-			// It's a complete bitmap
-			if ep.Clear {
-				lastEdge = lastEdge.Intersect(ep.EdgeBitmap.Invert())
-			} else if ep.Merge {
-				lastEdge = lastEdge.Merge(ep.EdgeBitmap)
-			} else {
-				lastEdge = ep.EdgeBitmap
-			}
-		} else {
-			// Single edge
-			if !ep.Merge {
-				// Makes no sense, but we'll do it anyway
-				lastEdge = EdgeBitmap{}
-			}
-			if ep.Clear {
-				lastEdge = lastEdge.Clear(ep.Edge)
-			} else {
-				lastEdge = lastEdge.Set(ep.Edge)
-			}
-		}
+func (a *adjacency) set(from NodeIndex, targets map[NodeIndex]EdgeCombo) {
+	if int(from) >= len(*a) {
+		a.grow(max(int(from)+1, 2*len(*a), 1024))
 	}
-	if !first {
-		g.saveEdge(lastFrom, lastTo, lastEdge, Out)
-		g.saveEdge(lastTo, lastFrom, lastEdge, In)
+	(*a)[from] = targets
+}
+
+// grow makes room for nodes up to position n-1.
+func (a *adjacency) grow(n int) {
+	if n > len(*a) {
+		grown := make(adjacency, n)
+		copy(grown, *a)
+		*a = grown
 	}
-	g.edgeMutex.Unlock()
 }
 
 func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (EdgeBitmap, bool) {
 	// Load the edge
-	toMap := g.edges[direction][from]
+	toMap := g.edges[direction].get(from)
 	if toMap == nil {
 		return EdgeBitmap{}, false
 	}
@@ -113,15 +49,25 @@ func (g *IndexedGraph) loadEdge(from, to NodeIndex, direction EdgeDirection) (Ed
 }
 
 func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
+	g.edgeVersion++ // callers hold edgeMutex
+	g.storeEdge(from, to, edge, direction)
+}
+
+// storeEdge is saveEdge without the version: workers that each own their
+// nodes' maps store concurrently, and the caller bumps the version once.
+func (g *IndexedGraph) storeEdge(from, to NodeIndex, edge EdgeBitmap, direction EdgeDirection) {
+	if direction == Out {
+		g.pruneProvenance(from, to, edge)
+	}
 	// Save the edge
-	toMap := g.edges[direction][from]
+	toMap := g.edges[direction].get(from)
 	if toMap == nil {
 		if edge.IsBlank() {
 			// Writing a blank edge "unsets" it, but we have none
 			return
 		}
 		toMap = make(map[NodeIndex]EdgeCombo)
-		g.edges[direction][from] = toMap
+		g.edges[direction].set(from, toMap)
 	}
 	if edge.IsBlank() {
 		delete(toMap, to)
@@ -131,116 +77,95 @@ func (g *IndexedGraph) saveEdge(from, to NodeIndex, edge EdgeBitmap, direction E
 }
 
 func (g *IndexedGraph) edgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
-	ue, found := g.edgeComboLookup[edge]
-	if !found {
-		ue = EdgeCombo(len(g.edgeCombos))
-		if ue == math.MaxUint16 {
-			ui.Fatal().Msgf("Too many unique edges")
-		}
-		g.edgeComboLookup[edge] = ue
-		g.edgeCombos = append(g.edgeCombos, edge)
+	return g.edgeCombos.intern(edge)
+}
+
+// edgeComboTable interns edge bitmaps as small combination IDs. Reads in
+// both directions take no lock; only adding a new combination locks.
+type edgeComboTable struct {
+	mu      sync.Mutex
+	lookup  gsync.MapOf[EdgeBitmap, EdgeCombo]
+	bitmaps *chunkedTable[EdgeBitmap]
+}
+
+func newEdgeComboTable() *edgeComboTable {
+	t := &edgeComboTable{bitmaps: newChunkedTable[EdgeBitmap]()}
+	t.intern(EdgeBitmap{}) // Combination 0 is always the blank bitmap.
+	return t
+}
+
+func (t *edgeComboTable) intern(edge EdgeBitmap) EdgeCombo {
+	if combo, found := t.lookup.Load(edge); found {
+		return combo
 	}
-	return ue
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if combo, found := t.lookup.Load(edge); found {
+		return combo
+	}
+	index := t.bitmaps.add(edge)
+	if index >= math.MaxUint16 {
+		ui.Fatal().Msgf("Too many unique edges")
+	}
+	t.lookup.Store(edge, EdgeCombo(index))
+	return EdgeCombo(index)
+}
+
+func (t *edgeComboTable) get(combo EdgeCombo) EdgeBitmap {
+	return t.bitmaps.get(uint32(combo))
 }
 
 func (g *IndexedGraph) EdgeBitmapToEdgeCombo(edge EdgeBitmap) EdgeCombo {
-	g.edgeComboMutex.RLock()
-	ue, found := g.edgeComboLookup[edge]
-	g.edgeComboMutex.RUnlock()
-	if !found {
-		g.edgeComboMutex.Lock()
-		ue = EdgeCombo(len(g.edgeCombos))
-		if ue == math.MaxUint16 {
-			ui.Fatal().Msgf("Too many unique edges")
-		}
-		g.edgeComboLookup[edge] = ue
-		g.edgeCombos = append(g.edgeCombos, edge)
-		g.edgeComboMutex.Unlock()
-	}
-	return ue
+	return g.edgeCombos.intern(edge)
 }
 
 func (g *IndexedGraph) EdgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
-	g.edgeComboMutex.RLock()
-	defer g.edgeComboMutex.RUnlock()
-	return g.edgeCombos[ue]
-}
-
-func (g *IndexedGraph) edgeComboToEdgeBitmap(ue EdgeCombo) EdgeBitmap {
-	return g.edgeCombos[ue]
+	return g.edgeCombos.get(ue)
 }
 
 type CompressedEdgeSubSlice []byte
 
 // Register that this object can pwn another object using the given method
-func (g *IndexedGraph) EdgeTo(from, to *Node, edge Edge) {
-	g.EdgeToEx(from, to, edge, false)
+func (g *IndexedGraph) edgeTo(from, to *Node, edge Edge) {
+	g.edgeToEx(from, to, edge, false)
 }
 
 // Clear the edge from one object to another
-func (g *IndexedGraph) EdgeClear(from, to *Node, edge Edge) {
-	g.edgeToEx(from, to, edge, false, true, true)
+func (g *IndexedGraph) edgeClear(from, to *Node, edge Edge) {
+	g.mutateEdge(from, to, edge, false, true, true)
 }
 
 // Enhanched Pwns function that allows us to force the pwn (normally self-pwns are filtered out)
-func (g *IndexedGraph) EdgeToEx(from, to *Node, edge Edge, force bool) {
-	g.edgeToEx(from, to, edge, force, false, true)
+func (g *IndexedGraph) edgeToEx(from, to *Node, edge Edge, force bool) {
+	g.mutateEdge(from, to, edge, force, false, true)
 }
 
-func (g *IndexedGraph) edgeToEx(from, to *Node, edge Edge, force, clear, merge bool) {
-	if from == to {
-		return // Self-loop not supported
-	}
-
-	if !force {
-		fromSid := from.SID()
-
-		// Ignore these, SELF = self own, Creator/Owner always has full rights
-		if fromSid == windowssecurity.SelfSID {
-			return
-		}
-
-		toSid := to.SID()
-		if !fromSid.IsBlank() && fromSid == toSid {
-			return
-		}
-	}
-
-	fromIndex, found := g.nodeLookup.Load(from)
-	if !found {
-		ui.Fatal().Msgf("Node not found in graph")
-	}
-	toIndex, found := g.nodeLookup.Load(to)
-	if !found {
-		ui.Fatal().Msgf("Node not found in graph")
-	}
-
-	if g.bulkloading {
-		// Handle this eventually
-		g.incomingEdges <- BulkEdgeRequest{
-			From:  fromIndex,
-			To:    toIndex,
-			Edge:  edge,
-			Clear: clear,
-			Merge: merge,
-		}
+func (g *IndexedGraph) mutateEdge(from, to *Node, edge Edge, force, clear, merge bool) {
+	op, ok := g.resolveSingleEdgeMutation(nodeEdgeMutation{
+		From:  from,
+		To:    to,
+		Edge:  edge,
+		Merge: merge,
+		Clear: clear,
+		Force: force,
+	})
+	if !ok {
 		return
 	}
 	g.edgeMutex.Lock()
 
-	// normal
 	var ebm EdgeBitmap
-	if merge {
-		ebm, _ = g.loadEdge(fromIndex, toIndex, Out)
+	if op.Merge {
+		ebm, _ = g.loadEdge(op.From, op.To, Out)
 	}
 
-	if clear {
-		ebm = ebm.Clear(edge)
+	if op.Clear {
+		ebm = ebm.Clear(op.Edge)
 	} else {
-		ebm = ebm.Set(edge)
+		ebm = ebm.Set(op.Edge)
 	}
-	g.saveEdge(fromIndex, toIndex, ebm, Out)
-	g.saveEdge(toIndex, fromIndex, ebm, In)
+	g.saveEdge(op.From, op.To, ebm, Out)
+	g.saveEdge(op.To, op.From, ebm, In)
 	g.edgeMutex.Unlock()
 }
 
@@ -257,29 +182,21 @@ func (g *IndexedGraph) GetEdge(from, to *Node) (EdgeBitmap, bool) {
 	return eb, found
 }
 
-func (g *IndexedGraph) SetEdge(from, to *Node, eb EdgeBitmap, merge bool) {
-	fromIndex, ok := g.nodeLookup.Load(from)
-	toIndex, ok2 := g.nodeLookup.Load(to)
-	if !ok || !ok2 {
-		return
-	}
-	if g.bulkloading {
-		g.incomingEdges <- BulkEdgeRequest{
-			From:       fromIndex,
-			To:         toIndex,
-			Edge:       NonExistingEdge, // Indicate we should process the bitmap
-			EdgeBitmap: eb,
-			Merge:      merge,
-		}
-		return
-	}
+func (g *IndexedGraph) setEdge(from, to *Node, eb EdgeBitmap, merge bool) {
+	op := g.resolveBitmapMutation(nodeEdgeMutation{
+		From:       from,
+		To:         to,
+		Edge:       NonExistingEdge,
+		EdgeBitmap: eb,
+		Merge:      merge,
+	})
 	g.edgeMutex.Lock()
-	if merge {
-		oldeb, _ := g.loadEdge(fromIndex, toIndex, Out)
+	if op.Merge {
+		oldeb, _ := g.loadEdge(op.From, op.To, Out)
 		eb = oldeb.Merge(eb)
 	}
-	g.saveEdge(fromIndex, toIndex, eb, Out)
-	g.saveEdge(toIndex, fromIndex, eb, In)
+	g.saveEdge(op.From, op.To, eb, Out)
+	g.saveEdge(op.To, op.From, eb, In)
 	g.edgeMutex.Unlock()
 }
 
@@ -299,6 +216,31 @@ func (g *IndexedGraph) Edges(node *Node, direction EdgeDirection) EdgeFilter {
 	}
 }
 
+// NodeIndexOf returns the node's position in this graph, for use with NodeAt
+// and EdgesAt when a search wants to avoid holding node pointers.
+func (g *IndexedGraph) NodeIndexOf(node *Node) (NodeIndex, bool) {
+	return g.nodeLookup.Load(node)
+}
+
+// NodeAt returns the node at a position from NodeIndexOf or IterateIndexed.
+// Like Iterate, it must not race with nodes being added.
+func (g *IndexedGraph) NodeAt(index NodeIndex) *Node {
+	return g.nodes[index]
+}
+
+// EdgesAt is Edges for a node given by its position in this graph.
+func (g *IndexedGraph) EdgesAt(index NodeIndex, direction EdgeDirection) EdgeFilter {
+	return EdgeFilter{
+		graph:     g,
+		direction: direction,
+		fromNode:  index,
+	}
+}
+
+func (g *IndexedGraph) IterateEdges(node *Node, direction EdgeDirection, iter func(target *Node, ebm EdgeBitmap) bool) {
+	g.Edges(node, direction).Iterate(iter)
+}
+
 type EdgeFilter struct {
 	graph     *IndexedGraph
 	direction EdgeDirection
@@ -311,7 +253,21 @@ func (ef EdgeFilter) Len() int {
 	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
-	return len(ef.graph.edges[ef.direction][ef.fromNode])
+	return len(ef.graph.edges[ef.direction].get(ef.fromNode))
+}
+
+// IterateIndexed is Iterate, passing each target's position in the graph.
+func (ef EdgeFilter) IterateIndexed(iter func(targetIndex NodeIndex, target *Node, ebm EdgeBitmap) bool) {
+	if ef.direction > In {
+		return
+	}
+	ef.graph.edgeMutex.RLock()
+	defer ef.graph.edgeMutex.RUnlock()
+	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction].get(ef.fromNode) {
+		if !iter(nodeIndex, ef.graph.nodes[nodeIndex], ef.graph.edgeCombos.get(edgeCombo)) {
+			return
+		}
+	}
 }
 
 func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
@@ -320,8 +276,8 @@ func (ef EdgeFilter) Iterate(iter func(target *Node, ebm EdgeBitmap) bool) {
 	}
 	ef.graph.edgeMutex.RLock()
 	defer ef.graph.edgeMutex.RUnlock()
-	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction][ef.fromNode] {
-		eb := ef.graph.edgeCombos[edgeCombo]
+	for nodeIndex, edgeCombo := range ef.graph.edges[ef.direction].get(ef.fromNode) {
+		eb := ef.graph.edgeCombos.get(edgeCombo)
 		target := ef.graph.nodes[nodeIndex]
 		if !iter(target, eb) {
 			return

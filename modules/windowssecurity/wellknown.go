@@ -96,6 +96,7 @@ var (
 	SelfSID, _                     = ParseStringSID("S-1-5-10")
 	AuthenticatedUsersSID, _       = ParseStringSID("S-1-5-11")
 	EveryoneSID, _                 = ParseStringSID("S-1-1-0")
+	ThisOrganizationSID, _         = ParseStringSID("S-1-5-15")
 	EnterpriseDomainControllers, _ = ParseStringSID("S-1-5-9")
 
 	UsersSID, _            = ParseStringSID("S-1-5-32-545")

@@ -66,8 +66,6 @@ const (
 	RIGHT_DELETE = 0x00010000 /*
 		The right to delete the object. */
 
-	RIGHT_DS_VOODOO_BIT = 0x00001000 /* No clue - see https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/4be42fa6-c421-4763-890b-07a9ab5a319d for second option */
-
 	RIGHT_DS_CONTROL_ACCESS = 0x00000100 /*
 		A specific control access right (if the ObjectType GUID refers to an extended right registered in the forest schema)
 		or the right to read a confidential property (if the ObjectType GUID refers to a confidential property).

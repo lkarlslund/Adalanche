@@ -94,6 +94,7 @@ function getpref(key, defvalue) {
   }
   return defvalue;
 }
+window.getpref = getpref;
 
 function setpref(key, value) {
   const oldValue = prefs[key];
@@ -121,6 +122,35 @@ function setpref(key, value) {
     body: JSON.stringify(value),
   }).catch(() => {});
 }
+window.setpref = setpref;
+
+function preferenceStore() {
+  if (window.Alpine && typeof window.Alpine.store === "function") {
+    const store = window.Alpine.store("prefs");
+    if (store) {
+      return store;
+    }
+  }
+  return alpinePrefsStore;
+}
+
+function pref(key, defvalue) {
+  const store = preferenceStore();
+  if (store && typeof store.get === "function") {
+    return store.get(key, defvalue);
+  }
+  return getpref(key, defvalue);
+}
+window.pref = pref;
+
+function prefBool(key, defvalue = false) {
+  const store = preferenceStore();
+  if (store && typeof store.bool === "function") {
+    return store.bool(key, defvalue);
+  }
+  return toBoolean(getpref(key, defvalue), defvalue);
+}
+window.prefBool = prefBool;
 
 function syncAlpinePrefsStore() {
   if (!alpinePrefsStore) {

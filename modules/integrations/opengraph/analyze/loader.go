@@ -8,14 +8,14 @@ import (
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/opengraph"
+	"github.com/lkarlslund/adalanche/modules/jsoncodec"
 	"github.com/lkarlslund/adalanche/modules/ui"
-	"github.com/sugawarayuuta/sonnet"
 )
 
 const Loadername = "OpenGraph"
 
 var (
-	loader = engine.AddLoader(func() engine.Loader { return &OpenGraphLoader{} })
+	_ = engine.AddLoader(func() engine.Loader { return &OpenGraphLoader{} })
 )
 
 type loaderQueueItem struct {
@@ -24,16 +24,16 @@ type loaderQueueItem struct {
 }
 
 type OpenGraphLoader struct {
-	graphs []*engine.IndexedGraph
+	target engine.LoadTarget
 	queue  chan loaderQueueItem
 	done   sync.WaitGroup
-	mutex  sync.Mutex
 }
 
 func (ld *OpenGraphLoader) Name() string {
 	return Loadername
 }
-func (ld *OpenGraphLoader) Init() error {
+func (ld *OpenGraphLoader) Init(target engine.LoadTarget) error {
+	ld.target = target
 	ld.queue = make(chan loaderQueueItem, 128)
 	for i := 0; i < runtime.NumCPU(); i++ {
 		ld.done.Add(1)
@@ -46,7 +46,7 @@ func (ld *OpenGraphLoader) Init() error {
 				}
 
 				var ogd opengraph.Model
-				var dec = sonnet.NewDecoder(r)
+				var dec = jsoncodec.JSON.NewDecoder(r)
 				err = dec.Decode(&ogd)
 				if err != nil {
 					ui.Warn().Msgf("Problem unmarshalling data from JSON file %v: %v", queueItem, err)
@@ -54,30 +54,25 @@ func (ld *OpenGraphLoader) Init() error {
 				}
 				r.Close()
 
-				g := engine.NewLoaderObjects(ld)
-				g.BulkLoadEdges(true)
-				err = processOpenGraphData(g, ogd)
-				g.BulkLoadEdges(false)
-
+				tx := ld.target.BeginCollection("graph " + queueItem.path)
+				err = processOpenGraphData(tx, ogd)
+				if err == nil {
+					err = tx.Commit()
+				}
 				if err != nil {
 					ui.Warn().Msgf("Problem importing collector info: %v", err)
 					continue
 				}
-
-				ld.mutex.Lock()
-				ld.graphs = append(ld.graphs, g)
-				ld.mutex.Unlock()
 			}
 			ld.done.Done()
 		}()
 	}
 	return nil
 }
-func (ld *OpenGraphLoader) Close() ([]*engine.IndexedGraph, error) {
+func (ld *OpenGraphLoader) Close() error {
 	close(ld.queue)
 	ld.done.Wait()
-
-	return ld.graphs, nil
+	return nil
 }
 
 func (ld *OpenGraphLoader) Load(path string, cb engine.ProgressCallbackFunc) error {

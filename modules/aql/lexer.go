@@ -2,6 +2,7 @@ package aql
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/timtadh/lexmachine"
 	"github.com/timtadh/lexmachine/machines"
@@ -152,8 +153,13 @@ var StaticLexers = map[string]TokenID{
 	`( |\t|\n|\r)+`: Whitespace,
 }
 
-// Creates the lexer object and compiles the NFA.
-func getLexer() (*lexmachine.Lexer, error) {
+// getLexer returns the compiled lexer. Compiling the DFA takes tens of
+// milliseconds, so it is done once; a compiled lexer is only read when
+// scanners are created, so it can be shared.
+var getLexer = sync.OnceValues(buildLexer)
+
+// buildLexer creates the lexer object and compiles the DFA.
+func buildLexer() (*lexmachine.Lexer, error) {
 	lexer := lexmachine.NewLexer()
 
 	// Preserve ordering in the dumbest way possible
@@ -221,11 +227,6 @@ func getLexer() (*lexmachine.Lexer, error) {
 		return nil, err
 	}
 	return lexer, nil
-}
-
-// a lexmachine.Action function which skips the match.
-func skip(*lexmachine.Scanner, *machines.Match) (any, error) {
-	return nil, nil
 }
 
 // a lexmachine.Action function with constructs a Token of the given token type by
