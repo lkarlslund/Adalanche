@@ -1,10 +1,9 @@
 name: CI
 
+# Pushes to master are checked by the rolling release, twice a day, when master changed.
 on:
-  push:
-    branches:
-      - master
   pull_request:
+  workflow_dispatch:
   # The rolling release runs the same checks before publishing.
   workflow_call:
 

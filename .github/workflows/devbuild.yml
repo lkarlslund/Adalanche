@@ -1,11 +1,7 @@
 name: Devbuild
 
+# By hand only: the rolling release publishes master twice a day when it changed.
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
   workflow_dispatch:
 
 permissions:
