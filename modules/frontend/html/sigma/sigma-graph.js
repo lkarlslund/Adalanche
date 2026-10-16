@@ -77,6 +77,8 @@
       this.listeners = new Map();
       this.themeConfig = Rendering.defaultThemeConfig();
       this.selectedNodeIDsSet = new Set();
+      this.highlightedEdgeIDsSet = new Set();
+      this.highlightedNodeIDsSet = new Set();
       this.hoveredNodeId = "";
       this.hoveredEdgeId = "";
       this.zoomValue = 1;
@@ -344,6 +346,7 @@
 
     refresh() {
       this.syncGraphVisibility();
+      this.syncStates();
       this.applyStyles();
       if (this.customBBox && typeof this.renderer.setCustomBBox === "function") {
         this.renderer.setCustomBBox(this.customBBox);
@@ -498,8 +501,62 @@
       const prev = this.selectedNodeIDs();
       const same = prev.length === next.size && prev.every((id) => next.has(id));
       if (same) return;
+      const left = prev.filter((id) => !next.has(id));
       this.selectedNodeIDsSet = next;
-      this.queueRefresh();
+      this.setElementsState("node", left, { isSelected: false });
+      this.setElementsState("node", Array.from(next), { isSelected: true });
+    }
+
+    // A route found between two nodes: its edges and the nodes they join,
+    // with the rest of the graph faded while it shows.
+    setHighlightedEdgeIDs(ids) {
+      const next = new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || "")).filter((id) => this.edgeData.has(id)));
+      const nodes = new Set();
+      for (const id of next) {
+        const data = this.edgeData.get(id);
+        nodes.add(String(data.source));
+        nodes.add(String(data.target));
+      }
+      const leftEdges = Array.from(this.highlightedEdgeIDsSet).filter((id) => !next.has(id));
+      const leftNodes = Array.from(this.highlightedNodeIDsSet).filter((id) => !nodes.has(id));
+      this.highlightedEdgeIDsSet = next;
+      this.highlightedNodeIDsSet = nodes;
+      this.setElementsState("edge", leftEdges, { isHighlighted: false });
+      this.setElementsState("node", leftNodes, { isHighlighted: false });
+      this.setElementsState("edge", Array.from(next), { isHighlighted: true });
+      this.setElementsState("node", Array.from(nodes), { isHighlighted: true });
+      this.syncFading();
+    }
+
+    syncFading() {
+      const routed = this.highlightedEdgeIDsSet.size > 0;
+      const nodes = Array.from(this.nodeData.keys());
+      const edges = Array.from(this.edgeData.keys());
+      this.setElementsState("node", nodes.filter((id) => routed && !this.highlightedNodeIDsSet.has(id)), { isFaded: true });
+      this.setElementsState("node", nodes.filter((id) => !routed || this.highlightedNodeIDsSet.has(id)), { isFaded: false });
+      this.setElementsState("edge", edges.filter((id) => routed && !this.highlightedEdgeIDsSet.has(id)), { isFaded: true });
+      this.setElementsState("edge", edges.filter((id) => !routed || this.highlightedEdgeIDsSet.has(id)), { isFaded: false });
+    }
+
+    // Selection and routes are sigma state, which restyles only the elements
+    // that change. Elements hidden and shown again come back without their
+    // state, so a refresh sets it again.
+    syncStates() {
+      this.setElementsState("node", Array.from(this.selectedNodeIDsSet), { isSelected: true });
+      this.setElementsState("edge", Array.from(this.highlightedEdgeIDsSet), { isHighlighted: true });
+      this.setElementsState("node", Array.from(this.highlightedNodeIDsSet), { isHighlighted: true });
+      if (this.highlightedEdgeIDsSet.size > 0) this.syncFading();
+    }
+
+    setElementsState(kind, ids, state) {
+      if (!this.renderer || ids.length === 0) return;
+      if (kind === "node") {
+        const present = ids.filter((id) => this.graph.hasNode(id));
+        if (present.length > 0) this.renderer.setNodesState(present, state);
+      } else {
+        const present = ids.filter((id) => this.graph.hasEdge(id));
+        if (present.length > 0) this.renderer.setEdgesState(present, state);
+      }
     }
 
     selectedNodeIDs() {
@@ -527,9 +584,7 @@
     }
 
     clearHoveredEdges() {
-      if (!this.hoveredEdgeId) return;
       this.hoveredEdgeId = "";
-      this.queueRefresh();
     }
 
     exportLayoutData() {
@@ -638,10 +693,8 @@
     setEdgeHovered(edgeId, hovered) {
       const id = String(edgeId || "").trim();
       if (!id || !this.edgeData.has(id)) return;
-      const next = hovered ? id : "";
-      if (this.hoveredEdgeId === next) return;
-      this.hoveredEdgeId = next;
-      this.queueRefresh();
+      // Sigma styles the hovered edge itself; this only remembers it.
+      this.hoveredEdgeId = hovered ? id : "";
     }
 
     kill() {

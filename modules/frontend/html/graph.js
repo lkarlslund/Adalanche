@@ -697,20 +697,10 @@ function getEdgeColor(data) {
 }
 
 function clearHighlightedEdges() {
-  if (!graph) {
-    return;
-  }
-  for (const edgeId of graphState.highlightedEdgeIds.values()) {
-    const edgeData = graph.edgeData.get(edgeId);
-    if (!edgeData) {
-      continue;
-    }
-    graph.updateEdgeData(edgeId, {
-      color: edgeData.baseColor || getEdgeColor(edgeData),
-      width: edgeData.baseWidth || 2,
-    });
-  }
   graphState.highlightedEdgeIds.clear();
+  if (graph) {
+    graph.setHighlightedEdgeIDs([]);
+  }
 }
 
 function applyEdgeStyles(targetGraph) {
@@ -728,12 +718,9 @@ function applyEdgeStyles(targetGraph) {
       const edgeWidth = widthMode === "thin"
         ? 1
         : (Number.isFinite(flow) && flow > 0 ? 1 + Math.log(flow) : 1);
-      const baseColor = getEdgeColor(data);
-      data.baseColor = baseColor;
-      data.baseWidth = edgeWidth;
       targetGraph.updateEdgeData(edgeId, {
         label: edgelabel(data),
-        color: baseColor,
+        color: getEdgeColor(data),
         width: edgeWidth,
       });
     });
@@ -1226,18 +1213,8 @@ function selectGraphNodes(nodeIds) {
 }
 
 function highlightGraphRoute(pathEdges) {
-  clearHighlightedEdges();
-  pathEdges.forEach((edgeId) => {
-    const edgeData = graphEdgeData(edgeId);
-    if (!edgeData) {
-      return;
-    }
-    graph.updateEdgeData(edgeId, {
-      color: "#0d6efd",
-      width: Math.max(Number(edgeData.baseWidth || 2), 4),
-    });
-    graphState.highlightedEdgeIds.add(edgeId);
-  });
+  graphState.highlightedEdgeIds = new Set(pathEdges.filter((edgeId) => graphEdgeData(edgeId)));
+  graph.setHighlightedEdgeIDs(Array.from(graphState.highlightedEdgeIds));
 }
 
 function findroute(sourceId) {

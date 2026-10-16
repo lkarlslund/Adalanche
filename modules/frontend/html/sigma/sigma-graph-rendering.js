@@ -54,6 +54,11 @@
     };
   }
 
+  // Edges on a route found between two nodes. While a route shows, the
+  // rest of the graph fades to this opacity.
+  const ROUTE_COLOR = "#0d6efd";
+  const FADED_OPACITY = 0.15;
+
   // Probability dashes: edges less likely than 100% are dashed, with longer
   // gaps the less likely they are, as a 10 pixel pattern at zoom 1 (as
   // before sigma): 90% is 9 on and 1 off, 50% is 5 and 5, 10% or less is 1
@@ -178,22 +183,63 @@
             backdropCornerRadius: 6,
             backdropPadding: 3,
             backdropShadowBlur: 0,
+            // Bound here too, as sigma keeps a value a state rule set until
+            // something sets it again.
+            borderColor: { attribute: "borderColor", defaultValue: "rgba(0,0,0,0)" },
+            borderSize: { attribute: "borderSize", defaultValue: 0 },
+            opacity: 1,
           },
           { whenState: "isHovered", then: { labelColor: { attribute: "hoverLabelColor", defaultValue: "#f8fafc" } } },
+          // Route nodes draw above the rest, with their labels.
+          { whenState: "isHighlighted", then: { depth: "topNodes" } },
+          { whenState: "isFaded", then: { opacity: FADED_OPACITY, labelVisibility: "hidden" } },
+          // Selected nodes: ringed in the theme's selection color, and larger
+          // unless the node has a size of its own.
+          {
+            whenState: "isSelected",
+            then: {
+              size: { attribute: "selectedSize", defaultValue: 13 },
+              borderColor: { attribute: "selectedBorderColor", defaultValue: "#f8f9fa" },
+              borderSize: { attribute: "selectedBorderSize", defaultValue: 0.09 },
+            },
+          },
         ],
         edges: [
           Sigma.DEFAULT_STYLES.edges,
           {
             head: { attribute: "head", defaultValue: "none" },
-            labelVisibility: { attribute: "labelVisibility", defaultValue: "hidden" },
+            // Labels show on the hovered edge, when the theme has them.
+            labelVisibility: {
+              whenState: "isHovered",
+              then: { attribute: "hoverLabelVisibility", defaultValue: "hidden" },
+              else: "hidden",
+            },
             labelColor: { attribute: "labelColor", defaultValue: "#e9ecef" },
             labelSize: { attribute: "labelSize", defaultValue: 12 },
             labelBackgroundColor: { attribute: "labelBackgroundColor", defaultValue: "rgba(15, 18, 22, 0.9)" },
             labelBackgroundPadding: { attribute: "labelBackgroundPadding", defaultValue: 2 },
             labelPosition: 0.5,
+            solidColor: { attribute: "solidColor", defaultValue: "rgba(0,0,0,0)" },
+            opacity: 1,
+          },
+          { whenState: "isFaded", then: { opacity: FADED_OPACITY } },
+          // Route edges: blue, wider and above the rest, dashes kept. (Sigma's
+          // own rule lifts only edges both hovered and highlighted.)
+          {
+            whenState: "isHighlighted",
+            then: {
+              depth: "topEdges",
+              color: ROUTE_COLOR,
+              solidColor: { attribute: "routeSolidColor", defaultValue: ROUTE_COLOR },
+              size: { attribute: "routeSize", defaultValue: 4 },
+            },
           },
         ],
       },
+      // Selection and fading are sigma state, so changing them restyles only
+      // the elements that change.
+      customNodeState: { isSelected: false, isFaded: false },
+      customEdgeState: { isFaded: false },
     };
   }
 
@@ -203,5 +249,6 @@
     edgeTypeFromTheme,
     dashPattern,
     sigmaOptions,
+    ROUTE_COLOR,
   };
 }());
