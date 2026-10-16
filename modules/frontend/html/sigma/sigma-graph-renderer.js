@@ -58,11 +58,8 @@
         }
 
         for (const [id, data] of graph.edgeData.entries()) {
-          if (!graph.graph.hasEdge(id)) {
-            graph.edgeData.delete(id);
-            if (graph.hoveredEdgeId === id) graph.hoveredEdgeId = "";
-            continue;
-          }
+          // Hidden edges keep their data for when they are shown again.
+          if (!graph.graph.hasEdge(id)) continue;
           const hovered = graph.hoveredEdgeId === id;
           const color = data.color || edgeTheme.lineColor || "#6c757d";
           const dashes = Rendering.dashPattern(data._maxprob);

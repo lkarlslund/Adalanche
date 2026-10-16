@@ -1624,12 +1624,9 @@ function applyHopFilter(relayout = true) {
       hidden.add(nodeId);
     }
   });
+  // Edges show when both their ends do.
   const apply = function () {
     nodeIds.forEach((nodeId) => graph.setNodeHidden(nodeId, hidden.has(nodeId)));
-    graph.edgeIds().forEach((edgeId) => {
-      const edge = graphEdgeData(edgeId);
-      graph.setEdgeHidden(edgeId, !!edge && (hidden.has(edge.source) || hidden.has(edge.target)));
-    });
   };
   if (typeof graph.batch === "function") {
     graph.batch(apply);
