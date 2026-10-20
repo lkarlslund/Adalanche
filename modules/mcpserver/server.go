@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lkarlslund/adalanche/modules/engine"
@@ -95,12 +94,17 @@ const instructions = `Adalanche holds a graph of directory and machine objects (
 // handler serves MCP over streamable HTTP. Browsers on other sites cannot
 // call it; the SDK also refuses requests addressed to other host names
 // while the web service listens on localhost.
+//
+// It is stateless: every request stands on its own, so clients keep working
+// across restarts of adalanche instead of being refused for a session the
+// new process never saw. Nothing here needs a session: the load tag belongs
+// to the server, and no tool sends requests or notifications to the client.
 func (s *Server) handler() http.Handler {
 	return http.NewCrossOriginProtection().Handler(mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return s.mcp },
 		&mcp.StreamableHTTPOptions{
-			JSONResponse:   true,
-			SessionTimeout: 30 * time.Minute,
+			Stateless:    true,
+			JSONResponse: true,
 			// A tool's context ends when its request does, which stops
 			// long searches the client gave up on.
 			PropagateRequestCancellation: true,
