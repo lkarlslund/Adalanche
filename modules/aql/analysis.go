@@ -7,10 +7,38 @@ import (
 	"github.com/lkarlslund/adalanche/modules/graph"
 )
 
+// DefaultNodeLimit bounds a query's result when the caller sets no limit, so a
+// broad query on any endpoint cannot grow without bound. Callers that want more
+// raise NodeLimit; -1 removes the per-request limit (still capped by the hard
+// ceiling in the resolvers).
+const DefaultNodeLimit = 100000
+
+// Hard ceilings the resolvers enforce no matter what options a caller passes
+// (including NodeLimit -1), so no query can exhaust memory and take the server
+// down. They are generous enough not to truncate normal results.
+const (
+	// HardNodeCeiling caps a query's result in nodes.
+	HardNodeCeiling = 2000000
+	// MaxPathSearchStates caps how many partial paths the enumerating modes
+	// (ACYCLIC, TRAIL, WALK) explore; path enumeration is exponential, so the
+	// search frontier, not the result, is what runs away.
+	MaxPathSearchStates = 20000000
+)
+
+// effectiveNodeLimit is the node limit to enforce: the caller's, or the hard
+// ceiling when they asked for none or for more than is safe.
+func effectiveNodeLimit(nodeLimit int) int {
+	if nodeLimit <= 0 || nodeLimit > HardNodeCeiling {
+		return HardNodeCeiling
+	}
+	return nodeLimit
+}
+
 func NewResolverOptions() ResolverOptions {
 	return ResolverOptions{
 		MaxDepth:                  -1,
 		MaxOutgoingConnections:    -1,
+		NodeLimit:                 DefaultNodeLimit,
 		MinEdgeProbability:        0,
 		MinAccumulatedProbability: 0,
 		PruneIslands:              false,

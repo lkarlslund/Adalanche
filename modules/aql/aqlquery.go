@@ -233,6 +233,13 @@ func (aqlq AQLquery) resolveEdgesFrom(
 		if processed%1024 == 0 && opts.cancelled() != nil {
 			break
 		}
+		// Path enumeration is exponential, so the frontier (queue and path
+		// arena), not the committed result, is what exhausts memory. Stop at
+		// the hard ceiling and return what was found, regardless of NodeLimit.
+		if processed > MaxPathSearchStates {
+			limited = true
+			break
+		}
 
 		currentState = queue.Pop()
 		currentNode := aqlq.datasource.NodeAt(currentState.nodeIndex)

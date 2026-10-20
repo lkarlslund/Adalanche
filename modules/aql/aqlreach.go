@@ -390,8 +390,11 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 	// that fits, so the result is still every route of those lengths.
 	cutoff := s.maxDepth
 	var limited string
-	if s.opts.NodeLimit > 0 {
-		if all := drawn(s.maxDepth); all > s.opts.NodeLimit {
+	// Always enforce a limit: the caller's, or the hard ceiling when they
+	// asked for none, so REACH cannot grow its result without bound.
+	nodeLimit := effectiveNodeLimit(s.opts.NodeLimit)
+	{
+		if all := drawn(s.maxDepth); all > nodeLimit {
 			lengths := slices.Sorted(maps.Values(nodeLength))
 			lengths = slices.Compact(lengths)
 			kept := 0
@@ -400,15 +403,15 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 					return nil, err
 				}
 				count := drawn(length)
-				if count > s.opts.NodeLimit {
+				if count > nodeLimit {
 					break
 				}
 				cutoff, kept = length, count
 			}
 			if kept == 0 {
-				return nil, fmt.Errorf("REACH: the shortest routes alone have more than %v nodes", s.opts.NodeLimit)
+				return nil, fmt.Errorf("REACH: the shortest routes alone have more than %v nodes", nodeLimit)
 			}
-			limited = fmt.Sprintf("Node limit of %v reached: kept the %v nodes on routes of up to %v edges out of %v nodes on all routes", s.opts.NodeLimit, kept, cutoff, all)
+			limited = fmt.Sprintf("Node limit of %v reached: kept the %v nodes on routes of up to %v edges out of %v nodes on all routes", nodeLimit, kept, cutoff, all)
 			if s.opts.MergeNodes.enabled() {
 				limited += " (counting merged nodes as one)"
 			}
