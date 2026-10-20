@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"slices"
 	"sort"
@@ -217,6 +218,7 @@ type APINodeDetails struct {
 	IdentityField     string              `json:"identityField,omitempty"`
 	Identity          string              `json:"identity,omitempty"`
 	DistinguishedName string              `json:"distinguishedname"`
+	Images            []string            `json:"images,omitempty"` // attributes whose first value is an image, see api/attribute
 	Attributes        map[string][]string `json:"attributes"`
 	// CanPwn            map[string][]string `json:"can_pwn"`
 	// PwnableBy         map[string][]string `json:"pwnable_by"`
@@ -250,6 +252,17 @@ func apiNodeRef(n *engine.Node) *APINodeRef {
 	return &APINodeRef{ID: n.ID(), Label: n.Label()}
 }
 
+// imageMediaType returns the media type of value if it is an image the
+// browser may display (attribute values are directory data, so anything else
+// is never served inline), or "".
+func imageMediaType(value string) string {
+	switch mediaType := http.DetectContentType([]byte(value)); mediaType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp":
+		return mediaType
+	}
+	return ""
+}
+
 func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 	od := APINodeDetails{
 		ID:                o.ID(),
@@ -267,6 +280,12 @@ func apiNodeDetails(o *engine.Node, pretty bool) APINodeDetails {
 	if attribute, value := o.PrimaryID(); attribute != engine.NonExistingAttribute && !value.IsNil() {
 		od.IdentityField, od.Identity = attribute.String(), value.String()
 	}
+	for name, values := range od.Attributes {
+		if len(values) > 0 && imageMediaType(values[0]) != "" {
+			od.Images = append(od.Images, name)
+		}
+	}
+	sort.Strings(od.Images)
 	if pretty {
 		for k, slice := range od.Attributes {
 			for i := range slice {
@@ -397,6 +416,53 @@ func AddDataEndpoints(ws *WebService) {
 			return
 		}
 		c.JSON(200, apiNodeDetails(o, true))
+	})
+	// One attribute value as it is stored, such as a picture. Images are served
+	// as such; anything else only as a download, so directory data can never
+	// render as a page.
+	api.GET("attribute/nodeid/:id/:attribute", ws.RequireData(Ready), func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.String(400, "Error parsing ID")
+			return
+		}
+		index, err := strconv.Atoi(c.DefaultQuery("index", "0"))
+		if err != nil || index < 0 {
+			c.String(400, "Error parsing index")
+			return
+		}
+		o, found := ws.SuperGraph.LookupNodeByID(engine.NodeID(id))
+		if !found {
+			c.AbortWithStatus(404)
+			return
+		}
+		attribute := engine.LookupAttribute(c.Param("attribute"))
+		if attribute == engine.NonExistingAttribute {
+			c.AbortWithStatus(404)
+			return
+		}
+		var value string
+		found = false
+		o.Attr(attribute).Iterate(func(v engine.AttributeValue) bool {
+			if index == 0 {
+				value, found = v.String(), true
+				return false
+			}
+			index--
+			return true
+		})
+		if !found {
+			c.AbortWithStatus(404)
+			return
+		}
+		c.Header("Cache-Control", "private, max-age=300")
+		c.Header("X-Content-Type-Options", "nosniff")
+		mediaType := imageMediaType(value)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+			c.Header("Content-Disposition", "attachment")
+		}
+		c.Data(200, mediaType, []byte(value))
 	})
 	// Returns one attribute for many nodes, for views that need a value per
 	// drawn node (such as sizing by a score) without loading their details.

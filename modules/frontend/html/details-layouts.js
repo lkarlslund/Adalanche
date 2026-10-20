@@ -80,7 +80,11 @@
     const identity = data.identityField && data.identity ?
       `<div class="node-identity-field">Identity · ${escapeHtml(data.identityField)}</div><code class="node-identity-value">${escapeHtml(displayText(data.identity))}</code>` :
       `<div class="node-identity-field">No primary identifier</div><span class="small text-body-secondary">Session reference ${escapeHtml(data.id)}</span>`;
-    return `<header class="node-identity-card"><div class="node-type-icon"><img src="${escapeHtml(icon)}" width="44" height="44" alt=""></div>
+    const image = data.images?.[0];
+    const picture = image ?
+      `<div class="node-type-icon node-photo"><img src="api/attribute/nodeid/${encodeURIComponent(data.id)}/${encodeURIComponent(image)}" alt="${escapeHtml(title)}" data-fallback="${escapeHtml(icon)}"></div>` :
+      `<div class="node-type-icon"><img src="${escapeHtml(icon)}" width="44" height="44" alt=""></div>`;
+    return `<header class="node-identity-card">${picture}
       <div class="node-identity-content"><div class="node-type-label">${escapeHtml(typeLabel)}</div><h2>${escapeHtml(title)}</h2>${identity}</div>
       <button type="button" class="btn btn-sm btn-outline-secondary node-data-toggle" data-view-data aria-expanded="false" aria-controls="${dataAreaID}">View data</button></header>`;
   }
@@ -154,6 +158,16 @@
       }
     }).observe(document.body, {childList: true, subtree: true});
   });
+  // A picture that cannot be shown falls back to the type icon.
+  document.addEventListener("error", event => {
+    const img = event.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.fallback) return;
+    img.parentElement.classList.remove("node-photo");
+    img.width = img.height = 44;
+    img.alt = "";
+    img.src = img.dataset.fallback;
+    delete img.dataset.fallback;
+  }, true);
 
   window.DetailsLayouts = {
     registerSection(name, render) { sections.set(name, render); },

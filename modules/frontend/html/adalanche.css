@@ -214,6 +214,8 @@ input[type="number"] {
 .node-identity-card { display: flex; align-items: flex-start; gap: .85rem; }
 .node-type-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 3.75rem; height: 3.75rem; border-radius: .85rem; background: #f2f4f7; border: 1px solid #dce1e7; }
 .node-type-icon img { object-fit: contain; }
+.node-type-icon.node-photo { overflow: hidden; background: none; }
+.node-type-icon.node-photo img { width: 100%; height: 100%; object-fit: cover; }
 .node-identity-content { min-width: 0; flex: 1; }
 .node-data-toggle { flex: 0 0 auto; }
 .node-type-label, .node-identity-field { font-size: .72rem; color: var(--bs-secondary-color); }
