@@ -3,7 +3,7 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
-	"io"
+	smb2 "github.com/cloudsoda/go-smb2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,6 +63,7 @@ var (
 	collectother         = Command.Flags().String("other", "auto", "Collect other Active Directory contexts (typically integrated DNS zones)")
 	collectobjects       = Command.Flags().String("objects", "auto", "Collect Active Directory Objects (users, groups etc)")
 	collectgpos          = Command.Flags().String("gpos", "auto", "Collect Group Policy file contents")
+	gpoworkers           = Command.Flags().Int("gpoworkers", 8, "Number of Group Policies to collect files from in parallel")
 	gpopath              = Command.Flags().String("gpopath", "", "Override path to GPOs, useful for non Windows OS'es with mounted drive (/mnt/policies/ or similar), but will break ACL feature")
 	AuthmodeString       = Command.Flags().String("authmode", "ntlm", "Bind mode: unauth/anonymous, basic/simple, digest/md5, kerberoscache, ntlm, ntlmpth (password is hash)")
 
@@ -198,6 +199,10 @@ func Execute(cmd *cobra.Command, args []string) (resultErr error) {
 	var gpostocollect []*activedirectory.RawObject
 	var netbiosname string
 	var staged *clicollect.StagedDirectory
+	// Set when GPO files can be fetched over SMB from the DC we bound to.
+	var smbServer string
+	var smbInitiator func() smb2.Initiator
+	var smbCredentials bool
 
 	if *adexplorerfile != "" {
 		// Active Directory Explorer file
@@ -294,6 +299,10 @@ func Execute(cmd *cobra.Command, args []string) (resultErr error) {
 		err := ad.Connect()
 		if err != nil {
 			return fmt.Errorf("all DCs failed, last error: %v", err)
+		}
+		if conn, ok := ad.(*AD); ok {
+			smbServer = conn.server
+			smbInitiator, smbCredentials = conn.smbInitiator()
 		}
 
 		var attributes []string
@@ -485,58 +494,76 @@ func Execute(cmd *cobra.Command, args []string) (resultErr error) {
 		if *gpopath != "" {
 			ui.Warn().Msg("Disabling GPO file ACL detection on overridden GPO path")
 		}
+		// Off Windows the \\domain\sysvol paths can't be opened directly, so
+		// fetch GPO files over SMB with the credentials used for LDAP.
+		if runtime.GOOS == "windows" || *gpopath != "" {
+			smbInitiator = nil
+		} else if smbServer != "" && !smbCredentials {
+			ui.Warn().Msg("No credentials usable for SMB, GPO files will not be readable; use --gpopath with a mounted SYSVOL")
+		}
+		jobs := make([]policyJob, 0, len(gpostocollect))
 		for _, object := range gpostocollect {
 			// Let's check if it this is a GPO and then add som fake attributes to represent it
-			if gpfsp, found := object.Attributes["gPCFileSysPath"]; found && len(gpfsp) > 0 {
-				domainContext := util.ExtractDomainContextFromDistinguishedName(object.DistinguishedName)
-
-				gpodisplayname := object.Attributes["displayName"]
-				gpoguid := object.Attributes["name"]
-				originalpath := gpfsp[0]
-
-				gppath := originalpath
-				if *gpopath != "" {
-					if len(gpoguid) != 1 {
-						ui.Warn().Msgf("GPO %v GUID not readable, skipping", gpodisplayname)
-						continue
-					}
-
-					gppath = filepath.Join(*gpopath, gpoguid[0])
-				}
-				ui.Info().Msgf("Collecting group policy files from %v ...", gppath)
-
-				if len(gpoguid) != 1 {
-					return fmt.Errorf("policy identifier is missing")
-				}
-				gpuuid, err := uuid.FromString(gpoguid[0])
-				if err != nil {
-					return fmt.Errorf("policy identifier: %w", err)
-				}
-				gpoinfo := activedirectory.GPOdump{
-					Common:  basedata.GetCommonData(),
-					GPOinfo: activedirectory.GPOinfo{GUID: gpuuid, Path: originalpath, DomainDN: domainContext, DomainNetbios: netbiosname},
-				}
-				if *clicollect.CollectionFormat == "v2" {
-					path := filepath.Join(datapath, gpoguid[0]+collection.GPOSuffix)
-					err := writePolicyFiles(cmd.Context(), path, gpoinfo, gppath)
-					if err := run.Record(path, collection.GPO, err); err != nil {
-						return err
-					}
-				} else {
-					gpoinfo = collectPolicyFiles(gpoinfo, gppath)
-					data, err := json.MarshalIndent(gpoinfo, "", "  ")
-					if err != nil {
-						return err
-					}
-					if err := clicollect.WriteFileAtomic(filepath.Join(datapath, gpoguid[0]+".gpodata.json"), func(w io.Writer) error {
-						_, err := w.Write(data)
-						return err
-					}); err != nil {
-						return err
-					}
-				}
-			} else {
+			gpfsp, found := object.Attributes["gPCFileSysPath"]
+			if !found || len(gpfsp) == 0 {
 				ui.Warn().Msgf("Skipping %v, not a GPO", object.Attributes["displayName"])
+				continue
+			}
+			domainContext := util.ExtractDomainContextFromDistinguishedName(object.DistinguishedName)
+
+			gpodisplayname := object.Attributes["displayName"]
+			gpoguid := object.Attributes["name"]
+			originalpath := gpfsp[0]
+
+			job := policyJob{local: originalpath}
+			if *gpopath != "" {
+				if len(gpoguid) != 1 {
+					ui.Warn().Msgf("GPO %v GUID not readable, skipping", gpodisplayname)
+					continue
+				}
+
+				job.local = filepath.Join(*gpopath, gpoguid[0])
+			}
+			if smbInitiator != nil {
+				var ok bool
+				if job.share, job.rel, ok = splitUNC(originalpath); !ok {
+					return fmt.Errorf("unexpected GPO path %q", originalpath)
+				}
+			}
+
+			if len(gpoguid) != 1 {
+				return fmt.Errorf("policy identifier is missing")
+			}
+			gpuuid, err := uuid.FromString(gpoguid[0])
+			if err != nil {
+				return fmt.Errorf("policy identifier: %w", err)
+			}
+			job.info = activedirectory.GPOdump{
+				Common:  basedata.GetCommonData(),
+				GPOinfo: activedirectory.GPOinfo{GUID: gpuuid, Path: originalpath, DomainDN: domainContext, DomainNetbios: netbiosname},
+			}
+			if *clicollect.CollectionFormat == "v2" {
+				job.output = filepath.Join(datapath, gpoguid[0]+collection.GPOSuffix)
+			} else {
+				job.output = filepath.Join(datapath, gpoguid[0]+".gpodata.json")
+				job.legacy = true
+			}
+			jobs = append(jobs, job)
+		}
+
+		collector := policyCollector{workers: *gpoworkers, smbServer: smbServer, smbInitiator: smbInitiator}
+		for i, err := range collector.run(cmd.Context(), jobs) {
+			if err == errPolicyAborted {
+				continue
+			}
+			if jobs[i].legacy {
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			if err := run.Record(jobs[i].output, collection.GPO, err); err != nil {
+				return err
 			}
 		}
 	}

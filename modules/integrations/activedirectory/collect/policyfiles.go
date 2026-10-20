@@ -15,9 +15,37 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-// walkPolicyFiles opens content relative to a rooted directory handle. The visitor
-// consumes a file before traversal continues; content errors remain acquisition data.
-func walkPolicyFiles(ctx context.Context, info activedirectory.GPOdump, root string, visit func(*activedirectory.GPOfileinfo, *os.File) error) (basedata.CollectionResults, error) {
+// policyContents is a readable policy file together with a finalizer. The caller
+// reads reader to completion (or copies it) and then calls finalize with any
+// read error so the source can record the per-file contents result (and, for
+// local files, verify the file did not change while being read).
+type policyContents struct {
+	reader   io.Reader
+	finalize func(file *activedirectory.GPOfileinfo, readErr error)
+}
+
+// policySource yields the files of a single GPO, regardless of whether they live
+// on a local/mounted filesystem or on a remote SMB share. walk visits the root
+// and every descendant depth-first, passing each as a GPOfileinfo with its
+// metadata and security already filled in, plus contents (nil for directories,
+// skipped files, or when the file could not be opened). It returns the
+// GPO-level enumeration results.
+type policySource interface {
+	walk(ctx context.Context, visit func(file *activedirectory.GPOfileinfo, contents *policyContents) error) (basedata.CollectionResults, error)
+}
+
+// localPolicySource walks a GPO's files on the local filesystem (a real SYSVOL
+// path on Windows, or a mounted/overridden directory elsewhere).
+type localPolicySource struct {
+	info activedirectory.GPOdump
+	root string
+}
+
+// walk opens content relative to a rooted directory handle. The visitor consumes
+// a file before traversal continues; content errors remain acquisition data.
+func (s localPolicySource) walk(ctx context.Context, visit func(file *activedirectory.GPOfileinfo, contents *policyContents) error) (basedata.CollectionResults, error) {
+	info := s.info
+	root := s.root
 	results := make(basedata.CollectionResults)
 	rooted, err := os.OpenRoot(root)
 	if err != nil {
@@ -79,7 +107,17 @@ func walkPolicyFiles(ctx context.Context, info activedirectory.GPOdump, root str
 			}
 			file.CollectionResults["contents"] = basedata.CollectionResultFromError(err)
 		}
-		visitorErr = visit(&file, contents)
+		var payload *policyContents
+		if contents != nil {
+			handle := contents
+			payload = &policyContents{
+				reader: handle,
+				finalize: func(file *activedirectory.GPOfileinfo, readErr error) {
+					policyContentResult(file, handle, readErr)
+				},
+			}
+		}
+		visitorErr = visit(&file, payload)
 		if contents != nil {
 			_ = contents.Close()
 		}
@@ -113,12 +151,12 @@ func policyContentResult(file *activedirectory.GPOfileinfo, contents *os.File, r
 	file.CollectionResults["contents"] = result
 }
 
-func collectPolicyFiles(info activedirectory.GPOdump, root string) activedirectory.GPOdump {
-	results, err := walkPolicyFiles(context.Background(), info, root, func(file *activedirectory.GPOfileinfo, contents *os.File) error {
+func collectPolicyFiles(info activedirectory.GPOdump, src policySource) activedirectory.GPOdump {
+	results, err := src.walk(context.Background(), func(file *activedirectory.GPOfileinfo, contents *policyContents) error {
 		if contents != nil {
 			var err error
-			file.Contents, err = io.ReadAll(contents)
-			policyContentResult(file, contents, err)
+			file.Contents, err = io.ReadAll(contents.reader)
+			contents.finalize(file, err)
 		}
 		info.Files = append(info.Files, *file)
 		return nil
@@ -130,22 +168,22 @@ func collectPolicyFiles(info activedirectory.GPOdump, root string) activedirecto
 	return info
 }
 
-func writePolicyFiles(ctx context.Context, path string, info activedirectory.GPOdump, root string) error {
+func writePolicyFiles(ctx context.Context, path string, info activedirectory.GPOdump, src policySource) error {
 	w, err := activedirectory.CreateGPOCollection(path, info, clicollect.OutputOptions()...)
 	if err != nil {
 		return err
 	}
 	defer w.Abort()
-	results, err := walkPolicyFiles(ctx, info, root, func(file *activedirectory.GPOfileinfo, contents *os.File) error {
+	results, err := src.walk(ctx, func(file *activedirectory.GPOfileinfo, contents *policyContents) error {
 		if err := w.StartFile(*file); err != nil {
 			return err
 		}
 		if contents != nil {
-			readErr, writeErr := w.CopyContents(ctx, contents)
+			readErr, writeErr := w.CopyContents(ctx, contents.reader)
 			if writeErr != nil {
 				return writeErr
 			}
-			policyContentResult(file, contents, readErr)
+			contents.finalize(file, readErr)
 		}
 		return w.EndFile(file.CollectionResults)
 	})

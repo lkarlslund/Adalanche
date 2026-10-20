@@ -78,7 +78,7 @@ func TestPolicyFilesPreserveAcquisitionResults(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "skipped.admx"), []byte("template"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	got := collectPolicyFiles(activedirectory.GPOdump{GPOinfo: activedirectory.GPOinfo{Path: "original"}}, root)
+	got := collectPolicyFiles(activedirectory.GPOdump{GPOinfo: activedirectory.GPOinfo{Path: "original"}}, localPolicySource{info: activedirectory.GPOdump{GPOinfo: activedirectory.GPOinfo{Path: "original"}}, root: root})
 	if got.CollectionResults["enumeration"].Status != basedata.CollectionCollected {
 		t.Fatal("enumeration status lost")
 	}
@@ -100,7 +100,7 @@ func TestPolicyFilesPreserveAcquisitionResults(t *testing.T) {
 	if !found {
 		t.Fatal("missing file")
 	}
-	missing := collectPolicyFiles(activedirectory.GPOdump{}, filepath.Join(root, "missing"))
+	missing := collectPolicyFiles(activedirectory.GPOdump{}, localPolicySource{root: filepath.Join(root, "missing")})
 	if missing.CollectionResults["enumeration"].Status != basedata.CollectionNotFound {
 		t.Fatal("missing directory reported as collected")
 	}

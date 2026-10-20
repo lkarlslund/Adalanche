@@ -23,6 +23,11 @@ type AD struct {
 	LDAPOptions
 	items  int
 	server string
+
+	// krb5client is the Kerberos client created for a KerberosCache bind. It is
+	// retained after the LDAP connection closes so GPO files can be fetched over
+	// SMB with the same credentials (and the same cross-realm KDC discovery).
+	krb5client *client.Client
 }
 
 func (ad *AD) Connect() error {
@@ -60,8 +65,15 @@ func (ad *AD) Connect() error {
 		gerr = ad.conn.MD5Bind(ad.AuthDomain, ad.User, ad.Password)
 	case KerberosCache:
 		upperDomain := strings.ToUpper(ad.Domain)
+		// dns_lookup_kdc lets gokrb5 locate KDCs for realms we don't list
+		// explicitly below. This is required when the cached TGT belongs to a
+		// different (trusted) realm than the domain being collected: fetching a
+		// service ticket is then a cross-realm request that must first reach the
+		// TGT's home-realm KDC, which we discover via its _kerberos._tcp SRV
+		// record. The target domain keeps its explicit KDC entry.
 		kerberosConfig, err := config.NewFromString(fmt.Sprintf(`[libdefaults]
 default_realm = %s
+dns_lookup_kdc = true
 default_tgs_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
 default_tkt_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
 permitted_enctypes = aes256-cts-hmac-sha1-96 rc4-hmac aes128-cts-hmac-sha1-96 rc4-hmac des-cbc-crc des-cbc-md5
@@ -88,6 +100,7 @@ default_domain = %s
 		if err != nil {
 			return err
 		}
+		ad.krb5client = client
 		spn := "ldap/" + chosenserver
 		// gc := &gssapi.Client{
 		// 	Client: client,

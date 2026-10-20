@@ -20,7 +20,7 @@ func TestPolicyStreamDoesNotFollowLinks(t *testing.T) {
 		t.Skip("symlinks unavailable")
 	}
 	path := filepath.Join(output, "policy.gpc")
-	if err := writePolicyFiles(context.Background(), path, activedirectory.GPOdump{}, root); err != nil {
+	if err := writePolicyFiles(context.Background(), path, activedirectory.GPOdump{}, localPolicySource{root: root}); err != nil {
 		t.Fatal(err)
 	}
 	info, err := activedirectory.ReadGPOCollection(path)
@@ -46,7 +46,7 @@ func TestPolicyStreamDoesNotFollowLinks(t *testing.T) {
 
 func TestPolicyStreamMissingRootRecorded(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "policy.gpc")
-	if err := writePolicyFiles(context.Background(), path, activedirectory.GPOdump{}, filepath.Join(t.TempDir(), "absent")); err != nil {
+	if err := writePolicyFiles(context.Background(), path, activedirectory.GPOdump{}, localPolicySource{root: filepath.Join(t.TempDir(), "absent")}); err != nil {
 		t.Fatal(err)
 	}
 	info, err := activedirectory.ReadGPOCollection(path)
