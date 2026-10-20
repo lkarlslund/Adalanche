@@ -579,3 +579,38 @@ func TestAllExtendedRightsAddsEdgeAndSkipsWrongMask(t *testing.T) {
 	requireEdgeSet(t, graph, principal, allowed, activedirectory.EdgeAllExtendedRights)
 	requireNoEdgeSet(t, graph, principal, wrongMask, activedirectory.EdgeAllExtendedRights)
 }
+
+func TestWriteAltSecurityIdentitiesTargetsUsersAndComputers(t *testing.T) {
+	operatorSID := mustSID(t, "S-1-5-21-111-222-333-1210")
+	user := engine.NewNode(
+		engine.Name, "AltSec User",
+		engine.Type, engine.NodeTypeUser.ValueString(),
+		engine.DistinguishedName, "CN=AltSecUser,OU=Users,DC=example,DC=com",
+	)
+	computer := engine.NewNode(
+		engine.Name, "AltSec Computer",
+		engine.Type, engine.NodeTypeComputer.ValueString(),
+		engine.DistinguishedName, "CN=AltSecComputer,OU=Computers,DC=example,DC=com",
+	)
+	group := engine.NewNode(
+		engine.Name, "AltSec Group",
+		engine.Type, engine.NodeTypeGroup.ValueString(),
+		engine.DistinguishedName, "CN=AltSecGroup,OU=Groups,DC=example,DC=com",
+	)
+
+	graph := newADTestGraph(user, computer, group)
+	for _, target := range []*engine.Node{user, computer, group} {
+		enginetest.Set(graph, target, engine.NTSecurityDescriptor, engine.NV(securityDescriptorWithACEs(
+			allowACE(operatorSID, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAltSecurityIdentitiesGUID),
+		)))
+	}
+	runTx(graph, addACLRuleEdges)
+
+	principal, found := graph.Find(engine.ObjectSid, engine.NV(operatorSID))
+	if !found {
+		t.Fatal("expected SID principal to be created")
+	}
+	requireEdgeSet(t, graph, principal, user, activedirectory.EdgeWriteAltSecurityIdentities)
+	requireEdgeSet(t, graph, principal, computer, activedirectory.EdgeWriteAltSecurityIdentities)
+	requireNoEdgeSet(t, graph, principal, group, activedirectory.EdgeWriteAltSecurityIdentities)
+}

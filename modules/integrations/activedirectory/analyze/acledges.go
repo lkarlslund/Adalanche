@@ -42,7 +42,7 @@ var aclEdgeRules = []aclEdgeRule{
 	{edge: activedirectory.EdgeWriteValidatedSPN, mask: engine.RIGHT_DS_WRITE_PROPERTY_EXTENDED, guid: ValidateWriteSPN,
 		types: []engine.NodeType{engine.NodeTypeUser}},
 	{edge: activedirectory.EdgeWriteAltSecurityIdentities, mask: engine.RIGHT_DS_WRITE_PROPERTY, guid: AttributeAltSecurityIdentitiesGUID,
-		types: []engine.NodeType{engine.NodeTypeUser}},
+		types: []engine.NodeType{engine.NodeTypeUser, engine.NodeTypeComputer}},
 	{edge: activedirectory.EdgeWriteProfilePath, mask: engine.RIGHT_DS_WRITE_PROPERTY, guid: AttributeProfilePathGUID,
 		types: []engine.NodeType{engine.NodeTypeUser}},
 	{edge: activedirectory.EdgeWriteScriptPath, mask: engine.RIGHT_DS_WRITE_PROPERTY, guid: AttributeScriptPathGUID,
