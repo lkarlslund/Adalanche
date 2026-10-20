@@ -56,6 +56,11 @@ func TestMachineImportResolvesLocalPrincipalsInScope(t *testing.T) {
 		if !edges.IsSet(adanalyze.EdgeAuthenticatesAs) || !edges.IsSet(adanalyze.EdgeMachineAccount) {
 			t.Errorf("%v: machine not linked to its computer account", m.name)
 		}
+		// Controlling the computer account yields SYSTEM on the host.
+		back, _ := g.GetEdge(computer, machine)
+		if !back.IsSet(EdgeMachineSystemRights) {
+			t.Errorf("%v: computer account not linked back to its host with SystemRights", m.name)
+		}
 
 		alice, _ := g.FindMulti(activedirectory.ObjectSid, engine.NVSID(windowssecurity.MustParseStringSID(m.local+"-1001")))
 		if alice.Len() != 1 {

@@ -15,9 +15,15 @@ var (
 	ServiceType             = engine.NewAttribute("serviceType")
 
 	EdgeLocalAdminRights = engine.NewEdge("AdminRights").Tag("Granted")
-	EdgeLocalRDPRights   = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(30))).Tag("Granted").Tag("Pivot")
-	EdgeLocalDCOMRights  = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(30))).Tag("Granted")
-	EdgeLocalSMSAdmins   = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(50))).Tag("Granted")
+	// A principal that controls the domain-joined computer account can act as
+	// that account and, through it, obtain SYSTEM on the host: authenticate as
+	// the machine (via a reset password, a shadow credential, or RBCD) and use
+	// S4U to get a ticket to the host's own services. Drawn from the computer
+	// account to its machine, so computer-account takeovers reach the host.
+	EdgeMachineSystemRights = engine.NewEdge("SystemRights").RegisterFixedProbability(100).Tag("Pivot").Describe("Controlling this computer account yields SYSTEM on the host it is joined to (authenticate as the machine and S4U to its own services)")
+	EdgeLocalRDPRights      = engine.NewEdge("RDPRights").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(30))).Tag("Granted").Tag("Pivot")
+	EdgeLocalDCOMRights     = engine.NewEdge("DCOMRights").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(30))).Tag("Granted")
+	EdgeLocalSMSAdmins      = engine.NewEdge("SMSAdmins").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(50))).Tag("Granted")
 
 	EdgeSession                 = engine.NewEdge("Session").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(80))).Tag("Pivot").Describe("Account has some sort of session on this machine")
 	EdgeSessionLocal            = engine.NewEdge("SessionLocal").RegisterProbabilityCalculator(activedirectory.OnlyIfTargetAccountEnabled(activedirectory.FixedProbability(55))).Tag("Pivot")

@@ -56,6 +56,10 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			)
 			tx.EdgeBecause(machine, computer, analyze.EdgeAuthenticatesAs, Collected("domain membership"))
 			tx.EdgeBecause(machine, computer, analyze.EdgeMachineAccount, Collected("domain membership"))
+			// The reverse of AuthenticatesAs: controlling the computer account
+			// yields SYSTEM on the host, so a computer-account takeover reaches
+			// the host's sessions, local admins and stored credentials.
+			tx.EdgeBecause(computer, machine, EdgeMachineSystemRights, Collected("computer account controls its host"))
 			machine.ChildOf(computer)
 		}
 	} else {
@@ -256,7 +260,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 						engine.DownLevelLogonName, member.Name,
 					)
 				}
-				inGroup := Collected("local group "+group.Name)
+				inGroup := Collected("local group " + group.Name)
 				tx.EdgeBecause(memberobject, localGroup, activedirectory.EdgeMemberOfGroup, inGroup)
 				switch {
 				case group.Name == "SMS Admins":
