@@ -824,6 +824,14 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			tx.EdgeBecause(machine, identity, analyze.EdgeAuthenticatesAs, Collected("service accounts of admin-only services"))
 		}
 	}
+	// AlwaysInstallElevated takes effect only when set for both the machine
+	// (HKLM, here) and a user (HKCU, from the user-installer-policy
+	// assessment); importHardening joins the two.
+	if v, ok := cinfo.RegistryData[`HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer\AlwaysInstallElevated`]; ok {
+		if n, ok := v.(uint64); ok {
+			machine.Set(InstallerElevatedMachine, engine.NV(n == 1))
+		}
+	}
 	if err := importCollectionSettings(machine, cinfo); err != nil {
 		return engine.TxNode{}, err
 	}
