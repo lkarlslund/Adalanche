@@ -17,6 +17,9 @@ var (
 	SMBSigningRequired   = engine.NewAttribute("sMBSigningRequired").Type(engine.AttributeTypeBool).SetDescription("The SMB server requires signing, which blocks SMB relay to it")
 	SMB1Enabled          = engine.NewAttribute("sMB1Enabled").Type(engine.AttributeTypeBool).SetDescription("The deprecated SMBv1 protocol is enabled")
 	LMCompatibilityLevel = engine.NewAttribute("lMCompatibilityLevel").Type(engine.AttributeTypeInt).SetDescription("LmCompatibilityLevel; below 3 allows weak NTLM/LM authentication")
+	LDAPClientIntegrity  = engine.NewAttribute("lDAPClientIntegrity").Type(engine.AttributeTypeInt).SetDescription("LDAP client signing; below 2 does not require signing, allowing LDAP relay/MITM")
+	NTLMOutbound         = engine.NewAttribute("restrictSendingNTLMTraffic").Type(engine.AttributeTypeInt).SetDescription("RestrictSendingNTLMTraffic; 2 denies outbound NTLM")
+	NTLMInbound          = engine.NewAttribute("restrictReceivingNTLMTraffic").Type(engine.AttributeTypeInt).SetDescription("RestrictReceivingNTLMTraffic; 2 denies inbound NTLM")
 	LSAProtectionRunning = engine.NewAttribute("lSAProtectionRunning").Type(engine.AttributeTypeBool).SetDescription("LSA protection (RunAsPPL) was confirmed running this boot, which hinders credential theft from LSASS")
 	LAPSManagedAccount   = engine.NewAttribute("lAPSManagedAccount").SetDescription("The local account whose password LAPS manages")
 
@@ -74,10 +77,14 @@ func importSMBServerHardening(machine engine.TxNode, a *lm.Assessment) {
 }
 
 func importAuthenticationPolicy(machine engine.TxNode, a *lm.Assessment) {
+	// Each record is one registry path; a field is set only on the record of
+	// the path that holds it.
 	for _, raw := range a.Categories["authentication-policy"].Records {
 		var r struct {
-			Path                 string
-			LmCompatibilityLevel *int64
+			LmCompatibilityLevel         *int64
+			LDAPClientIntegrity          *int64
+			RestrictSendingNTLMTraffic   *int64
+			RestrictReceivingNTLMTraffic *int64
 		}
 		if !decodeInto(raw, &r) {
 			continue
@@ -86,6 +93,26 @@ func importAuthenticationPolicy(machine engine.TxNode, a *lm.Assessment) {
 			machine.Set(LMCompatibilityLevel, engine.NV(*r.LmCompatibilityLevel))
 			if *r.LmCompatibilityLevel < 3 {
 				machine.Tag("weak_ntlm_authentication")
+			}
+		}
+		if r.LDAPClientIntegrity != nil {
+			machine.Set(LDAPClientIntegrity, engine.NV(*r.LDAPClientIntegrity))
+			if *r.LDAPClientIntegrity < 2 {
+				machine.Tag("ldap_client_signing_not_required")
+			}
+		}
+		// NTLM restriction defaults to unset (unrestricted), so only the
+		// restricted states are worth a tag; the values stay queryable.
+		if r.RestrictSendingNTLMTraffic != nil {
+			machine.Set(NTLMOutbound, engine.NV(*r.RestrictSendingNTLMTraffic))
+			if *r.RestrictSendingNTLMTraffic == 2 {
+				machine.Tag("ntlm_outbound_denied")
+			}
+		}
+		if r.RestrictReceivingNTLMTraffic != nil {
+			machine.Set(NTLMInbound, engine.NV(*r.RestrictReceivingNTLMTraffic))
+			if *r.RestrictReceivingNTLMTraffic == 2 {
+				machine.Tag("ntlm_inbound_denied")
 			}
 		}
 	}

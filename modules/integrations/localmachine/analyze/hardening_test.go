@@ -113,3 +113,29 @@ func TestAlwaysInstallElevatedEdge(t *testing.T) {
 		}
 	}
 }
+
+func TestImportAuthenticationPolicy(t *testing.T) {
+	g := engine.NewIndexedGraph()
+	machine := engine.NewNode(engine.Name, "WS01")
+	enginetest.Add(g, machine)
+	a := assessment(t, map[string][]map[string]any{
+		"authentication-policy": {
+			{"Path": `...\LDAP`, "LDAPClientIntegrity": 1},
+			{"Path": `...\Lsa\MSV1_0`, "RestrictSendingNTLMTraffic": 2},
+		},
+	})
+	runTx(g, func(tx *engine.Tx) { importAuthenticationPolicy(tx.Node(machine), a) })
+
+	if v, ok := machine.AttrInt(LDAPClientIntegrity); !ok || v != 1 {
+		t.Errorf("LDAPClientIntegrity %v", v)
+	}
+	if !machine.HasTag("ldap_client_signing_not_required") {
+		t.Error("LDAP client signing below 2 should be tagged")
+	}
+	if v, ok := machine.AttrInt(NTLMOutbound); !ok || v != 2 {
+		t.Errorf("RestrictSendingNTLMTraffic %v", v)
+	}
+	if !machine.HasTag("ntlm_outbound_denied") {
+		t.Error("RestrictSendingNTLMTraffic=2 should be tagged")
+	}
+}
