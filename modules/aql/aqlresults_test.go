@@ -210,8 +210,10 @@ func TestAQLResults(t *testing.T) {
 			if tt.opts != nil {
 				tt.opts(&opts)
 			}
-			// No route here has a choice of paths, so every mode agrees.
-			for _, mode := range []string{"", "REACH "} {
+			// These assertions are about which edges each mode keeps, so use
+			// the all-route modes; the default (REACH CHEAPEST) is checked
+			// separately in TestDefaultModeIsReachCheapest.
+			for _, mode := range []string{"ACYCLIC ", "REACH "} {
 				aql := mode + tt.aql
 				if got, want := runQuery(t, g(), aql, opts), strings.Join(tt.want, "\n"); got != want {
 					t.Fatalf("%s gives\n%s\nwant\n%s", aql, got, want)
@@ -717,5 +719,31 @@ func TestAQLReachRecombinesOnlyThroughPassableNodes(t *testing.T) {
 		if got := runQuery(t, g, aql, NewResolverOptions()); got != want {
 			t.Errorf("%s gives\n%s\nwant\n%s", aql, got, want)
 		}
+	}
+}
+
+// The default mode (no keyword) is REACH CHEAPEST: for a query whose shape
+// allows it, a no-keyword query keeps one cheapest route per start/end pair,
+// matching an explicit "REACH CHEAPEST" and differing from all-route REACH.
+func TestDefaultModeIsReachCheapest(t *testing.T) {
+	g := func() *engine.IndexedGraph {
+		// Two equal-length routes from a to d: a->c->d and a->e->d.
+		return testGraph(t, 0, "a -hop-> c", "c -hop-> d", "a -hop-> e", "e -hop-> d")
+	}
+	opts := NewResolverOptions()
+	query := "start:(name=a)-[]{1,2}->end:(name=d)"
+
+	def := runQuery(t, g(), query, opts)
+	cheapest := runQuery(t, g(), "REACH CHEAPEST "+query, opts)
+	all := runQuery(t, g(), "REACH "+query, opts)
+
+	if def != cheapest {
+		t.Fatalf("default is not REACH CHEAPEST:\ndefault:\n%s\ncheapest:\n%s", def, cheapest)
+	}
+	if def == all {
+		t.Fatalf("default kept every route, not one cheapest:\n%s", def)
+	}
+	if lines := strings.Count(def, "\n") + 1; lines != 2 {
+		t.Fatalf("expected one 2-edge route, got %d lines:\n%s", lines, def)
 	}
 }

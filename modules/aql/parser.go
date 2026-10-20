@@ -55,11 +55,16 @@ func parseAQLstream(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, erro
 func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error) {
 	result := AQLquery{
 		datasource: ao,
-		Mode:       Acyclic, // default to something sane
-		Traversal:  ShortestFirst,
+		// Default to REACH: it finds every edge on a route without enumerating
+		// paths, so it is polynomial and bounded. The enumerating modes
+		// (ACYCLIC, TRAIL, WALK) can blow up exponentially and must be asked
+		// for by name. The default route selection (CHEAPEST when the query
+		// shape allows it) is set once the steps are known, below.
+		Mode:      Reach,
+		Traversal: ShortestFirst,
 	}
 
-	shortest, cheapest := false, false
+	shortest, cheapest, modeExplicit := false, false, false
 	for ts.Token().Is(Identifier) && ts.PeekNextRawToken().Is(Whitespace) {
 		switch strings.ToUpper(ts.Token().Value) {
 		case "LONGEST":
@@ -76,12 +81,16 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 
 		case "WALK":
 			result.Mode = Walk // No deduplication, allow cycles
+			modeExplicit = true
 		case "TRAIL":
 			result.Mode = Trail // Allow cycles, but no edge may be visited twice
+			modeExplicit = true
 		case "ACYCLIC":
 			result.Mode = Acyclic // Allow cycles, but no node may be visited twice
+			modeExplicit = true
 		case "REACH":
 			result.Mode = Reach // Every edge on any route, without enumerating paths
+			modeExplicit = true
 		default:
 			return nil, fmt.Errorf("unknown query mode: %v", ts.Token().Value)
 		}
@@ -126,6 +135,15 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 	// A query ends at the end of input or where UNION starts the next one.
 	if !ts.EOF() && ts.Token().Type != Union {
 		return nil, fmt.Errorf("expected end of query but found: %v", ts.Token().Value)
+	}
+
+	// With the default REACH mode and no explicit SHORTEST/CHEAPEST, keep one
+	// cheapest route per start and end when the query shape allows it (a
+	// single step in one direction), which is the readable default for "how
+	// does A reach B"; otherwise keep every edge on a route (RoutesAll). An
+	// explicit mode or route keyword is left exactly as the user asked.
+	if !modeExplicit && !shortest && !cheapest && result.recombinable() {
+		result.Routes = RoutesCheapest
 	}
 	return result, nil
 }

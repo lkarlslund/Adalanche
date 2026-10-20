@@ -31,10 +31,17 @@ const reachPairWork = 1_000_000_000
 // node filter allows, is a valid route of the query: a single step with
 // one direction and at most one edge required.
 func (s *reachSearch) recombinable() bool {
-	if len(s.aqlq.Next) != 1 {
+	return s.aqlq.recombinable()
+}
+
+// recombinable reports whether the query has the shape REACH CHEAPEST and
+// SHORTEST need: a single step in one direction (not Any) whose minimum
+// iteration count is at most one.
+func (aqlq *AQLquery) recombinable() bool {
+	if len(aqlq.Next) != 1 {
 		return false
 	}
-	step := s.aqlq.Next[0]
+	step := aqlq.Next[0]
 	return step.MinIterations <= 1 && (step.Direction == engine.In || step.Direction == engine.Out)
 }
 
@@ -55,12 +62,12 @@ type pairArc struct {
 // pairGraph is the result of REACH, renumbered densely for searching
 // between pairs of a start and an end node.
 type pairGraph struct {
-	s     *reachSearch
+	s        *reachSearch
 	nodes    []engine.NodeIndex
 	passable []bool
 	keys     []reachKey
-	types []engine.EdgeBitmap
-	ranks []uint32
+	types    []engine.EdgeBitmap
+	ranks    []uint32
 	// search runs from start to end, against the edges when the step goes
 	// in; along runs with the edges.
 	search, against, along [][]pairArc
