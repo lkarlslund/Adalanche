@@ -505,8 +505,9 @@ function normalize(value, min, max, outMin, outMax) {
   return outMin + ratio * (outMax - outMin);
 }
 
-function renderedges(methodmap) {
+function renderedges(methodmap, sources) {
   let maxprob = -1;
+  const sourcesByEdge = edgeSourceLines(sources);
 
   const edgeoutput = Object.entries(methodmap || {})
     .sort()
@@ -514,7 +515,11 @@ function renderedges(methodmap) {
       if (prob > maxprob) {
         maxprob = prob;
       }
-      return '<span class="badge text-dark" style="background-color: ' + probabilityToRGB(prob) + '">' + name + " (" + prob + "%)</span>";
+      const lines = sourcesByEdge[name];
+      // The provenance hangs off the badge as a tooltip, so the route window
+      // stays uncluttered; the badge marks that there is one.
+      const tooltip = lines && lines.length ? ' title="' + escapeText(lines.join("\n")) + '" style="cursor: help; background-color: ' + probabilityToRGB(prob) + '"' : ' style="background-color: ' + probabilityToRGB(prob) + '"';
+      return '<span class="badge text-dark"' + tooltip + ">" + name + " (" + prob + "%)</span>";
     })
     .join("");
 
@@ -525,25 +530,24 @@ function escapeText(text) {
   return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
-// Why the edges exist, as their writers recorded it.
-function renderedgesources(sources) {
-  if (!sources || sources.length === 0) {
-    return "";
-  }
-  const rows = sources.map(function (s) {
-    let row = "<li><b>" + escapeText(s.edge) + "</b>: " + escapeText(s.kind);
+// Why the edges exist, as their writers recorded it, grouped by edge type as
+// plain text lines for each edge badge's tooltip.
+function edgeSourceLines(sources) {
+  const byEdge = {};
+  (sources || []).forEach(function (s) {
+    let line = s.kind;
     if (s.detail) {
-      row += ", " + escapeText(s.detail);
+      line += ", " + s.detail;
     }
     if (s.about) {
-      row += " (" + escapeText(renderlabel(s.about.label)) + ")";
+      line += " (" + renderlabel(s.about.label) + ")";
     }
     if (s.set_on && (!s.about || s.set_on.id !== s.about.id)) {
-      row += ", set on " + escapeText(renderlabel(s.set_on.label));
+      line += ", set on " + renderlabel(s.set_on.label);
     }
-    return row + "</li>";
+    (byEdge[s.edge] = byEdge[s.edge] || []).push(line);
   });
-  return '<ul class="edge-sources">' + rows.join("") + "</ul>";
+  return byEdge;
 }
 
 function iconPathForType(type, nodeData) {
@@ -1062,7 +1066,7 @@ function showEdgeDetails(edgeId) {
       new_window(
         windowname,
         "Edge from " + renderlabel(data[0].from.label) + " to " + renderlabel(data[0].to.label),
-        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges) + renderedgesources(data[0].sources) + "<br>" + rendernode(data[0].to)
+        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges, data[0].sources) + "<br>" + rendernode(data[0].to)
       );
     })
     .catch(function (err) {
@@ -1195,7 +1199,7 @@ function findroute(sourceId) {
       let output = "";
       for (var i = 0; i < data.length; i++) {
         output += rendericon(data[i].from.attributes["type"], data[i].from.attributes) + renderlabel(data[i].from.label) + "<br>";
-        output += renderedges(data[i].edges) + renderedgesources(data[i].sources) + "<br>";
+        output += renderedges(data[i].edges, data[i].sources) + "<br>";
         if (i == data.length - 1) {
           output += rendericon(data[i].to.attributes["type"], data[i].to.attributes) + renderlabel(data[i].to.label);
         }
