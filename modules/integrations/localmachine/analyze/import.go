@@ -103,6 +103,13 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	}
 	isdomaincontroller := isDomainController(cinfo)
 	scope := NewMachineScope(tx, machine, cinfo)
+	// The assessment is decoded once: the service loop uses its service-dll
+	// records, and importAssessment (below) uses the rest.
+	assessment, haveAssessment := decodeAssessment(cinfo)
+	serviceDLL := map[string]serviceDLLPermissions{}
+	if haveAssessment {
+		serviceDLL = serviceDLLSecurity(assessment)
+	}
 	if isdomaincontroller {
 		ui.Debug().Msgf("Detected %v as local machine data coming from a Domain Controller", cinfo.Machine.Name)
 	}
@@ -676,6 +683,11 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 			ui.Warn().Msgf("Could not parse computer %v service %v registry security descriptor: %v", cinfo.Machine.Name, service.Name, err)
 		}
 
+		// A shared svchost service keeps its ServiceDll under the service's
+		// Parameters subkey, which can have its own permissions: writing it
+		// hijacks the DLL without any right on the service object.
+		importServiceDLLHijack(tx, scope, serviceobject, service.Name, serviceDLL[service.Name])
+
 		// Service security descriptor
 		if len(service.SecurityDescriptor) > 0 {
 			if sd, err := engine.ParseSecurityDescriptor(service.SecurityDescriptor); err == nil {
@@ -838,7 +850,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	if err := importLocalEvidence(machine, cinfo); err != nil {
 		return engine.TxNode{}, err
 	}
-	if assessment, ok := decodeAssessment(cinfo); ok {
+	if haveAssessment {
 		if err := importAssessment(tx, machine, assessment); err != nil {
 			return engine.TxNode{}, err
 		}
