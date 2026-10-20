@@ -830,7 +830,11 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 	if err := importLocalEvidence(machine, cinfo); err != nil {
 		return engine.TxNode{}, err
 	}
-	importPolicyProvenance(tx, machine, cinfo)
+	if assessment, ok := decodeAssessment(cinfo); ok {
+		if err := importAssessment(tx, machine, assessment); err != nil {
+			return engine.TxNode{}, err
+		}
+	}
 	return machine, nil
 }
 

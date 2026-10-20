@@ -16,13 +16,24 @@ import (
 // merge folds into the directory's GPO object; GPOs from domains that were
 // not collected stay visible on their own.
 func importPolicyProvenance(tx *engine.Tx, machine engine.TxNode, info lm.Info) {
+	if assessment, ok := decodeAssessment(info); ok {
+		importAssessmentPolicyProvenance(tx, machine, assessment)
+	}
+}
+
+// decodeAssessment decodes the machine's assessment, if one was collected.
+func decodeAssessment(info lm.Info) (*lm.Assessment, bool) {
 	if info.AssessmentData == "" {
-		return
+		return nil, false
 	}
 	assessment, err := lm.DecodeAssessment(info.AssessmentData)
 	if err != nil {
-		return
+		return nil, false
 	}
+	return &assessment, true
+}
+
+func importAssessmentPolicyProvenance(tx *engine.Tx, machine engine.TxNode, assessment *lm.Assessment) {
 	for _, raw := range assessment.Categories["policy-provenance"].Records {
 		var r struct {
 			Class           string
