@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"fmt"
+	"math"
 	"os/exec"
 	"runtime"
 	"runtime/debug"
@@ -38,9 +39,16 @@ func init() {
 func Execute(cmd *cobra.Command, args []string) error {
 	datapath := *cli.Datapath
 
-	// Memory, GC and CPU settings
-	if _, err := memlimit.Set(memlimit.WithRatio(0.8)); err != nil {
-		ui.Warn().Msgf("Could not configure memory limit: %v", err)
+	// Memory, GC and CPU settings. The memory limit is 80% of the cgroup's
+	// limit, or of the system's memory when it runs without one (as from a
+	// shell), so the collector works harder before memory runs out, and
+	// searches are stopped past it (see aql.Guarded). GOMEMLIMIT overrides.
+	limit, limitErr := memlimit.Set(memlimit.WithRatio(0.8), memlimit.WithProvider(memlimit.ApplyFallback(memlimit.FromCgroup, memlimit.FromSystem)))
+	switch {
+	case limitErr != nil:
+		ui.Warn().Msgf("Could not configure memory limit: %v", limitErr)
+	case limit > 0 && limit < math.MaxInt64:
+		ui.Info().Msgf("Memory limit is %v MiB", limit>>20)
 	}
 	debug.SetGCPercent(35)
 

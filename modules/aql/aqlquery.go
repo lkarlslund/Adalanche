@@ -26,7 +26,14 @@ type AQLquery struct {
 	OverAllProbability engine.Probability
 }
 
+// Resolve runs the query as a search: alone, and stopped if memory runs
+// short (see Guarded).
 func (aqlq AQLquery) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
+	return guardedResolve(opts, aqlq.resolveAlone)
+}
+
+// resolveAlone is Resolve, for a caller that already holds the search slot.
+func (aqlq AQLquery) resolveAlone(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	result, err := aqlq.resolve(opts)
 	if err != nil || result == nil {
 		return result, err

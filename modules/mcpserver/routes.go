@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/lkarlslund/adalanche/modules/aql"
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/query"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -243,7 +244,19 @@ func (s *Server) targets(g *engine.IndexedGraph, to *NodeRef, filter string) (ma
 	return targets, nil
 }
 
-func (s *Server) explainRoutes(ctx context.Context, _ *mcp.CallToolRequest, in explainInput) (*mcp.CallToolResult, explainOutput, error) {
+// explainRoutes searches like a query does: alone, and stopped if memory
+// runs short (see aql.Guarded).
+func (s *Server) explainRoutes(ctx context.Context, req *mcp.CallToolRequest, in explainInput) (*mcp.CallToolResult, explainOutput, error) {
+	var out explainOutput
+	err := aql.Guarded(ctx, func(ctx context.Context) error {
+		var err error
+		_, out, err = s.explainRoutesAlone(ctx, req, in)
+		return err
+	})
+	return nil, out, err
+}
+
+func (s *Server) explainRoutesAlone(ctx context.Context, _ *mcp.CallToolRequest, in explainInput) (*mcp.CallToolResult, explainOutput, error) {
 	g, err := s.Graph()
 	if err != nil {
 		return nil, explainOutput{}, err
@@ -414,7 +427,18 @@ type reachOutput struct {
 	Hops      []HopSummary `json:"hops"`
 }
 
-func (s *Server) reachSummary(ctx context.Context, _ *mcp.CallToolRequest, in reachInput) (*mcp.CallToolResult, reachOutput, error) {
+// reachSummary searches like a query does (see aql.Guarded).
+func (s *Server) reachSummary(ctx context.Context, req *mcp.CallToolRequest, in reachInput) (*mcp.CallToolResult, reachOutput, error) {
+	var out reachOutput
+	err := aql.Guarded(ctx, func(ctx context.Context) error {
+		var err error
+		_, out, err = s.reachSummaryAlone(ctx, req, in)
+		return err
+	})
+	return nil, out, err
+}
+
+func (s *Server) reachSummaryAlone(ctx context.Context, _ *mcp.CallToolRequest, in reachInput) (*mcp.CallToolResult, reachOutput, error) {
 	g, err := s.Graph()
 	if err != nil {
 		return nil, reachOutput{}, err

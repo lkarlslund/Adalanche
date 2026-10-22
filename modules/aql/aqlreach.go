@@ -243,8 +243,15 @@ func (s *reachSearch) transitions(layer int, v engine.NodeIndex, c int, f func(l
 	}
 }
 
+// cancelEvery is how many states a pass handles between checks for being
+// stopped, as a layer can hold most of the graph.
+const cancelEvery = 4096
+
 func (s *reachSearch) forwardLayer(layer int) {
-	for _, st := range s.active[layer] {
+	for i, st := range s.active[layer] {
+		if i%cancelEvery == 0 && s.opts.cancelled() != nil {
+			return // the caller sees it after the layer
+		}
 		depth := int(s.forward[s.index(layer, st.v, int(st.c))])
 		s.transitions(layer, st.v, int(st.c), func(next int, target engine.NodeIndex, c int, edge *reachEdge) {
 			if edge == nil {
@@ -257,7 +264,10 @@ func (s *reachSearch) forwardLayer(layer int) {
 }
 
 func (s *reachSearch) backwardLayer(layer int) {
-	for _, st := range s.active[layer] {
+	for i, st := range s.active[layer] {
+		if i%cancelEvery == 0 && s.opts.cancelled() != nil {
+			return // the caller sees it after the layer
+		}
 		best := reachUnreached
 		s.transitions(layer, st.v, int(st.c), func(next int, target engine.NodeIndex, c int, edge *reachEdge) {
 			remaining := s.backward[s.index(next, target, c)]
@@ -300,7 +310,12 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 	edges := map[reachKey]reachResultEdge{}
 
 	for layer := range s.layerStep {
-		for _, st := range s.active[layer] {
+		for i, st := range s.active[layer] {
+			if i%cancelEvery == 0 {
+				if err := s.opts.cancelled(); err != nil {
+					return nil, err
+				}
+			}
 			v := st.v
 			length := s.routeLength(layer, v, int(st.c))
 			if length > s.maxDepth {

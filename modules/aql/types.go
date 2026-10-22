@@ -91,7 +91,18 @@ type AQLqueryUnion struct {
 	queries []AQLresolver
 }
 
+// aloneResolver resolves without taking the search slot, for a resolver
+// that holds it already, such as a union resolving its queries.
+type aloneResolver interface {
+	resolveAlone(ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error)
+}
+
+// Resolve runs the queries as one search (see Guarded).
 func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
+	return guardedResolve(opts, aqlqu.resolveAlone)
+}
+
+func (aqlqu AQLqueryUnion) resolveAlone(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
 	var result *graph.Graph[*engine.Node, engine.EdgeBitmap]
 	// Nodes are merged once the queries' results are combined, comparing
 	// them by the side all the queries agree on.
@@ -109,7 +120,13 @@ func (aqlqu AQLqueryUnion) Resolve(opts ResolverOptions) (*graph.Graph[*engine.N
 		side = s
 	}
 	for _, q := range aqlqu.queries {
-		g, err := q.Resolve(opts)
+		var g *graph.Graph[*engine.Node, engine.EdgeBitmap]
+		var err error
+		if alone, ok := q.(aloneResolver); ok {
+			g, err = alone.resolveAlone(opts)
+		} else {
+			g, err = q.Resolve(opts)
+		}
 		if err != nil {
 			return nil, err
 		}
