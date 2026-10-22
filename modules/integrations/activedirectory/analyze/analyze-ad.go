@@ -342,18 +342,18 @@ func addDomainDNSDCSyncEdges(tx *engine.Tx) {
 		for index, acl := range sd.DACL.Entries {
 			granted := rights[acl.SID]
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationSyncronize) {
-				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize, ACECause(index, acl))
+				tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationSyncronize, ACECause(index, acl))
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChanges) {
-				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges, ACECause(index, acl))
+				tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChanges, ACECause(index, acl))
 				granted.changes = true
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesAll) {
-				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll, ACECause(index, acl))
+				tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesAll, ACECause(index, acl))
 				granted.changesAll = true
 			}
 			if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, DSReplicationGetChangesInFilteredSet) {
-				tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet, ACECause(index, acl))
+				tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeDSReplicationGetChangesInFilteredSet, ACECause(index, acl))
 			}
 
 			if granted.changes || granted.changesAll {
@@ -362,7 +362,7 @@ func addDomainDNSDCSyncEdges(tx *engine.Tx) {
 		}
 		for sid, granted := range rights {
 			if dcsync.Valid() && granted.changes && granted.changesAll {
-				tx.EdgeBecause(aceTrustee(tx, sd, sid, o), dcsync, activedirectory.EdgeCall, RightsCause(o, "Replicating Directory Changes and Replicating Directory Changes All"))
+				tx.EdgeBecause(ACETrustee(tx, sd, sid, o), dcsync, activedirectory.EdgeCall, RightsCause(o, "Replicating Directory Changes and Replicating Directory Changes All"))
 			}
 		}
 
@@ -410,9 +410,14 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 		computerToken := gpoAccessToken(computer, tx)
 
 		allowEnforcedGPOsOnly := false
+		// The GPOs that apply, with where they are linked, to work out the
+		// order the machine applies them in (see gpoApplicationOrder).
+		var applied []gpoLink
+		somIndex := 0
 		// applySOM applies the GPO links of one scope of management (an OU,
 		// the domain or a site), in the order MS-GPOL 3.2.5.1.5 walks them.
 		applySOM := func(som *engine.Node) {
+			defer func() { somIndex++ }()
 			var gpcachelinks engine.AttributeValues
 			var found bool
 			if gpcachelinks, found = linkCache[som]; !found {
@@ -444,6 +449,7 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 				canApply := canApplyGPO(gpo, computerToken, tx)
 				if canRead && canApply {
 					tx.EdgeBecause(gpo, machine, activedirectory.EdgeAffectedByGPO, engine.Source{Kind: SourceGPO, About: gpo, Detail: "linked above the computer, which can read and apply it"})
+					applied = append(applied, gpoLink{gpo: gpo, som: somIndex, link: i / 2, enforced: gpLinkOptions&0x02 != 0})
 				}
 			}
 			if som.OneAttrString(activedirectory.GPOptions) == "1" {
@@ -473,6 +479,13 @@ func addMachinesAffectedByGPO(tx *engine.Tx) {
 			applySOM(site)
 		}
 
+		if len(applied) > 0 {
+			var order engine.AttributeValues
+			for _, gpo := range gpoApplicationOrder(applied) {
+				order = append(order, engine.NV(gpo.DN()))
+			}
+			tx.Node(machine).Set(GPOApplicationOrder, order...)
+		}
 		return true
 	})
 }
@@ -507,7 +520,7 @@ func addGMSAPasswordReadEdges(tx *engine.Tx) {
 			if sd, ok := msads.Raw().(*engine.SecurityDescriptor); ok && sd != nil {
 				for index, acl := range sd.DACL.Entries {
 					if TrusteeGranted(tx, sd, acl.SID, o, engine.RIGHT_DS_READ_PROPERTY, uuid.Nil) {
-						tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword, DescriptorACECause(activedirectory.MSDSGroupMSAMembership, index, acl))
+						tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeReadGMSAPassword, DescriptorACECause(activedirectory.MSDSGroupMSAMembership, index, acl))
 					}
 				}
 			}
@@ -617,7 +630,7 @@ func addRBCDEdges(tx *engine.Tx) {
 			if sd, ok := val.Raw().(*engine.SecurityDescriptor); ok {
 				for index, acl := range sd.DACL.Entries {
 					if ACEGrants(tx, sd, index, o, engine.RIGHT_DS_CONTROL_ACCESS, uuid.Nil) {
-						tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, EdgeRBCD, DescriptorACECause(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, index, acl))
+						tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, EdgeRBCD, DescriptorACECause(activedirectory.MSDSAllowedToActOnBehalfOfOtherIdentity, index, acl))
 					}
 				}
 			}
@@ -701,7 +714,7 @@ func init() {
 			// ms-Mcs-AdmPwd is confidential, so reading it takes both read and
 			// control access rights.
 			for _, sid := range PrincipalsGranted(sd, o, schema.readRights, schema.guid, tx) {
-				trustee := aceTrustee(tx, sd, sid, o)
+				trustee := ACETrustee(tx, sd, sid, o)
 				for _, machine := range machines {
 					tx.EdgeBecause(trustee, machine, activedirectory.EdgeReadLAPSPassword, RightsCause(o, "read ms-Mcs-AdmPwd"))
 				}
@@ -838,7 +851,7 @@ func init() {
 			}
 			for index, acl := range sd.DACL.Entries {
 				if acl.Type == engine.ACETYPE_ACCESS_DENIED || acl.Type == engine.ACETYPE_ACCESS_DENIED_OBJECT {
-					tx.EdgeBecause(aceTrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny, ACECause(index, acl)) // Not a probability of success, this is just an indicator
+					tx.EdgeBecause(ACETrustee(tx, sd, acl.SID, o), o, activedirectory.EdgeACLContainsDeny, ACECause(index, acl)) // Not a probability of success, this is just an indicator
 				}
 			}
 			return true
@@ -999,7 +1012,7 @@ func init() {
 				for index, acl := range sd.DACL.Entries {
 					if ACEGrants(ao, sd, index, o, engine.RIGHT_DS_WRITE_PROPERTY, AttributeAllowedToDelegateTo) {
 						// Also requires the SeEnableDelegationPrivilege set on the DC for the user doing it!!
-						ao.EdgeTo(aceTrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
+						ao.EdgeTo(ACETrustee(ao, sd, acl.SID, o), o, activedirectory.EdgeWriteAllowedToDelegateTo) // Success rate?
 					}
 				}
 				return true
@@ -1566,6 +1579,14 @@ func init() {
 			Phase:       engine.AnalysisPhase,
 			Needs:       []engine.Product{ProductNodeTypes, ProductMachines},
 			Provides:    []engine.Product{ProductCertificateTemplates},
+		})
+
+	LoaderID.AddProcessor(resolveGPOUserRights,
+		engine.Processor{
+			Description: "User rights GPOs assign, on the machines that apply them",
+			Phase:       engine.AnalysisPhase,
+			Needs:       []engine.Product{ProductGPOTargeting},
+			Provides:    []engine.Product{ProductGPOUserRights},
 		})
 
 	LoaderID.AddProcessor(resolveGPOLocalGroupMembers,

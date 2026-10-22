@@ -49,6 +49,8 @@ var (
 	PossSuperiors                           = engine.NewAttribute("possSuperiors")
 	SystemPossSuperiors                     = engine.NewAttribute("systemPossSuperiors")
 	SubClassOf                              = engine.NewAttribute("subClassOf").Tag("AD")
+	AuxiliaryClass                          = engine.NewAttribute("auxiliaryClass")
+	SystemAuxiliaryClass                    = engine.NewAttribute("systemAuxiliaryClass")
 	SystemMayContain                        = engine.NewAttribute("systemMayContain")
 	SystemMustContain                       = engine.NewAttribute("systemMustContain")
 	ServicePrincipalName                    = engine.NewAttribute("servicePrincipalName").Tag("AD")

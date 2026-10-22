@@ -101,7 +101,7 @@ func addACLRuleEdges(tx *engine.Tx) {
 			if granted.IsBlank() {
 				continue
 			}
-			trustee := aceTrustee(tx, sd, ace.SID, o)
+			trustee := ACETrustee(tx, sd, ace.SID, o)
 			// The same exclusions as EdgeTo: no edges to itself, from SELF,
 			// or between nodes for the same SID.
 			if t := trustee.Node(); t == o || t.SID() == windowssecurity.SelfSID || (!t.SID().IsBlank() && t.SID() == o.SID()) {

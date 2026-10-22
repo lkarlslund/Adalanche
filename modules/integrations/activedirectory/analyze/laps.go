@@ -99,7 +99,7 @@ func addLAPSv2Edges(tx *engine.Tx) {
 				continue
 			}
 			for _, sid := range PrincipalsGranted(sd, o, g.rights, g.attribute, tx) {
-				trustee := aceTrustee(tx, sd, sid, o)
+				trustee := ACETrustee(tx, sd, sid, o)
 				for _, machine := range machines {
 					tx.EdgeBecause(trustee, machine, g.edge, RightsCause(o, "read "+g.name))
 				}

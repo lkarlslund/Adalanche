@@ -78,7 +78,7 @@ func TestOwnerRightsAndHeuristics(t *testing.T) {
 	sd.Owner = owner
 	ownerNode := engine.NewNode(engine.ObjectSid, engine.NV(owner))
 	graph := newADTestGraph(ownerNode)
-	if got := aceTrustee(graph.Begin("test"), sd, windowssecurity.OwnerSID, nil).Node(); got != ownerNode {
+	if got := ACETrustee(graph.Begin("test"), sd, windowssecurity.OwnerSID, nil).Node(); got != ownerNode {
 		t.Error("OWNER RIGHTS grants belong to the owner")
 	}
 

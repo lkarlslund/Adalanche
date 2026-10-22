@@ -8,9 +8,9 @@ import (
 	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
-// aceTrustee returns the node an ACE's rights belong to. An ACE for OWNER
+// ACETrustee returns the node an ACE's rights belong to. An ACE for OWNER
 // RIGHTS (S-1-3-4) applies to whoever owns the object (MS-DTYP 2.4.2.4).
-func aceTrustee(tx *engine.Tx, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) engine.TxNode {
+func ACETrustee(tx *engine.Tx, sd *engine.SecurityDescriptor, sid windowssecurity.SID, o *engine.Node) engine.TxNode {
 	if sid == windowssecurity.OwnerSID && sd != nil && !sd.Owner.IsNull() {
 		sid = sd.Owner
 	}

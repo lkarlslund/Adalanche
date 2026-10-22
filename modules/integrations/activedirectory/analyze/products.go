@@ -46,6 +46,8 @@ const (
 	ProductGPOTargeting engine.Product = "ad/gpo-targeting"
 	// Local group members given by GPOs.
 	ProductGPOLocalGroups engine.Product = "ad/gpo-local-groups"
+	// User rights given by GPOs, as edges to the machines they apply to.
+	ProductGPOUserRights engine.Product = "ad/gpo-user-rights"
 	// Edges from AdminSDHolder to the objects whose ACLs it overwrites.
 	ProductAdminSDHolder engine.Product = "ad/adminsdholder"
 	// The protected_user tag.

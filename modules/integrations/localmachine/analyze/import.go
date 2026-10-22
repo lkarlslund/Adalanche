@@ -286,78 +286,53 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 
 	// Privileges to exploits - from https://github.com/gtworek/Priv2Admin
 	for _, pi := range cinfo.Privileges {
-		var edge engine.Edge
-		switch pi.Name {
-		case "SeNetworkLogonRight":
-			edge = EdgeSeNetworkLogonRight
-		case "SeRemoteInteractiveLogonRight":
-			edge = EdgeLocalRDPRights
-		case "SeBackupPrivilege":
-			edge = EdgeSeBackupPrivilege
-		case "SeRestorePrivilege":
-			edge = EdgeSeRestorePrivilege
-		case "SeAssignPrimaryTokenPrivilege":
-			edge = EdgeSeAssignPrimaryToken
-		case "SeCreateTokenPrivilege":
-			edge = EdgeSeCreateToken
-		case "SeDebugPrivilege":
-			edge = EdgeSeDebug
-		case "SeImpersonatePrivilege":
-			edge = EdgeSeImpersonate
-		case "SeLoadDriverPrivilege":
-			edge = EdgeSeLoadDriver
-		case "SeManageVolumePrivilege":
-			edge = EdgeSeManageVolume
-		case "SeTakeOwnershipPrivilege":
-			edge = EdgeSeTakeOwnership
-		case "SeTrustedCredManAccess":
-			edge = EdgeSeTrustedCredManAccess
-		case "SeMachineAccountPrivilege":
-		// Join machine to domain
-		// pwn = EdgeSeMachineAccount
-		case "SeTcbPrivilege":
-			edge = EdgeSeTcb
-		case "SeIncreaseQuotaPrivilege",
-			"SeSystemProfilePrivilege",
-			"SeSecurityPrivilege",
-			"SeSystemtimePrivilege",
-			"SeProfileSingleProcessPrivilege",
-			"SeIncreaseBasePriorityPrivilege",
-			"SeCreatePagefilePrivilege",
-			"SeShutdownPrivilege",
-			"SeAuditPrivilege",
-			"SeSystemEnvironmentPrivilege",
-			"SeChangeNotifyPrivilege",
-			"SeRemoteShutdownPrivilege",
-			"SeUndockPrivilege",
-			"SeCreateGlobalPrivilege",
-			"SeIncreaseWorkingSetPrivilege",
-			"SeTimeZonePrivilege",
-			"SeCreateSymbolicLinkPrivilege",
-			"SeInteractiveLogonRight",
-			"SeDenyInteractiveLogonRight",
-			"SeDenyRemoteInteractiveLogonRight",
-			"SeBatchLogonRight",
-			"SeServiceLogonRight",
-			"SeDelegateSessionUserImpersonatePrivilege",
-			"SeLockMemoryPrivilege",
-			"SeTrustedCredManAccessPrivilege",
-			"SeDenyNetworkLogonRight",
-			"SeDenyBatchLogonRight",
-			"SeDenyServiceLogonRight",
-			"SeRelabelPrivilege",
-			"SeCreatePermanentPrivilege":
-			// No edge
-			continue
-		case "SeEnableDelegationPrivilege":
-			ui.Trace().Msgf("SeEnableDelegationPrivilege hit")
-			continue
+		edge, known := activedirectory.PrivilegeEdge(pi.Name)
+		switch {
+		case known:
 		default:
-			_, loaded := unhandledPrivileges.LoadOrStore(pi, struct{}{})
-			if !loaded {
-				ui.Warn().Msgf("Unhandled privilege encountered; %v", pi)
+			switch pi.Name {
+			case "SeIncreaseQuotaPrivilege",
+				"SeSystemProfilePrivilege",
+				"SeSecurityPrivilege",
+				"SeSystemtimePrivilege",
+				"SeProfileSingleProcessPrivilege",
+				"SeIncreaseBasePriorityPrivilege",
+				"SeCreatePagefilePrivilege",
+				"SeShutdownPrivilege",
+				"SeAuditPrivilege",
+				"SeSystemEnvironmentPrivilege",
+				"SeChangeNotifyPrivilege",
+				"SeRemoteShutdownPrivilege",
+				"SeUndockPrivilege",
+				"SeCreateGlobalPrivilege",
+				"SeIncreaseWorkingSetPrivilege",
+				"SeTimeZonePrivilege",
+				"SeCreateSymbolicLinkPrivilege",
+				"SeInteractiveLogonRight",
+				"SeDenyInteractiveLogonRight",
+				"SeDenyRemoteInteractiveLogonRight",
+				"SeBatchLogonRight",
+				"SeServiceLogonRight",
+				"SeDelegateSessionUserImpersonatePrivilege",
+				"SeLockMemoryPrivilege",
+				"SeTrustedCredManAccessPrivilege",
+				"SeDenyNetworkLogonRight",
+				"SeDenyBatchLogonRight",
+				"SeDenyServiceLogonRight",
+				"SeRelabelPrivilege",
+				"SeCreatePermanentPrivilege":
+				// No edge
+				continue
+			case "SeEnableDelegationPrivilege":
+				ui.Trace().Msgf("SeEnableDelegationPrivilege hit")
+				continue
+			default:
+				_, loaded := unhandledPrivileges.LoadOrStore(pi, struct{}{})
+				if !loaded {
+					ui.Warn().Msgf("Unhandled privilege encountered; %v", pi)
+				}
+				continue
 			}
-			continue
 		}
 		for _, sidstring := range pi.AssignedSIDs {
 			if pi.Name == "SeNetworkLogonRight" && locallyDeniedLogon(cinfo, sidstring, "SeDenyNetworkLogonRight") {

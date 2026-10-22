@@ -244,6 +244,11 @@ func importGPOInfo(ginfo activedirectory.GPOdump, tx *engine.Tx) error {
 			} else if strings.HasSuffix(relativepath, ".inf") {
 				pairs = GPOparseGptTmplInf(string(item.Contents))
 				setting = gpoRestrictedGroups
+				// User rights apply on the machines the GPO applies to,
+				// known once loading has finished (resolveGPOUserRights).
+				for _, right := range GPOparsePrivilegeRights(string(item.Contents)) {
+					gpoobject.Add(GPOUserRight, engine.NV(right.value()))
+				}
 			}
 
 			for _, sidpair := range pairs {

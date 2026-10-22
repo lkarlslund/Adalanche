@@ -54,21 +54,23 @@ var (
 
 	EdgeServiceModify = engine.NewEdge("ServiceModify")
 
-	EdgeSeBackupPrivilege        = engine.NewEdge("SeBackupPrivilege")
-	EdgeSeRestorePrivilege       = engine.NewEdge("SeRestorePrivilege")
-	EdgeSeTakeOwnershipPrivilege = engine.NewEdge("SeTakeOwnershipPrivilege")
+	// User right edges are shared with the GPO analysis (see
+	// activedirectory.PrivilegeEdge).
+	EdgeSeBackupPrivilege        = activedirectory.EdgeSeBackupPrivilege
+	EdgeSeRestorePrivilege       = activedirectory.EdgeSeRestorePrivilege
+	EdgeSeTakeOwnershipPrivilege = activedirectory.EdgeSeTakeOwnershipPrivilege
 
-	EdgeSeAssignPrimaryToken   = engine.NewEdge("SeAssignPrimaryToken").Tag("Pivot")
-	EdgeSeCreateToken          = engine.NewEdge("SeCreateToken").Tag("Pivot")
-	EdgeSeDebug                = engine.NewEdge("SeDebug").Tag("Pivot")
-	EdgeSeImpersonate          = engine.NewEdge("SeImpersonate").RegisterProbabilityCalculator(activedirectory.FixedProbability(20)).Tag("Pivot")
-	EdgeSeLoadDriver           = engine.NewEdge("SeLoadDriver").Tag("Pivot")
-	EdgeSeManageVolume         = engine.NewEdge("SeManageVolume").Tag("Pivot")
-	EdgeSeTakeOwnership        = engine.NewEdge("SeTakeOwnership").Tag("Pivot")
-	EdgeSeTrustedCredManAccess = engine.NewEdge("SeTrustedCredManAccess").Tag("Pivot")
-	EdgeSeTcb                  = engine.NewEdge("SeTcb").Tag("Pivot")
+	EdgeSeAssignPrimaryToken   = activedirectory.EdgeSeAssignPrimaryToken
+	EdgeSeCreateToken          = activedirectory.EdgeSeCreateToken
+	EdgeSeDebug                = activedirectory.EdgeSeDebug
+	EdgeSeImpersonate          = activedirectory.EdgeSeImpersonate
+	EdgeSeLoadDriver           = activedirectory.EdgeSeLoadDriver
+	EdgeSeManageVolume         = activedirectory.EdgeSeManageVolume
+	EdgeSeTakeOwnership        = activedirectory.EdgeSeTakeOwnership
+	EdgeSeTrustedCredManAccess = activedirectory.EdgeSeTrustedCredManAccess
+	EdgeSeTcb                  = activedirectory.EdgeSeTcb
 
-	EdgeSeNetworkLogonRight = engine.NewEdge("SeNetworkLogonRight").RegisterProbabilityCalculator(activedirectory.FixedProbability(10))
+	EdgeSeNetworkLogonRight = activedirectory.EdgeSeNetworkLogonRight
 	// RDPRight used ... EdgeSeRemoteInteractiveLogonRight = engine.NewEdge("SeRemoteInteractiveLogonRight").RegisterProbabilityCalculator(func(source, target *engine.Object) engine.Probability { return 10 })
 
 	// SeDenyNetworkLogonRight

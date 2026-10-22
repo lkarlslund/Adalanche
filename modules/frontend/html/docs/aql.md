@@ -100,6 +100,7 @@ Edge filters define which edge types are traversed. Empty filter (`[]`) means de
 |---------|-------------|
 | Group memberships, depth 1-5 | `[MemberOfGroup,MemberOfGroupIndirect]{1,5}` |
 | Next edge must be 100 probability | `[probability=100]` |
+| Include informative edges | `[SeMachineAccountPrivilege, HasProfile, MemberOfGroup, probability>=0]` |
 | Match two of X, Y, Z | `[X,Y,Z,match=2]` |
 | Optional edge X | `[X]{0,1}` |
 | Don't match X | `[X,match=0]` |
@@ -107,6 +108,8 @@ Edge filters define which edge types are traversed. Empty filter (`[]`) means de
 | Edge types not tagged Pivot | `[!tag=Pivot]` |
 | Only edges a user tagged accepted\* | `[edgetag=accepted]` |
 | Edges not tagged accepted\* | `[!edgetag=accepted]` |
+
+Every edge filter leaves out edges less likely than 1% unless it says otherwise, so informative edges, which have probability 0, are only followed when a filter asks for them with `probability>=0`.
 
 `tag=` selects edge *types* by the tags they carry, such as Pivot. `edgetag=` looks at the tags on the edges themselves, which users add in the enterprise version\* (see [Tags](tags.md)): only the edge types tagged, or not tagged, are followed, and a tag on every edge between two nodes counts for all of them.
 
