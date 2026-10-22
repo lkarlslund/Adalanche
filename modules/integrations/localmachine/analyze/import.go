@@ -425,31 +425,32 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 		// }
 
 		// Parse event id 4624
+		seen := logonDetail(login)
 		switch login.LogonType {
 		case 2, 11: // Interactive or cached interactive
-			tx.EdgeBecause(machine, loggedin, EdgeSessionLocal, Collected("logon sessions"))
+			tx.EdgeBecause(machine, loggedin, EdgeSessionLocal, Collected(seen))
 		case 3: // Network
-			tx.EdgeBecause(machine, loggedin, EdgeSessionNetwork, Collected("logon sessions"))
+			tx.EdgeBecause(machine, loggedin, EdgeSessionNetwork, Collected(seen))
 			switch login.AuthenticationPackageName {
 			case "NTLM", "NTLM V1":
-				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNTLM, Collected("logon sessions"))
+				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNTLM, Collected(seen))
 			case "NTLM V2":
-				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNTLMv2, Collected("logon sessions"))
+				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNTLMv2, Collected(seen))
 			case "Kerberos":
-				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkKerberos, Collected("logon sessions"))
+				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkKerberos, Collected(seen))
 			case "Negotiate":
-				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNegotiate, Collected("logon sessions"))
+				tx.EdgeBecause(machine, loggedin, EdgeSessionNetworkNegotiate, Collected(seen))
 			default:
 				ui.Debug().Msgf("Other: %v", login.AuthenticationPackageName)
 			}
 		case 4: // Batch (scheduled task)
-			tx.EdgeBecause(machine, loggedin, EdgeSessionBatch, Collected("logon sessions"))
+			tx.EdgeBecause(machine, loggedin, EdgeSessionBatch, Collected(seen))
 		case 5: // Service
-			tx.EdgeBecause(machine, loggedin, EdgeSessionService, Collected("logon sessions"))
+			tx.EdgeBecause(machine, loggedin, EdgeSessionService, Collected(seen))
 		case 10: // RDP
-			tx.EdgeBecause(machine, loggedin, EdgeSessionRDP, Collected("logon sessions"))
+			tx.EdgeBecause(machine, loggedin, EdgeSessionRDP, Collected(seen))
 		}
-		tx.EdgeBecause(machine, loggedin, EdgeSession, Collected("logon sessions"))
+		tx.EdgeBecause(machine, loggedin, EdgeSession, Collected(seen))
 
 		for _, ipaddress := range login.IpAddress {
 			// skip localhost IPv4 and IPv6
@@ -461,7 +462,7 @@ func ImportCollectorInfo(tx *engine.Tx, cinfo localmachine.Info) (engine.TxNode,
 				engine.IPAddress, engine.NV(ipaddress),
 				engine.Type, "Machine",
 			)
-			tx.EdgeBecause(IpMachine, loggedin, EdgeSession, Collected("logon sessions"))
+			tx.EdgeBecause(IpMachine, loggedin, EdgeSession, Collected(seen))
 		}
 	}
 	if len(topInteractiveUsers) > 0 {
@@ -871,4 +872,20 @@ func downLevelLogonName(domain, account string) string {
 		return ""
 	}
 	return domain + "\\" + account
+}
+
+// logonDetail describes a collected run of logons: how many, and when the
+// first and last of them in the machine's event log were.
+func logonDetail(login localmachine.LogonInfo) string {
+	detail := "logon sessions"
+	if login.Count > 0 {
+		detail += fmt.Sprintf(", %d logons", login.Count)
+	}
+	if !login.FirstSeen.IsZero() {
+		detail += ", first seen " + day(login.FirstSeen)
+	}
+	if !login.LastSeen.IsZero() {
+		detail += ", last seen " + day(login.LastSeen)
+	}
+	return detail
 }

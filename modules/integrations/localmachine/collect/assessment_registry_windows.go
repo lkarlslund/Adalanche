@@ -4,8 +4,11 @@ package collect
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	lm "github.com/lkarlslund/adalanche/modules/integrations/localmachine"
 	"golang.org/x/sys/windows/registry"
@@ -31,6 +34,16 @@ func collectCredentialLocations(c *assessmentCapture) error {
 			continue
 		}
 		path, _, err := profile.GetStringValue("ProfileImagePath")
+		// When the profile was last loaded and unloaded, as FILETIME halves.
+		filetime := func(name string) time.Time {
+			high, _, highErr := profile.GetIntegerValue(name + "High")
+			low, _, lowErr := profile.GetIntegerValue(name + "Low")
+			if highErr != nil || lowErr != nil {
+				return time.Time{}
+			}
+			return filetimeToTime(high, low)
+		}
+		loaded, unloaded := filetime("LocalProfileLoadTime"), filetime("LocalProfileUnloadTime")
 		profile.Close()
 		if err != nil {
 			c.failure(nativeCollectionResult(err))
@@ -41,8 +54,39 @@ func collectCredentialLocations(c *assessmentCapture) error {
 			c.failure(nativeCollectionResult(err))
 			continue
 		}
-		for _, relative := range []string{`AppData\Local\Microsoft\Credentials`, `AppData\Roaming\Microsoft\Credentials`, `AppData\Local\Microsoft\Vault`, `AppData\Roaming\Microsoft\Protect`} {
-			if err := c.add(map[string]any{"UserSID": sid, "Path": filepath.Join(path, relative)}); err != nil {
+		// The profile shows the account logged on here; its credential
+		// locations show whether it saved any secrets.
+		record := map[string]any{"Kind": "profile", "UserSID": sid, "ProfilePath": path}
+		if !loaded.IsZero() {
+			record["LastLoaded"] = loaded
+		}
+		if !unloaded.IsZero() {
+			record["LastUnloaded"] = unloaded
+		}
+		// For Windows versions without the load times: the user's registry
+		// hive is written while the profile is loaded and when it unloads,
+		// and the profile folder was made at the first logon.
+		if hive, err := os.Stat(filepath.Join(path, "NTUSER.DAT")); err == nil {
+			record["NTUserModified"] = hive.ModTime().UTC()
+		}
+		if folder, err := os.Stat(path); err == nil {
+			if data, ok := folder.Sys().(*syscall.Win32FileAttributeData); ok {
+				record["ProfileCreated"] = time.Unix(0, data.CreationTime.Nanoseconds()).UTC()
+			}
+		}
+		if err := c.add(record); err != nil {
+			return err
+		}
+		for _, location := range credentialLocations {
+			dir := filepath.Join(path, location.Relative)
+			files, exists, countErr := countCredentialFiles(location.Kind, dir)
+			record := map[string]any{"Kind": location.Kind, "UserSID": sid, "Path": dir, "Exists": exists, "Files": files}
+			if countErr != nil {
+				result := nativeCollectionResult(countErr)
+				record["CountResult"] = result
+				c.failure(result)
+			}
+			if err := c.add(record); err != nil {
 				return err
 			}
 		}

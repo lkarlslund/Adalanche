@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/integrations/activedirectory"
@@ -154,5 +155,33 @@ func TestMachinePrincipalsAreUnderTheMachine(t *testing.T) {
 	}
 	if parents["S-1-5-21-900-901-902-1105"] == machine {
 		t.Error("a domain account was put under the machine")
+	}
+}
+
+// Logon sessions from the event log say how many logons there were and when
+// the first and last of them were seen.
+func TestSessionEdgesSayWhen(t *testing.T) {
+	info := syntheticMachine("HOST01", "S-1-5-21-111-222-333", "S-1-5-21-900-901-902-1101")
+	info.LoginInfos = []lm.LogonInfo{{
+		User: "bob", Domain: "EXAMPLE", SID: "S-1-5-21-900-901-902-1105", LogonType: 2, Count: 7,
+		FirstSeen: time.Date(2024, 2, 1, 8, 0, 0, 0, time.UTC), LastSeen: time.Date(2024, 4, 30, 16, 0, 0, 0, time.UTC),
+	}}
+	g := engine.NewIndexedGraph()
+	machine, err := importMachine(g, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, found := g.FindAdjacentSID(windowssecurity.MustParseStringSID("S-1-5-21-900-901-902-1105"), machine)
+	if !found {
+		t.Fatal("logged on account missing")
+	}
+	var details []string
+	for _, s := range g.EdgeSources(machine, bob) {
+		if s.Edge == EdgeSessionLocal {
+			details = append(details, s.Source.Detail)
+		}
+	}
+	if want := "logon sessions, 7 logons, first seen 2024-02-01, last seen 2024-04-30"; len(details) != 1 || details[0] != want {
+		t.Errorf("SessionLocal sources %q, want %q", details, want)
 	}
 }
