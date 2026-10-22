@@ -109,12 +109,13 @@ type endpoint struct {
 
 type pendingEdge struct {
 	from, to   endpoint
-	sources    []pendingSource // why, see EdgeBecause
-	set        EdgeBitmap // bits to set
-	clear      EdgeBitmap // bits to clear
-	replace    bool       // replace the existing bitmap with set
-	force      bool       // keep edges between nodes for the same SID
-	unfiltered bool       // set as a bitmap: no filtering at all, like IndexedGraph.SetEdge
+	sources    []pendingSource  // why, see EdgeBecause
+	tags       []pendingEdgeTag // see TagEdge
+	set        EdgeBitmap       // bits to set
+	clear      EdgeBitmap       // bits to clear
+	replace    bool             // replace the existing bitmap with set
+	force      bool             // keep edges between nodes for the same SID
+	unfiltered bool             // set as a bitmap: no filtering at all, like IndexedGraph.SetEdge
 }
 
 // pendingSource is a cause staged with an edge.
@@ -1093,6 +1094,7 @@ func (tx *Tx) absorb(other *Tx) {
 				source.about = mapEndpoint(source.about)
 				moved.sources[i] = source
 			}
+			moved.tags = slices.Clone(pe.tags)
 			tx.edges[key] = &moved
 			tx.edgeSeq = append(tx.edgeSeq, &moved)
 			continue
@@ -1109,6 +1111,7 @@ func (tx *Tx) absorb(other *Tx) {
 			source.about = mapEndpoint(source.about)
 			existing.sources = append(existing.sources, source)
 		}
+		existing.tags = append(existing.tags, pe.tags...)
 	}
 }
 

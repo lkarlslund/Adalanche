@@ -77,6 +77,7 @@ func (aqlq *AQLquery) resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, 
 			return nil, err
 		}
 		aqlq.Next[i].counters, aqlq.Next[i].cstates = counters, cstates
+		aqlq.Next[i].edgeTags = resolveEdgeTags(q, aqlq.datasource)
 		pb.Add(1)
 	}
 	pb.Add(1)
@@ -316,7 +317,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 				}
 			}
 
-			filteredMatches, edgeProbabilityPct, ok := thisEdgeSearcher.allows(opts, currentNode, nextNode, direction, eb)
+			filteredMatches, edgeProbabilityPct, ok := thisEdgeSearcher.allows(opts, currentNode, nextNode, currentState.nodeIndex, nextIndex, direction, eb)
 			if !ok {
 				return true
 			}
@@ -387,10 +388,10 @@ var (
 )
 
 // allows applies an edge searcher's per-edge rules to one step from current
-// to next: the edge type filters, the edge probability filter and the
-// minimum edge probability option. It returns the edges to keep in the
-// result and the step's probability.
-func (es EdgeSearcher) allows(opts ResolverOptions, current, next *engine.Node, direction engine.EdgeDirection, eb engine.EdgeBitmap) (engine.EdgeBitmap, engine.Probability, bool) {
+// to next: the edge type filters, the edge tag filters, the edge probability
+// filter and the minimum edge probability option. It returns the edges to
+// keep in the result and the step's probability.
+func (es EdgeSearcher) allows(opts ResolverOptions, current, next *engine.Node, currentIndex, nextIndex engine.NodeIndex, direction engine.EdgeDirection, eb engine.EdgeBitmap) (engine.EdgeBitmap, engine.Probability, bool) {
 	if es.FilterEdges.NegativeComparator != query.CompareInvalid {
 		matchedEdges := es.FilterEdges.NegativeBitmap.Intersect(eb)
 		if query.Comparator[int64](es.FilterEdges.NegativeComparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.NegativeCount) {
@@ -406,6 +407,18 @@ func (es EdgeSearcher) allows(opts ResolverOptions, current, next *engine.Node, 
 			filteredMatches = matchedEdges
 		}
 		if !query.Comparator[int64](es.FilterEdges.Comparator).Compare(int64(matchedEdges.Count()), es.FilterEdges.Count) {
+			return eb, 0, false
+		}
+	}
+	if es.edgeTags != nil {
+		// Tags are kept on the edge as stored, from its source to its target.
+		from, to := currentIndex, nextIndex
+		if direction != engine.Out {
+			from, to = to, from
+		}
+		matchedEdges = es.edgeTags.keep(from, to, matchedEdges)
+		filteredMatches = es.edgeTags.keep(from, to, filteredMatches)
+		if matchedEdges.IsBlank() {
 			return eb, 0, false
 		}
 	}

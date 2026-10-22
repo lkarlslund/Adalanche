@@ -45,8 +45,10 @@ type IndexedGraph struct {
 
 	// Edge tracking
 	edgeCombos  *edgeComboTable
-	edges       [2]adjacency    // by direction: from index -> to index -> edgeCombo
-	provenance  provenanceIndex // why outgoing edges exist, see provenance.go; under edgeMutex
+	edges       [2]adjacency            // by direction: from index -> to index -> edgeCombo
+	provenance  provenanceIndex         // why outgoing edges exist, see provenance.go; under edgeMutex
+	edgeTags    pairIndex[edgeTagEntry] // tags on outgoing edges, see edgetags.go; under edgeMutex
+	tagNames    edgeTagNames
 	sources     sourceTable
 	edgeMutex   sync.RWMutex
 	edgeVersion uint64 // changes whenever an edge is written, under edgeMutex

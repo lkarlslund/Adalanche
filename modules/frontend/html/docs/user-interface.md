@@ -98,6 +98,22 @@ This list is not exhaustive; see the full list in the UI.
 | WriteDACL | Can modify DACL |
 | WriteSPN | Can modify SPN |
 
+## Right-click menus
+
+Right-click a node for:
+
+- **Set as route target**, and **Plot route to target**, to draw the route from another node to it (see below)
+- **Expand node**, or **Expand merged nodes**, where there is more to show
+- **What can this node reach?** and **Who can reach this node?**, which run the query for it
+- **Edit tags…**\*, to add and remove the node's [tags](tags.md)
+
+Right-click an edge for:
+
+- **Show edge details**: its edge types, their probabilities, and why each exists
+- **Edit edge tags…**\*, to tag one edge type or every edge between the two nodes, see [tags](tags.md)
+
+\* Enterprise version, with the `tags` license feature.
+
 ## Plotting a path in the GUI
 
 Right-click target object and set as target:

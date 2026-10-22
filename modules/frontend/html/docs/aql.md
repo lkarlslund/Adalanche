@@ -103,6 +103,14 @@ Edge filters define which edge types are traversed. Empty filter (`[]`) means de
 | Match two of X, Y, Z | `[X,Y,Z,match=2]` |
 | Optional edge X | `[X]{0,1}` |
 | Don't match X | `[X,match=0]` |
+| Not between nodes that have an X edge | `[!X]` |
+| Edge types not tagged Pivot | `[!tag=Pivot]` |
+| Only edges a user tagged accepted\* | `[edgetag=accepted]` |
+| Edges not tagged accepted\* | `[!edgetag=accepted]` |
+
+`tag=` selects edge *types* by the tags they carry, such as Pivot. `edgetag=` looks at the tags on the edges themselves, which users add in the enterprise version\* (see [Tags](tags.md)): only the edge types tagged, or not tagged, are followed, and a tag on every edge between two nodes counts for all of them.
+
+\* Enterprise version, with the `tags` license feature.
 
 ## Transit constraints (via, through, avoid)
 

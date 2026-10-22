@@ -981,6 +981,77 @@ function initGraphToolsWhenReady() {
   initGraphTools();
 }
 
+// Extensions add node context menu items with registerNodeContextMenuItem:
+// build(nodeId, nodeData) returns an item ({label, show, onClick}) or null,
+// and is asked each time the menu opens.
+const nodeContextMenuBuilders = [];
+
+function registerNodeContextMenuItem(build) {
+  if (typeof build === "function") {
+    nodeContextMenuBuilders.push(build);
+  }
+}
+
+// The same for edges: build(edgeId, edgeData) returns an item or null.
+const edgeContextMenuBuilders = [];
+
+function registerEdgeContextMenuItem(build) {
+  if (typeof build === "function") {
+    edgeContextMenuBuilders.push(build);
+  }
+}
+
+// Sections of the edge details window, by name: render(details, edgeData)
+// returns HTML, where details is what api/edges gives for the edge. A
+// section registered under a name already taken replaces it.
+const edgeDetailsSections = new Map();
+
+function registerEdgeDetailsSection(name, render) {
+  if (typeof render === "function") {
+    edgeDetailsSections.set(String(name), render);
+  }
+}
+
+function renderEdgeDetailsSections(details, edgeData) {
+  let html = "";
+  edgeDetailsSections.forEach(function (render) {
+    try {
+      html += render(details, edgeData) || "";
+    } catch (err) {
+      console.error("edge details section failed", err);
+    }
+  });
+  return html;
+}
+
+function openEdgeContextMenu(edgeId, clientX, clientY) {
+  const edgeData = graphEdgeData(edgeId) || {};
+  openGraphContextMenu(
+    [
+      {
+        label: "Show edge details",
+        show: true,
+        onClick: function () {
+          showEdgeDetails(edgeId);
+        },
+      },
+    ].concat(
+      edgeContextMenuBuilders
+        .map(function (build) {
+          try {
+            return build(edgeId, edgeData);
+          } catch (err) {
+            console.error("edge context menu item failed", err);
+            return null;
+          }
+        })
+        .filter(Boolean)
+    ),
+    clientX,
+    clientY
+  );
+}
+
 function ensureGraphContextMenu() {
   if (graphState.contextMenu) {
     return graphState.contextMenu;
@@ -1066,7 +1137,7 @@ function showEdgeDetails(edgeId) {
       new_window(
         windowname,
         "Edge from " + renderlabel(data[0].from.label) + " to " + renderlabel(data[0].to.label),
-        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges, data[0].sources) + "<br>" + rendernode(data[0].to)
+        rendernode(data[0].from) + "<br>" + renderedges(data[0].edges, data[0].sources) + "<br>" + rendernode(data[0].to) + renderEdgeDetailsSections(data[0], edgeData)
       );
     })
     .catch(function (err) {
@@ -1262,7 +1333,18 @@ function openNodeContextMenu(nodeId, clientX, clientY) {
           runReachabilityQuery(nodeId, "inbound");
         },
       },
-    ],
+    ].concat(
+      nodeContextMenuBuilders
+        .map(function (build) {
+          try {
+            return build(nodeId, nodeData);
+          } catch (err) {
+            console.error("node context menu item failed", err);
+            return null;
+          }
+        })
+        .filter(Boolean)
+    ),
     clientX,
     clientY
   );
@@ -1348,8 +1430,11 @@ function bindGraphEvents() {
     openNodeContextMenu(evt.nodeId, Number(client.x || 0), Number(client.y || 0));
   });
 
-  graph.onEdgeContextMenu(function () {
+  graph.onEdgeContextMenu(function (evt) {
     hideGraphContextMenu();
+    hideEdgeHoverCard();
+    const client = evt.clientPosition || { x: 0, y: 0 };
+    openEdgeContextMenu(evt.edgeId, Number(client.x || 0), Number(client.y || 0));
   });
 
   graph.onEdgeHoverChanged(function (evt) {

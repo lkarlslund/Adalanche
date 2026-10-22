@@ -189,7 +189,7 @@ func (s *reachSearch) stepEdges(step int, v engine.NodeIndex) []reachEdge {
 	for _, direction := range directions {
 		for _, e := range s.adjacency.Neighbors[direction][v] {
 			next := ds.NodeAt(e.Target)
-			kept, probability, ok := es.allows(s.opts, current, next, direction, ds.EdgeComboToEdgeBitmap(e.Combo))
+			kept, probability, ok := es.allows(s.opts, current, next, v, e.Target, direction, ds.EdgeComboToEdgeBitmap(e.Combo))
 			if !ok || probability < 0 {
 				continue
 			}

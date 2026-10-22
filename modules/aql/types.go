@@ -54,13 +54,17 @@ type EdgeSearcher struct {
 	// (via, through, avoid; see TransitConstraint).
 	Transit []TransitConstraint
 	// counters and cstates are Transit resolved against the data source.
-	counters                     []transitCounter
-	cstates                      int
-	FilterEdges                  EdgeMatcher // match any of these
-	Direction                    engine.EdgeDirection
-	MinIterations, MaxIterations int // there should be between min and max iterations in the chain
-	ProbabilityValue             engine.Probability
-	ProbabilityComparator        query.ComparatorType
+	counters []transitCounter
+	cstates  int
+	// EdgeTagsRequired and EdgeTagsExcluded follow only edge types that
+	// carry, or do not carry, these edge tags (edgetag=, !edgetag=).
+	EdgeTagsRequired, EdgeTagsExcluded []string
+	edgeTags                           *edgeTagFilter
+	FilterEdges                        EdgeMatcher // match any of these
+	Direction                          engine.EdgeDirection
+	MinIterations, MaxIterations       int // there should be between min and max iterations in the chain
+	ProbabilityValue                   engine.Probability
+	ProbabilityComparator              query.ComparatorType
 }
 type NodeMatcher interface {
 	Match(o *engine.Node) bool

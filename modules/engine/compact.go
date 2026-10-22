@@ -144,27 +144,31 @@ func (g *IndexedGraph) compact(folded map[*Node]*Node) {
 	wg.Wait()
 }
 
-// compactProvenance moves edge causes to the new positions like outgoing
-// edges: a folded node's causes join the node it was folded into.
+// compactProvenance moves edge causes and tags to the new positions like
+// outgoing edges: a folded node's entries join the node it was folded into.
 func (g *IndexedGraph) compactProvenance(remap, position []NodeIndex, gone NodeIndex, kept int) {
-	old := g.provenance
+	g.provenance = compactPairs(g.provenance, remap, position, gone, kept)
+	g.edgeTags = compactPairs(g.edgeTags, remap, position, gone, kept)
+}
+
+func compactPairs[T comparable](old pairIndex[T], remap, position []NodeIndex, gone NodeIndex, kept int) pairIndex[T] {
 	if len(old) == 0 {
-		return
+		return old
 	}
-	moved := make(provenanceIndex, kept)
-	rebuild := func(into map[NodeIndex][]edgeCause, from NodeIndex, targets map[NodeIndex][]edgeCause) map[NodeIndex][]edgeCause {
+	moved := make(pairIndex[T], kept)
+	rebuild := func(into map[NodeIndex][]T, from NodeIndex, targets map[NodeIndex][]T) map[NodeIndex][]T {
 		nf := remap[from]
-		for to, causes := range targets {
+		for to, entries := range targets {
 			nt := remap[to]
 			if nt == gone || nf == nt {
 				continue
 			}
 			if into == nil {
-				into = make(map[NodeIndex][]edgeCause, len(targets))
+				into = make(map[NodeIndex][]T, len(targets))
 			}
-			for _, c := range causes {
-				if !slices.Contains(into[nt], c) {
-					into[nt] = append(into[nt], c)
+			for _, e := range entries {
+				if !slices.Contains(into[nt], e) {
+					into[nt] = append(into[nt], e)
 				}
 			}
 		}
@@ -188,5 +192,5 @@ func (g *IndexedGraph) compactProvenance(remap, position []NodeIndex, gone NodeI
 			moved[remap[from]] = rebuild(moved[remap[from]], NodeIndex(from), targets)
 		}
 	}
-	g.provenance = moved
+	return moved
 }

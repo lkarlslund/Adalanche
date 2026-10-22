@@ -110,6 +110,7 @@ func (g *IndexedGraph) commitCollection(tx *Tx) error {
 	// Edges to nodes that were already in the graph go the usual way.
 	g.applyIndexedEdgeMutations(g.resolveEdgeMutations(outside))
 	g.applyProvenance(staged.appendProvenance(tx, nil))
+	g.applyEdgeTags(staged.appendEdgeTags(tx, nil))
 	return err
 }
 
@@ -213,6 +214,11 @@ func (g *IndexedGraph) Commit(txs ...*Tx) error {
 		causes = c.appendProvenance(tx, causes)
 	}
 	g.applyProvenance(causes)
+	var tags []edgeTagWrite
+	for _, tx := range txs {
+		tags = c.appendEdgeTags(tx, tags)
+	}
+	g.applyEdgeTags(tags)
 	steps.mark("edges")
 	g.dropIndexesFor(c.changedAttrs)
 	steps.mark("indexes")

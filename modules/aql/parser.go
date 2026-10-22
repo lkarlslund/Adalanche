@@ -745,9 +745,11 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 				}
 				es.Transit = append(es.Transit, TransitConstraint{Filter: requirement, Negate: true, Comparator: query.CompareEqual})
 			} else {
-				if ts.Token().Type != Identifier {
+				// A negation (!EdgeType, !tag=, !edgetag=) or an identifier.
+				if ts.Token().Type != Identifier && !ts.Token().Is(Exclamation) {
 					return EdgeSearcher{}, fmt.Errorf("expecting identifier in edge matcher, but got %v (%v)", ts.Token().Value, ts.Token().Type)
 				}
+				negated := ts.Token().Is(Exclamation)
 				if keyword := strings.ToLower(ts.Token().Value); keyword == "via" || keyword == "through" || keyword == "avoid" {
 					ts.Next()
 					tc, err := parseTransitConstraint(ts, ao, keyword)
@@ -755,6 +757,28 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 						return es, err
 					}
 					es.Transit = append(es.Transit, tc)
+				} else if strings.EqualFold(ts.Token().Value, "edgetag") || (negated && strings.EqualFold(ts.PeekNextToken().Value, "edgetag")) {
+					// Tags on the edges themselves (see engine.EdgeTag), not
+					// on edge types as tag= is.
+					if !edgeTagsEnabled.Load() {
+						return es, errors.New("edgetag needs edge tags, which Adalanche Enterprise provides")
+					}
+					if negated {
+						ts.Next() // eat exclamation
+					}
+					ts.Next() // eat edgetag
+					if !ts.NextIfIs(Equals) {
+						return es, fmt.Errorf("edgetag requires =, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+					}
+					if ts.Token().Type != Identifier {
+						return es, fmt.Errorf("expected an edge tag name, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+					}
+					if negated {
+						es.EdgeTagsExcluded = append(es.EdgeTagsExcluded, ts.Token().Value)
+					} else {
+						es.EdgeTagsRequired = append(es.EdgeTagsRequired, ts.Token().Value)
+					}
+					ts.Next()
 				} else if strings.EqualFold(ts.Token().Value, "probability") {
 					ts.Next()
 					comparator, err := GetComparator(ts)

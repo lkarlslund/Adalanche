@@ -75,6 +75,8 @@ type edgeCause struct {
 	source SourceID
 }
 
+func (c edgeCause) edgeType() Edge { return c.edge }
+
 // sourceTable interns a graph's causes.
 type sourceTable struct {
 	sync.Mutex
@@ -204,22 +206,41 @@ func (g *IndexedGraph) applyProvenance(writes []provenanceWrite) {
 	wg.Wait()
 }
 
-// pruneProvenance drops causes for edge types the pair no longer has.
-// Callers hold edgeMutex, or own the source node's entries.
+// pruneProvenance drops causes and tags for edge types the pair no longer
+// has. Callers hold edgeMutex, or own the source node's entries.
 func (g *IndexedGraph) pruneProvenance(from, to NodeIndex, edge EdgeBitmap) {
-	targets := g.provenance.get(from)
+	prunePairs(g.provenance, from, to, edge)
+	prunePairs(g.edgeTags, from, to, edge)
+}
+
+// pairEntry is something kept per pair of nodes about one edge type between
+// them, or, as AnyEdgeType, about the pair whatever its edge types.
+type pairEntry interface {
+	comparable
+	edgeType() Edge
+}
+
+// prunePairs drops a pair's entries for edge types it no longer has, and
+// its pair-wide entries once it has none.
+func prunePairs[T pairEntry](p pairIndex[T], from, to NodeIndex, edge EdgeBitmap) {
+	targets := p.get(from)
 	if targets == nil {
 		return
 	}
-	causes, found := targets[to]
+	entries, found := targets[to]
 	if !found {
 		return
 	}
-	causes = slices.DeleteFunc(causes, func(c edgeCause) bool { return !edge.IsSet(c.edge) })
-	if len(causes) == 0 {
+	entries = slices.DeleteFunc(entries, func(e T) bool {
+		if e.edgeType() == AnyEdgeType {
+			return edge.IsBlank()
+		}
+		return !edge.IsSet(e.edgeType())
+	})
+	if len(entries) == 0 {
 		delete(targets, to)
 	} else {
-		targets[to] = causes
+		targets[to] = entries
 	}
 }
 
@@ -244,17 +265,21 @@ func (g *IndexedGraph) EdgeSources(from, to *Node) []EdgeProvenance {
 	return result
 }
 
-// provenanceIndex is like adjacency, with causes per target.
-type provenanceIndex []map[NodeIndex][]edgeCause
+// pairIndex is like adjacency, with entries per target: causes for
+// provenance, tags for edge tags.
+type pairIndex[T comparable] []map[NodeIndex][]T
 
-func (p provenanceIndex) get(from NodeIndex) map[NodeIndex][]edgeCause {
+// provenanceIndex holds causes per target.
+type provenanceIndex = pairIndex[edgeCause]
+
+func (p pairIndex[T]) get(from NodeIndex) map[NodeIndex][]T {
 	if int(from) < len(p) {
 		return p[from]
 	}
 	return nil
 }
 
-func (p *provenanceIndex) set(from NodeIndex, targets map[NodeIndex][]edgeCause) {
+func (p *pairIndex[T]) set(from NodeIndex, targets map[NodeIndex][]T) {
 	if int(from) >= len(*p) {
 		p.grow(max(int(from)+1, 2*len(*p), 1024))
 	}
@@ -262,9 +287,9 @@ func (p *provenanceIndex) set(from NodeIndex, targets map[NodeIndex][]edgeCause)
 }
 
 // grow makes room for nodes up to position n-1.
-func (p *provenanceIndex) grow(n int) {
+func (p *pairIndex[T]) grow(n int) {
 	if n > len(*p) {
-		grown := make(provenanceIndex, n)
+		grown := make(pairIndex[T], n)
 		copy(grown, *p)
 		*p = grown
 	}
