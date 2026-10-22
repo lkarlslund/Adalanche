@@ -67,7 +67,7 @@ func TestRoutesLeaveOutRefusedSteps(t *testing.T) {
 
 	var out explainOutput
 	args := map[string]any{"from": map[string]any{"id": id("denied")}, "to_filter": "(tag=hvt)", "edge_types": []string{"MCPTestControls", "MCPTestDeniable"}}
-	if msg := call(t, session, "explain_routes", args, &out); msg != "" {
+	if msg := call(t, session, "routes explain", args, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if !out.Reachable || out.Shortest != 3 || len(out.Routes) != 1 || out.RefusedSteps == 0 {
@@ -82,7 +82,7 @@ func TestRoutesLeaveOutRefusedSteps(t *testing.T) {
 	}
 
 	var path pathOutput
-	if msg := call(t, session, "get_edge_path_details", map[string]any{"node_ids": []string{id("denied"), id("group"), id("target")}}, &path); msg != "" {
+	if msg := call(t, session, "routes edge_details", map[string]any{"node_ids": []string{id("denied"), id("group"), id("target")}}, &path); msg != "" {
 		t.Fatal(msg)
 	}
 	if !path.Refused || len(path.Steps) != 2 || path.Steps[0].Refused || !path.Steps[1].Refused {
@@ -95,7 +95,7 @@ func TestRoutesLeaveOutRefusedSteps(t *testing.T) {
 
 	// From the group, standing for every member, nothing is refused.
 	var fromGroup pathOutput
-	if msg := call(t, session, "get_edge_path_details", map[string]any{"node_ids": []string{id("group"), id("target")}}, &fromGroup); msg != "" || fromGroup.Refused {
+	if msg := call(t, session, "routes edge_details", map[string]any{"node_ids": []string{id("group"), id("target")}}, &fromGroup); msg != "" || fromGroup.Refused {
 		t.Errorf("path from the group refused: %s", msg)
 	}
 }

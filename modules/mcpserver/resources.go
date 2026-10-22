@@ -12,16 +12,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func (s *Server) addResources() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "get_status",
-		Description: "Whether data has finished loading, the version, and how many nodes of each type and edges the graph holds.",
-	}, s.getStatus)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "list_schema",
-		Description: "List node types, edge types with their descriptions, and attribute names, for writing filters and queries.",
-	}, s.listSchema)
+func (s *Server) graphActions() []Action {
+	return []Action{
+		NewAction("status", "Whether data has finished loading, the version, and how many nodes of each type and edges the graph holds.", s.getStatus),
+		NewAction("schema", "List node types, edge types with their descriptions, and attribute names, for writing filters and queries.", s.listSchema),
+	}
+}
 
+func (s *Server) addResources() {
 	for _, r := range []struct {
 		uri, name, title, description string
 		load                          func() any

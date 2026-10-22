@@ -35,11 +35,11 @@ func TestClientSurvivesRestart(t *testing.T) {
 	t.Cleanup(func() { session.Close() })
 
 	var before, after statusOutput
-	if msg := call(t, session, "get_status", nil, &before); msg != "" || !before.Meta.Ready {
+	if msg := call(t, session, "graph status", nil, &before); msg != "" || !before.Meta.Ready {
 		t.Fatalf("before restart: %+v %s", before, msg)
 	}
 	start()
-	if msg := call(t, session, "get_status", nil, &after); msg != "" || !after.Meta.Ready {
+	if msg := call(t, session, "graph status", nil, &after); msg != "" || !after.Meta.Ready {
 		t.Fatalf("after restart: %+v %s", after, msg)
 	}
 	if before.Meta.Load == after.Meta.Load {
@@ -53,7 +53,7 @@ func TestStaleSessionIDAccepted(t *testing.T) {
 	g, _ := testGraph(t)
 	handler := newServer(fixedSource{g, frontend.Ready}).handler()
 	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/mcp",
-		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_status","arguments":{}}}`))
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"graph","arguments":{"action":"status"}}}`))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json, text/event-stream")
 	request.Header.Set("Mcp-Session-Id", "from-before-the-restart")

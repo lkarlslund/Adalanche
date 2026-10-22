@@ -25,25 +25,15 @@ const (
 	memberSample       = 10
 )
 
-func (s *Server) addQueryTools() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "validate_aql",
-		Description: "Check that an AQL query parses, without running it. get_doc with name aql describes the query language.",
-	}, s.validateAQL)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name: "run_aql",
-		Description: "Run an AQL query, such as REACH start:(tag=hvt)<-[()]{1,6}-end:(type=Person), and describe the result: totals, nodes per hop from the start nodes, " +
-			"and the nodes nearest the start with the edges between them. Nodes that lead on to the start the same way are merged by default, so large results stay readable. " +
-			"REACH finds every edge on a route and is fast; ACYCLIC lists paths and can be slow. get_doc with name aql describes the query language.",
-	}, s.runAQL)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "list_saved_queries",
-		Description: "List the built-in and saved queries.",
-	}, s.listSavedQueries)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "run_saved_query",
-		Description: "Run a built-in or saved query by name, described as run_aql does.",
-	}, s.runSavedQuery)
+func (s *Server) aqlActions() []Action {
+	return []Action{
+		NewAction("run", "Run an AQL query, such as REACH start:(tag=hvt)<-[()]{1,6}-end:(type=Person), and describe the result: totals, nodes per hop from the start nodes, "+
+			"and the nodes nearest the start with the edges between them. Nodes that lead on to the start the same way are merged by default, so large results stay readable. "+
+			"REACH finds every edge on a route and is fast; ACYCLIC lists paths and can be slow.", s.runAQL),
+		NewAction("validate", "Check that an AQL query parses, without running it.", s.validateAQL),
+		NewAction("saved_list", "List the built-in and saved queries.", s.listSavedQueries),
+		NewAction("saved_run", "Run a built-in or saved query by name, described as run does.", s.runSavedQuery),
+	}
 }
 
 type validateInput struct {
@@ -305,7 +295,7 @@ func (s *Server) listSavedQueries(context.Context, *mcp.CallToolRequest, struct{
 }
 
 type runSavedInput struct {
-	Name string `json:"name" jsonschema:"the query's name, as list_saved_queries gives it"`
+	Name string `json:"name" jsonschema:"the query's name, as aql saved_list gives it"`
 	QueryOptions
 }
 
@@ -316,7 +306,7 @@ func (s *Server) runSavedQuery(ctx context.Context, _ *mcp.CallToolRequest, in r
 	}
 	i := slices.IndexFunc(queries, func(q aql.QueryDefinition) bool { return strings.EqualFold(q.Name, strings.TrimSpace(in.Name)) })
 	if i < 0 {
-		return nil, runOutput{}, fmt.Errorf("no query named %q; list_saved_queries lists them", in.Name)
+		return nil, runOutput{}, fmt.Errorf("no query named %q; aql saved_list lists them", in.Name)
 	}
 	q := queries[i]
 	o := in.QueryOptions

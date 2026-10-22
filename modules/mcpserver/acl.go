@@ -18,13 +18,10 @@ const (
 	maxACEs     = 500
 )
 
-func (s *Server) addACLTools() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name: "get_acl",
-		Description: "Show a node's security descriptor in plain terms: owner, and each ACE with its trustee, the rights it grants or denies, " +
-			"the property, extended right or class it is limited to, what it applies to, where an inherited ACE was set, and the edges it causes. " +
-			"Edge causes such as \"ACE 45, inherited\" give the index to pass as ace; causes such as \"msDS-GroupMSAMembership ACE 3\" also name the attribute.",
-	}, s.getACL)
+func (s *Server) aclAction() Action {
+	return NewAction("acl", "Show a node's security descriptor in plain terms: owner, and each ACE with its trustee, the rights it grants or denies, "+
+		"the property, extended right or class it is limited to, what it applies to, where an inherited ACE was set, and the edges it causes. "+
+		"Edge causes such as \"ACE 45, inherited\" give the index to pass as ace; causes such as \"msDS-GroupMSAMembership ACE 3\" also name the attribute.", s.getACL)
 }
 
 type aclInput struct {

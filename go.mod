@@ -17,6 +17,7 @@ require (
 	github.com/amidaware/taskmaster v0.0.0-20220111015025-c9cd178bbbf2
 	github.com/bytedance/sonic v1.15.4
 	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/cloudsoda/go-smb2 v0.0.0-20260918041005-0c5d69b69701
 	github.com/elastic/go-windows v1.0.2
 	github.com/felixge/fgprof v0.9.5
 	github.com/felixge/fgtrace v0.2.0
@@ -31,6 +32,7 @@ require (
 	github.com/golang-auth/go-channelbinding v1.1.0
 	github.com/gomarkdown/markdown v0.0.0-20260923180740-94fc73f6b1a3
 	github.com/google/certtostore v1.0.7
+	github.com/google/jsonschema-go v0.4.3
 	github.com/gookit/color v1.6.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/icza/gox v0.2.14
@@ -77,7 +79,6 @@ require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/cloudsoda/go-smb2 v0.0.0-20260918041005-0c5d69b69701 // indirect
 	github.com/cloudsoda/sddl v0.0.0-20250224235906-926454e91efc // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
 	github.com/containerd/console v1.0.5 // indirect
@@ -96,7 +97,6 @@ require (
 	github.com/google/cabbie v1.0.6 // indirect
 	github.com/google/deck v1.1.0 // indirect
 	github.com/google/glazier v0.0.0-20260916032211-f1e929f65bcb // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/pprof v0.0.0-20260926063103-aaccee046517 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.4 // indirect

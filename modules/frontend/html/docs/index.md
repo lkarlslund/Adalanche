@@ -30,6 +30,7 @@ Trying Adalanche is easy with either sample data or data collected from your own
 
 - [Analysis](analysis.md)
 - [User Interface](user-interface.md)
+- [Tags](tags.md)
 
 ## Query Language
 
@@ -38,3 +39,4 @@ Trying Adalanche is easy with either sample data or data collected from your own
 ## Reference
 
 - [Command Reference](command-reference.md)
+- [MCP for AI assistants](mcp.md)

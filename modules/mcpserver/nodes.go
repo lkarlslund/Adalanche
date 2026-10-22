@@ -164,19 +164,13 @@ func sanitizeValue(value string) string {
 	return value
 }
 
-func (s *Server) addNodeTools() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "find_nodes",
-		Description: "Find nodes matching an LDAP style filter, such as (&(type=Person)(name=adm*)) or (tag=hvt). Returns node ids for the other tools.",
-	}, s.findNodes)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "get_node_details",
-		Description: "Show one node with its attributes. Secrets are masked.",
-	}, s.getNodeDetails)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "get_neighbors",
-		Description: "List the edges of a node: outgoing (what it can do to others), incoming (who can do something to it) or both, with edge types and probabilities.",
-	}, s.getNeighbors)
+func (s *Server) nodeActions() []Action {
+	return []Action{
+		NewAction("find", "Find nodes matching an LDAP style filter, such as (&(type=Person)(name=adm*)) or (tag=hvt). Returns node ids for the other actions and tools.", s.findNodes),
+		NewAction("details", "Show one node with its attributes. Secrets are masked.", s.getNodeDetails),
+		NewAction("neighbors", "List the edges of a node: outgoing (what it can do to others), incoming (who can do something to it) or both, with edge types and probabilities; with causes, also why each edge exists.", s.getNeighbors),
+		s.aclAction(),
+	}
 }
 
 type findNodesInput struct {
@@ -272,14 +266,19 @@ type neighborsInput struct {
 	EdgeTypes []string `json:"edge_types,omitempty" jsonschema:"only edges with one of these types"`
 	Skip      int      `json:"skip,omitempty" jsonschema:"edges to skip, for paging"`
 	Limit     int      `json:"limit,omitempty" jsonschema:"edges to return, at most 200 (default 25)"`
+	Causes    bool     `json:"causes,omitempty" jsonschema:"also say why each edge exists, per edge type, such as when a logon was seen"`
 }
 
 // NeighborEdge is one edge between a node and a neighbor.
 type NeighborEdge struct {
-	Direction   string    `json:"direction"` // out: node to neighbor, in: neighbor to node
-	Neighbor    NodeBrief `json:"neighbor"`
-	EdgeTypes   []string  `json:"edge_types"`
-	Probability int       `json:"probability"`
+	Direction   string           `json:"direction"` // out: node to neighbor, in: neighbor to node
+	Neighbor    NodeBrief        `json:"neighbor"`
+	EdgeTypes   []string         `json:"edge_types"`
+	Probability int              `json:"probability"`
+	Types       []EdgeTypeDetail `json:"types,omitempty" jsonschema:"each edge type with why it exists, when causes is asked for"`
+
+	from, to *engine.Node
+	edges    engine.EdgeBitmap
 }
 
 type neighborsOutput struct {
@@ -296,7 +295,7 @@ func edgeFilter(names []string) (engine.EdgeBitmap, error) {
 	for _, name := range names {
 		edge := engine.LookupEdge(name)
 		if edge == engine.NonExistingEdge {
-			return bitmap, fmt.Errorf("unknown edge type %q; list_schema lists them", name)
+			return bitmap, fmt.Errorf("unknown edge type %q; graph schema lists them", name)
 		}
 		bitmap = bitmap.Set(edge)
 	}
@@ -342,7 +341,7 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 			if direction == engine.In {
 				from, to, name = other, node, "in"
 			}
-			all = append(all, NeighborEdge{name, s.Brief(other), eb.StringSlice(), int(eb.MaxProbability(from, to))})
+			all = append(all, NeighborEdge{Direction: name, Neighbor: s.Brief(other), EdgeTypes: eb.StringSlice(), Probability: int(eb.MaxProbability(from, to)), from: from, to: to, edges: eb})
 			out.ByType[other.Type().Lookup()]++
 			return !cancelled(ctx, len(all))
 		})
@@ -359,5 +358,12 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 	end := min(skip+clampLimit(in.Limit, defaultLimit, maxLimit), len(all))
 	out.Edges = all[skip:end]
 	out.Truncated = end < len(all)
+	if in.Causes {
+		// Only for the edges returned, so a large neighborhood costs nothing.
+		for i := range out.Edges {
+			e := &out.Edges[i]
+			e.Types = s.edgeTypes(g, e.from, e.to, e.edges, engine.EdgeBitmap{}, engine.EdgeBitmap{})
+		}
+	}
 	return nil, out, nil
 }

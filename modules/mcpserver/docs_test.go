@@ -34,7 +34,7 @@ func TestDocs(t *testing.T) {
 	session := connect(t, docsSource{fixedSource{g, frontend.Ready}, docs})
 
 	var list listDocsOutput
-	if msg := call(t, session, "list_docs", nil, &list); msg != "" {
+	if msg := call(t, session, "docs list", nil, &list); msg != "" {
 		t.Fatal(msg)
 	}
 	if len(list.Docs) != 2 || list.Docs[0].Name != "index" || list.Docs[1].Name != "aql" {
@@ -45,19 +45,19 @@ func TestDocs(t *testing.T) {
 	}
 
 	var doc getDocOutput
-	if msg := call(t, session, "get_doc", map[string]any{"name": "aql.md"}, &doc); msg != "" || doc.Markdown != aqlDoc {
+	if msg := call(t, session, "docs get", map[string]any{"name": "aql.md"}, &doc); msg != "" || doc.Markdown != aqlDoc {
 		t.Errorf("whole doc: %s %q", msg, doc.Markdown)
 	}
-	if msg := call(t, session, "get_doc", map[string]any{"name": "aql", "section": "syntax"}, &doc); msg != "" {
+	if msg := call(t, session, "docs get", map[string]any{"name": "aql", "section": "syntax"}, &doc); msg != "" {
 		t.Fatal(msg)
 	}
 	if !strings.HasPrefix(doc.Markdown, "## Syntax") || !strings.Contains(doc.Markdown, "### Edges") || strings.Contains(doc.Markdown, "Examples") {
 		t.Errorf("section: %q", doc.Markdown)
 	}
-	if msg := call(t, session, "get_doc", map[string]any{"name": "aql", "section": "nope"}, &doc); !strings.Contains(msg, "Syntax") {
+	if msg := call(t, session, "docs get", map[string]any{"name": "aql", "section": "nope"}, &doc); !strings.Contains(msg, "Syntax") {
 		t.Errorf("missing section: %q", msg)
 	}
-	if msg := call(t, session, "get_doc", map[string]any{"name": "../../etc/passwd"}, &doc); !strings.Contains(msg, "no document") {
+	if msg := call(t, session, "docs get", map[string]any{"name": "../../etc/passwd"}, &doc); !strings.Contains(msg, "no document") {
 		t.Errorf("path outside docs: %q", msg)
 	}
 
@@ -78,14 +78,14 @@ type dirDocs struct{ fs.FS }
 
 func (d dirDocs) OpenDir(name string) ([]fs.DirEntry, error) { return fs.ReadDir(d.FS, name) }
 
-// The documentation the web interface embeds is what get_doc serves, query
+// The documentation the web interface embeds is what docs get serves, query
 // language sections included.
 func TestShippedAQLDoc(t *testing.T) {
 	g, _ := testGraph(t)
 	session := connect(t, docsSource{fixedSource{g, frontend.Ready}, dirDocs{os.DirFS("../frontend/html")}})
 
 	var list listDocsOutput
-	if msg := call(t, session, "list_docs", nil, &list); msg != "" {
+	if msg := call(t, session, "docs list", nil, &list); msg != "" {
 		t.Fatal(msg)
 	}
 	var sections []string
@@ -101,7 +101,7 @@ func TestShippedAQLDoc(t *testing.T) {
 	}
 
 	var doc getDocOutput
-	if msg := call(t, session, "get_doc", map[string]any{"name": "aql", "section": "Transit constraints (via, through, avoid)"}, &doc); msg != "" {
+	if msg := call(t, session, "docs get", map[string]any{"name": "aql", "section": "Transit constraints (via, through, avoid)"}, &doc); msg != "" {
 		t.Fatal(msg)
 	}
 	for _, want := range []string{"via all but N (F)", "avoid (F)", "through (F)", "out=ResetPassword>=100"} {

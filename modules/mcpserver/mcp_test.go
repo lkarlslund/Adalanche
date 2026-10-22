@@ -75,10 +75,17 @@ func connect(t *testing.T, source graphSource) *mcp.ClientSession {
 	return session
 }
 
-// call runs a tool and decodes its result into out, or returns the error
-// text the tool gave.
+// call runs a tool, named "category action" as in "nodes find", and decodes
+// its result into out, or returns the error text the tool gave.
 func call(t *testing.T, session *mcp.ClientSession, tool string, args map[string]any, out any) string {
 	t.Helper()
+	if category, action, found := strings.Cut(tool, " "); found {
+		withAction := map[string]any{"action": action}
+		for k, v := range args {
+			withAction[k] = v
+		}
+		tool, args = category, withAction
+	}
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
 		t.Fatalf("%s: %v", tool, err)
@@ -103,7 +110,7 @@ func call(t *testing.T, session *mcp.ClientSession, tool string, args map[string
 func idOf(t *testing.T, session *mcp.ClientSession, node *engine.Node) string {
 	t.Helper()
 	var status statusOutput
-	if msg := call(t, session, "get_status", nil, &status); msg != "" || status.Meta.Load == "" {
+	if msg := call(t, session, "graph status", nil, &status); msg != "" || status.Meta.Load == "" {
 		t.Fatalf("no load tag: %s", msg)
 	}
 	return strconv.FormatUint(uint64(node.ID()), 10) + "@" + status.Meta.Load
@@ -115,7 +122,7 @@ func TestSecretsStayInside(t *testing.T) {
 	admin := map[string]any{"id": idOf(t, session, nodes["admin"])}
 
 	var details nodeDetailsOutput
-	if msg := call(t, session, "get_node_details", admin, &details); msg != "" {
+	if msg := call(t, session, "nodes details", admin, &details); msg != "" {
 		t.Fatal(msg)
 	}
 	for _, name := range []string{"unicodePwd", "ms-Mcs-AdmPwd"} {
@@ -134,12 +141,12 @@ func TestSecretsStayInside(t *testing.T) {
 		{"filter": "(name=*)", "order_by": "unicodePwd"},
 	} {
 		var out findNodesOutput
-		if msg := call(t, session, "find_nodes", args, &out); msg == "" {
+		if msg := call(t, session, "nodes find", args, &out); msg == "" {
 			t.Errorf("find_nodes %v answered: %d nodes", args, out.Total)
 		}
 	}
 	var out runOutput
-	if msg := call(t, session, "run_aql", map[string]any{"query": "REACH start:(unicodePwd=hash)<-[]{1,2}-end:()"}, &out); msg == "" {
+	if msg := call(t, session, "aql run", map[string]any{"query": "REACH start:(unicodePwd=hash)<-[]{1,2}-end:()"}, &out); msg == "" {
 		t.Error("run_aql filtered on a secret")
 	}
 }
@@ -148,7 +155,7 @@ func TestExplainRoutesWithCauses(t *testing.T) {
 	g, nodes := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
 	var out explainOutput
-	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["u1"])}, "to_filter": "(tag=hvt)"}, &out); msg != "" {
+	if msg := call(t, session, "routes explain", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["u1"])}, "to_filter": "(tag=hvt)"}, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if !out.Reachable || out.Shortest != 3 || len(out.Routes) != 1 {
@@ -166,7 +173,7 @@ func TestExplainRoutesWithCauses(t *testing.T) {
 		t.Errorf("causes of group > admin: %+v", causes)
 	}
 
-	if msg := call(t, session, "explain_routes", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["target"])}, "to": map[string]any{"id": idOf(t, session, nodes["u1"])}}, &out); msg != "" || out.Reachable {
+	if msg := call(t, session, "routes explain", map[string]any{"from": map[string]any{"id": idOf(t, session, nodes["target"])}, "to": map[string]any{"id": idOf(t, session, nodes["u1"])}}, &out); msg != "" || out.Reachable {
 		t.Errorf("routes run against edge direction: %v %s", out.Reachable, msg)
 	}
 }
@@ -175,7 +182,7 @@ func TestReachSummaryAndNeighbors(t *testing.T) {
 	g, nodes := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
 	var reach reachOutput
-	if msg := call(t, session, "reach_summary", map[string]any{"id": idOf(t, session, nodes["target"]), "direction": "in"}, &reach); msg != "" {
+	if msg := call(t, session, "routes reach_summary", map[string]any{"id": idOf(t, session, nodes["target"]), "direction": "in"}, &reach); msg != "" {
 		t.Fatal(msg)
 	}
 	var counts []int
@@ -187,7 +194,7 @@ func TestReachSummaryAndNeighbors(t *testing.T) {
 	}
 
 	var neighbors neighborsOutput
-	if msg := call(t, session, "get_neighbors", map[string]any{"id": idOf(t, session, nodes["group"]), "direction": "in", "limit": 2}, &neighbors); msg != "" {
+	if msg := call(t, session, "nodes neighbors", map[string]any{"id": idOf(t, session, nodes["group"]), "direction": "in", "limit": 2}, &neighbors); msg != "" {
 		t.Fatal(msg)
 	}
 	if neighbors.Total != 5 || len(neighbors.Edges) != 2 || !neighbors.Truncated || neighbors.Edges[0].Neighbor.Label != "u1" {
@@ -199,7 +206,7 @@ func TestRunAQLMergesAndCountsHops(t *testing.T) {
 	g, _ := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Ready})
 	var out runOutput
-	if msg := call(t, session, "run_aql", map[string]any{"query": "REACH start:(tag=hvt)<-[]{1,4}-end:(name=u*)"}, &out); msg != "" {
+	if msg := call(t, session, "aql run", map[string]any{"query": "REACH start:(tag=hvt)<-[]{1,4}-end:(name=u*)"}, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if out.DrawnNodes != 4 || out.TotalNodes != 8 || out.NodesPerHop["3"] != 5 {
@@ -214,7 +221,7 @@ func TestRunAQLMergesAndCountsHops(t *testing.T) {
 		t.Errorf("first node %+v, want the target", first)
 	}
 
-	if msg := call(t, session, "run_aql", map[string]any{"query": "ACYCLIC start:(tag=hvt)<-[]{1,4}-end:(name=u*)", "merge": "off", "node_limit": 3}, &out); msg != "" {
+	if msg := call(t, session, "aql run", map[string]any{"query": "ACYCLIC start:(tag=hvt)<-[]{1,4}-end:(name=u*)", "merge": "off", "node_limit": 3}, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if len(out.Incomplete) == 0 {
@@ -226,11 +233,11 @@ func TestNotReady(t *testing.T) {
 	g, _ := testGraph(t)
 	session := connect(t, fixedSource{g, frontend.Loading})
 	var status statusOutput
-	if msg := call(t, session, "get_status", nil, &status); msg != "" || status.Meta.Ready {
+	if msg := call(t, session, "graph status", nil, &status); msg != "" || status.Meta.Ready {
 		t.Errorf("status while loading: %+v %s", status, msg)
 	}
 	var out findNodesOutput
-	if msg := call(t, session, "find_nodes", map[string]any{"filter": "(name=u1)"}, &out); !strings.Contains(msg, "loading") {
+	if msg := call(t, session, "nodes find", map[string]any{"filter": "(name=u1)"}, &out); !strings.Contains(msg, "loading") {
 		t.Errorf("find_nodes while loading: %q", msg)
 	}
 }
@@ -263,18 +270,49 @@ func TestNodeIDsAndKeys(t *testing.T) {
 		{"id": number},
 		{"id": number + "@ffffff"},
 	} {
-		if msg := call(t, session, "get_node_details", args, &details); msg == "" {
+		if msg := call(t, session, "nodes details", args, &details); msg == "" {
 			t.Errorf("node id %v was taken", args["id"])
 		}
 	}
-	if msg := call(t, session, "get_node_details", map[string]any{"id": id}, &details); msg != "" || details.Node.Label != "admin" {
+	if msg := call(t, session, "nodes details", map[string]any{"id": id}, &details); msg != "" || details.Node.Label != "admin" {
 		t.Fatalf("current id: %s", msg)
 	}
 	if details.Node.Key != "objectSid=S-1-5-21-1-2-3-1001" {
 		t.Fatalf("key %q", details.Node.Key)
 	}
 	var byKey nodeDetailsOutput
-	if msg := call(t, session, "get_node_details", map[string]any{"id": details.Node.Key}, &byKey); msg != "" || byKey.Node.NodeID != id {
+	if msg := call(t, session, "nodes details", map[string]any{"id": details.Node.Key}, &byKey); msg != "" || byKey.Node.NodeID != id {
 		t.Errorf("by key: %s %+v", msg, byKey.Node.NodeBrief)
+	}
+}
+
+// With causes, each neighbor edge says why it exists, per edge type.
+func TestNeighborCauses(t *testing.T) {
+	g, nodes := testGraph(t)
+	session := connect(t, fixedSource{g, frontend.Ready})
+	admin := idOf(t, session, nodes["admin"])
+
+	var out neighborsOutput
+	if msg := call(t, session, "nodes neighbors", map[string]any{"id": admin, "direction": "in"}, &out); msg != "" {
+		t.Fatal(msg)
+	}
+	for _, e := range out.Edges {
+		if len(e.Types) != 0 {
+			t.Errorf("causes given unasked: %+v", e)
+		}
+	}
+	if msg := call(t, session, "nodes neighbors", map[string]any{"id": admin, "direction": "in", "causes": true}, &out); msg != "" {
+		t.Fatal(msg)
+	}
+	var found bool
+	for _, e := range out.Edges {
+		for _, typ := range e.Types {
+			for _, c := range typ.Causes {
+				found = found || (e.Neighbor.Label == "group" && typ.Type == edgeControls.String() && c.Detail == "granted here")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no cause for the group's edge: %+v", out.Edges)
 	}
 }

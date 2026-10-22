@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/lkarlslund/adalanche/modules/engine"
-	"github.com/lkarlslund/adalanche/modules/windowssecurity"
 )
 
 // Node ids number nodes as the graph loaded them, so they change whenever it
@@ -51,11 +49,10 @@ func (s *Server) nodeID(id engine.NodeID) string {
 
 // key names a node by its primary identity, unless that is a secret.
 func key(node *engine.Node) string {
-	attr, value := node.PrimaryID()
-	if attr == engine.NonExistingAttribute || value.IsNil() || secret(attr) {
+	if attr, _ := node.PrimaryID(); secret(attr) {
 		return ""
 	}
-	return attr.String() + "=" + value.String()
+	return engine.NodeKey(node)
 }
 
 // Brief names a node.
@@ -89,31 +86,12 @@ func (s *Server) parseNodeID(text string) (engine.NodeID, error) {
 
 // lookupKey finds a node by a key, "attribute=value".
 func (s *Server) lookupKey(g *engine.IndexedGraph, text string) (*engine.Node, error) {
-	name, value, found := strings.Cut(text, "=")
-	if !found || name == "" || value == "" {
-		return nil, fmt.Errorf("%q is not a key: keys look like objectSid=<SID>", text)
-	}
-	attr := engine.LookupAttribute(name)
-	if attr == engine.NonExistingAttribute {
-		return nil, fmt.Errorf("unknown attribute %q", name)
+	attr, lookup, err := engine.ParseNodeKey(text)
+	if err != nil {
+		return nil, err
 	}
 	if secret(attr) {
-		return nil, fmt.Errorf("attribute %q holds secrets and cannot be searched", name)
-	}
-	var lookup engine.AttributeValue = engine.NV(value)
-	switch attr {
-	case engine.ObjectSid:
-		sid, err := windowssecurity.ParseStringSID(value)
-		if err != nil {
-			return nil, err
-		}
-		lookup = engine.NV(sid)
-	case engine.ObjectGUID:
-		guid, err := uuid.FromString(value)
-		if err != nil {
-			return nil, err
-		}
-		lookup = engine.NV(guid)
+		return nil, fmt.Errorf("attribute %q holds secrets and cannot be searched", attr.String())
 	}
 	if node, found := g.Find(attr, lookup); found {
 		return node, nil

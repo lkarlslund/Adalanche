@@ -22,16 +22,15 @@ type DocsFS interface {
 
 const docsDir = "docs"
 
-func (s *Server) addDocTools() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "list_docs",
-		Description: "List Adalanche's documentation: each document's name, title and section headings. Read aql before writing queries.",
-	}, s.listDocs)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "get_doc",
-		Description: "Read a document from Adalanche's documentation as markdown, whole or one section. aql describes the query language.",
-	}, s.getDoc)
+func (s *Server) docActions() []Action {
+	return []Action{
+		NewAction("list", "List Adalanche's documentation: each document's name, title and section headings. Read aql before writing queries.", s.listDocs),
+		NewAction("get", "Read a document from Adalanche's documentation as markdown, whole or one section. aql describes the query language.", s.getDoc),
+	}
+}
 
+// addDocResources offers each document as a resource too.
+func (s *Server) addDocResources() {
 	docs := s.source.Docs()
 	if docs == nil {
 		return
@@ -56,9 +55,9 @@ func (s *Server) addDocTools() {
 
 // DocInfo describes one document.
 type DocInfo struct {
-	Name     string   `json:"name" jsonschema:"the name to pass to get_doc"`
+	Name     string   `json:"name" jsonschema:"the name to pass to docs get"`
 	Title    string   `json:"title"`
-	Sections []string `json:"sections,omitempty" jsonschema:"section headings, to pass to get_doc as section"`
+	Sections []string `json:"sections,omitempty" jsonschema:"section headings, to pass to docs get as section"`
 }
 
 type listDocsOutput struct {
@@ -83,7 +82,7 @@ func (s *Server) listDocs(context.Context, *mcp.CallToolRequest, struct{}) (*mcp
 }
 
 type getDocInput struct {
-	Name    string `json:"name" jsonschema:"the document, such as aql, as list_docs names it"`
+	Name    string `json:"name" jsonschema:"the document, such as aql, as docs list names it"`
 	Section string `json:"section,omitempty" jsonschema:"only this section, by its heading; the whole document when left out"`
 }
 
@@ -100,7 +99,7 @@ func (s *Server) getDoc(_ context.Context, _ *mcp.CallToolRequest, in getDocInpu
 	name := strings.TrimSuffix(path.Base(strings.TrimSpace(in.Name)), ".md")
 	text, err := readDoc(docs, name)
 	if err != nil {
-		return nil, getDocOutput{}, fmt.Errorf("no document %q; list_docs lists them", in.Name)
+		return nil, getDocOutput{}, fmt.Errorf("no document %q; docs list lists them", in.Name)
 	}
 	if in.Section != "" {
 		section, found := docSection(text, in.Section)

@@ -77,7 +77,7 @@ func TestGetACL(t *testing.T) {
 	group := idOf(t, session, nodes["group"])
 
 	var out aclOutput
-	if msg := call(t, session, "get_acl", map[string]any{"id": group}, &out); msg != "" {
+	if msg := call(t, session, "nodes acl", map[string]any{"id": group}, &out); msg != "" {
 		t.Fatal(msg)
 	}
 	if out.Total != 2 || len(out.ACEs) != 2 {
@@ -117,20 +117,20 @@ func TestGetACL(t *testing.T) {
 	}
 
 	var one aclOutput
-	if msg := call(t, session, "get_acl", map[string]any{"id": group, "ace": 1}, &one); msg != "" || len(one.ACEs) != 1 || one.ACEs[0].Index != 1 {
+	if msg := call(t, session, "nodes acl", map[string]any{"id": group, "ace": 1}, &one); msg != "" || len(one.ACEs) != 1 || one.ACEs[0].Index != 1 {
 		t.Errorf("ace filter: %s %+v", msg, one.ACEs)
 	}
 	var byTrustee aclOutput
-	if msg := call(t, session, "get_acl", map[string]any{"id": group, "trustee": "S-1-1-0"}, &byTrustee); msg != "" || byTrustee.Total != 1 || byTrustee.ACEs[0].Index != 0 {
+	if msg := call(t, session, "nodes acl", map[string]any{"id": group, "trustee": "S-1-1-0"}, &byTrustee); msg != "" || byTrustee.Total != 1 || byTrustee.ACEs[0].Index != 0 {
 		t.Errorf("trustee filter: %s %+v", msg, byTrustee.ACEs)
 	}
-	if msg := call(t, session, "get_acl", map[string]any{"id": group, "ace": 7}, &one); !strings.Contains(msg, "no ACE 7") {
+	if msg := call(t, session, "nodes acl", map[string]any{"id": group, "ace": 7}, &one); !strings.Contains(msg, "no ACE 7") {
 		t.Errorf("missing ACE: %q", msg)
 	}
 
 	// The cause on the route points at the ACE.
 	var path pathOutput
-	if msg := call(t, session, "get_edge_path_details", map[string]any{"node_ids": []string{idOf(t, session, nodes["helpdesk"]), group}}, &path); msg != "" {
+	if msg := call(t, session, "routes edge_details", map[string]any{"node_ids": []string{idOf(t, session, nodes["helpdesk"]), group}}, &path); msg != "" {
 		t.Fatal(msg)
 	}
 	cause := path.Steps[0].EdgeTypes[0].Causes[0]

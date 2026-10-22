@@ -25,22 +25,15 @@ const (
 	maxHopSample       = 50
 )
 
-func (s *Server) addRouteTools() {
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name: "get_edge_path_details",
-		Description: "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set). For an ACE, get_acl shows it in full. " +
-			"Each step names the account acting there, the nearest account before it, and marks edge types a deny refuses to that account.",
-	}, s.getEdgePathDetails)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name: "explain_routes",
-		Description: "Show the shortest routes by which one node can reach a target node, or any node matching a filter such as (tag=hvt), " +
-			"each step with its edge types, probabilities and causes. Use it to answer how an account can become a domain admin, and why. " +
-			"Routes a deny refuses are left out: an edge from a group is refused to a member when a deny for the member, or for another group it is in, comes first in the target's ACL.",
-	}, s.explainRoutes)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "reach_summary",
-		Description: "Count what a node can reach (out) or what can reach it (in), hop by hop, by node type, with a few examples per hop.",
-	}, s.reachSummary)
+func (s *Server) routeActions() []Action {
+	return []Action{
+		NewAction("explain", "Show the shortest routes by which one node can reach a target node, or any node matching a filter such as (tag=hvt), "+
+			"each step with its edge types, probabilities and causes. Use it to answer how an account can become a domain admin, and why. "+
+			"Routes a deny refuses are left out: an edge from a group is refused to a member when a deny for the member, or for another group it is in, comes first in the target's ACL.", s.explainRoutes),
+		NewAction("edge_details", "Explain the edges along a sequence of node ids: each edge type, its probability, and why it exists (the ACE, group policy, machine collection or other cause recorded for it, and where that was set). For an ACE, the nodes tool's acl action shows it in full. "+
+			"Each step names the account acting there, the nearest account before it, and marks edge types a deny refuses to that account.", s.getEdgePathDetails),
+		NewAction("reach_summary", "Count what a node can reach (out) or what can reach it (in), hop by hop, by node type, with a few examples per hop.", s.reachSummary),
+	}
 }
 
 // EdgeCause is one recorded reason an edge type exists.
@@ -49,9 +42,9 @@ type EdgeCause struct {
 	Detail string     `json:"detail,omitempty"`
 	About  *NodeBrief `json:"about,omitempty" jsonschema:"what the cause is about, such as the GPO"`
 	SetOn  *NodeBrief `json:"set_on,omitempty" jsonschema:"where it was set, such as the object an inherited ACE came from"`
-	// ACE and ACEAttribute point get_acl at the ACE behind the cause.
-	ACE          *int   `json:"ace,omitempty" jsonschema:"the index of the ACE behind the cause in the target's descriptor; get_acl with the target and this index shows it"`
-	ACEAttribute string `json:"ace_attribute,omitempty" jsonschema:"the attribute holding that descriptor, to pass to get_acl, when it is not the object's own"`
+	// ACE and ACEAttribute point the nodes tool's acl action at the ACE behind the cause.
+	ACE          *int   `json:"ace,omitempty" jsonschema:"the index of the ACE behind the cause in the target's descriptor; nodes acl with the target and this index shows it"`
+	ACEAttribute string `json:"ace_attribute,omitempty" jsonschema:"the attribute holding that descriptor, to pass to nodes acl, when it is not the object's own"`
 }
 
 // EdgeTypeDetail is one type of an edge.
