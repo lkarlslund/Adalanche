@@ -71,9 +71,12 @@ func (aqlq *AQLquery) resolve(opts ResolverOptions) (*graph.Graph[*engine.Node, 
 		pb.Add(1)
 	}
 	for i, q := range aqlq.Next {
-		if q.PathNodeRequirement != nil {
-			aqlq.Next[i].pathNodeRequirementCache = q.PathNodeRequirement.Populate(aqlq.datasource)
+		counters, cstates, err := buildTransitCounters(q.Transit, aqlq.datasource)
+		if err != nil {
+			pb.Finish()
+			return nil, err
 		}
+		aqlq.Next[i].counters, aqlq.Next[i].cstates = counters, cstates
 		pb.Add(1)
 	}
 	pb.Add(1)
@@ -259,8 +262,10 @@ func (aqlq AQLquery) resolveEdgesFrom(
 
 		thisEdgeSearcher := aqlq.Next[currentState.currentSearchIndex]
 		nextTargets := aqlq.sourceCache[currentState.currentSearchIndex+1]
-
-		nextEdgeTargets := thisEdgeSearcher.pathNodeRequirementCache
+		counters := thisEdgeSearcher.counters
+		// The step may land here only if its transit counts are met; the
+		// count so far includes the current node when it is a transit node.
+		landingAllowed := transitValidEnd(counters, int(currentState.transit))
 
 		var directions []engine.EdgeDirection
 		switch thisEdgeSearcher.Direction {
@@ -272,7 +277,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			directions = directionsAny
 		}
 
-		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 {
+		if thisEdgeSearcher.MinIterations == 0 && currentState.currentDepth == 0 && landingAllowed {
 			queue.Push(searchState{
 				nodeIndex:                  currentState.nodeIndex,
 				rank:                       currentState.rank,
@@ -322,7 +327,7 @@ func (aqlq AQLquery) resolveEdgesFrom(
 			}
 			nextOverAllProbabilityFraction := nextOverAllProbabilityPct / 100
 
-			if nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
+			if landingAllowed && nextDepth >= byte(thisEdgeSearcher.MinIterations) &&
 				(nextTargets == nil || nextTargets.Contains(nextNode)) {
 				if nextSearchIndex <= maxSearchIndex && nextTotalDepth <= byte(opts.MaxDepth) {
 					ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
@@ -338,19 +343,22 @@ func (aqlq AQLquery) resolveEdgesFrom(
 					})
 				}
 			}
-			if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) &&
-				(nextEdgeTargets == nil || nextEdgeTargets.Contains(nextNode)) {
-				ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
-				queue.Push(searchState{
-					nodeIndex:                  nextIndex,
-					rank:                       ranks[nextIndex],
-					path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: 255}),
-					filter:                     currentState.filter.with(nextIndex),
-					currentSearchIndex:         currentState.currentSearchIndex,
-					currentDepth:               nextDepth,
-					currentTotalDepth:          nextTotalDepth,
-					overAllProbabilityFraction: nextOverAllProbabilityFraction,
-				})
+			if nextDepth < byte(thisEdgeSearcher.MaxIterations) && nextTotalDepth <= byte(opts.MaxDepth) {
+				// Passing through nextNode makes it a transit node of this step.
+				if transit := combineTransit(counters, int(currentState.transit), countMask(counters, nextNode)); transit >= 0 {
+					ec := aqlq.datasource.EdgeBitmapToEdgeCombo(filteredMatches)
+					queue.Push(searchState{
+						nodeIndex:                  nextIndex,
+						rank:                       ranks[nextIndex],
+						path:                       paths.add(currentState.path, pathItem{target: nextIndex, combo: ec, direction: direction, reference: 255}),
+						filter:                     currentState.filter.with(nextIndex),
+						currentSearchIndex:         currentState.currentSearchIndex,
+						currentDepth:               nextDepth,
+						currentTotalDepth:          nextTotalDepth,
+						overAllProbabilityFraction: nextOverAllProbabilityFraction,
+						transit:                    uint16(transit),
+					})
+				}
 			}
 			return true
 		}

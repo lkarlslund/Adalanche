@@ -36,20 +36,25 @@ func (s *reachSearch) recombinable() bool {
 
 // recombinable reports whether the query has the shape REACH CHEAPEST and
 // SHORTEST need: a single step in one direction (not Any) whose minimum
-// iteration count is at most one.
+// iteration count is at most one, and no via counts. Gates (through, avoid,
+// via 0, via all) are fine, as they only decide which nodes a route may pass
+// through; a count depends on the whole route, which recombining the result's
+// edges can not see.
 func (aqlq *AQLquery) recombinable() bool {
 	if len(aqlq.Next) != 1 {
 		return false
 	}
 	step := aqlq.Next[0]
+	if transitHasCount(step.Transit) {
+		return false
+	}
 	return step.MinIterations <= 1 && (step.Direction == engine.In || step.Direction == engine.Out)
 }
 
-// passable reports whether a route may pass through v on its way: the path
-// node filter allows it. A route's first and last nodes need not match.
+// passable reports whether a route may pass through v on its way: no gate
+// forbids it. A route's first and last nodes need not pass.
 func (s *reachSearch) passable(v engine.NodeIndex) bool {
-	required := s.aqlq.Next[0].pathNodeRequirementCache
-	return required == nil || required.Contains(s.aqlq.datasource.NodeAt(v))
+	return gatePassable(s.aqlq.Next[0].counters, s.aqlq.datasource.NodeAt(v))
 }
 
 // pairArc is an edge of the result as the search for pairs takes it.

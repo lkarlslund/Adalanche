@@ -22,8 +22,9 @@ import (
 // of their own; every other account shares one, so without such a deny the
 // count is over nodes alone.
 //
-// Recombining the result's edges is only exact for a single step with no
-// path node filter and a single direction; other queries keep a flow of 1.
+// Recombining the result's edges is only exact for a single step in a single
+// direction with no via counts (gates such as through and avoid are kept by
+// passable); other queries keep a flow of 1.
 func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength map[engine.NodeIndex]int) error {
 	if !s.recombinable() {
 		return nil
@@ -200,14 +201,15 @@ func (s *reachSearch) countFlows(edges map[reachKey]reachResultEdge, nodeLength 
 	// Routes run from the attacker's end: the end nodes when the query
 	// walks edges backwards from its start, the start nodes otherwise.
 	var attackers, targets []engine.NodeIndex
-	for _, v := range s.active[0] {
-		if _, found := nodeLength[v]; found && s.forward[v] == 0 {
-			targets = append(targets, v)
+	// The first and final layers always hold a transit count of zero.
+	for _, st := range s.active[0] {
+		if _, found := nodeLength[st.v]; found && s.forward[s.index(0, st.v, 0)] == 0 {
+			targets = append(targets, st.v)
 		}
 	}
-	for _, v := range s.active[len(s.layerStep)-1] {
-		if _, found := nodeLength[v]; found {
-			attackers = append(attackers, v)
+	for _, st := range s.active[len(s.layerStep)-1] {
+		if _, found := nodeLength[st.v]; found {
+			attackers = append(attackers, st.v)
 		}
 	}
 	if step.Direction == engine.Out {

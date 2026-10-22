@@ -50,8 +50,12 @@ type EdgeMatcher struct {
 	NoTrimEdges bool // don't trim returned edges to just the filter
 }
 type EdgeSearcher struct {
-	PathNodeRequirement          *NodeQuery // Nodes passed along the way must fulfill this filter
-	pathNodeRequirementCache     *engine.IndexedGraph
+	// Transit constrains the nodes a route passes through within this step
+	// (via, through, avoid; see TransitConstraint).
+	Transit []TransitConstraint
+	// counters and cstates are Transit resolved against the data source.
+	counters                     []transitCounter
+	cstates                      int
 	FilterEdges                  EdgeMatcher // match any of these
 	Direction                    engine.EdgeDirection
 	MinIterations, MaxIterations int // there should be between min and max iterations in the chain

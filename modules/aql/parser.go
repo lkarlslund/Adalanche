@@ -403,6 +403,22 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 		case "out", "in":
 			edgename := ts.Token().String()
 			ts.Next()
+			// An optional probability threshold: out=ResetPassword>=100 only
+			// counts edges at least that probable.
+			var probabilityComparator query.ComparatorType
+			var probability engine.Probability
+			switch ts.Token().Type {
+			case Equals, LessThan, LessThanEquals, GreaterThan, GreaterThanEquals:
+				probabilityComparator, err = GetComparator(ts)
+				if err != nil {
+					return nil, err
+				}
+				if !ts.Token().Is(Integer) {
+					return nil, fmt.Errorf("expected a probability after %v=%v, but got %v (%v)", attributename, edgename, ts.Token().Type, ts.Token().Value)
+				}
+				probability = engine.Probability(ts.Token().Native.(int64))
+				ts.Next()
+			}
 			var target query.NodeFilter
 			if ts.NextIfIs(Comma) {
 				target, err = parseLDAPFilter(ts, ao)
@@ -424,10 +440,13 @@ func parseLDAPFilterUnwrapped(ts *TokenStream, ao *engine.IndexedGraph) (query.N
 				direction = engine.In
 			}
 			return query.EdgeQuery{
-				Graph:     ao,
-				Direction: direction,
-				Edge:      edge,
-				Target:    target}, nil
+				Graph:                 ao,
+				Direction:             direction,
+				Edge:                  edge,
+				Target:                target,
+				ProbabilityComparator: probabilityComparator,
+				Probability:           probability,
+			}, nil
 		default:
 			attribute := engine.A(attributename)
 			if attribute == engine.NonExistingAttribute {
@@ -718,20 +737,25 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 			}
 
 			if ts.Token().Is(LParan) {
-				if es.PathNodeRequirement != nil {
-					return es, errors.New("only one path node requirement is supported in edge query")
-				}
-				// Node requirement filter LDAP style
+				// A bare node filter: every transit node must match it, the
+				// same as through (filter).
 				requirement, err := parseNodeFilter(ts, ao)
 				if err != nil {
 					return es, fmt.Errorf("expected node requirement in edge query, but got %v", err)
 				}
-				es.PathNodeRequirement = &requirement
+				es.Transit = append(es.Transit, TransitConstraint{Filter: requirement, Negate: true, Comparator: query.CompareEqual})
 			} else {
 				if ts.Token().Type != Identifier {
 					return EdgeSearcher{}, fmt.Errorf("expecting identifier in edge matcher, but got %v (%v)", ts.Token().Value, ts.Token().Type)
 				}
-				if strings.EqualFold(ts.Token().Value, "probability") {
+				if keyword := strings.ToLower(ts.Token().Value); keyword == "via" || keyword == "through" || keyword == "avoid" {
+					ts.Next()
+					tc, err := parseTransitConstraint(ts, ao, keyword)
+					if err != nil {
+						return es, err
+					}
+					es.Transit = append(es.Transit, tc)
+				} else if strings.EqualFold(ts.Token().Value, "probability") {
 					ts.Next()
 					comparator, err := GetComparator(ts)
 					if err != nil {
@@ -883,6 +907,64 @@ func parseEdgeQuery(ts *TokenStream, ao *engine.IndexedGraph) (EdgeSearcher, err
 	}
 
 	return es, nil
+}
+
+// parseTransitConstraint parses what follows via, through or avoid in an edge
+// query (the keyword itself is already consumed):
+//
+//	through (F)          every transit node matches F
+//	avoid (F)            no transit node matches F
+//	via N (F)            exactly N transit nodes match F
+//	via >=N (F)          also >, <=, <, =
+//	via all (F)          every transit node matches F
+//	via all but N (F)    all but at most N transit nodes match F
+func parseTransitConstraint(ts *TokenStream, ao *engine.IndexedGraph, keyword string) (TransitConstraint, error) {
+	var tc TransitConstraint
+	switch keyword {
+	case "through":
+		tc.Negate, tc.Comparator = true, query.CompareEqual
+	case "avoid":
+		tc.Comparator = query.CompareEqual
+	case "via":
+		switch {
+		case ts.Token().Type == Identifier && strings.EqualFold(ts.Token().Value, "all"):
+			ts.Next()
+			tc.Negate, tc.Comparator = true, query.CompareEqual
+			if ts.Token().Type == Identifier && strings.EqualFold(ts.Token().Value, "but") {
+				ts.Next()
+				if !ts.Token().Is(Integer) {
+					return tc, fmt.Errorf("expected a count after via all but, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+				}
+				tc.Comparator, tc.Value = query.CompareLessThanEqual, int(ts.Token().Native.(int64))
+				ts.Next()
+			}
+		case ts.Token().Is(Integer):
+			tc.Comparator, tc.Value = query.CompareEqual, int(ts.Token().Native.(int64))
+			ts.Next()
+		default:
+			comparator, err := GetComparator(ts)
+			if err != nil {
+				return tc, fmt.Errorf("expected a count, a comparator and count, or all after via, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+			}
+			if !ts.Token().Is(Integer) {
+				return tc, fmt.Errorf("expected a count after the comparator in via, but got %v (%v)", ts.Token().Type, ts.Token().Value)
+			}
+			tc.Comparator, tc.Value = comparator, int(ts.Token().Native.(int64))
+			ts.Next()
+		}
+	}
+	if tc.Value < 0 {
+		return tc, fmt.Errorf("a via count can not be negative")
+	}
+	if !ts.Token().Is(LParan) {
+		return tc, fmt.Errorf("expected a node filter after %v, but got %v (%v)", keyword, ts.Token().Type, ts.Token().Value)
+	}
+	filter, err := parseNodeFilter(ts, ao)
+	if err != nil {
+		return tc, fmt.Errorf("expected a node filter after %v, but got %v", keyword, err)
+	}
+	tc.Filter = filter
+	return tc, nil
 }
 
 func GetComparator(ts *TokenStream) (query.ComparatorType, error) {

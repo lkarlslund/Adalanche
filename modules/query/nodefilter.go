@@ -121,6 +121,25 @@ const (
 	CompareGreaterThanEqual
 )
 
+// Operator is the comparator as written in a filter, such as ">=".
+func (c ComparatorType) Operator() string {
+	switch c {
+	case CompareDifferent:
+		return "!="
+	case CompareEqual:
+		return "="
+	case CompareLessThan:
+		return "<"
+	case CompareLessThanEqual:
+		return "<="
+	case CompareGreaterThan:
+		return ">"
+	case CompareGreaterThanEqual:
+		return ">="
+	}
+	return "?"
+}
+
 type Comparator[t cmp.Ordered] ComparatorType
 
 func (c Comparator[t]) Compare(a, b t) bool {
@@ -647,12 +666,20 @@ type EdgeQuery struct {
 	Target    NodeFilter
 	Direction engine.EdgeDirection
 	Edge      engine.Edge
+	// ProbabilityComparator and Probability, when the comparator is set,
+	// only count an edge whose probability compares true; otherwise any edge
+	// of the type counts, whatever its probability.
+	ProbabilityComparator ComparatorType
+	Probability           engine.Probability
 }
 
 func (p EdgeQuery) Evaluate(o *engine.Node) bool {
 	var result bool
 	p.Graph.Edges(o, p.Direction).Iterate(func(target *engine.Node, edge engine.EdgeBitmap) bool {
 		if (p.Edge == engine.AnyEdgeType && !edge.IsBlank()) || edge.IsSet(p.Edge) {
+			if p.ProbabilityComparator != CompareInvalid && !Comparator[engine.Probability](p.ProbabilityComparator).Compare(p.probability(o, target, edge), p.Probability) {
+				return true
+			}
 			if p.Target == nil || p.Target.Evaluate(target) {
 				result = true
 				return false // return from loop
@@ -662,7 +689,21 @@ func (p EdgeQuery) Evaluate(o *engine.Node) bool {
 	})
 	return result
 }
-func (p EdgeQuery) ToLDAPFilter() string {
+
+// probability is the probability of the matched edge from o to target, taken
+// in the edge's own direction.
+func (p EdgeQuery) probability(o, target *engine.Node, edge engine.EdgeBitmap) engine.Probability {
+	source, destination := o, target
+	if p.Direction == engine.In {
+		source, destination = target, o
+	}
+	if p.Edge == engine.AnyEdgeType {
+		return edge.MaxProbability(source, destination)
+	}
+	return p.Edge.Probability(source, destination, &edge)
+}
+
+func (p EdgeQuery) String(target string) string {
 	var result string
 	if p.Direction == engine.Out {
 		result += "out"
@@ -670,21 +711,23 @@ func (p EdgeQuery) ToLDAPFilter() string {
 		result += "in"
 	}
 	result += "=" + p.Edge.String()
-	if p.Target != nil {
-		result += "(" + p.Target.ToLDAPFilter() + ")"
+	if p.ProbabilityComparator != CompareInvalid {
+		result += p.ProbabilityComparator.Operator() + strconv.Itoa(int(p.Probability))
+	}
+	if target != "" {
+		result += "(" + target + ")"
 	}
 	return result
 }
-func (p EdgeQuery) ToWhereClause() string {
-	var result string
-	if p.Direction == engine.Out {
-		result += "out"
-	} else {
-		result += "in"
-	}
-	result += "=" + p.Edge.String()
+func (p EdgeQuery) ToLDAPFilter() string {
 	if p.Target != nil {
-		result += "(" + p.Target.ToWhereClause() + ")"
+		return p.String(p.Target.ToLDAPFilter())
 	}
-	return result
+	return p.String("")
+}
+func (p EdgeQuery) ToWhereClause() string {
+	if p.Target != nil {
+		return p.String(p.Target.ToWhereClause())
+	}
+	return p.String("")
 }

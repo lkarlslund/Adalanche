@@ -2,6 +2,7 @@ package aql
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/lkarlslund/adalanche/modules/engine"
 	"github.com/lkarlslund/adalanche/modules/graph"
@@ -23,7 +24,21 @@ const (
 	// (ACYCLIC, TRAIL, WALK) explore; path enumeration is exponential, so the
 	// search frontier, not the result, is what runs away.
 	MaxPathSearchStates = 20000000
+	// MaxReachStates caps the states REACH tracks (layers x nodes x transit
+	// count values), four bytes each. Without via counts it is layers x nodes,
+	// far below this on any real graph; each via count multiplies it.
+	MaxReachStates = 400000000
 )
+
+// reachStatesFit refuses a REACH search that would track more states than
+// MaxReachStates.
+func reachStatesFit(layers, nodes, cstates int) error {
+	if layers*nodes*cstates > MaxReachStates {
+		return fmt.Errorf("REACH would track %v states (%v layers x %v nodes x %v via count values), over the limit of %v: use fewer or smaller via counts, or a smaller {n,m}",
+			layers*nodes*cstates, layers, nodes, cstates, MaxReachStates)
+	}
+	return nil
+}
 
 // effectiveNodeLimit is the node limit to enforce: the caller's, or the hard
 // ceiling when they asked for none or for more than is safe.

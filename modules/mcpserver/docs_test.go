@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"io/fs"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -69,5 +71,42 @@ func TestDocs(t *testing.T) {
 	}
 	if !found {
 		t.Error("no aql resource")
+	}
+}
+
+type dirDocs struct{ fs.FS }
+
+func (d dirDocs) OpenDir(name string) ([]fs.DirEntry, error) { return fs.ReadDir(d.FS, name) }
+
+// The documentation the web interface embeds is what get_doc serves, query
+// language sections included.
+func TestShippedAQLDoc(t *testing.T) {
+	g, _ := testGraph(t)
+	session := connect(t, docsSource{fixedSource{g, frontend.Ready}, dirDocs{os.DirFS("../frontend/html")}})
+
+	var list listDocsOutput
+	if msg := call(t, session, "list_docs", nil, &list); msg != "" {
+		t.Fatal(msg)
+	}
+	var sections []string
+	for _, d := range list.Docs {
+		if d.Name == "aql" {
+			sections = d.Sections
+		}
+	}
+	for _, want := range []string{"Transit constraints (via, through, avoid)", "Edge subqueries (`out`, `in`)"} {
+		if !slices.Contains(sections, want) {
+			t.Errorf("aql has no section %q: %v", want, sections)
+		}
+	}
+
+	var doc getDocOutput
+	if msg := call(t, session, "get_doc", map[string]any{"name": "aql", "section": "Transit constraints (via, through, avoid)"}, &doc); msg != "" {
+		t.Fatal(msg)
+	}
+	for _, want := range []string{"via all but N (F)", "avoid (F)", "through (F)", "out=ResetPassword>=100"} {
+		if !strings.Contains(doc.Markdown, want) {
+			t.Errorf("transit section lacks %q", want)
+		}
 	}
 }

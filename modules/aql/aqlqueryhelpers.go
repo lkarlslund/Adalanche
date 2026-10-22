@@ -155,9 +155,10 @@ type searchState struct {
 	path                       int32            // last step in the pathArena
 	rank                       uint32           // canonical rank of the node, for a repeatable order
 	overAllProbabilityFraction float32
-	currentSearchIndex         byte // index into Next and sourceCache patterns
-	currentDepth               byte // depth in current edge searcher
-	currentTotalDepth          byte // total depth in all edge searchers (for total depth limiting)
+	currentSearchIndex         byte   // index into Next and sourceCache patterns
+	currentDepth               byte   // depth in current edge searcher
+	currentTotalDepth          byte   // total depth in all edge searchers (for total depth limiting)
+	transit                    uint16 // packed transit counts of the current edge searcher (see transit.go)
 }
 
 type pathItem struct {

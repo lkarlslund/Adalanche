@@ -22,6 +22,12 @@ import (
 // A transition lies on a valid route exactly when the two distances plus the
 // transition itself fit in the depth limit, because the shortest route to a
 // state can always be joined with the shortest route on from it.
+//
+// Transit constraints (via, through, avoid) add the step's packed transit
+// count to the state: passing through a node folds it into the count, and a
+// step may only land when its count is met, after which the count starts
+// again at zero. Gates (count zero) never change the count, so a query with
+// only gates has a single count state and the search is as it was without.
 
 const reachUnreached = ^uint16(0)
 
@@ -30,8 +36,15 @@ type reachEdge struct {
 	target    engine.NodeIndex
 	combo     engine.EdgeCombo // edges kept in the result
 	direction engine.EdgeDirection
-	lands     bool // target matches the next node filter
-	continues bool // target may be passed through within the step
+	lands     bool   // target matches the next node filter
+	continues bool   // no gate forbids passing through target within the step
+	mask      uint64 // which of the step's transit counters target adds to
+}
+
+// reachState is a node reached in a layer, with the step's transit count.
+type reachState struct {
+	v engine.NodeIndex
+	c uint16
 }
 
 type reachSearch struct {
@@ -40,6 +53,7 @@ type reachSearch struct {
 	adjacency *engine.RankedAdjacency
 	nodes     int
 	maxDepth  int
+	cstates   int // transit count states per node, the most any step needs
 
 	// Layers are numbered across steps: step i has one layer per depth
 	// 0..max(MaxIterations,1)-1, and a final layer holds completed routes.
@@ -47,10 +61,15 @@ type reachSearch struct {
 	layerDepth []int
 	stepLayer  []int // first layer of each step, plus the final layer
 
-	forward, backward []uint16 // per layer*nodes+node
-	active            [][]engine.NodeIndex
+	forward, backward []uint16 // per state, see index
+	active            [][]reachState
 	edges             [][][]reachEdge // per step and node, nil until needed
 	edgesDone         [][]bool
+}
+
+// index is the position of a state in forward and backward.
+func (s *reachSearch) index(layer int, v engine.NodeIndex, c int) int {
+	return (layer*s.nodes+int(v))*s.cstates + c
 }
 
 func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
@@ -69,7 +88,11 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 	}
 	s.maxDepth = min(s.maxDepth, int(reachUnreached)-1)
 	if aqlq.Routes != RoutesAll && !s.recombinable() {
-		return nil, errors.New("REACH CHEAPEST and SHORTEST need a query of one step in one direction, with no path node filter and at most one edge required")
+		return nil, errors.New("REACH CHEAPEST and SHORTEST need a query of one step in one direction, with at most one edge required and no via counts (through and avoid are fine)")
+	}
+	s.cstates = 1
+	for _, step := range aqlq.Next {
+		s.cstates = max(s.cstates, step.cstates)
 	}
 
 	for i, step := range aqlq.Next {
@@ -84,13 +107,16 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 	s.layerDepth = append(s.layerDepth, 0)
 
 	layers := len(s.layerStep)
-	s.forward = make([]uint16, layers*s.nodes)
-	s.backward = make([]uint16, layers*s.nodes)
+	if err := reachStatesFit(layers, s.nodes, s.cstates); err != nil {
+		return nil, err
+	}
+	s.forward = make([]uint16, layers*s.nodes*s.cstates)
+	s.backward = make([]uint16, layers*s.nodes*s.cstates)
 	for i := range s.forward {
 		s.forward[i] = reachUnreached
 		s.backward[i] = reachUnreached
 	}
-	s.active = make([][]engine.NodeIndex, layers)
+	s.active = make([][]reachState, layers)
 	s.edges = make([][][]reachEdge, len(aqlq.Next))
 	s.edgesDone = make([][]bool, len(aqlq.Next))
 	for i := range aqlq.Next {
@@ -101,7 +127,7 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 	pb := ui.ProgressBar("Searching routes", int64(2*layers))
 	aqlq.sourceCache[0].Iterate(func(o *engine.Node) bool {
 		if index, found := aqlq.datasource.NodeIndexOf(o); found {
-			s.reachForward(0, index, 0)
+			s.reachForward(0, index, 0, 0)
 		}
 		return true
 	})
@@ -113,8 +139,9 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 		s.forwardLayer(layer)
 		pb.Add(1)
 	}
-	for _, v := range s.active[layers-1] {
-		s.backward[(layers-1)*s.nodes+int(v)] = 0
+	// Landing in the final layer already checked the last step's counts.
+	for _, st := range s.active[layers-1] {
+		s.backward[s.index(layers-1, st.v, int(st.c))] = 0
 	}
 	for layer := layers - 2; layer >= 0; layer-- {
 		if err := opts.cancelled(); err != nil {
@@ -130,10 +157,10 @@ func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.No
 }
 
 // reachForward records that a state is reachable with depth edges.
-func (s *reachSearch) reachForward(layer int, v engine.NodeIndex, depth int) {
-	state := layer*s.nodes + int(v)
+func (s *reachSearch) reachForward(layer int, v engine.NodeIndex, c int, depth int) {
+	state := s.index(layer, v, c)
 	if s.forward[state] == reachUnreached {
-		s.active[layer] = append(s.active[layer], v)
+		s.active[layer] = append(s.active[layer], reachState{v, uint16(c)})
 	}
 	s.forward[state] = min(s.forward[state], uint16(depth))
 }
@@ -171,7 +198,8 @@ func (s *reachSearch) stepEdges(step int, v engine.NodeIndex) []reachEdge {
 				combo:     ds.EdgeBitmapToEdgeCombo(kept),
 				direction: direction,
 				lands:     landing.Contains(next),
-				continues: es.pathNodeRequirementCache == nil || es.pathNodeRequirementCache.Contains(next),
+				continues: gatePassable(es.counters, next),
+				mask:      countMask(es.counters, next),
 			}
 			if re.lands || re.continues {
 				result = append(result, re)
@@ -182,18 +210,21 @@ func (s *reachSearch) stepEdges(step int, v engine.NodeIndex) []reachEdge {
 	return result
 }
 
-// transitions calls f for each state reachable from (layer, v) in one
-// move: the layer and node it reaches, the edge taken, or nil for a step
-// that takes no edges.
-func (s *reachSearch) transitions(layer int, v engine.NodeIndex, f func(layer int, target engine.NodeIndex, edge *reachEdge)) {
+// transitions calls f for each state reachable from (layer, v, c) in one
+// move: the layer, node and transit count it reaches, and the edge taken,
+// or nil for a step that takes no edges. Passing through a node within the
+// step folds it into the count; landing needs the step's counts met and
+// starts the next step's count at zero.
+func (s *reachSearch) transitions(layer int, v engine.NodeIndex, c int, f func(layer int, target engine.NodeIndex, c int, edge *reachEdge)) {
 	step, depth := s.layerStep[layer], s.layerDepth[layer]
 	es := s.aqlq.Next[step]
 	nextStep := s.stepLayer[step+1]
+	mayLand := transitValidEnd(es.counters, c)
 
 	// A step of zero edges stays on the node, which must match the next
 	// node filter like any other landing.
-	if depth == 0 && es.MinIterations == 0 && s.aqlq.sourceCache[step+1].Contains(s.aqlq.datasource.NodeAt(v)) {
-		f(nextStep, v, nil)
+	if mayLand && depth == 0 && es.MinIterations == 0 && s.aqlq.sourceCache[step+1].Contains(s.aqlq.datasource.NodeAt(v)) {
+		f(nextStep, v, 0, nil)
 	}
 	if depth+1 > es.MaxIterations {
 		return
@@ -201,33 +232,35 @@ func (s *reachSearch) transitions(layer int, v engine.NodeIndex, f func(layer in
 	edges := s.stepEdges(step, v)
 	for i := range edges {
 		e := &edges[i]
-		if e.lands && depth+1 >= es.MinIterations {
-			f(nextStep, e.target, e)
+		if mayLand && e.lands && depth+1 >= es.MinIterations {
+			f(nextStep, e.target, 0, e)
 		}
 		if e.continues && depth+1 < es.MaxIterations {
-			f(layer+1, e.target, e)
+			if next := combineTransit(es.counters, c, e.mask); next >= 0 {
+				f(layer+1, e.target, next, e)
+			}
 		}
 	}
 }
 
 func (s *reachSearch) forwardLayer(layer int) {
-	for _, v := range s.active[layer] {
-		depth := int(s.forward[layer*s.nodes+int(v)])
-		s.transitions(layer, v, func(next int, target engine.NodeIndex, edge *reachEdge) {
+	for _, st := range s.active[layer] {
+		depth := int(s.forward[s.index(layer, st.v, int(st.c))])
+		s.transitions(layer, st.v, int(st.c), func(next int, target engine.NodeIndex, c int, edge *reachEdge) {
 			if edge == nil {
-				s.reachForward(next, target, depth)
+				s.reachForward(next, target, c, depth)
 			} else if depth+1 <= s.maxDepth {
-				s.reachForward(next, target, depth+1)
+				s.reachForward(next, target, c, depth+1)
 			}
 		})
 	}
 }
 
 func (s *reachSearch) backwardLayer(layer int) {
-	for _, v := range s.active[layer] {
+	for _, st := range s.active[layer] {
 		best := reachUnreached
-		s.transitions(layer, v, func(next int, target engine.NodeIndex, edge *reachEdge) {
-			remaining := s.backward[next*s.nodes+int(target)]
+		s.transitions(layer, st.v, int(st.c), func(next int, target engine.NodeIndex, c int, edge *reachEdge) {
+			remaining := s.backward[s.index(next, target, c)]
 			if remaining == reachUnreached {
 				return
 			}
@@ -236,14 +269,14 @@ func (s *reachSearch) backwardLayer(layer int) {
 			}
 			best = min(best, remaining)
 		})
-		s.backward[layer*s.nodes+int(v)] = best
+		s.backward[s.index(layer, st.v, int(st.c))] = best
 	}
 }
 
 // routeLength is the length of the shortest route through a state, or
 // reachUnreached when no route within the depth limit passes it.
-func (s *reachSearch) routeLength(layer int, v engine.NodeIndex) int {
-	state := layer*s.nodes + int(v)
+func (s *reachSearch) routeLength(layer int, v engine.NodeIndex, c int) int {
+	state := s.index(layer, v, c)
 	if s.backward[state] == reachUnreached {
 		return int(reachUnreached)
 	}
@@ -267,8 +300,9 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 	edges := map[reachKey]reachResultEdge{}
 
 	for layer := range s.layerStep {
-		for _, v := range s.active[layer] {
-			length := s.routeLength(layer, v)
+		for _, st := range s.active[layer] {
+			v := st.v
+			length := s.routeLength(layer, v, int(st.c))
 			if length > s.maxDepth {
 				continue
 			}
@@ -282,12 +316,12 @@ func (s *reachSearch) result() (*graph.Graph[*engine.Node, engine.EdgeBitmap], e
 			if layer == len(s.layerStep)-1 {
 				continue
 			}
-			before := int(s.forward[layer*s.nodes+int(v)])
-			s.transitions(layer, v, func(next int, target engine.NodeIndex, edge *reachEdge) {
+			before := int(s.forward[s.index(layer, v, int(st.c))])
+			s.transitions(layer, v, int(st.c), func(next int, target engine.NodeIndex, c int, edge *reachEdge) {
 				if edge == nil {
 					return
 				}
-				after := s.backward[next*s.nodes+int(target)]
+				after := s.backward[s.index(next, target, c)]
 				if after == reachUnreached || before+1+int(after) > s.maxDepth {
 					return
 				}
