@@ -8,9 +8,11 @@ const issuableWithoutApproval = "(tag=published)(!(msPKI-Enrollment-Flag:and:=2)
 
 var (
 	PredefinedQueries = []QueryDefinition{
+		// REACH CHEAPEST: one cheapest route from each account to each target,
+		// without enumerating paths, which on a large graph does not finish.
 		{
 			Name:        "High Value Targets",
-			Query:       "ACYCLIC start:(tag=hvt)<-[()]{1,6}-end:(&(dataLoader=Active Directory)(|(&(tag=account_enabled)(type=Person))(type=Group)))",
+			Query:       "REACH CHEAPEST start:(tag=hvt)<-[()]{1,6}-end:(&(dataLoader=Active Directory)(|(&(tag=account_enabled)(type=Person))(type=Group)))",
 			Description: "High value targets in the network, that will compromise the entire AD if they're reached. This is the query to rule them all.",
 			Default:     true,
 		},
