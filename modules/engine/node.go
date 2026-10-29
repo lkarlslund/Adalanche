@@ -271,6 +271,30 @@ var primaryidattrs = []Attribute{
 	ObjectSid, // Danger, Will Robinson
 }
 
+// RegisterPrimaryID adds attr to the attributes a node's key is taken from
+// (see PrimaryID and NodeKey), inserted just before `before` so it wins over
+// it. Integrations use it for a stable identity that is not a node's own DN,
+// GUID or SID — such as the domain computer SID that names a machine the same
+// way whether it came from a collection or from the directory, and across its
+// clones. Called at init; a no-op if attr is already registered.
+func RegisterPrimaryID(attr, before Attribute) {
+	for _, a := range primaryidattrs {
+		if a == attr {
+			return
+		}
+	}
+	at := len(primaryidattrs)
+	for i, a := range primaryidattrs {
+		if a == before {
+			at = i
+			break
+		}
+	}
+	primaryidattrs = append(primaryidattrs, NonExistingAttribute)
+	copy(primaryidattrs[at+1:], primaryidattrs[at:])
+	primaryidattrs[at] = attr
+}
+
 func (o *Node) PrimaryID() (Attribute, AttributeValue) {
 	for _, attr := range primaryidattrs {
 		if o.HasAttr(attr) {

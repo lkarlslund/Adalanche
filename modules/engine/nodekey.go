@@ -34,15 +34,19 @@ func ParseNodeKey(key string) (Attribute, AttributeValue, error) {
 	if attr == NonExistingAttribute {
 		return NonExistingAttribute, AttributeValue{}, fmt.Errorf("unknown attribute %q", name)
 	}
+	// Parse the value the way the attribute stores it. ObjectSid/ObjectGUID
+	// are matched by identity so this holds even before an integration has
+	// typed them; other SID or GUID attributes (such as domainJoinedSID, the
+	// machine key) are matched by their declared type.
 	var value AttributeValue = NV(text)
-	switch attr {
-	case ObjectSid:
+	switch {
+	case attr == ObjectSid || attr.AttributeType() == AttributeTypeSID:
 		sid, err := windowssecurity.ParseStringSID(text)
 		if err != nil {
 			return NonExistingAttribute, AttributeValue{}, err
 		}
 		value = NV(sid)
-	case ObjectGUID:
+	case attr == ObjectGUID || attr.AttributeType() == AttributeTypeGUID:
 		guid, err := uuid.FromString(text)
 		if err != nil {
 			return NonExistingAttribute, AttributeValue{}, err
