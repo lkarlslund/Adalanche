@@ -29,7 +29,7 @@ func (s *Server) aqlActions() []Action {
 	return []Action{
 		NewAction("run", "Run an AQL query, such as REACH start:(tag=hvt)<-[()]{1,6}-end:(type=Person), and describe the result: totals, nodes per hop from the start nodes, "+
 			"and the nodes nearest the start with the edges between them. Nodes that lead on to the start the same way are merged by default, so large results stay readable. "+
-			"REACH finds every edge on a route and is fast; ACYCLIC lists paths and can be slow.", s.runAQL),
+			"REACH finds every edge on a route between start and end, bounded and fast.", s.runAQL),
 		NewAction("validate", "Check that an AQL query parses, without running it.", s.validateAQL),
 		NewAction("saved_list", "List the built-in and saved queries.", s.listSavedQueries),
 		NewAction("saved_run", "Run a built-in or saved query by name, described as run does.", s.runSavedQuery),
@@ -66,7 +66,6 @@ type QueryOptions struct {
 	NodeLimit                 int    `json:"node_limit,omitempty" jsonschema:"stop the search at this many nodes, counting merged nodes as one (default 5000; -1 for no limit)"`
 	MaxDepth                  int    `json:"max_depth,omitempty" jsonschema:"longest route in edges (default: as the query says)"`
 	MinEdgeProbability        int    `json:"min_edge_probability,omitempty" jsonschema:"leave out edges less likely than this percentage"`
-	MinAccumulatedProbability int    `json:"min_accumulated_probability,omitempty" jsonschema:"leave out paths less likely than this percentage (not for REACH)"`
 	MaxNodes                  int    `json:"max_nodes,omitempty" jsonschema:"nodes to describe, nearest the start first (default 50, at most 500)"`
 	MaxEdges                  int    `json:"max_edges,omitempty" jsonschema:"edges between described nodes to list (default 100, at most 1000)"`
 }
@@ -154,7 +153,6 @@ func (s *Server) run(ctx context.Context, queryText string, o QueryOptions) (run
 		opts.MaxDepth = o.MaxDepth
 	}
 	opts.MinEdgeProbability = engine.Probability(o.MinEdgeProbability)
-	opts.MinAccumulatedProbability = engine.Probability(o.MinAccumulatedProbability)
 
 	result, err := resolver.Resolve(opts)
 	if err != nil {
@@ -312,9 +310,6 @@ func (s *Server) runSavedQuery(ctx context.Context, _ *mcp.CallToolRequest, in r
 	o := in.QueryOptions
 	if o.MaxDepth == 0 && q.MaxDepth > 0 {
 		o.MaxDepth = q.MaxDepth
-	}
-	if o.MinAccumulatedProbability == 0 {
-		o.MinAccumulatedProbability = int(q.MinAccumulatedProbability)
 	}
 	out, err := s.run(ctx, q.Query, o)
 	return nil, out, err

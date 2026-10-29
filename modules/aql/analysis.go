@@ -20,10 +20,6 @@ const DefaultNodeLimit = 100000
 const (
 	// HardNodeCeiling caps a query's result in nodes.
 	HardNodeCeiling = 2000000
-	// MaxPathSearchStates caps how many partial paths the enumerating modes
-	// (ACYCLIC, TRAIL, WALK) explore; path enumeration is exponential, so the
-	// search frontier, not the result, is what runs away.
-	MaxPathSearchStates = 20000000
 	// MaxReachStates caps the states REACH tracks (layers x nodes x transit
 	// count values), four bytes each. Without via counts it is layers x nodes,
 	// far below this on any real graph; each via count multiplies it.
@@ -55,7 +51,6 @@ func NewResolverOptions() ResolverOptions {
 		MaxOutgoingConnections:    -1,
 		NodeLimit:                 DefaultNodeLimit,
 		MinEdgeProbability:        0,
-		MinAccumulatedProbability: 0,
 		PruneIslands:              false,
 	}
 }
@@ -65,7 +60,6 @@ type ResolverOptions struct {
 	MaxOutgoingConnections    int                `json:"max_outgoing_connections,omitempty"`
 	NodeLimit                 int                `json:"nodelimit,omitempty"`
 	MinEdgeProbability        engine.Probability `json:"min_edge_probability,omitempty"`
-	MinAccumulatedProbability engine.Probability `json:"min_accumulated_probability,omitempty"`
 	PruneIslands              bool               `json:"prune_islands,omitempty"`
 	// MergeNodes draws nodes as one as the mode says (see MergeMode), and
 	// counts nodes as drawn against the node limit where the query mode

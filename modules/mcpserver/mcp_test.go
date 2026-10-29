@@ -221,11 +221,10 @@ func TestRunAQLMergesAndCountsHops(t *testing.T) {
 		t.Errorf("first node %+v, want the target", first)
 	}
 
-	if msg := call(t, session, "aql run", map[string]any{"query": "ACYCLIC start:(tag=hvt)<-[]{1,4}-end:(name=u*)", "merge": "off", "node_limit": 3}, &out); msg != "" {
-		t.Fatal(msg)
-	}
-	if len(out.Incomplete) == 0 {
-		t.Error("a result cut by the node limit does not say so")
+	// A node limit below even the shortest routes is reported as an error,
+	// not a silently truncated result.
+	if msg := call(t, session, "aql run", map[string]any{"query": "REACH start:(tag=hvt)<-[]{1,4}-end:(name=u*)", "merge": "off", "node_limit": 3}, &out); !strings.Contains(msg, "shortest routes") {
+		t.Errorf("small node limit: msg %q, want it to mention the limit", msg)
 	}
 }
 

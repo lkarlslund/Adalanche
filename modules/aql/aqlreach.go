@@ -73,9 +73,6 @@ func (s *reachSearch) index(layer int, v engine.NodeIndex, c int) int {
 }
 
 func (aqlq AQLquery) resolveReach(opts ResolverOptions) (*graph.Graph[*engine.Node, engine.EdgeBitmap], error) {
-	if aqlq.OverAllProbability > 0 {
-		return nil, errors.New("REACH does not support an accumulated probability limit")
-	}
 	s := reachSearch{
 		aqlq:      &aqlq,
 		opts:      opts,

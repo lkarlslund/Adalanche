@@ -229,18 +229,12 @@ func TestAQLModesReuseAcrossTheResult(t *testing.T) {
 	g := func() *engine.IndexedGraph {
 		return testGraph(t, 0, "s -hop-> m", "m -hop-> e", "s -hop-> a", "a -hop-> m")
 	}
-	shortOnly := []string{"m -hop-> e flow=1", "s -hop-> m flow=1"}
-	for _, tt := range []struct {
-		mode string
-		want []string
-	}{
-		{"WALK", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
-		{"TRAIL", shortOnly},
-		{"ACYCLIC", shortOnly},
-		{"REACH", []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}},
-	} {
-		aql := tt.mode + " start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)"
-		if got, want := runQuery(t, g(), aql, NewResolverOptions()), strings.Join(tt.want, "\n"); got != want {
+	// WALK, TRAIL and ACYCLIC are deprecated aliases for REACH, so all four
+	// keywords give the same result: every edge on a route.
+	reach := []string{"a -hop-> m flow=1", "m -hop-> e flow=2", "s -hop-> a flow=1", "s -hop-> m flow=1"}
+	for _, mode := range []string{"WALK", "TRAIL", "ACYCLIC", "REACH"} {
+		aql := mode + " start:(name=s)-[AQLTestHop]{1,3}->end:(name=e)"
+		if got, want := runQuery(t, g(), aql, NewResolverOptions()), strings.Join(reach, "\n"); got != want {
 			t.Errorf("%s gives\n%s\nwant\n%s", aql, got, want)
 		}
 	}
@@ -442,9 +436,9 @@ func TestAQLReachReferences(t *testing.T) {
 
 // A result cut short by the node limit says so; a complete one says nothing.
 func TestAQLResultsReportNodeLimit(t *testing.T) {
-	// The smallest limit under each mode's complete answer; REACH needs
-	// room for its shortest routes.
-	for mode, cut := range map[string]int{"WALK": 3, "TRAIL": 3, "ACYCLIC": 3, "REACH": 4} {
+	// The smallest limit under REACH's complete answer; it needs room for
+	// its shortest routes. (WALK, TRAIL and ACYCLIC are REACH aliases.)
+	for mode, cut := range map[string]int{"REACH": 4} {
 		for _, tt := range []struct {
 			limit   int
 			limited bool
@@ -691,13 +685,8 @@ func TestAQLReachRoutes(t *testing.T) {
 	}
 
 	g := testGraph(t, 0, graph...)
-	for _, aql := range []string{
-		"ACYCLIC CHEAPEST start:(name=s*)-[AQLTestHop]{1,3}->end:(name=e*)",
-		"REACH CHEAPEST SHORTEST start:(name=s*)-[AQLTestHop]{1,3}->end:(name=e*)",
-	} {
-		if _, err := ParseAQLQuery(aql, g); err == nil {
-			t.Errorf("%s parsed", aql)
-		}
+	if _, err := ParseAQLQuery("REACH CHEAPEST SHORTEST start:(name=s*)-[AQLTestHop]{1,3}->end:(name=e*)", g); err == nil {
+		t.Error("REACH CHEAPEST SHORTEST parsed")
 	}
 	resolver, err := ParseAQLQuery("REACH CHEAPEST start:(name=s*)-[AQLTestHop]->mid:()-[AQLTestHop]->end:(name=e*)", g)
 	if err != nil {

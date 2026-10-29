@@ -14,18 +14,16 @@ query = %searchtype% %label:%(nodefilter)-[edgefilter]%{n,m}%->%label:%(nodefilt
 
 ## Graph search types (searchtype)
 
-A query with no search-type keyword uses **REACH** (and, when the query is a single step in one direction, **REACH CHEAPEST** — one route per start/end pair). REACH finds every edge on a route at once, without enumerating paths, so it is polynomial and bounded in memory: it is the right choice for "how can A reach B".
+**REACH** is the only search type. It finds every edge on a route from a start node to an end node at once, without enumerating individual paths, so it is polynomial and bounded in memory: it is the right choice for "how can A reach B". A query with no search-type keyword uses REACH (and, when the query is a single step in one direction, **REACH CHEAPEST** — one route per start/end pair).
 
-WALK, TRAIL and ACYCLIC instead enumerate individual paths and traverse shortest-path-first. Path enumeration grows exponentially with depth and fan-out, so a broad query such as `ACYCLIC start:(type=Machine)-[]{1,10}->end:(...)` can exhaust memory. Use them only with tight node filters and a small depth, and ask for them by name; otherwise prefer REACH.
+The earlier path-enumerating search types `WALK`, `TRAIL` and `ACYCLIC` have been retired: path enumeration grows exponentially with depth and fan-out and could exhaust memory. The keywords are still accepted as deprecated aliases for REACH, so older queries keep working.
 
-A route acts as the nearest account before each step: entering a user or computer makes it the one acting, and groups and other objects keep the account before them. WALK, TRAIL and ACYCLIC leave out a path when an ACL deny refuses one of its steps every edge type to the account acting there; an edge from a group can be refused to members who are also in a denied group. A path starting at a group stands for every member, and nothing is refused to it. Paths that change direction are not checked.
+A route acts as the nearest account before each step: entering a user or computer makes it the one acting, and groups and other objects keep the account before them. An ACL deny that refuses a step every edge type to the account acting there takes that route out; an edge from a group can be refused to members who are also in a denied group.
 
 | Keyword | Description |
 |---------|-------------|
-| WALK | Enumerates paths with all traversals allowed, including loops (not recommended; can be very expensive). |
-| TRAIL | Enumerates paths; a path never uses an edge twice, and edges already in the result graph are not reused. Can be very expensive. |
-| ACYCLIC | Enumerates paths; a path never visits a node twice, and nodes already in the result graph are not reused. Can be very expensive on deep, broad queries. |
-| REACH | The default. Every edge that lies on at least one route from a start node to an end node within the query's rules and the depth limit. Routes may revisit nodes. The result does not depend on search order. Over the node limit, only the shortest routes that fit are kept. For a query of one step, an edge's flow is the number of routes through it, and a route an ACL deny refuses to the account using it is not counted: an edge from a group can be refused to members who are also in a denied group. Other REACH queries give every edge a flow of 1. |
+| REACH | The only search type, and the default. Every edge that lies on at least one route from a start node to an end node within the query's rules and the depth limit. Routes may revisit nodes. The result does not depend on search order. Over the node limit, only the shortest routes that fit are kept. For a query of one step, an edge's flow is the number of routes through it, and a route an ACL deny refuses to the account using it is not counted: an edge from a group can be refused to members who are also in a denied group. Other REACH queries give every edge a flow of 1. |
+| WALK, TRAIL, ACYCLIC | Deprecated aliases for REACH (the path-enumerating modes they named have been retired). |
 
 ### Which REACH routes to keep
 
@@ -148,6 +146,6 @@ For example, to see what can still reach DCsync when nodes that can reset DC01's
 start:(&(name=DCsync)(type=Callable-Service-Point))<-[avoid (out=ResetPassword>=100,(name=DC01))]{1,8}-end:(|(type=Person)(type=Group))
 ```
 
-A count is of hops through matching nodes. REACH and WALK allow a route to pass the same node twice, and then it is counted twice; ACYCLIC never revisits a node, so there each matching node counts once. With several steps, each step has its own constraints and its own count.
+A count is of hops through matching nodes. REACH allows a route to pass the same node twice, and then it is counted twice. With several steps, each step has its own constraints and its own count.
 
 Search cost: `avoid`, `through`, `via 0` and `via all` only decide which nodes a route may pass through, so they cost nothing extra and work with every search type, including REACH CHEAPEST and SHORTEST. A real count (`via 1`, `via >=2`, `via all but 1` and so on) depends on the whole route: REACH tracks it alongside each node, which multiplies its work by the number of count values it can tell apart (two for `via >=1`, three for `via <=2`, and so on, multiplied together for several counts in one step). A query whose counts would make REACH track too much is refused with an error rather than run. REACH CHEAPEST and SHORTEST cannot keep counts, so a query with one uses plain REACH by default, and asking for CHEAPEST or SHORTEST with one is an error.

@@ -79,17 +79,11 @@ func parseAQLquery(ts *TokenStream, ao *engine.IndexedGraph) (AQLresolver, error
 		case "UNLIKELY":
 			result.Traversal = UnlikelyLongest
 
-		case "WALK":
-			result.Mode = Walk // No deduplication, allow cycles
-			modeExplicit = true
-		case "TRAIL":
-			result.Mode = Trail // Allow cycles, but no edge may be visited twice
-			modeExplicit = true
-		case "ACYCLIC":
-			result.Mode = Acyclic // Allow cycles, but no node may be visited twice
-			modeExplicit = true
-		case "REACH":
-			result.Mode = Reach // Every edge on any route, without enumerating paths
+		// WALK, TRAIL and ACYCLIC were path-enumerating modes, retired because
+		// they could exhaust memory. They are accepted as deprecated aliases
+		// for REACH, which answers the same reachability bounded.
+		case "WALK", "TRAIL", "ACYCLIC", "REACH":
+			result.Mode = Reach
 			modeExplicit = true
 		default:
 			return nil, fmt.Errorf("unknown query mode: %v", ts.Token().Value)

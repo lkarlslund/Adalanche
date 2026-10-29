@@ -209,16 +209,13 @@ func TestTransitCountIsPerRoute(t *testing.T) {
 }
 
 // Counts are of hops through matching nodes. REACH lets a route revisit a
-// node, so a loop through a group counts it again; ACYCLIC never revisits.
+// node, so a loop through a group counts it again.
 func TestTransitCountsHops(t *testing.T) {
 	tg := newTransitGraph([]string{"S>g>h>E", "h>g"}, map[string][]string{"g": {"group"}})
 	q := "start:(name=S)-[via 2 (tag=group)]{1,6}->end:(name=E)"
 	nodes, edges := tg.resolve(t, "REACH "+q)
 	if !slices.Equal(nodes, names("E,S,g,h")) || !slices.Contains(edges, "h>g") {
 		t.Errorf("REACH: %v %v, want the loop through g twice", nodes, edges)
-	}
-	if nodes, _ := tg.resolve(t, "ACYCLIC "+q); len(nodes) != 0 {
-		t.Errorf("ACYCLIC: %v, want no route (g can only be passed once)", nodes)
 	}
 	nodes, _ = tg.resolve(t, "REACH start:(name=S)-[via 1 (tag=group)]{1,6}->end:(name=E)")
 	if !slices.Equal(nodes, names("E,S,g,h")) {

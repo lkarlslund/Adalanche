@@ -15,7 +15,6 @@ type QueryDefinition struct {
 	MaxDepth                  int                `json:"max_depth,omitempty"`
 	MaxOutgoingConnections    int                `json:"max_outgoing_connections,omitempty"`
 	Default                   bool               `json:"default,omitempty"`
-	MinAccumulatedProbability engine.Probability `json:"min_accumulated_probability,omitempty"`
 
 	UserDefined bool `json:"user_defined,omitempty"`
 }
