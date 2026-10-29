@@ -168,7 +168,7 @@ func (s *Server) nodeActions() []Action {
 	return []Action{
 		NewAction("find", "Find nodes matching an LDAP style filter, such as (&(type=Person)(name=adm*)) or (tag=hvt). Returns node ids for the other actions and tools.", s.findNodes),
 		NewAction("details", "Show one node with its attributes. Secrets are masked.", s.getNodeDetails),
-		NewAction("neighbors", "List the edges of a node: outgoing (what it can do to others), incoming (who can do something to it) or both, with edge types and probabilities; with causes, also why each edge exists.", s.getNeighbors),
+		NewAction("neighbors", "List the edges of a node: outgoing (what it can do to others), incoming (who can do something to it) or both, with edge types and per-type probabilities; with causes, also why each edge exists. Each edge's probability is the highest of its types; a 0 means only informative types (judge those with edge_type_probabilities or routes explain, not the single number).", s.getNeighbors),
 		s.aclAction(),
 	}
 }
@@ -271,11 +271,11 @@ type neighborsInput struct {
 
 // NeighborEdge is one edge between a node and a neighbor.
 type NeighborEdge struct {
-	Direction   string           `json:"direction"` // out: node to neighbor, in: neighbor to node
-	Neighbor    NodeBrief        `json:"neighbor"`
-	EdgeTypes   []string         `json:"edge_types"`
-	Probability int              `json:"probability"`
-	Types       []EdgeTypeDetail `json:"types,omitempty" jsonschema:"each edge type with why it exists, when causes is asked for"`
+	Direction         string           `json:"direction"` // out: node to neighbor, in: neighbor to node
+	Neighbor          NodeBrief        `json:"neighbor"`
+	Probability       int              `json:"probability" jsonschema:"the highest probability of any of this edge's types (the best capability it grants); 0 means every type is informative, worth something only in combination, such as the raw replication rights that together enable DCsync, so do not read 0 as no capability"`
+	TypeProbabilities map[string]int   `json:"edge_type_probabilities" jsonschema:"this edge's types, each with its own probability; a broad grant such as GenericAll is 100 while the catch-all and raw-right types it decomposes into are 0"`
+	Types             []EdgeTypeDetail `json:"types,omitempty" jsonschema:"each edge type with why it exists, when causes is asked for"`
 
 	from, to *engine.Node
 	edges    engine.EdgeBitmap
@@ -341,7 +341,7 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 			if direction == engine.In {
 				from, to, name = other, node, "in"
 			}
-			all = append(all, NeighborEdge{Direction: name, Neighbor: s.Brief(other), EdgeTypes: eb.StringSlice(), Probability: int(eb.MaxProbability(from, to)), from: from, to: to, edges: eb})
+			all = append(all, NeighborEdge{Direction: name, Neighbor: s.Brief(other), Probability: int(eb.MaxProbability(from, to)), from: from, to: to, edges: eb})
 			out.ByType[other.Type().Lookup()]++
 			return !cancelled(ctx, len(all))
 		})
@@ -358,10 +358,17 @@ func (s *Server) getNeighbors(ctx context.Context, _ *mcp.CallToolRequest, in ne
 	end := min(skip+clampLimit(in.Limit, defaultLimit, maxLimit), len(all))
 	out.Edges = all[skip:end]
 	out.Truncated = end < len(all)
-	if in.Causes {
-		// Only for the edges returned, so a large neighborhood costs nothing.
-		for i := range out.Edges {
-			e := &out.Edges[i]
+	// Per-type probabilities, for the returned edges only, so a large
+	// neighborhood costs nothing. These show the truth the single
+	// probability collapses: a 0 edge may still carry a 100 type elsewhere,
+	// or be an informative type that only matters combined.
+	for i := range out.Edges {
+		e := &out.Edges[i]
+		e.TypeProbabilities = map[string]int{}
+		for _, edge := range e.edges.Edges() {
+			e.TypeProbabilities[edge.String()] = int(edge.Probability(e.from, e.to, &e.edges))
+		}
+		if in.Causes {
 			e.Types = s.edgeTypes(g, e.from, e.to, e.edges, engine.EdgeBitmap{}, engine.EdgeBitmap{})
 		}
 	}

@@ -315,3 +315,37 @@ func TestNeighborCauses(t *testing.T) {
 		t.Errorf("no cause for the group's edge: %+v", out.Edges)
 	}
 }
+
+// neighbors reports the highest probability across an edge's types (not the
+// lowest), and exposes each type's own probability so an all-informative
+// bundle (probability 0) is not mistaken for no capability.
+func TestNeighborsPerTypeProbabilities(t *testing.T) {
+	broad := engine.NewEdge("MCPTestBroad") // default probability 100
+	raw := engine.NewEdge("MCPTestRaw").RegisterProbabilityCalculator(
+		func(_, _ *engine.Node, _ *engine.EdgeBitmap) engine.Probability { return 0 })
+
+	g := engine.NewIndexedGraph()
+	a := engine.NewNode(engine.Name, "a")
+	b := engine.NewNode(engine.Name, "b") // broad + raw together
+	c := engine.NewNode(engine.Name, "c") // raw only
+	enginetest.Add(g, a, b, c)
+	enginetest.Edge(g, a, b, broad)
+	enginetest.Edge(g, a, b, raw)
+	enginetest.Edge(g, a, c, raw)
+
+	session := connect(t, fixedSource{g, frontend.Ready})
+	var out neighborsOutput
+	if msg := call(t, session, "nodes neighbors", map[string]any{"id": idOf(t, session, a), "direction": "out"}, &out); msg != "" {
+		t.Fatal(msg)
+	}
+	byLabel := map[string]NeighborEdge{}
+	for _, e := range out.Edges {
+		byLabel[e.Neighbor.Label] = e
+	}
+	if e := byLabel["b"]; e.Probability != 100 || e.TypeProbabilities["MCPTestBroad"] != 100 || e.TypeProbabilities["MCPTestRaw"] != 0 {
+		t.Errorf("mixed bundle: probability %d, per-type %v; want 100 and broad=100 raw=0", e.Probability, e.TypeProbabilities)
+	}
+	if e := byLabel["c"]; e.Probability != 0 || e.TypeProbabilities["MCPTestRaw"] != 0 {
+		t.Errorf("informative-only bundle: probability %d, per-type %v; want 0 with the type listed", e.Probability, e.TypeProbabilities)
+	}
+}
